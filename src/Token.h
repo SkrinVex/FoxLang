@@ -3,15 +3,19 @@
 
 enum class TokenType {
     NUMBER, STRING_LITERAL, 
-    PLUS, MINUS, STAR, SLASH, 
-    LPAREN, RPAREN, LBRACE, RBRACE, 
-    SEMICOLON, COMMA, ASSIGN, // =, , ;
+    PLUS, MINUS, STAR, SLASH, MOD, // Добавил MOD (%)
+    LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, // []
+    SEMICOLON, COMMA, ASSIGN, 
+    EQ, NEQ, LT, GT, // ==, !=, <, >
     
     // Ключевые слова
     PRINT, INPUT, ROUND, RANDOM, FOX,
-    INT_KW, STRING_KW, VOID_KW, // int, string, void
+    INT_KW, STRING_KW, VOID_KW, 
+    WHILE, IF, ELSE,
+    ARRAY, SET, GET, SIZE, // Массивы
+    INCLUDE, // Библиотеки
     
-    IDENTIFIER, // Имена переменных и функций
+    IDENTIFIER, 
     END, ERROR
 };
 

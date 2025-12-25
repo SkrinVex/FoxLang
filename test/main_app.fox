@@ -1,0 +1,102 @@
+// 1. Подключаем нашу библиотеку
+include("lib_utils.fox");
+
+// Используем функцию из библиотеки
+printHeader();
+
+// ==========================================
+// ЧАСТЬ 1: Работа с вводом и условиями
+// ==========================================
+print("");
+print("--- Step 1: User Interaction ---");
+print("Enter your name:");
+string name = input();
+
+if (name == "Fox") {
+    print("Hello, Creator!");
+} else {
+    print("Welcome, user " + name);
+}
+
+// ==========================================
+// ЧАСТЬ 2: Математика и Библиотечные функции
+// ==========================================
+print("");
+print("--- Step 2: Math & Logic ---");
+print("Enter a small number to calculate Factorial:");
+string inputNum = input();
+int num = inputNum; // Автоматическое преобразование типов (строка -> число)
+
+// Передаем аргумент через глобальную переменную библиотеки
+arg_val = num;
+factorial(); // Вызываем функцию из lib_utils.fox
+
+print("Factorial of " + num + " is: " + return_val);
+
+// Проверяем на четность
+checkParity();
+
+// ==========================================
+// ЧАСТЬ 3: Массивы и Сортировка (Bubble Sort)
+// ==========================================
+print("");
+print("--- Step 3: Array Sorting (Bubble Sort) ---");
+
+// Объявляем массив на 5 элементов
+int arrSize = 5;
+array myNumbers arrSize;
+
+// Заполняем массив случайными числами
+int i = 0;
+while (i < arrSize) {
+    int rnd = random();
+    set(myNumbers, i, rnd);
+    i = i + 1;
+}
+
+// Выводим исходный массив
+print("Original Array:");
+int k = 0;
+while (k < arrSize) {
+    print("Index " + k + ": " + get(myNumbers, k));
+    k = k + 1;
+}
+
+print("Sorting now... please wait...");
+
+// Реализация сортировки пузырьком
+int n = arrSize;
+int pass = 0;
+
+// Внешний цикл
+while (pass < n) {
+    int j = 0;
+    // Внутренний цикл (n - 1)
+    while (j < n - 1) {
+        // Получаем два соседних элемента
+        int val1 = get(myNumbers, j);
+        int val2 = get(myNumbers, j + 1);
+        
+        // Если левый больше правого - меняем местами
+        if (val1 > val2) {
+            set(myNumbers, j, val2);
+            set(myNumbers, j + 1, val1);
+        }
+        j = j + 1;
+    }
+    pass = pass + 1;
+}
+
+// Выводим отсортированный массив
+print("Sorted Array (Result):");
+k = 0;
+while (k < arrSize) {
+    print("Index " + k + ": " + get(myNumbers, k));
+    k = k + 1;
+}
+
+// ==========================================
+// ФИНАЛ
+// ==========================================
+print("");
+print("Test Complete. FoxLang is working perfectly!");

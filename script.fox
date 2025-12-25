@@ -24,4 +24,6 @@ void mainLogic() {
     showStats();
 }
 
-mainLogic();
+void init() {
+    print("Initializing libs...");
+}

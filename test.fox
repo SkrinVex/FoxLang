@@ -1,6 +1,30 @@
 {
+    include("script.fox");
+    // Глоб. Переменные
+    string Player = "Artem";
+    int hpplayer = 100;
+    int level = 1;
+    int usr_input = 0;
 
-    print("Добро пожаловать в FoxLang");
-    print(input() + input());
+    void Hello() {
+        print("Привет, " + Player + "!");
+        print("Тебе предстоит пройти это подземелье");   
+    }
+    Hello();
 
+    void ShowStats() {
+        print("-----------Статистика-----------");
+        print("Имя игрока: " + Player);
+        print("Здоровье: " + hpplayer);
+        print("Уровень: " + level);
+    }
+    ShowStats();
+
+    usr_input = input();
+
+    if (usr_input == 1) {
+        init();
+    } else {
+        print("Не найдено действие для этого ввода.");
+    }
 }

@@ -1,0 +1,38 @@
+print(">>> Library 'lib_utils.fox' loaded successfully!");
+
+// Глобальные переменные для передачи "аргументов" в функции
+// (так как в v4.0 аргументы передаются через глобальную память)
+int arg_val = 0; 
+int return_val = 0;
+
+// --- Функция 1: Вычисление факториала ---
+void factorial() {
+    int counter = 1;
+    int result = 1;
+    
+    // Цикл while
+    while (counter < arg_val + 1) {
+        result = result * counter;
+        counter = counter + 1;
+    }
+    return_val = result;
+}
+
+// --- Функция 2: Красивый заголовок ---
+void printHeader() {
+    print("===================================");
+    print("      FOX LANG v4.0 DEMO SYSTEM    ");
+    print("===================================");
+    fox(); // Вызов встроенной лисы
+}
+
+// --- Функция 3: Проверка четности ---
+void checkParity() {
+    // Используем оператор остатка %
+    int rem = arg_val % 2;
+    if (rem == 0) {
+        print("Number " + arg_val + " is EVEN (Chetnoe).");
+    } else {
+        print("Number " + arg_val + " is ODD (Nechetnoe).");
+    }
+}
