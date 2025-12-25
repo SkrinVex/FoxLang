@@ -1,14 +1,27 @@
-{
-    print("=== Welcome to FoxLang ===");
+int coins = 100;
+string playerName = "Alex";
 
-    print("Math test:");
-    print(20 + 30 * 2);
-
-    print("Type something:");
-    print(input());
-
-    {
-        print("I am inside a block!");
-    }
-
+// Коментприй
+void showStats() {
+    print("--- Stats ---");
+    print("Player: " + playerName);
+    print("Coins: " + coins);
 }
+
+void mainLogic() {
+    print("Welcome to Fox Game!");
+    showStats();
+
+    print("You found a chest! Adding 50 coins.");
+    coins = coins + 50;
+    
+    showStats();
+    
+    print("Enter new name:");
+    playerName = input();
+    
+    print("Updated profile:");
+    showStats();
+}
+
+mainLogic();

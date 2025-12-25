@@ -2,13 +2,16 @@
 #include <string>
 
 enum class TokenType {
-    NUMBER, STRING,
-    PLUS, MINUS, STAR, SLASH,
-    LPAREN, RPAREN,
-    LBRACE, RBRACE, SEMICOLON,
-    PRINT, INPUT,
-    ROUND, FOX, RANDOM, // Новые команды
-    IDENTIFIER, // Для неизвестных слов
+    NUMBER, STRING_LITERAL, 
+    PLUS, MINUS, STAR, SLASH, 
+    LPAREN, RPAREN, LBRACE, RBRACE, 
+    SEMICOLON, COMMA, ASSIGN, // =, , ;
+    
+    // Ключевые слова
+    PRINT, INPUT, ROUND, RANDOM, FOX,
+    INT_KW, STRING_KW, VOID_KW, // int, string, void
+    
+    IDENTIFIER, // Имена переменных и функций
     END, ERROR
 };
 

@@ -7,15 +7,18 @@
 class Parser {
     std::vector<Token> tokens;
     size_t pos = 0;
+    Context globalContext; 
 
     Token consume(TokenType type);
     std::unique_ptr<Node> primary();
     std::unique_ptr<Node> multiplication();
     std::unique_ptr<Node> expression();
-    void statement(); // Обработка отдельной команды с точкой с запятой
-    void block();     // Обработка блока { ... }
+    
+    std::unique_ptr<Node> statement();
+    // ИЗМЕНЕНИЕ: теперь возвращает unique_ptr
+    std::unique_ptr<BlockNode> parseBlock(); 
 
 public:
     Parser(std::vector<Token> t);
-    void run();
+    void run(); 
 };
