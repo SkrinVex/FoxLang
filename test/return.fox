@@ -1,0 +1,24 @@
+// Функция, которая проверяет число и возвращает код ошибки
+int checkNumber(int n) {
+    if (n < 0) {
+        return 1; // Код ошибки 1: число отрицательное
+    }
+    if (n > 100) {
+        return 2; // Код ошибки 2: число слишком большое
+    }
+    return 0; // 0 - всё хорошо
+}
+
+// Переменная для теста
+int val = -5;
+
+// присваиваем результат функции в переменную!
+int errorCode = checkNumber(val);
+
+// Проверяем, что записалось
+if (errorCode == 0) {
+    print("Success!");
+} else {
+    print("Error happened. Code:");
+    print(errorCode); // Выведет 1
+}

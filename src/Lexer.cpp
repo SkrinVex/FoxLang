@@ -9,22 +9,17 @@ std::vector<Token> Lexer::tokenize() {
     while (pos < source.length()) {
         char current = source[pos];
         
-        // 1. Пропуск пробелов
         if (isspace(current)) {
             if (current == '\n') line++;
             pos++;
             continue;
         }
 
-        // 2. ОБРАБОТКА КОММЕНТАРИЕВ
         if (current == '/' && pos + 1 < source.length() && source[pos + 1] == '/') {
-            while (pos < source.length() && source[pos] != '\n') {
-                pos++; 
-            }
+            while (pos < source.length() && source[pos] != '\n') pos++;
             continue; 
         }
 
-        // 3. Числа
         if (isdigit(current)) {
             std::string num;
             while (pos < source.length() && isdigit(source[pos])) num += source[pos++];
@@ -34,18 +29,14 @@ std::vector<Token> Lexer::tokenize() {
             }
             tokens.push_back({TokenType::NUMBER, num, line});
         } 
-        // 4. Строки
         else if (current == '"') {
             pos++; std::string str;
             while (pos < source.length() && source[pos] != '"') str += source[pos++];
             pos++; 
             tokens.push_back({TokenType::STRING_LITERAL, str, line});
         } 
-        // 5. Идентификаторы и Ключевые слова
-        // ИСПРАВЛЕНИЕ ТУТ: Добавлена проверка || current == '_'
         else if (isalpha(current) || current == '_') {
             std::string id;
-            // И ТУТ: Добавлена проверка || source[pos] == '_'
             while (pos < source.length() && (isalnum(source[pos]) || source[pos] == '_')) {
                 id += source[pos++];
             }
@@ -58,7 +49,6 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "int") tokens.push_back({TokenType::INT_KW, id, line});
             else if (id == "string") tokens.push_back({TokenType::STRING_KW, id, line});
             else if (id == "void") tokens.push_back({TokenType::VOID_KW, id, line});
-            // Ключевые слова v4.0
             else if (id == "while") tokens.push_back({TokenType::WHILE, id, line});
             else if (id == "if") tokens.push_back({TokenType::IF, id, line});
             else if (id == "else") tokens.push_back({TokenType::ELSE, id, line});
@@ -67,9 +57,10 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "get") tokens.push_back({TokenType::GET, id, line});
             else if (id == "size") tokens.push_back({TokenType::SIZE, id, line});
             else if (id == "include") tokens.push_back({TokenType::INCLUDE, id, line});
+            else if (id == "return") tokens.push_back({TokenType::RETURN, id, line});
+            else if (id == "global") tokens.push_back({TokenType::GLOBAL, id, line});
             else tokens.push_back({TokenType::IDENTIFIER, id, line});
         } 
-        // 6. Операторы
         else {
             if (current == '=' && pos+1 < source.length() && source[pos+1] == '=') {
                 tokens.push_back({TokenType::EQ, "==", line}); pos+=2; continue;

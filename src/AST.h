@@ -12,16 +12,68 @@
 // Forward declaration
 struct Node;
 
-// --- ПАМЯТЬ ---
+struct FuncParam {
+    std::string type;
+    std::string name;
+};
+
+// Контекст памяти (переменные и функции)
 struct Context {
+    Context* parent = nullptr; // Для глобальных переменных
     std::map<std::string, std::string> variables;
-    std::map<std::string, std::shared_ptr<Node>> functions;
-    // МАССИВЫ: Имя -> Вектор значений
+    std::map<std::string, std::shared_ptr<Node>> functions; // Храним функции
     std::map<std::string, std::vector<std::string>> arrays;
 
     bool exists(const std::string& name) {
-        return variables.count(name) || arrays.count(name);
+        if (variables.count(name) || arrays.count(name)) return true;
+        if (parent) return parent->exists(name);
+        return false;
     }
+
+    std::string getVar(const std::string& name) {
+        if (variables.count(name)) return variables[name];
+        if (parent) return parent->getVar(name);
+        std::cerr << "Runtime Error: Variable '" << name << "' not found." << std::endl; exit(1);
+    }
+    
+    std::vector<std::string>& getArray(const std::string& name) {
+        if (arrays.count(name)) return arrays[name];
+        if (parent) return parent->getArray(name);
+        std::cerr << "Runtime Error: Array '" << name << "' not found." << std::endl; exit(1);
+    }
+
+    void setVar(const std::string& name, const std::string& val) {
+        if (variables.count(name)) { variables[name] = val; return; }
+        if (parent) { parent->setVar(name, val); return; }
+        std::cerr << "Runtime Error: Variable '" << name << "' not defined." << std::endl; exit(1);
+    }
+
+    void defineVar(const std::string& name, const std::string& val) {
+        if (variables.count(name)) {
+            std::cerr << "Runtime Error: Variable '" << name << "' already defined." << std::endl; exit(1);
+        }
+        variables[name] = val;
+    }
+
+    void defineGlobal(const std::string& name, const std::string& val) {
+        if (parent) parent->defineGlobal(name, val);
+        else defineVar(name, val);
+    }
+    
+    std::shared_ptr<Node> getFunc(const std::string& name) {
+        if (functions.count(name)) return functions[name];
+        if (parent) return parent->getFunc(name);
+        return nullptr;
+    }
+    
+    void defineFunc(const std::string& name, std::shared_ptr<Node> body) {
+        functions[name] = body;
+    }
+};
+
+// Специальный тип для RETURN
+struct ReturnValue {
+    std::string value;
 };
 
 static std::string formatNumber(double val) {
@@ -36,7 +88,77 @@ struct Node {
     virtual std::string eval(Context& ctx) = 0;
 };
 
-// --- БАЗОВЫЕ НОДЫ (Без изменений) ---
+// --- ОСНОВНЫЕ УЗЛЫ ---
+
+// Определение функции
+struct FuncDefNode : Node {
+    std::string returnType;
+    std::string name;
+    std::vector<FuncParam> params;
+    std::shared_ptr<Node> body;
+
+    FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b) 
+        : returnType(rt), name(n), params(p), body(b) {}
+
+    // Eval ничего не делает, функция регистрируется Парсером
+    std::string eval(Context& ctx) override { return ""; }
+};
+
+// RETURN - выбрасывает исключение с значением
+struct ReturnNode : Node {
+    std::unique_ptr<Node> expr;
+    ReturnNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
+    std::string eval(Context& ctx) override {
+        std::string result = expr ? expr->eval(ctx) : "0";
+        throw ReturnValue{result}; 
+    }
+};
+
+// ВЫЗОВ ФУНКЦИИ - самое важное для тебя!
+struct FuncCallNode : Node {
+    std::string name;
+    std::vector<std::unique_ptr<Node>> args;
+
+    FuncCallNode(std::string n, std::vector<std::unique_ptr<Node>> a) 
+        : name(n), args(std::move(a)) {}
+
+    std::string eval(Context& ctx) override {
+        auto funcNodeBase = ctx.getFunc(name);
+        if (!funcNodeBase) {
+            std::cerr << "Runtime Error: Function '" << name << "' not found." << std::endl; exit(1);
+        }
+        
+        FuncDefNode* funcDef = static_cast<FuncDefNode*>(funcNodeBase.get());
+        
+        if (args.size() != funcDef->params.size()) {
+            std::cerr << "Args count mismatch for '" << name << "'" << std::endl; exit(1);
+        }
+
+        std::vector<std::string> argValues;
+        for (auto& arg : args) argValues.push_back(arg->eval(ctx));
+
+        // Находим глобальный контекст
+        Context* root = &ctx;
+        while (root->parent != nullptr) root = root->parent;
+        
+        // Создаем локальную область видимости
+        Context funcScope;
+        funcScope.parent = root; 
+
+        for (size_t i = 0; i < funcDef->params.size(); i++) {
+            funcScope.defineVar(funcDef->params[i].name, argValues[i]);
+        }
+
+        try {
+            funcDef->body->eval(funcScope);
+        } catch (const ReturnValue& ret) {
+            return ret.value; // ВОЗВРАЩАЕМ ЗНАЧЕНИЕ В ПЕРЕМЕННУЮ
+        }
+
+        return "0";
+    }
+};
+
 struct NumberNode : Node {
     std::string val;
     NumberNode(std::string v) : val(v) {}
@@ -50,185 +172,35 @@ struct StringNode : Node {
 struct VarAccessNode : Node {
     std::string name;
     VarAccessNode(std::string n) : name(n) {}
-    std::string eval(Context& ctx) override {
-        if (ctx.variables.find(name) == ctx.variables.end()) {
-             // Проверка, может это массив?
-             if(ctx.arrays.count(name)) return "ARRAY:" + name;
-             std::cerr << "Runtime Error: Var '" << name << "' not found." << std::endl; exit(1);
-        }
-        return ctx.variables[name];
-    }
+    std::string eval(Context& ctx) override { return ctx.getVar(name); }
 };
-
-// --- ЛОГИКА И УПРАВЛЕНИЕ ---
-
-// Сравнение: ==, !=, <, >
-// Сравнение: ==, !=, <, >
-struct CompareNode : Node {
-    std::string op;
-    std::unique_ptr<Node> left, right;
-    CompareNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r) 
-        : op(o), left(std::move(l)), right(std::move(r)) {}
-    
+struct GlobalVarDeclNode : Node {
+    std::string type, name; std::unique_ptr<Node> expr;
+    GlobalVarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e) : type(t), name(n), expr(std::move(e)) {}
     std::string eval(Context& ctx) override {
-        std::string lStr = left->eval(ctx);
-        std::string rStr = right->eval(ctx);
-
-        // Проверяем, являются ли значения числами
-        bool lIsNum = (lStr.find_first_not_of("0123456789.-") == std::string::npos);
-        bool rIsNum = (rStr.find_first_not_of("0123456789.-") == std::string::npos);
-
-        // Если хотя бы одно значение - текст, сравниваем как СТРОКИ
-        if (!lIsNum || !rIsNum) {
-            if (op == "==") return (lStr == rStr) ? "1" : "0";
-            if (op == "!=") return (lStr != rStr) ? "1" : "0";
-            // Для строк операции > и < работают лексикографически (по алфавиту)
-            if (op == "<") return (lStr < rStr) ? "1" : "0";
-            if (op == ">") return (lStr > rStr) ? "1" : "0";
-            return "0";
-        }
-
-        // Если оба числа - переводим в double и сравниваем математически
-        double l = std::stod(lStr);
-        double r = std::stod(rStr);
-
-        if (op == "==") return (std::abs(l - r) < 0.00001) ? "1" : "0";
-        if (op == "!=") return (std::abs(l - r) > 0.00001) ? "1" : "0";
-        if (op == "<") return (l < r) ? "1" : "0";
-        if (op == ">") return (l > r) ? "1" : "0";
-        return "0";
-    }
-};
-
-// IF / ELSE
-struct IfNode : Node {
-    std::unique_ptr<Node> condition;
-    std::unique_ptr<Node> thenBlock;
-    std::unique_ptr<Node> elseBlock; // Может быть nullptr
-
-    IfNode(std::unique_ptr<Node> c, std::unique_ptr<Node> t, std::unique_ptr<Node> e)
-        : condition(std::move(c)), thenBlock(std::move(t)), elseBlock(std::move(e)) {}
-    
-    std::string eval(Context& ctx) override {
-        std::string res = condition->eval(ctx);
-        if (res == "1") { // Истина
-            thenBlock->eval(ctx);
-        } else if (elseBlock) {
-            elseBlock->eval(ctx);
-        }
+        Context* root = &ctx;
+        while (root->parent != nullptr) root = root->parent;
+        root->defineVar(name, expr->eval(ctx)); 
         return "";
     }
 };
-
-// WHILE
-struct WhileNode : Node {
-    std::unique_ptr<Node> condition;
-    std::unique_ptr<Node> body;
-    WhileNode(std::unique_ptr<Node> c, std::unique_ptr<Node> b)
-        : condition(std::move(c)), body(std::move(b)) {}
-    
-    std::string eval(Context& ctx) override {
-        while (true) {
-            std::string res = condition->eval(ctx);
-            if (res != "1") break; // Если не 1, выходим
-            body->eval(ctx);
-        }
-        return "";
-    }
-};
-
-// --- МАССИВЫ ---
-
-// array myArr 10;
-struct ArrayDeclNode : Node {
-    std::string name;
-    std::unique_ptr<Node> sizeExpr;
-    ArrayDeclNode(std::string n, std::unique_ptr<Node> s) : name(n), sizeExpr(std::move(s)) {}
-    std::string eval(Context& ctx) override {
-        int size = std::stoi(sizeExpr->eval(ctx));
-        ctx.arrays[name] = std::vector<std::string>(size, "0");
-        return "";
-    }
-};
-
-// set(arr, index, value);
-struct ArraySetNode : Node {
-    std::string name;
-    std::unique_ptr<Node> idx;
-    std::unique_ptr<Node> val;
-    ArraySetNode(std::string n, std::unique_ptr<Node> i, std::unique_ptr<Node> v)
-        : name(n), idx(std::move(i)), val(std::move(v)) {}
-    std::string eval(Context& ctx) override {
-        if (!ctx.arrays.count(name)) { std::cerr << "Array not found: " << name << std::endl; exit(1); }
-        int i = std::stoi(idx->eval(ctx));
-        if (i < 0 || i >= ctx.arrays[name].size()) { std::cerr << "Index out of bounds" << std::endl; exit(1); }
-        ctx.arrays[name][i] = val->eval(ctx);
-        return "";
-    }
-};
-
-// get(arr, index)
-struct ArrayGetNode : Node {
-    std::string name;
-    std::unique_ptr<Node> idx;
-    ArrayGetNode(std::string n, std::unique_ptr<Node> i) : name(n), idx(std::move(i)) {}
-    std::string eval(Context& ctx) override {
-        if (!ctx.arrays.count(name)) { std::cerr << "Array not found: " << name << std::endl; exit(1); }
-        int i = std::stoi(idx->eval(ctx));
-        if (i < 0 || i >= ctx.arrays[name].size()) { std::cerr << "Index out of bounds" << std::endl; exit(1); }
-        return ctx.arrays[name][i];
-    }
-};
-
-struct ArraySizeNode : Node {
-    std::string name;
-    ArraySizeNode(std::string n) : name(n) {}
-    std::string eval(Context& ctx) override {
-        if (!ctx.arrays.count(name)) return "0";
-        return std::to_string(ctx.arrays[name].size());
-    }
-};
-
-// --- INCLUDE ---
-// Чтобы не было круговых зависимостей, мы парсим файл прямо тут (костыль, но рабочий для .h файла)
-// В реальном проекте парсер нужно передавать или делать Include отдельным механизмом
-struct IncludeNode : Node {
-    std::string filename;
-    // Нам нужен указатель на функцию парсинга... но мы схитрим
-    // Мы просто прочитаем файл и добавим его как текст, но AST строится статически.
-    // Поэтому Include в интерпретаторах часто работает на этапе парсинга, а не выполнения.
-    // Но ты просил "библиотеки". Сделаем Runtime Include.
-    
-    // ВНИМАНИЕ: Для полноценного include здесь нужен доступ к Parser. 
-    // Я оставлю заглушку, а реализацию сделаю в Parser.cpp через рекурсию.
-    // Это просто маркер.
-    std::string eval(Context& ctx) override { return ""; } 
-};
-
-
-// Остальные ноды (VarDecl, Assign, BinOp, Functions...) остаются такими же, 
-// скопируй их из предыдущего ответа, я добавлю только ИСПРАВЛЕННЫЙ FOX.
-
 struct VarDeclNode : Node {
     std::string type, name; std::unique_ptr<Node> expr;
     VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e) : type(t), name(n), expr(std::move(e)) {}
     std::string eval(Context& ctx) override {
-        if(ctx.exists(name)) { std::cerr << "Redeclaration: " << name << std::endl; exit(1); }
-        ctx.variables[name] = expr->eval(ctx);
-        return ctx.variables[name];
+        // Здесь expr->eval(ctx) может быть FuncCallNode, который вернет результат!
+        ctx.defineVar(name, expr->eval(ctx));
+        return "";
     }
 };
-
 struct AssignNode : Node {
     std::string name; std::unique_ptr<Node> expr;
     AssignNode(std::string n, std::unique_ptr<Node> e) : name(n), expr(std::move(e)) {}
     std::string eval(Context& ctx) override {
-        if(!ctx.exists(name)) { std::cerr << "Unknown var: " << name << std::endl; exit(1); }
-        ctx.variables[name] = expr->eval(ctx);
-        return ctx.variables[name];
+        ctx.setVar(name, expr->eval(ctx));
+        return "";
     }
 };
-
 struct BinOpNode : Node {
     char op; std::unique_ptr<Node> left, right;
     BinOpNode(char o, std::unique_ptr<Node> l, std::unique_ptr<Node> r) : op(o), left(std::move(l)), right(std::move(r)) {}
@@ -245,53 +217,69 @@ struct BinOpNode : Node {
         return "0";
     }
 };
-
+struct CompareNode : Node {
+    std::string op; std::unique_ptr<Node> left, right;
+    CompareNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r) : op(o), left(std::move(l)), right(std::move(r)) {}
+    std::string eval(Context& ctx) override {
+        double l = std::stod(left->eval(ctx)); double r = std::stod(right->eval(ctx));
+        if (op == "==") return (std::abs(l - r) < 0.001) ? "1" : "0";
+        if (op == "!=") return (std::abs(l - r) > 0.001) ? "1" : "0";
+        if (op == "<") return (l < r) ? "1" : "0";
+        if (op == ">") return (l > r) ? "1" : "0";
+        return "0";
+    }
+};
+struct IfNode : Node {
+    std::unique_ptr<Node> cond, thenB, elseB;
+    IfNode(std::unique_ptr<Node> c, std::unique_ptr<Node> t, std::unique_ptr<Node> e) : cond(std::move(c)), thenB(std::move(t)), elseB(std::move(e)) {}
+    std::string eval(Context& ctx) override {
+        if (cond->eval(ctx) == "1") thenB->eval(ctx);
+        else if (elseB) elseB->eval(ctx);
+        return "";
+    }
+};
+struct WhileNode : Node {
+    std::unique_ptr<Node> cond, body;
+    WhileNode(std::unique_ptr<Node> c, std::unique_ptr<Node> b) : cond(std::move(c)), body(std::move(b)) {}
+    std::string eval(Context& ctx) override {
+        while (cond->eval(ctx) == "1") body->eval(ctx);
+        return "";
+    }
+};
 struct BlockNode : Node {
-    std::vector<std::unique_ptr<Node>> statements;
+    std::vector<std::unique_ptr<Node>> stmts;
     std::string eval(Context& ctx) override {
-        std::string last = "";
-        for(auto& s : statements) last = s->eval(ctx);
-        return last;
+        for(auto& s : stmts) s->eval(ctx);
+        return "";
     }
 };
-
-struct FuncDefNode : Node {
-    std::string name; std::shared_ptr<Node> body;
-    FuncDefNode(std::string n, std::shared_ptr<Node> b) : name(n), body(b) {}
-    std::string eval(Context& ctx) override { ctx.functions[name] = body; return ""; }
-};
-
-struct FuncCallNode : Node {
-    std::string name;
-    FuncCallNode(std::string n) : name(n) {}
-    std::string eval(Context& ctx) override {
-        if(!ctx.functions.count(name)) { std::cerr << "Unknown func: " << name << std::endl; exit(1); }
-        return ctx.functions[name]->eval(ctx);
-    }
-};
-
 struct PrintNode : Node {
     std::unique_ptr<Node> expr;
     PrintNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
     std::string eval(Context& ctx) override { std::cout << expr->eval(ctx) << std::endl; return ""; }
 };
-
 struct InputNode : Node {
     std::string eval(Context& ctx) override { std::string b; std::getline(std::cin, b); return b; }
 };
-struct RoundNode : Node {
-    std::unique_ptr<Node> expr;
-    RoundNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
-    std::string eval(Context& ctx) override { return formatNumber(std::round(std::stod(expr->eval(ctx)))); }
-};
-struct RandomNode : Node {
-    std::string eval(Context& ctx) override { return std::to_string(rand() % 100); }
-};
-
-// ИСПРАВЛЕННЫЙ FOX NODE: Теперь он выводит текст сам!
-struct FoxNode : Node {
+struct ArrayDeclNode : Node {
+    std::string name; std::unique_ptr<Node> size;
+    ArrayDeclNode(std::string n, std::unique_ptr<Node> s) : name(n), size(std::move(s)) {}
     std::string eval(Context& ctx) override {
-        std::cout << " (\\_/)\n (o.o)  FoxLang v4.0\n (> <)" << std::endl;
-        return "fox";
+        ctx.arrays[name] = std::vector<std::string>(std::stoi(size->eval(ctx)), "0");
+        return "";
     }
 };
+struct ArraySetNode : Node {
+    std::string name; std::unique_ptr<Node> idx, val;
+    ArraySetNode(std::string n, std::unique_ptr<Node> i, std::unique_ptr<Node> v) : name(n), idx(std::move(i)), val(std::move(v)) {}
+    std::string eval(Context& ctx) override {
+        auto& arr = ctx.getArray(name); arr[std::stoi(idx->eval(ctx))] = val->eval(ctx); return "";
+    }
+};
+struct ArrayGetNode : Node {
+    std::string name; std::unique_ptr<Node> idx;
+    ArrayGetNode(std::string n, std::unique_ptr<Node> i) : name(n), idx(std::move(i)) {}
+    std::string eval(Context& ctx) override { return ctx.getArray(name)[std::stoi(idx->eval(ctx))]; }
+};
+struct IncludeNode : Node { std::string eval(Context& ctx) override { return ""; } };
+struct FoxNode : Node { std::string eval(Context& ctx) override { std::cout << "FoxLang" << std::endl; return ""; } };
