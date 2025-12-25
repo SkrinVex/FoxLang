@@ -1,0 +1,6 @@
+{
+
+    print("Добро пожаловать в FoxLang");
+    print(input() + input());
+
+}
