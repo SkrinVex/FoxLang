@@ -87,8 +87,7 @@ std::vector<Token> Lexer::tokenize() {
                 case '<': tokens.push_back({TokenType::LT, "<", line}); break;
                 case '>': tokens.push_back({TokenType::GT, ">", line}); break;
                 default: 
-                    std::cerr << "Lexer Error: Unknown char '" << current << "' at line " << line << std::endl;
-                    exit(1);
+                    throw std::runtime_error(std::string("Runtime Error: Unknown character '") + current + "' at line " + std::to_string(line));
             }
             pos++;
         }

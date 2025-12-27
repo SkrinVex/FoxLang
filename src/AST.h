@@ -33,24 +33,24 @@ struct Context {
     std::string getVar(const std::string& name) {
         if (variables.count(name)) return variables[name];
         if (parent) return parent->getVar(name);
-        std::cerr << "Runtime Error: Variable '" << name << "' not found." << std::endl; exit(1);
+        throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
     }
     
     std::vector<std::string>& getArray(const std::string& name) {
         if (arrays.count(name)) return arrays[name];
         if (parent) return parent->getArray(name);
-        std::cerr << "Runtime Error: Array '" << name << "' not found." << std::endl; exit(1);
+        throw std::runtime_error("Runtime Error: Array '" + name + "' not found!");
     }
 
     void setVar(const std::string& name, const std::string& val) {
         if (variables.count(name)) { variables[name] = val; return; }
         if (parent) { parent->setVar(name, val); return; }
-        std::cerr << "Runtime Error: Variable '" << name << "' not defined." << std::endl; exit(1);
+        throw std::runtime_error("Error: Variable '" + name + "' not defined!");
     }
 
     void defineVar(const std::string& name, const std::string& val) {
         if (variables.count(name)) {
-            std::cerr << "Runtime Error: Variable '" << name << "' already defined." << std::endl; exit(1);
+            throw std::runtime_error("Error: Variable '" + name + "' already defined!");
         }
         variables[name] = val;
     }
@@ -125,13 +125,13 @@ struct FuncCallNode : Node {
     std::string eval(Context& ctx) override {
         auto funcNodeBase = ctx.getFunc(name);
         if (!funcNodeBase) {
-            std::cerr << "Runtime Error: Function '" << name << "' not found." << std::endl; exit(1);
+            throw std::runtime_error("Runtime Error: Function '" + name + "' not found!");
         }
         
         FuncDefNode* funcDef = static_cast<FuncDefNode*>(funcNodeBase.get());
         
         if (args.size() != funcDef->params.size()) {
-            std::cerr << "Args count mismatch for '" << name << "'" << std::endl; exit(1);
+            throw std::runtime_error("Args count mismatch for '" + name + "'");
         }
 
         std::vector<std::string> argValues;

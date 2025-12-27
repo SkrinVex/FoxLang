@@ -14,9 +14,8 @@ Parser::Parser(std::vector<Token> t) : tokens(t) {}
 
 Token Parser::consume(TokenType type) {
     if (tokens[pos].type == type) return tokens[pos++];
-    std::cerr << "Syntax Error: Expected token " << (int)type 
-              << " got '" << tokens[pos].value << "' line " << tokens[pos].line << std::endl;
-    exit(1);
+    throw std::runtime_error("Syntax Error: Expected token " + std::to_string((int)type) + 
+                         " got '" + tokens[pos].value + "' line " + std::to_string(tokens[pos].line));
 }
 
 std::unique_ptr<Node> Parser::primary() {
@@ -82,9 +81,8 @@ std::unique_ptr<Node> Parser::primary() {
         return n; 
     }
     
-    std::cerr << "Parser Error: Unexpected token '" << tokens[pos].value 
-              << "' at line " << tokens[pos].line << std::endl;
-    exit(1);
+    throw std::runtime_error("Parser Error: Unexpected token '" + tokens[pos].value + 
+                         "' at line " + std::to_string(tokens[pos].line));
 }
 
 std::unique_ptr<Node> Parser::multiplication() {
@@ -129,12 +127,35 @@ void processInclude(std::string filename, Context& ctx, std::string currentFile)
     std::string dir = getDirectory(currentFile);
     std::string fullPath = dir + filename; 
     std::ifstream file(fullPath);
-    if (!file.is_open()) { file.open(filename); if(!file.is_open()) exit(1); }
-    std::stringstream buffer; buffer << file.rdbuf();
+    
+    // Если не нашли по полному пути, ищем рядом с исполняемым файлом
+    if (!file.is_open()) { 
+        file.open(filename); 
+        if(!file.is_open()) {
+            throw std::runtime_error("Include Error: File '" + filename + "' not found.");
+        }
+    }
+
+    std::stringstream buffer; 
+    buffer << file.rdbuf();
+    
     Lexer lexer(buffer.str());
-    Parser parser(lexer.tokenize());
-    parser.globalContext = ctx; parser.currentFile = fullPath; parser.importMode = true; 
-    parser.run(); ctx = parser.globalContext; 
+    std::vector<Token> tokens = lexer.tokenize(); 
+
+    Parser parser(tokens);
+    
+    // 1. Копируем текущую память внутрь include, чтобы он видел глобальные переменные
+    parser.globalContext = ctx; 
+    parser.currentFile = fullPath; 
+    
+    // ВАЖНО: Мы убрали parser.importMode = true;
+    // Теперь код внутри lib.fox (например, print) БУДЕТ выполняться.
+    parser.importMode = false; 
+    
+    parser.run(); 
+    
+    // 2. Возвращаем память обратно (функции из lib.fox появятся в main)
+    ctx = parser.globalContext; 
 }
 
 std::unique_ptr<Node> Parser::statement() {
@@ -276,7 +297,7 @@ std::unique_ptr<Node> Parser::statement() {
         }
     }
 
-    std::cerr << "Unknown statement " << tokens[pos].value << std::endl; exit(1);
+    throw std::runtime_error("Unknown statement " + tokens[pos].value);
 }
 
 void Parser::run() {
