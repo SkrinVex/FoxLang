@@ -10,7 +10,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // 1. Читаем файл
+    //Читаем файл
     std::ifstream file(argv[1]);
     if (!file.is_open()) {
         std::cerr << "Error: Could not open file " << argv[1] << std::endl;
@@ -21,14 +21,14 @@ int main(int argc, char* argv[]) {
     buffer << file.rdbuf();
     std::string code = buffer.str();
 
-    // 2. Запускаем конвейер
+    //Запускаем конвейер
     Lexer lexer(code);
     std::vector<Token> tokens = lexer.tokenize();
 
     Parser parser(tokens);
-    
-    // ВАЖНО: Передаем имя файла, чтобы парсер знал, где он находится
-    parser.currentFile = argv[1]; 
+
+    //Передаем имя файла, чтобы парсер знал, где он находится
+    parser.currentFile = argv[1];
 
     parser.run();
 
