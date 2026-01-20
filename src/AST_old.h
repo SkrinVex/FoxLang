@@ -10,6 +10,7 @@
 #include <sstream>
 #include <algorithm>
 
+// Forward declaration
 struct Node;
 
 struct FuncParam {
@@ -17,14 +18,16 @@ struct FuncParam {
     std::string name;
 };
 
+// Unified Value type for the language
 struct Value {
-    std::string type;
+    std::string type; // "int", "float", "string", "bool", "void"
     std::string value;
 };
 
+// Контекст памяти (переменные и функции)
 struct Context {
-    Context* parent = nullptr;
-    std::map<std::string, Value> variables;
+    Context* parent = nullptr; // Для глобальных переменных
+    std::map<std::string, Value> variables; // Stores typed values
     std::map<std::string, std::shared_ptr<Node>> functions;
     std::map<std::string, std::vector<Value>> arrays;
 
@@ -57,19 +60,50 @@ struct Context {
     }
 
     void defineVar(const std::string& name, const std::string& type, const Value& value) {
-        variables[name] = {type, value.value};
+        if (variables.count(name)) {
+            throw std::runtime_error("Error: Variable '" + name + "' already defined!");
+        }
+        std::string finalVal = value.value;
+        if (type == "int") {
+             try {
+                finalVal = std::to_string((int)std::stod(value.value));
+             } catch(...) { finalVal = "0"; }
+        }
+        variables[name] = {type, finalVal};
     }
 
+    // Set variable with type checking/conversion
     void setVar(const std::string& name, Value val) {
         if (variables.count(name)) { 
-            variables[name].value = val.value;
+            std::string targetType = variables[name].type;
+            
+            // Handle int/float conversion
+            if (targetType == "int") {
+                try {
+                    double d = std::stod(val.value);
+                    variables[name].value = std::to_string((int)d);
+                } catch(...) { variables[name].value = "0"; }
+            } else if (targetType == "float") {
+                try {
+                    double d = std::stod(val.value);
+                    variables[name].value = formatNumber(d);
+                } catch(...) { variables[name].value = "0.0"; }
+            } else {
+                variables[name].value = val.value;
+            }
             return; 
         }
         if (parent) { parent->setVar(name, val); return; }
         throw std::runtime_error("Error: Variable '" + name + "' not defined!");
     }
+
+    void defineGlobal(const std::string& name, std::string type, Value val) {
+        if (parent) parent->defineGlobal(name, type, val);
+        else defineVar(name, type, val);
+    }
 };
 
+// Exception for return
 struct ReturnValue {
     Value value;
 };
@@ -85,6 +119,8 @@ struct Node {
     virtual ~Node() = default;
     virtual Value eval(Context& ctx) = 0;
 };
+
+// --- ОСНОВНЫЕ УЗЛЫ ---
 
 struct FuncDefNode : Node {
     std::string returnType;
@@ -139,125 +175,6 @@ struct FuncCallNode : Node {
             std::cout << "FoxLang" << std::endl;
             return {"void", ""};
         }
-        if (name == "read_file" && args.size() == 1) {
-            Value filenameVal = args[0]->eval(ctx);
-            if (filenameVal.type != "string") {
-                throw std::runtime_error("read_file() requires string filename");
-            }
-            
-            std::ifstream file(filenameVal.value);
-            if (!file.is_open()) {
-                return {"string", ""};  // Возвращаем пустую строку при ошибке
-            }
-            
-            std::string line;
-            while (std::getline(file, line)) {
-                // Пропускаем комментарии и пустые строки
-                if (line.empty() || line[0] == '#') continue;
-                
-                // Если строка не пустая и не комментарий, возвращаем её
-                if (!line.empty()) {
-                    file.close();
-                    return {"string", line};
-                }
-            }
-            
-            file.close();
-            return {"string", ""};
-        }
-        if (name == "http_get" && args.size() == 1) {
-            Value urlVal = args[0]->eval(ctx);
-            if (urlVal.type != "string") {
-                throw std::runtime_error("http_get() requires string URL");
-            }
-            
-            // Простая реализация через system curl
-            std::string cmd = "curl -s \"" + urlVal.value + "\"";
-            FILE* pipe = popen(cmd.c_str(), "r");
-            if (!pipe) {
-                return {"string", ""};
-            }
-            
-            std::string result;
-            char buffer[128];
-            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-                result += buffer;
-            }
-            pclose(pipe);
-            
-            return {"string", result};
-        }
-        if (name == "json_get" && args.size() == 2) {
-            Value jsonVal = args[0]->eval(ctx);
-            Value keyVal = args[1]->eval(ctx);
-            
-            std::string json = jsonVal.value;
-            std::string key = keyVal.value;
-            
-            // Простой JSON парсер для Telegram API
-            if (key == "chat_id") {
-                size_t pos = json.find("\"chat\":{\"id\":");
-                if (pos != std::string::npos) {
-                    pos += 13; // длина "\"chat\":{\"id\":"
-                    size_t end = json.find(",", pos);
-                    if (end != std::string::npos) {
-                        return {"string", json.substr(pos, end - pos)};
-                    }
-                }
-            }
-            else if (key == "text") {
-                size_t pos = json.find("\"text\":\"");
-                if (pos != std::string::npos) {
-                    pos += 8; // длина "\"text\":\""
-                    size_t end = json.find("\"", pos);
-                    if (end != std::string::npos) {
-                        return {"string", json.substr(pos, end - pos)};
-                    }
-                }
-            }
-            else if (key == "update_id") {
-                // Ищем последний update_id в массиве
-                size_t lastPos = 0;
-                size_t pos = json.find("\"update_id\":");
-                while (pos != std::string::npos) {
-                    lastPos = pos;
-                    pos = json.find("\"update_id\":", pos + 1);
-                }
-                
-                if (lastPos != 0) {
-                    lastPos += 12; // длина "\"update_id\":"
-                    size_t end = json.find(",", lastPos);
-                    if (end != std::string::npos) {
-                        return {"string", json.substr(lastPos, end - lastPos)};
-                    }
-                }
-            }
-            
-            return {"string", ""};
-        }
-        if (name == "str_contains" && args.size() == 2) {
-            Value textVal = args[0]->eval(ctx);
-            Value substrVal = args[1]->eval(ctx);
-            
-            std::string text = textVal.value;
-            std::string substr = substrVal.value;
-            
-            bool found = text.find(substr) != std::string::npos;
-            return {"bool", found ? "true" : "false"};
-        }
-        if (name == "str_to_int" && args.size() == 1) {
-            Value strVal = args[0]->eval(ctx);
-            if (strVal.type != "string") {
-                return {"int", "0"};
-            }
-            
-            try {
-                int result = std::stoi(strVal.value);
-                return {"int", std::to_string(result)};
-            } catch (...) {
-                return {"int", "0"};
-            }
-        }
 
         // Пользовательские функции
         auto funcNodeBase = ctx.getFunc(name);
@@ -274,8 +191,11 @@ struct FuncCallNode : Node {
         std::vector<Value> argValues;
         for (auto& arg : args) argValues.push_back(arg->eval(ctx));
 
+        Context* root = &ctx;
+        while (root->parent != nullptr) root = root->parent;
+        
         Context funcScope;
-        funcScope.parent = &ctx;
+        funcScope.parent = root; 
 
         for (size_t i = 0; i < funcDef->params.size(); i++) {
             funcScope.defineVar(funcDef->params[i].name, funcDef->params[i].type, argValues[i]);
@@ -287,7 +207,7 @@ struct FuncCallNode : Node {
             return ret.value; 
         }
 
-        return {"void", ""};
+        return {"void", "0"};
     }
 };
 
@@ -500,58 +420,10 @@ struct WhileNode : Node {
     }
 };
 
-struct ForNode : Node {
-    std::unique_ptr<Node> init, condition, step, body;
-    ForNode(std::unique_ptr<Node> i, std::unique_ptr<Node> c, std::unique_ptr<Node> s, std::unique_ptr<Node> b) 
-        : init(std::move(i)), condition(std::move(c)), step(std::move(s)), body(std::move(b)) {}
-    Value eval(Context& ctx) override {
-        if (init) init->eval(ctx);
-        while (condition->eval(ctx).value == "true") {
-            body->eval(ctx);
-            if (step) step->eval(ctx);
-        }
-        return {"void", ""};
-    }
-};
-
 struct InputNode : Node {
     Value eval(Context& ctx) override {
         std::string input; std::getline(std::cin, input);
         return {"string", input};
-    }
-};
-
-struct ReadFileNode : Node {
-    std::unique_ptr<Node> filename;
-    ReadFileNode(std::unique_ptr<Node> fn) : filename(std::move(fn)) {}
-    
-    Value eval(Context& ctx) override {
-        Value filenameVal = filename->eval(ctx);
-        if (filenameVal.type != "string") {
-            throw std::runtime_error("read_file() requires string filename");
-        }
-        
-        std::ifstream file(filenameVal.value);
-        if (!file.is_open()) {
-            return {"string", ""};  // Возвращаем пустую строку при ошибке
-        }
-        
-        std::string content;
-        std::string line;
-        bool first = true;
-        while (std::getline(file, line)) {
-            // Пропускаем комментарии и пустые строки
-            if (line.empty() || line[0] == '#') continue;
-            
-            // Если строка не пустая и не комментарий, возвращаем её
-            if (!line.empty()) {
-                file.close();
-                return {"string", line};
-            }
-        }
-        
-        file.close();
-        return {"string", ""};
     }
 };
 

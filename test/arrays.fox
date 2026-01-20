@@ -1,0 +1,47 @@
+// Тест массивов
+print("=== Arrays Test ===");
+
+// Создание массива
+array numbers 5;
+
+// Заполнение массива
+set(numbers, 0, 10);
+set(numbers, 1, 20);
+set(numbers, 2, 30);
+set(numbers, 3, 40);
+set(numbers, 4, 50);
+
+// Чтение из массива
+print("Array elements:");
+int i = 0;
+while (i < 5) {
+    int value = get(numbers, i);
+    print("numbers[" + i + "] = " + value);
+    i = i + 1;
+}
+
+// Массив с подчеркиванием в имени
+array test_array 3;
+set(test_array, 0, 100);
+set(test_array, 1, 200);
+set(test_array, 2, 300);
+
+print("Test array:");
+int j = 0;
+while (j < 3) {
+    int val = get(test_array, j);
+    print("test_array[" + j + "] = " + val);
+    j = j + 1;
+}
+
+// Сумма элементов массива
+int sum = 0;
+int k = 0;
+while (k < 5) {
+    sum = sum + get(numbers, k);
+    k = k + 1;
+}
+print("Sum of numbers: " + sum);
+
+print("Arrays test completed!");
+fox();

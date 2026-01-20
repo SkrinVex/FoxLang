@@ -1,0 +1,43 @@
+// Тест модульной системы
+print("=== Modules Test ===");
+
+// Подключаем математические утилиты
+include("math_utils.fox");
+
+// Подключаем строковые утилиты
+include("string_utils.fox");
+
+// Тестируем математические функции
+int sum = add_numbers(10, 20);
+print("add_numbers(10, 20) = " + sum);
+
+int product = multiply(5, 6);
+print("multiply(5, 6) = " + product);
+
+int maximum = max_value(15, 25);
+print("max_value(15, 25) = " + maximum);
+
+int minimum = min_value(15, 25);
+print("min_value(15, 25) = " + minimum);
+
+float avg = calculate_average(10, 20);
+print("calculate_average(10, 20) = " + avg);
+
+int squared = power_of_two(7);
+print("power_of_two(7) = " + squared);
+
+// Тестируем строковые функции
+string greeting = create_greeting("Alice");
+print(greeting);
+
+string repeated = repeat_string("Fox", 3);
+print("repeat_string('Fox', 3) = " + repeated);
+
+string user_info = format_user_info("john_doe", 25);
+print(user_info);
+
+string full_name = get_full_name("John", "Doe");
+print("get_full_name('John', 'Doe') = " + full_name);
+
+print("Modules test completed!");
+fox();

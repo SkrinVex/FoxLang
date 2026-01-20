@@ -1,0 +1,24 @@
+// string_utils.fox - Строковые утилиты
+
+string create_greeting(string name) {
+    return "Hello, " + name + "!";
+}
+
+string repeat_string(string text, int count) {
+    string result = "";
+    int i = 0;
+    while (i < count) {
+        result = result + text;
+        i = i + 1;
+    }
+    return result;
+}
+
+string format_user_info(string user_name, int age) {
+    return "User: " + user_name + ", Age: " + age;
+}
+
+// Функция с подчеркиванием
+string get_full_name(string first_name, string last_name) {
+    return first_name + " " + last_name;
+}

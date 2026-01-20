@@ -1,0 +1,7 @@
+// Тест using библиотеки
+using net.fox;
+
+string response = http_get("https://example.com");
+print("Response: " + response);
+
+fox();

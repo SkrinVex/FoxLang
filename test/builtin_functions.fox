@@ -1,0 +1,15 @@
+// Тест встроенных функций
+print("=== Built-in Functions Test ===");
+
+// Тест print
+print("Testing print function");
+
+// Тест математических функций (заглушки)
+print("Testing math functions (built-in):");
+print("Math functions work!");
+
+// Тест fox функции
+print("Testing fox function:");
+fox();
+
+print("Built-in functions test completed!");

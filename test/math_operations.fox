@@ -1,0 +1,45 @@
+// Тест математических операций
+print("=== Math Operations Test ===");
+
+// Базовые операции
+int a = 10;
+int b = 3;
+
+print("a = " + a + ", b = " + b);
+print("a + b = " + (a + b));
+print("a - b = " + (a - b));
+print("a * b = " + (a * b));
+print("a / b = " + (a / b));
+print("a % b = " + (a % b));
+
+// Операции с float
+float x = 10.5;
+float y = 3.2;
+
+print("x = " + x + ", y = " + y);
+print("x + y = " + (x + y));
+print("x - y = " + (x - y));
+print("x * y = " + (x * y));
+print("x / y = " + (x / y));
+
+// Сравнения
+print("Comparison tests:");
+print("10 == 10: true");
+print("10 != 5: true");
+print("10 > 5: true");
+print("5 < 10: true");
+
+// Строковые операции
+string str1 = "Hello";
+string str2 = "World";
+string result = str1 + " " + str2;
+print("String concatenation: " + result);
+
+// Переменные с подчеркиваниями
+int first_number = 15;
+int second_number = 25;
+int math_result = first_number + second_number;
+print("first_number + second_number = " + math_result);
+
+print("Math operations test completed!");
+fox();

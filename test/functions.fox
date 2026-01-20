@@ -1,0 +1,30 @@
+// Простой тест пользовательских функций
+print("=== Functions Test ===");
+
+// Простая функция
+int add(int a, int b) {
+    return a + b;
+}
+
+// Функция со строкой
+string greet(string name) {
+    return "Hello!";
+}
+
+// Void функция
+void say_hello() {
+    print("Hello from function!");
+}
+
+// Тестирование
+print("Testing add function:");
+print("Result: " + add(5, 3));
+
+print("Testing greet function:");
+print(greet("Alice"));
+
+print("Testing void function:");
+say_hello();
+
+print("Functions test completed!");
+fox();

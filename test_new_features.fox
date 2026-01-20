@@ -1,0 +1,40 @@
+// Тест новых типов float и bool
+using net.fox;
+
+float pi = 3.14159;
+bool isActive = true;
+bool isComplete = false;
+
+print("Pi value: " + pi);
+print("Is active: " + isActive);
+print("Is complete: " + isComplete);
+
+// Тест сравнений
+if (pi > 3.0) {
+    print("Pi is greater than 3");
+}
+
+if (isActive == true) {
+    print("System is active");
+}
+
+if (isComplete != true) {
+    print("Task is not complete");
+}
+
+// Тест сетевых функций
+string response = http_get("https://example.com");
+print("HTTP Response: " + response);
+
+int socket = tcp_socket();
+print("Socket created: " + socket);
+
+bool connected = tcp_connect(socket, "localhost", 8080);
+if (connected) {
+    print("Connected to server");
+    int sent = tcp_send(socket, "Hello Server");
+    print("Bytes sent: " + sent);
+    tcp_close(socket);
+}
+
+fox();

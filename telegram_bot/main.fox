@@ -1,0 +1,87 @@
+// FoxLang Telegram Bot - main.fox
+// Основной файл бота на чистом FoxLang
+
+include("bot_api.fox");
+include("code_executor.fox");
+include("../src/net_simple.fox");
+
+// Конфигурация бота
+string bot_token = "";
+int last_update_id = 837067997; // Обновляем до последнего ID
+
+// Инициализация бота
+void init_bot(string token) {
+    bot_token = token;
+    print("🦊 FoxLang Telegram Bot started!");
+    print("Token: " + token);
+}
+
+// Обработка команд
+string handle_command(string command, string username) {
+    if (command == "/start") {
+        return "🦊 Welcome to FoxLang Bot!\n\nSend me FoxLang code and I'll execute it!\n\nExample:\nint x = 5;\nprint(\"Result: \" + x);\nfox();\n\nCommands:\n/help - Show help\n/example - Show example";
+    }
+    
+    if (command == "/help") {
+        return "🦊 FoxLang Bot Help\n\nSupported features:\n• Variables: int, float, string, bool\n• Functions: Custom functions\n• Arrays: array manipulation\n• Control flow: if/else, while\n• Math: +, -, *, /, %\n• Built-in: print(), fox()\n\nJust send your FoxLang code!";
+    }
+    
+    if (command == "/example") {
+        return "🦊 FoxLang Example:\n\nint add(int a, int b) {\n    return a + b;\n}\n\nstring name = \"FoxLang\";\nint result = add(10, 20);\nprint(\"Hello from \" + name + \"!\");\nprint(\"Result: \" + result);\nfox();";
+    }
+    
+    return "Unknown command. Use /help for help.";
+}
+
+// Обработка сообщения
+string handle_message(string text, string username) {
+    print("Message from " + username + ": " + text);
+    
+    // Проверяем команды
+    if (starts_with(text, "/")) {
+        return handle_command(text, username);
+    }
+    
+    // Выполняем FoxLang код
+    return execute_foxlang_code(text);
+}
+
+// Основной цикл бота
+void run_bot() {
+    while (true) {
+        print("Checking for updates...");
+        // Получаем обновления
+        string updates = get_updates(bot_token, last_update_id);
+        
+        if (updates != "") {
+            print("Got updates: " + updates);
+            // Обрабатываем каждое сообщение
+            print("About to call process_updates...");
+            process_updates(updates);
+            print("process_updates completed");
+        }
+        
+        // Небольшая пауза
+        // sleep(1);
+    }
+}
+
+// Точка входа
+void main() {
+    print("🦊 FoxLang Telegram Bot");
+    print("======================");
+    
+    // Читаем токен из файла или переменной окружения
+    string token = read_token();
+    
+    if (token == "") {
+        print("❌ Error: Bot token not found!");
+        print("Create token.txt file with your bot token");
+        return;
+    }
+    
+    init_bot(token);
+    run_bot();
+}
+
+main();

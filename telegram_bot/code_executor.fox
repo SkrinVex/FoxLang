@@ -1,0 +1,104 @@
+// code_executor.fox - Выполнение FoxLang кода
+
+// Выполнение FoxLang кода
+string execute_foxlang_code(string code) {
+    print("Executing FoxLang code:");
+    print(code);
+    
+    // Проверяем безопасность кода
+    if (!is_safe_code(code)) {
+        return "❌ Error: Unsafe code detected!";
+    }
+    
+    // Сохраняем код во временный файл
+    string temp_file = "temp_code.fox";
+    if (!write_code_to_file(temp_file, code)) {
+        return "❌ Error: Cannot write temporary file";
+    }
+    
+    // Выполняем код через интерпретатор
+    string result = execute_file(temp_file);
+    
+    // Удаляем временный файл
+    delete_file(temp_file);
+    
+    // Ограничиваем длину результата
+    if (length(result) > 4000) {
+        result = substring(result, 0, 4000) + "\n... (output truncated)";
+    }
+    
+    if (result == "") {
+        return "✅ Code executed successfully!";
+    }
+    
+    return result;
+}
+
+// Проверка безопасности кода
+bool is_safe_code(string code) {
+    // Запрещенные операции
+    array forbidden_words 5;
+    set(forbidden_words, 0, "include");  // Запрещаем include в пользовательском коде
+    set(forbidden_words, 1, "system");   // Запрещаем системные вызовы
+    set(forbidden_words, 2, "exec");     // Запрещаем выполнение команд
+    set(forbidden_words, 3, "file");     // Запрещаем работу с файлами
+    set(forbidden_words, 4, "network");  // Запрещаем сетевые операции
+    
+    int i = 0;
+    while (i < 5) {
+        string forbidden = get(forbidden_words, i);
+        if (contains(code, forbidden)) {
+            print("Forbidden word detected: " + forbidden);
+            return false;
+        }
+        i = i + 1;
+    }
+    
+    // Проверяем длину кода
+    if (length(code) > 10000) {
+        print("Code too long");
+        return false;
+    }
+    
+    return true;
+}
+
+// Запись кода в файл
+bool write_code_to_file(string filename, string code) {
+    // Заглушка - в реальности нужна реализация записи файлов
+    print("Writing code to " + filename);
+    return true;
+}
+
+// Выполнение файла
+string execute_file(string filename) {
+    // Заглушка - в реальности нужен вызов интерпретатора
+    print("Executing file: " + filename);
+    
+    // Симуляция выполнения простого кода
+    return simulate_execution(filename);
+}
+
+// Симуляция выполнения
+string simulate_execution(string filename) {
+    // Простая симуляция для демонстрации
+    return "Hello from FoxLang!\nCode executed successfully!";
+}
+
+// Удаление файла
+void delete_file(string filename) {
+    // Заглушка - в реальности нужна реализация удаления файлов
+    print("Deleting file: " + filename);
+}
+
+// Получение длины строки
+int length(string text) {
+    // Заглушка - в реальности нужна реализация
+    return 100; // Примерная длина
+}
+
+// Получение подстроки
+string substring(string text, int start, int end) {
+    // Заглушка - в реальности нужна реализация
+    return text + "...";
+}

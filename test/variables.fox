@@ -1,0 +1,32 @@
+// Тест базовых типов данных и переменных
+print("=== Variables Test ===");
+
+// Целые числа
+int age = 25;
+print("Age: " + age);
+
+// Дробные числа
+float pi = 3.14159;
+print("Pi: " + pi);
+
+// Строки
+string name = "FoxLang";
+print("Name: " + name);
+
+// Логические значения
+bool is_active = true;
+bool is_disabled = false;
+print("Active: " + is_active);
+print("Disabled: " + is_disabled);
+
+// Переменные с подчеркиваниями
+string user_name = "john_doe";
+int user_age = 30;
+bool is_admin = false;
+
+print("User: " + user_name);
+print("User age: " + user_age);
+print("Is admin: " + is_admin);
+
+print("Variables test completed!");
+fox();

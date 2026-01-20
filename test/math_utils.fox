@@ -1,0 +1,32 @@
+// math_utils.fox - Математические утилиты
+
+int add_numbers(int a, int b) {
+    return a + b;
+}
+
+int multiply(int x, int y) {
+    return x * y;
+}
+
+int max_value(int a, int b) {
+    if (a > b) {
+        return a;
+    }
+    return b;
+}
+
+int min_value(int a, int b) {
+    if (a < b) {
+        return a;
+    }
+    return b;
+}
+
+float calculate_average(int a, int b) {
+    return (a + b) / 2.0;
+}
+
+// Функция с подчеркиванием
+int power_of_two(int n) {
+    return n * n;
+}

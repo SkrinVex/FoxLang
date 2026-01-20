@@ -23,7 +23,9 @@ std::vector<Token> Lexer::tokenize() {
         if (isdigit(current)) {
             std::string num;
             while (pos < source.length() && isdigit(source[pos])) num += source[pos++];
-            if (pos < source.length() && source[pos] == '.') {
+            // Проверяем точку только если после неё есть цифра (для float)
+            if (pos < source.length() && source[pos] == '.' && 
+                pos + 1 < source.length() && isdigit(source[pos + 1])) {
                 num += source[pos++];
                 while (pos < source.length() && isdigit(source[pos])) num += source[pos++];
             }
@@ -31,7 +33,23 @@ std::vector<Token> Lexer::tokenize() {
         } 
         else if (current == '"') {
             pos++; std::string str;
-            while (pos < source.length() && source[pos] != '"') str += source[pos++];
+            while (pos < source.length() && source[pos] != '"') {
+                if (source[pos] == '\\' && pos + 1 < source.length()) {
+                    pos++; // Пропускаем обратный слеш
+                    char escaped = source[pos];
+                    switch (escaped) {
+                        case 'n': str += '\n'; break;
+                        case 't': str += '\t'; break;
+                        case 'r': str += '\r'; break;
+                        case '\\': str += '\\'; break;
+                        case '"': str += '"'; break;
+                        default: str += escaped; break;
+                    }
+                } else {
+                    str += source[pos];
+                }
+                pos++;
+            }
             pos++; 
             tokens.push_back({TokenType::STRING_LITERAL, str, line});
         } 
@@ -41,15 +59,28 @@ std::vector<Token> Lexer::tokenize() {
                 id += source[pos++];
             }
             
-            if (id == "print") tokens.push_back({TokenType::PRINT, id, line});
+            // Если идентификатор содержит подчеркивания, это точно не ключевое слово
+            if (id.find('_') != std::string::npos) {
+                tokens.push_back({TokenType::IDENTIFIER, id, line});
+            }
+            else if (id == "print") tokens.push_back({TokenType::PRINT, id, line});
             else if (id == "input") tokens.push_back({TokenType::INPUT, id, line});
             else if (id == "round") tokens.push_back({TokenType::ROUND, id, line});
             else if (id == "random") tokens.push_back({TokenType::RANDOM, id, line});
             else if (id == "fox") tokens.push_back({TokenType::FOX, id, line});
+            else if (id == "read_file") tokens.push_back({TokenType::READ_FILE, id, line});
+            else if (id == "json_get") tokens.push_back({TokenType::JSON_GET, id, line});
+            else if (id == "str_contains") tokens.push_back({TokenType::STR_CONTAINS, id, line});
+            else if (id == "str_to_int") tokens.push_back({TokenType::STR_TO_INT, id, line});
             else if (id == "int") tokens.push_back({TokenType::INT_KW, id, line});
+            else if (id == "float") tokens.push_back({TokenType::FLOAT_KW, id, line});
             else if (id == "string") tokens.push_back({TokenType::STRING_KW, id, line});
+            else if (id == "bool") tokens.push_back({TokenType::BOOL_KW, id, line});
+            else if (id == "true") tokens.push_back({TokenType::TRUE_KW, id, line});
+            else if (id == "false") tokens.push_back({TokenType::FALSE_KW, id, line});
             else if (id == "void") tokens.push_back({TokenType::VOID_KW, id, line});
             else if (id == "while") tokens.push_back({TokenType::WHILE, id, line});
+            else if (id == "for") tokens.push_back({TokenType::FOR, id, line});
             else if (id == "if") tokens.push_back({TokenType::IF, id, line});
             else if (id == "else") tokens.push_back({TokenType::ELSE, id, line});
             else if (id == "array") tokens.push_back({TokenType::ARRAY, id, line});
@@ -57,6 +88,7 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "get") tokens.push_back({TokenType::GET, id, line});
             else if (id == "size") tokens.push_back({TokenType::SIZE, id, line});
             else if (id == "include") tokens.push_back({TokenType::INCLUDE, id, line});
+            else if (id == "using") tokens.push_back({TokenType::USING, id, line});
             else if (id == "return") tokens.push_back({TokenType::RETURN, id, line});
             else if (id == "global") tokens.push_back({TokenType::GLOBAL, id, line});
             else tokens.push_back({TokenType::IDENTIFIER, id, line});
@@ -67,6 +99,15 @@ std::vector<Token> Lexer::tokenize() {
             }
             if (current == '!' && pos+1 < source.length() && source[pos+1] == '=') {
                 tokens.push_back({TokenType::NEQ, "!=", line}); pos+=2; continue;
+            }
+            if (current == '+' && pos+1 < source.length() && source[pos+1] == '+') {
+                tokens.push_back({TokenType::INC, "++", line}); pos+=2; continue;
+            }
+            if (current == '&' && pos+1 < source.length() && source[pos+1] == '&') {
+                tokens.push_back({TokenType::AND, "&&", line}); pos+=2; continue;
+            }
+            if (current == '|' && pos+1 < source.length() && source[pos+1] == '|') {
+                tokens.push_back({TokenType::OR, "||", line}); pos+=2; continue;
             }
 
             switch (current) {
@@ -84,8 +125,11 @@ std::vector<Token> Lexer::tokenize() {
                 case ';': tokens.push_back({TokenType::SEMICOLON, ";", line}); break;
                 case ',': tokens.push_back({TokenType::COMMA, ",", line}); break;
                 case '=': tokens.push_back({TokenType::ASSIGN, "=", line}); break;
+                case '.': tokens.push_back({TokenType::DOT, ".", line}); break;
+                case '!': tokens.push_back({TokenType::NOT, "!", line}); break;
                 case '<': tokens.push_back({TokenType::LT, "<", line}); break;
                 case '>': tokens.push_back({TokenType::GT, ">", line}); break;
+                case ':': tokens.push_back({TokenType::COLON, ":", line}); break;
                 default: 
                     throw std::runtime_error(std::string("Runtime Error: Unknown character '") + current + "' at line " + std::to_string(line));
             }

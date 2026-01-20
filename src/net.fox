@@ -1,0 +1,195 @@
+// net.fox - Продвинутая сетевая библиотека FoxLang
+// Подключается через: include("net.fox");
+
+// === БАЗОВЫЕ СЕТЕВЫЕ ФУНКЦИИ (ЗАГЛУШКИ) ===
+
+// HTTP GET запрос (встроенная функция)
+// string http_get(string url) - реализована в интерпретаторе
+
+// HTTP POST запрос (заглушка)
+string http_post(string url, string data) {
+    print("http_post not implemented yet");
+    return "";
+}
+
+// TCP сокет функции (заглушки)
+int tcp_socket() {
+    print("tcp_socket not implemented yet");
+    return 0;
+}
+
+bool tcp_connect(int socket, string host, int port) {
+    print("tcp_connect not implemented yet");
+    return false;
+}
+
+void tcp_send(int socket, string message) {
+    print("tcp_send not implemented yet");
+}
+
+string tcp_receive(int socket, int size) {
+    print("tcp_receive not implemented yet");
+    return "";
+}
+
+void tcp_close(int socket) {
+    print("tcp_close not implemented yet");
+}
+
+// === HTTP КЛИЕНТ С УДОБНЫМИ МЕТОДАМИ ===
+
+// Простой GET с автоматической обработкой ошибок
+string http_get_simple(string url) {
+    string response = http_get(url);
+    if (response == "") {
+        print("ERROR: Failed to fetch " + url);
+        return "{}";
+    }
+    return response;
+}
+
+// POST с JSON данными
+string post_json(string url, string json_data) {
+    string response = http_post(url, json_data);
+    if (response == "") {
+        print("ERROR: Failed to POST to " + url);
+        return "{}";
+    }
+    return response;
+}
+
+// Загрузка файла по URL
+bool download_file(string url, string filename) {
+    string content = http_get_simple(url);
+    if (content == "{}") {
+        return false;
+    }
+    // Здесь должна быть функция записи в файл
+    print("Downloaded " + filename + " from " + url);
+    return true;
+}
+
+// Проверка доступности сервера
+bool ping(string host, int port) {
+    int socket = tcp_socket();
+    bool connected = tcp_connect(socket, host, port);
+    if (connected) {
+        tcp_close(socket);
+        return true;
+    }
+    return false;
+}
+
+// === TCP КЛИЕНТ С АВТОМАТИЧЕСКИМ УПРАВЛЕНИЕМ ===
+
+// Простая отправка сообщения с автозакрытием
+string send_message(string host, int port, string message) {
+    int socket = tcp_socket();
+    if (!tcp_connect(socket, host, port)) {
+        print("ERROR: Cannot connect to " + host + ":" + port);
+        return "";
+    }
+    
+    tcp_send(socket, message);
+    string response = tcp_receive(socket, 1024);
+    tcp_close(socket);
+    return response;
+}
+
+// Чат-клиент (отправка и получение)
+void chat_session(string host, int port) {
+    int socket = tcp_socket();
+    if (!tcp_connect(socket, host, port)) {
+        print("ERROR: Cannot connect to chat server");
+        return;
+    }
+    
+    print("Connected to chat! Type 'quit' to exit");
+    string message = "";
+    
+    while (message != "quit") {
+        print("You: ");
+        message = input();
+        if (message != "quit") {
+            tcp_send(socket, message);
+            string response = tcp_receive(socket, 1024);
+            print("Server: " + response);
+        }
+    }
+    
+    tcp_close(socket);
+    print("Chat session ended");
+}
+
+// === API HELPERS ===
+
+// REST API клиент
+string api_get(string base_url, string endpoint) {
+    return http_get_simple(base_url + endpoint);
+}
+
+string api_post(string base_url, string endpoint, string data) {
+    return post_json(base_url + endpoint, data);
+}
+
+// Простой JSON парсер (базовый)
+string json_get_value(string json, string key) {
+    // Простейший парсер для демонстрации
+    string search = "\"" + key + "\":";
+    // Здесь должна быть реальная логика парсинга
+    return "value";
+}
+
+// === УТИЛИТЫ ===
+
+// Проверка интернет-соединения
+bool is_online() {
+    return ping("8.8.8.8", 53); // Google DNS
+}
+
+// Получение публичного IP
+string get_public_ip() {
+    return http_get_simple("https://api.ipify.org");
+}
+
+// Отправка webhook
+bool send_webhook(string url, string message) {
+    string json = "{\"text\":\"" + message + "\"}";
+    string response = post_json(url, json);
+    return response != "{}";
+}
+
+// === ПРИМЕРЫ ИСПОЛЬЗОВАНИЯ ===
+
+void demo_http() {
+    print("=== HTTP Demo ===");
+    
+    if (is_online()) {
+        print("Internet connection: OK");
+        string ip = get_public_ip();
+        print("Your IP: " + ip);
+        
+        string weather = http_get_simple("https://api.weather.com/current");
+        print("Weather data: " + weather);
+    } else {
+        print("No internet connection");
+    }
+}
+
+void demo_tcp() {
+    print("=== TCP Demo ===");
+    
+    if (ping("localhost", 8080)) {
+        print("Server is running on localhost:8080");
+        string response = send_message("localhost", 8080, "Hello Server!");
+        print("Server response: " + response);
+    } else {
+        print("Server not available");
+    }
+}
+
+// Запуск демо
+void net_demo() {
+    demo_http();
+    demo_tcp();
+}

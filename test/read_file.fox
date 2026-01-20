@@ -1,0 +1,24 @@
+// Тест функции read_file
+print("=== Тест функции read_file ===");
+
+// Создаем тестовый файл
+string test_content = "Hello from FoxLang!";
+
+// Тестируем чтение существующего файла
+string content = read_file("telegram_bot/token.txt");
+if (content != "") {
+    print("✅ Чтение файла: УСПЕШНО");
+    print("Содержимое: " + content);
+} else {
+    print("❌ Чтение файла: ОШИБКА");
+}
+
+// Тестируем чтение несуществующего файла
+string empty = read_file("nonexistent.txt");
+if (empty == "") {
+    print("✅ Обработка ошибки: УСПЕШНО");
+} else {
+    print("❌ Обработка ошибки: ОШИБКА");
+}
+
+print("=== Тест завершен ===");

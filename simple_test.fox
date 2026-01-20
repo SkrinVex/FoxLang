@@ -1,0 +1,12 @@
+// Простой тест новых типов
+float pi = 3.14;
+bool isActive = false;
+
+print("Pi: " + pi);
+print("Active: " + isActive);
+
+if (isActive) {
+    print("System is running");
+}
+
+fox();

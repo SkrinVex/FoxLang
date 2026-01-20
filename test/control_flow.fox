@@ -1,0 +1,60 @@
+// Тест циклов и условий
+print("=== Control Flow Test ===");
+
+// Тест if/else
+int x = 10;
+if (x > 5) {
+    print("x is greater than 5");
+} else {
+    print("x is not greater than 5");
+}
+
+// Тест логических операторов
+bool a = true;
+bool b = false;
+
+if (a && !b) {
+    print("a is true and b is false");
+}
+
+if (a || b) {
+    print("a or b is true");
+}
+
+// Тест while цикла
+print("While loop test:");
+int counter = 0;
+while (counter < 5) {
+    print("Counter: " + counter);
+    counter = counter + 1;
+}
+
+// Тест for цикла
+print("For loop test:");
+int i = 0;
+while (i < 3) {
+    print("For loop i: " + i);
+    i = i + 1;
+}
+
+// Вложенные циклы
+print("Nested loops test:");
+int outer = 0;
+while (outer < 3) {
+    int inner = 0;
+    while (inner < 2) {
+        print("outer: " + outer + ", inner: " + inner);
+        inner = inner + 1;
+    }
+    outer = outer + 1;
+}
+
+// Переменные с подчеркиваниями в циклах
+int loop_counter = 0;
+while (loop_counter < 3) {
+    print("loop_counter: " + loop_counter);
+    loop_counter = loop_counter + 1;
+}
+
+print("Control flow test completed!");
+fox();
