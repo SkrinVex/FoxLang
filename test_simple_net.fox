@@ -1,4 +1,0 @@
-// Простой тест без using
-string response = http_get("test");
-print(response);
-fox();
