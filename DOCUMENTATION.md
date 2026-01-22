@@ -117,11 +117,11 @@ int calculate_area(int width, int height) {
 
 ---
 
-## 3. Математика и Логика
+## 4. Математика и Логика
 
 Поддерживаются стандартные арифметические операции с учетом приоритета.
 
-### Операторы
+### Арифметические операторы
 
 | Оператор | Описание | Пример |
 | --- | --- | --- |
@@ -132,18 +132,36 @@ int calculate_area(int width, int height) {
 | `%` | Остаток от деления | `10 % 3` (вернет 1) |
 | `++` | Инкремент (увеличение на 1) | `i++` (вернет старое значение, затем увеличит переменную) |
 
-### Сравнение
+### Операторы сравнения
 
 Операторы сравнения возвращают `1` (истина) или `0` (ложь).
 
-* `==` (Равно)
-* `!=` (Не равно)
-* `<` (Меньше)
-* `>` (Больше)
+| Оператор | Описание | Пример |
+| --- | --- | --- |
+| `==` | Равно | `x == 5` |
+| `!=` | Не равно | `x != 5` |
+| `<` | Меньше | `x < 10` |
+| `>` | Больше | `x > 0` |
+
+### Логические операторы
+
+FoxLang поддерживает логические операторы для работы с boolean значениями:
+
+| Оператор | Описание | Пример |
+| --- | --- | --- |
+| `&&` | Логическое И (AND) | `(x > 0) && (x < 10)` |
+| `\|\|` | Логическое ИЛИ (OR) | `(x == 0) \|\| (x == 1)` |
+| `!` | Логическое НЕ (NOT) | `!(x == 0)` |
+
+```cpp
+bool is_valid = (age >= 18) && (age <= 65);
+bool is_weekend = (day == "Saturday") || (day == "Sunday");
+bool is_not_empty = !name.empty();
+```
 
 ---
 
-## 4. Управляющие конструкции
+## 5. Управляющие конструкции
 
 ### Условия (If / Else)
 
@@ -178,6 +196,45 @@ for (int i = 0; i < 5; i++) {
 }
 ```
 
+### Switch/Case конструкции
+
+FoxLang поддерживает конструкции `switch/case` с поддержкой `break` и `default`:
+
+```cpp
+int day = 3;
+switch (day) {
+    case 1:
+        print("Понедельник");
+        break;
+    case 2:
+        print("Вторник");
+        break;
+    case 3:
+        print("Среда");
+        break;
+    default:
+        print("Другой день");
+        break;
+}
+```
+
+### Управление циклами
+
+- `break` — Прерывает выполнение цикла или switch
+- `continue` — Переходит к следующей итерации цикла
+
+```cpp
+for (int i = 0; i < 10; i++) {
+    if (i == 5) {
+        continue; // Пропустить 5
+    }
+    if (i == 8) {
+        break; // Выйти из цикла
+    }
+    print(i);
+}
+```
+
 ### Области видимости (Scope)
 
 Блоки кода `{ ... }` создают новую область видимости. Переменные, объявленные внутри блока, недоступны снаружи.
@@ -190,31 +247,6 @@ int global = 10;
     print(local);  // 5
 }
 // print(local); // Ошибка! Переменная local не существует здесь.
-```
-
----
-
-## 5. Функции
-
-Функции могут быть объявлены с типом возвращаемого значения или `void`.
-
-**Определение:**
-
-```cpp
-void myFunc() {
-    print("Hello from function!");
-}
-
-int square(int x) {
-    return x * x;
-}
-```
-
-**Вызов:**
-
-```cpp
-myFunc();
-int result = square(5);
 ```
 
 ---
@@ -249,12 +281,123 @@ FoxLang поддерживает импорт внешних модулей.
 
 ## 8. Встроенные функции
 
-| Функция | Описание |
-| --- | --- |
-| `print(expr)` | Выводит текст или результат выражения в консоль. |
-| `input()` | Останавливает программу и ждет ввода строки от пользователя. |
-| `round(expr)` | Округляет дробное число до ближайшего целого. |
-| `random()` | Генерирует случайное число от 0 до 99. |
-| `read_file(filename)` | Читает первую непустую строку из файла (игнорирует комментарии #). |
-| `http_get(url)` | Выполняет HTTP GET запрос и возвращает ответ сервера. |
-| `fox()` | Пасхалка: выводит название языка. |
+### Ввод/Вывод
+| Функция | Описание | Пример |
+| --- | --- | --- |
+| `print(expr...)` | Выводит текст или результат выражения в консоль. Может принимать несколько аргументов. | `print("Hello", name);` |
+| `input()` | Ждет ввода строки от пользователя и возвращает её. | `string name = input();` |
+| `input(prompt)` | Выводит приглашение и ждет ввода строки. | `string name = input("Имя: ");` |
+
+### Математические функции
+| Функция | Описание | Пример |
+| --- | --- | --- |
+| `round(number)` | Округляет дробное число до ближайшего целого. | `int x = round(3.7); // 4` |
+| `random(min, max)` | Генерирует случайное число в диапазоне от min до max включительно. | `int dice = random(1, 6);` |
+
+### Работа с файлами
+| Функция | Описание | Пример |
+| --- | --- | --- |
+| `read_file(filename)` | Читает первую непустую строку из файла (игнорирует комментарии #). | `string config = read_file("config.txt");` |
+
+### HTTP запросы
+| Функция | Описание | Пример |
+| --- | --- | --- |
+| `httpget(url)` | Выполняет HTTP GET запрос и возвращает ответ сервера. | `string data = httpget("https://api.example.com");` |
+| `httppost(url, data)` | Выполняет HTTP POST запрос с данными. | `string response = httppost(url, "{\"key\":\"value\"}");` |
+| `httppost(url, data, content_type)` | HTTP POST с указанием типа контента. | `httppost(url, data, "application/json");` |
+| `httpput(url, data)` | Выполняет HTTP PUT запрос с данными. | `string response = httpput(url, data);` |
+| `httpput(url, data, content_type)` | HTTP PUT с указанием типа контента. | `httpput(url, data, "text/plain");` |
+| `httpdelete(url)` | Выполняет HTTP DELETE запрос. | `string response = httpdelete(url);` |
+
+### Работа со строками и JSON
+| Функция | Описание | Пример |
+| --- | --- | --- |
+| `json_get(json_string, key)` | Извлекает значение по ключу из JSON строки. Поддерживает ключи: "chat_id", "text", "update_id". | `string chat_id = json_get(response, "chat_id");` |
+| `str_contains(text, substring)` | Проверяет, содержит ли строка подстроку. Возвращает `true` или `false`. | `bool found = str_contains("Hello World", "World");` |
+| `str_to_int(string)` | Преобразует строку в целое число. При ошибке возвращает 0. | `int num = str_to_int("123");` |
+
+### Ввод с клавиатуры (низкоуровневый)
+| Функция | Описание | Пример |
+| --- | --- | --- |
+| `getch()` | Читает один символ с клавиатуры без нажатия Enter. | `string key = getch();` |
+| `kbhit()` | Проверяет, была ли нажата клавиша. Возвращает `true` или `false`. | `bool pressed = kbhit();` |
+
+### Системные функции
+| Функция | Описание | Пример |
+| --- | --- | --- |
+| `wait(milliseconds)` | Приостанавливает выполнение программы на указанное количество миллисекунд. | `wait(1000); // Пауза 1 секунда` |
+| `fox()` | Пасхалка: выводит название языка "FoxLang". | `fox();` |
+
+---
+
+## 9. Современный синтаксис
+
+FoxLang поддерживает современные соглашения по именованию и синтаксису:
+
+### Идентификаторы с подчеркиваниями
+
+В отличие от старых версий, FoxLang теперь полностью поддерживает идентификаторы с подчеркиваниями:
+
+```cpp
+// Переменные
+string user_name = "john_doe";
+int max_health = 100;
+bool is_game_over = false;
+
+// Функции
+void calculate_damage(int base_damage, float multiplier) {
+    // ...
+}
+
+int get_player_score() {
+    return player_score;
+}
+```
+
+### Глобальные переменные
+
+FoxLang поддерживает объявление глобальных переменных с ключевым словом `global`:
+
+```cpp
+global int game_score = 0;
+global string player_name = "Unknown";
+
+void update_score(int points) {
+    game_score = game_score + points;
+}
+
+void main() {
+    print("Score: " + game_score);
+    update_score(100);
+    print("New score: " + game_score);
+}
+```
+
+### Примеры современного кода
+
+```cpp
+// Современная функция с подчеркиваниями
+bool check_user_permissions(string user_role, int required_level) {
+    if (user_role == "admin") {
+        return true;
+    }
+    
+    int user_level = get_user_level(user_role);
+    return user_level >= required_level;
+}
+
+// Работа с массивами
+void sort_user_scores(array scores, int count) {
+    for (int i = 0; i < count - 1; i++) {
+        for (int j = 0; j < count - i - 1; j++) {
+            if (get(scores, j) > get(scores, j + 1)) {
+                int temp = get(scores, j);
+                set(scores, j, get(scores, j + 1));
+                set(scores, j + 1, temp);
+            }
+        }
+    }
+}
+```
+
+---

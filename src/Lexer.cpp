@@ -68,10 +68,10 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "round") tokens.push_back({TokenType::ROUND, id, line});
             else if (id == "random") tokens.push_back({TokenType::RANDOM, id, line});
             else if (id == "fox") tokens.push_back({TokenType::FOX, id, line});
-            else if (id == "read_file") tokens.push_back({TokenType::READ_FILE, id, line});
-            else if (id == "json_get") tokens.push_back({TokenType::JSON_GET, id, line});
-            else if (id == "str_contains") tokens.push_back({TokenType::STR_CONTAINS, id, line});
-            else if (id == "str_to_int") tokens.push_back({TokenType::STR_TO_INT, id, line});
+            else if (id == "readfile") tokens.push_back({TokenType::READ_FILE, id, line});
+            else if (id == "jsonget") tokens.push_back({TokenType::JSON_GET, id, line});
+            else if (id == "strcontains") tokens.push_back({TokenType::STR_CONTAINS, id, line});
+            else if (id == "strtoint") tokens.push_back({TokenType::STR_TO_INT, id, line});
             else if (id == "int") tokens.push_back({TokenType::INT_KW, id, line});
             else if (id == "float") tokens.push_back({TokenType::FLOAT_KW, id, line});
             else if (id == "string") tokens.push_back({TokenType::STRING_KW, id, line});
@@ -83,6 +83,12 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "for") tokens.push_back({TokenType::FOR, id, line});
             else if (id == "if") tokens.push_back({TokenType::IF, id, line});
             else if (id == "else") tokens.push_back({TokenType::ELSE, id, line});
+            else if (id == "switch") tokens.push_back({TokenType::SWITCH, id, line});
+            else if (id == "case") tokens.push_back({TokenType::CASE, id, line});
+            else if (id == "default") tokens.push_back({TokenType::DEFAULT, id, line});
+            else if (id == "break") tokens.push_back({TokenType::BREAK, id, line});
+            else if (id == "continue") tokens.push_back({TokenType::CONTINUE, id, line});
+            else if (id == "wait") tokens.push_back({TokenType::WAIT, id, line});
             else if (id == "array") tokens.push_back({TokenType::ARRAY, id, line});
             else if (id == "set") tokens.push_back({TokenType::SET, id, line});
             else if (id == "get") tokens.push_back({TokenType::GET, id, line});
@@ -91,6 +97,12 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "using") tokens.push_back({TokenType::USING, id, line});
             else if (id == "return") tokens.push_back({TokenType::RETURN, id, line});
             else if (id == "global") tokens.push_back({TokenType::GLOBAL, id, line});
+            else if (id == "httpget") tokens.push_back({TokenType::HTTP_GET, id, line});
+            else if (id == "httppost") tokens.push_back({TokenType::HTTP_POST, id, line});
+            else if (id == "httpput") tokens.push_back({TokenType::HTTP_PUT, id, line});
+            else if (id == "httpdelete") tokens.push_back({TokenType::HTTP_DELETE, id, line});
+            else if (id == "getch") tokens.push_back({TokenType::GETCH, id, line});
+            else if (id == "kbhit") tokens.push_back({TokenType::KBHIT, id, line});
             else tokens.push_back({TokenType::IDENTIFIER, id, line});
         } 
         else {

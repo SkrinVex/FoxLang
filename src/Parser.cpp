@@ -93,8 +93,13 @@ std::unique_ptr<Node> Parser::primary() {
     }
     
     if (tokens[pos].type == TokenType::INPUT) { 
-        consume(TokenType::INPUT); consume(TokenType::LPAREN); consume(TokenType::RPAREN); 
-        return std::make_unique<InputNode>(); 
+        consume(TokenType::INPUT); consume(TokenType::LPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        if (tokens[pos].type != TokenType::RPAREN) {
+            args.push_back(expression());
+        }
+        consume(TokenType::RPAREN);
+        return std::make_unique<FuncCallNode>("input", std::move(args));
     }
 
     if (tokens[pos].type == TokenType::READ_FILE) {
@@ -102,6 +107,70 @@ std::unique_ptr<Node> Parser::primary() {
         auto filename = expression();
         consume(TokenType::RPAREN);
         return std::make_unique<ReadFileNode>(std::move(filename));
+    }
+
+    // HTTP функции в выражениях
+    if (tokens[pos].type == TokenType::HTTP_GET) {
+        consume(TokenType::HTTP_GET); consume(TokenType::LPAREN);
+        auto url = expression();
+        consume(TokenType::RPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        args.push_back(std::move(url));
+        return std::make_unique<FuncCallNode>("httpget", std::move(args));
+    }
+
+    if (tokens[pos].type == TokenType::HTTP_POST) {
+        consume(TokenType::HTTP_POST); consume(TokenType::LPAREN);
+        auto url = expression();
+        consume(TokenType::COMMA);
+        auto data = expression();
+        std::vector<std::unique_ptr<Node>> args;
+        args.push_back(std::move(url));
+        args.push_back(std::move(data));
+        if (tokens[pos].type == TokenType::COMMA) {
+            consume(TokenType::COMMA);
+            args.push_back(expression());
+        }
+        consume(TokenType::RPAREN);
+        return std::make_unique<FuncCallNode>("httppost", std::move(args));
+    }
+
+    if (tokens[pos].type == TokenType::HTTP_PUT) {
+        consume(TokenType::HTTP_PUT); consume(TokenType::LPAREN);
+        auto url = expression();
+        consume(TokenType::COMMA);
+        auto data = expression();
+        std::vector<std::unique_ptr<Node>> args;
+        args.push_back(std::move(url));
+        args.push_back(std::move(data));
+        if (tokens[pos].type == TokenType::COMMA) {
+            consume(TokenType::COMMA);
+            args.push_back(expression());
+        }
+        consume(TokenType::RPAREN);
+        return std::make_unique<FuncCallNode>("httpput", std::move(args));
+    }
+
+    if (tokens[pos].type == TokenType::HTTP_DELETE) {
+        consume(TokenType::HTTP_DELETE); consume(TokenType::LPAREN);
+        auto url = expression();
+        consume(TokenType::RPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        args.push_back(std::move(url));
+        return std::make_unique<FuncCallNode>("httpdelete", std::move(args));
+    }
+
+    // Функции ввода
+    if (tokens[pos].type == TokenType::GETCH) {
+        consume(TokenType::GETCH); consume(TokenType::LPAREN); consume(TokenType::RPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        return std::make_unique<FuncCallNode>("getch", std::move(args));
+    }
+
+    if (tokens[pos].type == TokenType::KBHIT) {
+        consume(TokenType::KBHIT); consume(TokenType::LPAREN); consume(TokenType::RPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        return std::make_unique<FuncCallNode>("kbhit", std::move(args));
     }
 
     if (tokens[pos].type == TokenType::LPAREN) { 
@@ -341,6 +410,70 @@ std::unique_ptr<Node> Parser::statement() {
         }
         if (importMode) return std::make_unique<BlockNode>();
         return std::make_unique<IfNode>(std::move(cond), std::move(thenB), std::move(elseB));
+    }
+
+    if (tokens[pos].type == TokenType::BREAK) {
+        consume(TokenType::BREAK); consume(TokenType::SEMICOLON);
+        return std::make_unique<BreakNode>();
+    }
+
+    if (tokens[pos].type == TokenType::CONTINUE) {
+        consume(TokenType::CONTINUE); consume(TokenType::SEMICOLON);
+        return std::make_unique<ContinueNode>();
+    }
+
+    if (tokens[pos].type == TokenType::WAIT) {
+        consume(TokenType::WAIT); consume(TokenType::LPAREN);
+        auto timeExpr = expression();
+        consume(TokenType::RPAREN); consume(TokenType::SEMICOLON);
+        return std::make_unique<WaitNode>(std::move(timeExpr));
+    }
+
+    if (tokens[pos].type == TokenType::SWITCH) {
+        consume(TokenType::SWITCH); consume(TokenType::LPAREN);
+        auto expr = expression();
+        consume(TokenType::RPAREN); consume(TokenType::LBRACE);
+        
+        auto switchNode = std::make_unique<SwitchNode>(std::move(expr));
+        
+        while (tokens[pos].type == TokenType::CASE || tokens[pos].type == TokenType::DEFAULT) {
+            if (tokens[pos].type == TokenType::CASE) {
+                consume(TokenType::CASE);
+                auto caseValue = expression();
+                consume(TokenType::COLON);
+                
+                std::vector<std::unique_ptr<Node>> caseStatements;
+                while (tokens[pos].type != TokenType::CASE && 
+                       tokens[pos].type != TokenType::DEFAULT && 
+                       tokens[pos].type != TokenType::RBRACE) {
+                    caseStatements.push_back(statement());
+                }
+                
+                auto caseBody = std::make_unique<BlockNode>();
+                for (auto& stmt : caseStatements) {
+                    static_cast<BlockNode*>(caseBody.get())->stmts.push_back(std::move(stmt));
+                }
+                
+                switchNode->cases.push_back(std::make_pair(std::move(caseValue), std::move(caseBody)));
+            } else if (tokens[pos].type == TokenType::DEFAULT) {
+                consume(TokenType::DEFAULT); consume(TokenType::COLON);
+                
+                std::vector<std::unique_ptr<Node>> defaultStatements;
+                while (tokens[pos].type != TokenType::RBRACE) {
+                    defaultStatements.push_back(statement());
+                }
+                
+                auto defaultBody = std::make_unique<BlockNode>();
+                for (auto& stmt : defaultStatements) {
+                    static_cast<BlockNode*>(defaultBody.get())->stmts.push_back(std::move(stmt));
+                }
+                
+                switchNode->defaultCase = std::move(defaultBody);
+            }
+        }
+        
+        consume(TokenType::RBRACE);
+        return std::move(switchNode);
     }
 
     if (tokens[pos].type == TokenType::PRINT) {

@@ -9,6 +9,15 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <thread>
+#include <chrono>
+#ifdef _WIN32
+#include <conio.h>
+#else
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+#endif
 
 struct Node;
 
@@ -74,6 +83,9 @@ struct ReturnValue {
     Value value;
 };
 
+struct BreakException {};
+struct ContinueException {};
+
 static std::string formatNumber(double val) {
     std::string s = std::to_string(val);
     s.erase(s.find_last_not_of('0') + 1, std::string::npos);
@@ -116,13 +128,57 @@ struct FuncCallNode : Node {
 
     Value eval(Context& ctx) override {
         // Встроенные функции
-        if (name == "print" && args.size() == 1) {
-            std::cout << args[0]->eval(ctx).value << std::endl;
+        if (name == "print") {
+            if (args.empty()) {
+                std::cout << std::endl;
+            } else {
+                for (size_t i = 0; i < args.size(); i++) {
+                    if (i > 0) std::cout << " ";
+                    std::cout << args[i]->eval(ctx).value;
+                }
+                std::cout << std::endl;
+            }
             return {"void", ""};
         }
-        if (name == "input" && args.size() == 0) {
-            std::string input; std::getline(std::cin, input);
+        if (name == "input") {
+            if (args.size() == 1) {
+                // Вывести приглашение
+                std::cout << args[0]->eval(ctx).value;
+            }
+            std::string input; 
+            std::getline(std::cin, input);
             return {"string", input};
+        }
+        if (name == "getch" && args.size() == 0) {
+#ifdef _WIN32
+            return {"string", std::string(1, _getch())};
+#else
+            struct termios oldt, newt;
+            tcgetattr(STDIN_FILENO, &oldt);
+            newt = oldt;
+            newt.c_lflag &= ~(ICANON | ECHO);
+            tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+            char ch = getchar();
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+            return {"string", std::string(1, ch)};
+#endif
+        }
+        if (name == "kbhit" && args.size() == 0) {
+#ifdef _WIN32
+            return {"bool", _kbhit() ? "true" : "false"};
+#else
+            int ch = getchar();
+            if (ch != EOF) {
+                ungetc(ch, stdin);
+                return {"bool", "true"};
+            }
+            return {"bool", "false"};
+#endif
+        }
+        if (name == "wait" && args.size() == 1) {
+            int milliseconds = std::stoi(args[0]->eval(ctx).value);
+            std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+            return {"void", ""};
         }
         if (name == "round" && args.size() == 1) {
             double val = std::stod(args[0]->eval(ctx).value);
@@ -257,6 +313,68 @@ struct FuncCallNode : Node {
             } catch (...) {
                 return {"int", "0"};
             }
+        }
+        if (name == "httpget" && args.size() == 1) {
+            Value urlVal = args[0]->eval(ctx);
+            std::string cmd = "curl -s \"" + urlVal.value + "\"";
+            FILE* pipe = popen(cmd.c_str(), "r");
+            if (!pipe) return {"string", ""};
+            
+            std::string result;
+            char buffer[128];
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+                result += buffer;
+            }
+            pclose(pipe);
+            return {"string", result};
+        }
+        if (name == "httppost" && args.size() >= 2) {
+            Value urlVal = args[0]->eval(ctx);
+            Value dataVal = args[1]->eval(ctx);
+            std::string contentType = args.size() > 2 ? args[2]->eval(ctx).value : "application/json";
+            
+            std::string cmd = "curl -s -X POST -H \"Content-Type: " + contentType + "\" -d \"" + dataVal.value + "\" \"" + urlVal.value + "\"";
+            FILE* pipe = popen(cmd.c_str(), "r");
+            if (!pipe) return {"string", ""};
+            
+            std::string result;
+            char buffer[128];
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+                result += buffer;
+            }
+            pclose(pipe);
+            return {"string", result};
+        }
+        if (name == "httpput" && args.size() >= 2) {
+            Value urlVal = args[0]->eval(ctx);
+            Value dataVal = args[1]->eval(ctx);
+            std::string contentType = args.size() > 2 ? args[2]->eval(ctx).value : "application/json";
+            
+            std::string cmd = "curl -s -X PUT -H \"Content-Type: " + contentType + "\" -d \"" + dataVal.value + "\" \"" + urlVal.value + "\"";
+            FILE* pipe = popen(cmd.c_str(), "r");
+            if (!pipe) return {"string", ""};
+            
+            std::string result;
+            char buffer[128];
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+                result += buffer;
+            }
+            pclose(pipe);
+            return {"string", result};
+        }
+        if (name == "httpdelete" && args.size() == 1) {
+            Value urlVal = args[0]->eval(ctx);
+            std::string cmd = "curl -s -X DELETE \"" + urlVal.value + "\"";
+            FILE* pipe = popen(cmd.c_str(), "r");
+            if (!pipe) return {"string", ""};
+            
+            std::string result;
+            char buffer[128];
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+                result += buffer;
+            }
+            pclose(pipe);
+            return {"string", result};
         }
 
         // Пользовательские функции
@@ -494,7 +612,13 @@ struct WhileNode : Node {
         : condition(std::move(c)), body(std::move(b)) {}
     Value eval(Context& ctx) override {
         while (condition->eval(ctx).value == "true") {
-            body->eval(ctx);
+            try {
+                body->eval(ctx);
+            } catch (const BreakException&) {
+                break;
+            } catch (const ContinueException&) {
+                continue;
+            }
         }
         return {"void", ""};
     }
@@ -507,9 +631,76 @@ struct ForNode : Node {
     Value eval(Context& ctx) override {
         if (init) init->eval(ctx);
         while (condition->eval(ctx).value == "true") {
-            body->eval(ctx);
+            try {
+                body->eval(ctx);
+            } catch (const BreakException&) {
+                break;
+            } catch (const ContinueException&) {
+                // continue - выполняем step и продолжаем цикл
+            }
             if (step) step->eval(ctx);
         }
+        return {"void", ""};
+    }
+};
+
+struct BreakNode : Node {
+    Value eval(Context& ctx) override {
+        throw BreakException{};
+    }
+};
+
+struct ContinueNode : Node {
+    Value eval(Context& ctx) override {
+        throw ContinueException{};
+    }
+};
+
+struct WaitNode : Node {
+    std::unique_ptr<Node> timeExpr;
+    WaitNode(std::unique_ptr<Node> t) : timeExpr(std::move(t)) {}
+    Value eval(Context& ctx) override {
+        int milliseconds = std::stoi(timeExpr->eval(ctx).value);
+        std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+        return {"void", ""};
+    }
+};
+
+struct SwitchNode : Node {
+    std::unique_ptr<Node> expr;
+    std::vector<std::pair<std::unique_ptr<Node>, std::unique_ptr<Node>>> cases; // value, body
+    std::unique_ptr<Node> defaultCase;
+    
+    SwitchNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
+    
+    Value eval(Context& ctx) override {
+        Value switchValue = expr->eval(ctx);
+        bool executed = false;
+        bool fallthrough = false;
+        
+        for (auto& caseItem : cases) {
+            if (!executed && !fallthrough) {
+                Value caseValue = caseItem.first->eval(ctx);
+                if (switchValue.value == caseValue.value) {
+                    executed = true;
+                    fallthrough = true;
+                }
+            }
+            
+            if (fallthrough) {
+                try {
+                    caseItem.second->eval(ctx);
+                } catch (const BreakException&) {
+                    fallthrough = false;
+                    break;
+                }
+            }
+        }
+        
+        if (!executed && defaultCase) {
+            defaultCase->eval(ctx);
+        }
+        
         return {"void", ""};
     }
 };
