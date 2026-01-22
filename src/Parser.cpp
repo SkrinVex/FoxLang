@@ -173,6 +173,55 @@ std::unique_ptr<Node> Parser::primary() {
         return std::make_unique<FuncCallNode>("kbhit", std::move(args));
     }
 
+    // FastAPI функции
+    if (tokens[pos].type == TokenType::SERVER_START) {
+        consume(TokenType::SERVER_START); consume(TokenType::LPAREN);
+        auto port = expression();
+        consume(TokenType::RPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        args.push_back(std::move(port));
+        return std::make_unique<FuncCallNode>("server_start", std::move(args));
+    }
+
+    if (tokens[pos].type == TokenType::SERVER_STOP) {
+        consume(TokenType::SERVER_STOP); consume(TokenType::LPAREN); consume(TokenType::RPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        return std::make_unique<FuncCallNode>("server_stop", std::move(args));
+    }
+
+    if (tokens[pos].type == TokenType::ROUTE_GET) {
+        consume(TokenType::ROUTE_GET); consume(TokenType::LPAREN);
+        auto path = expression();
+        consume(TokenType::COMMA);
+        auto handler = expression();
+        consume(TokenType::RPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        args.push_back(std::move(path));
+        args.push_back(std::move(handler));
+        return std::make_unique<FuncCallNode>("route_get", std::move(args));
+    }
+
+    if (tokens[pos].type == TokenType::ROUTE_POST) {
+        consume(TokenType::ROUTE_POST); consume(TokenType::LPAREN);
+        auto path = expression();
+        consume(TokenType::COMMA);
+        auto handler = expression();
+        consume(TokenType::RPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        args.push_back(std::move(path));
+        args.push_back(std::move(handler));
+        return std::make_unique<FuncCallNode>("route_post", std::move(args));
+    }
+
+    if (tokens[pos].type == TokenType::SEND_RESPONSE) {
+        consume(TokenType::SEND_RESPONSE); consume(TokenType::LPAREN);
+        auto response = expression();
+        consume(TokenType::RPAREN);
+        std::vector<std::unique_ptr<Node>> args;
+        args.push_back(std::move(response));
+        return std::make_unique<FuncCallNode>("send_response", std::move(args));
+    }
+
     if (tokens[pos].type == TokenType::LPAREN) { 
         consume(TokenType::LPAREN); 
         auto n = expression(); 

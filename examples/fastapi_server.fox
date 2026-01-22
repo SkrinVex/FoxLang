@@ -1,0 +1,68 @@
+// Пример FastAPI-подобного сервера на FoxLang
+include("../src/net.fox");
+
+// Обработчики маршрутов
+void api_home() {
+    json_response("{\"message\":\"🦊 Welcome to FoxLang FastAPI!\",\"version\":\"5.0.1\",\"docs\":\"/docs\"}");
+}
+
+void api_health() {
+    json_response("{\"status\":\"healthy\",\"timestamp\":\"2026-01-22\",\"uptime\":\"running\"}");
+}
+
+void api_users() {
+    json_response("{\"users\":[{\"id\":1,\"name\":\"Alice\",\"role\":\"admin\"},{\"id\":2,\"name\":\"Bob\",\"role\":\"user\"},{\"id\":3,\"name\":\"Charlie\",\"role\":\"guest\"}]}");
+}
+
+void api_create_user() {
+    text_response("User created successfully with ID: 4");
+}
+
+void api_docs() {
+    json_response("{\"endpoints\":[\"/\",\"/health\",\"/users\",\"POST /users\",\"/docs\"]}");
+}
+
+// Главная функция
+void main() {
+    print("🦊 FoxLang FastAPI Server Example");
+    print("==================================");
+    
+    // Запуск сервера на порту 8080
+    start_server(8080);
+    
+    // Регистрация маршрутов
+    get("/", "api_home");
+    get("/health", "api_health");
+    get("/users", "api_users");
+    get("/docs", "api_docs");
+    post("/users", "api_create_user");
+    
+    print("");
+    print("✅ Server is running with the following endpoints:");
+    print("   GET  /        - Welcome message");
+    print("   GET  /health  - Health check");
+    print("   GET  /users   - List all users");
+    print("   GET  /docs    - API documentation");
+    print("   POST /users   - Create new user");
+    print("");
+    print("🌐 Open in browser: http://localhost:8080");
+    print("🧪 Test with curl:");
+    print("   curl http://localhost:8080/");
+    print("   curl http://localhost:8080/users");
+    print("   curl -X POST http://localhost:8080/users");
+    print("");
+    print("⏹️  Press Ctrl+C to stop the server");
+    
+    // Демонстрация клиентских запросов
+    print("🧪 Testing endpoints...");
+    wait(3000); // Ждем запуска сервера
+    
+    string home_response = http_get_simple("http://localhost:8080/");
+    print("Home endpoint: " + home_response);
+    
+    string users_response = http_get_simple("http://localhost:8080/users");
+    print("Users endpoint: " + users_response);
+}
+
+// Запуск сервера
+main();

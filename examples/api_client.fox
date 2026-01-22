@@ -1,0 +1,41 @@
+// HTTP клиент для тестирования FoxLang API
+include("../src/net.fox");
+
+void test_api() {
+    print("🧪 Testing FoxLang FastAPI Server");
+    print("=================================");
+    
+    string base_url = "http://localhost:8080";
+    
+    // Тест GET запросов
+    print("📥 Testing GET endpoints...");
+    
+    string home = api_get(base_url, "/");
+    print("GET /: " + home);
+    
+    string health = api_get(base_url, "/health");
+    print("GET /health: " + health);
+    
+    string users = api_get(base_url, "/users");
+    print("GET /users: " + users);
+    
+    string docs = api_get(base_url, "/docs");
+    print("GET /docs: " + docs);
+    
+    // Тест POST запроса
+    print("");
+    print("📤 Testing POST endpoint...");
+    
+    string user_data = "{\"name\":\"David\",\"role\":\"user\"}";
+    string create_response = api_post(base_url, "/users", user_data);
+    print("POST /users: " + create_response);
+    
+    print("");
+    print("✅ API testing completed!");
+}
+
+void main() {
+    test_api();
+}
+
+main();

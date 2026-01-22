@@ -377,6 +377,45 @@ struct FuncCallNode : Node {
             return {"string", result};
         }
 
+        // FastAPI-подобные функции
+        if (name == "server_start" && args.size() == 1) {
+            int port = std::stoi(args[0]->eval(ctx).value);
+            
+            // Простая заглушка сервера
+            std::cout << "HTTP Server started on port " << port << std::endl;
+            std::cout << "Note: This is a simulation. Real server implementation requires additional setup." << std::endl;
+            
+            return {"string", "Server started on port " + std::to_string(port)};
+        }
+        
+        if (name == "server_stop" && args.size() == 0) {
+            std::cout << "HTTP Server stopped" << std::endl;
+            return {"string", "Server stopped"};
+        }
+        
+        if (name == "route_get" && args.size() == 2) {
+            Value pathVal = args[0]->eval(ctx);
+            Value handlerVal = args[1]->eval(ctx);
+            
+            std::cout << "Registered GET route: " << pathVal.value << " -> " << handlerVal.value << std::endl;
+            return {"string", "GET route registered: " + pathVal.value};
+        }
+        
+        if (name == "route_post" && args.size() == 2) {
+            Value pathVal = args[0]->eval(ctx);
+            Value handlerVal = args[1]->eval(ctx);
+            
+            std::cout << "Registered POST route: " << pathVal.value << " -> " << handlerVal.value << std::endl;
+            return {"string", "POST route registered: " + pathVal.value};
+        }
+        
+        if (name == "send_response" && args.size() == 1) {
+            Value responseVal = args[0]->eval(ctx);
+            
+            std::cout << "HTTP Response: " << responseVal.value << std::endl;
+            return {"void", ""};
+        }
+
         // Пользовательские функции
         auto funcNodeBase = ctx.getFunc(name);
         if (!funcNodeBase) {

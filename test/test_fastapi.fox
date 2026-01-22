@@ -1,0 +1,28 @@
+// Тест новых FastAPI функций
+include("src/net.fox");
+
+void test_server_functions() {
+    print("🧪 Testing FastAPI functions...");
+    
+    // Тест запуска сервера
+    string start_result = server_start(8080);
+    print("Server start: " + start_result);
+    
+    // Тест регистрации маршрутов
+    string get_route = route_get("/test", "test_handler");
+    print("GET route: " + get_route);
+    
+    string post_route = route_post("/api", "api_handler");
+    print("POST route: " + post_route);
+    
+    // Тест отправки ответа
+    send_response("{\"message\":\"Hello from FoxLang!\"}");
+    
+    // Остановка сервера
+    string stop_result = server_stop();
+    print("Server stop: " + stop_result);
+    
+    print("✅ FastAPI functions test completed!");
+}
+
+test_server_functions();

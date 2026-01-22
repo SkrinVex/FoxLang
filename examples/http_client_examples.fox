@@ -1,0 +1,42 @@
+// Примеры HTTP запросов в FoxLang
+
+void example_api_calls() {
+    print("🚀 FoxLang HTTP Client Examples");
+    print("===============================");
+    
+    // 1. Простой GET запрос
+    print("1️⃣ GET запрос к JSONPlaceholder API:");
+    string user = httpget("https://jsonplaceholder.typicode.com/users/1");
+    print("User data: " + user);
+    print("");
+    
+    // 2. POST запрос с JSON данными
+    print("2️⃣ POST запрос (создание поста):");
+    string post_data = "{\"title\":\"FoxLang Post\",\"body\":\"Created with FoxLang!\",\"userId\":1}";
+    string new_post = httppost("https://jsonplaceholder.typicode.com/posts", post_data, "application/json");
+    print("Created post: " + new_post);
+    print("");
+    
+    // 3. PUT запрос (обновление)
+    print("3️⃣ PUT запрос (обновление поста):");
+    string update_data = "{\"id\":1,\"title\":\"Updated by FoxLang\",\"body\":\"Modified content\",\"userId\":1}";
+    string updated = httpput("https://jsonplaceholder.typicode.com/posts/1", update_data, "application/json");
+    print("Updated post: " + updated);
+    print("");
+    
+    // 4. DELETE запрос
+    print("4️⃣ DELETE запрос (удаление поста):");
+    string deleted = httpdelete("https://jsonplaceholder.typicode.com/posts/1");
+    print("Delete response: " + deleted);
+    print("");
+    
+    // 5. Работа с GitHub API
+    print("5️⃣ GitHub API запрос:");
+    string github_user = httpget("https://api.github.com/users/octocat");
+    print("GitHub user: " + github_user);
+    print("");
+    
+    print("✅ Все примеры выполнены!");
+}
+
+example_api_calls();

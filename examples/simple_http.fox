@@ -1,0 +1,60 @@
+// Простые HTTP функции для удобства
+
+// GET запрос с обработкой ошибок
+string http_get(string url) {
+    string response = httpget(url);
+    if (response == "") {
+        print("❌ GET failed: " + url);
+        return "{}";
+    }
+    return response;
+}
+
+// POST запрос с JSON
+string http_post(string url, string json_data) {
+    string response = httppost(url, json_data, "application/json");
+    if (response == "") {
+        print("❌ POST failed: " + url);
+        return "{}";
+    }
+    return response;
+}
+
+// PUT запрос с JSON
+string http_put(string url, string json_data) {
+    string response = httpput(url, json_data, "application/json");
+    if (response == "") {
+        print("❌ PUT failed: " + url);
+        return "{}";
+    }
+    return response;
+}
+
+// DELETE запрос
+string http_delete(string url) {
+    string response = httpdelete(url);
+    if (response == "") {
+        print("❌ DELETE failed: " + url);
+        return "{}";
+    }
+    return response;
+}
+
+// Тест простых функций
+void test_simple_http() {
+    print("🧪 Testing simple HTTP functions:");
+    
+    string user = http_get("https://jsonplaceholder.typicode.com/users/1");
+    print("GET: " + user);
+    
+    string new_post = http_post("https://jsonplaceholder.typicode.com/posts", "{\"title\":\"Test\"}");
+    print("POST: " + new_post);
+    
+    string updated = http_put("https://jsonplaceholder.typicode.com/posts/1", "{\"title\":\"Updated\"}");
+    print("PUT: " + updated);
+    
+    string deleted = http_delete("https://jsonplaceholder.typicode.com/posts/1");
+    print("DELETE: " + deleted);
+}
+
+test_simple_http();

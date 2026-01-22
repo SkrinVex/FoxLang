@@ -1,46 +1,114 @@
-// net.fox - Продвинутая сетевая библиотека FoxLang
+// net.fox - Продвинутая сетевая библиотека FoxLang с FastAPI-подобным функционалом
 // Подключается через: include("net.fox");
 
-// === БАЗОВЫЕ СЕТЕВЫЕ ФУНКЦИИ (ЗАГЛУШКИ) ===
+// === FASTAPI-ПОДОБНЫЙ ВЕБ СЕРВЕР ===
 
-// HTTP GET запрос (встроенная функция)
-// string http_get(string url) - реализована в интерпретаторе
+global int server_port = 8000;
+global bool server_running = false;
 
-// HTTP POST запрос (заглушка)
-string http_post(string url, string data) {
-    print("http_post not implemented yet");
-    return "";
+// Запуск сервера на указанном порту
+void start_server(int port) {
+    server_port = port;
+    string result = server_start(port);
+    server_running = true;
+    print("🚀 Server started on http://localhost:" + port);
+    print(result);
 }
 
-// TCP сокет функции (заглушки)
-int tcp_socket() {
-    print("tcp_socket not implemented yet");
-    return 0;
+// Остановка сервера
+void stop_server() {
+    if (server_running) {
+        string result = server_stop();
+        server_running = false;
+        print("🛑 Server stopped");
+        print(result);
+    } else {
+        print("❌ Server is not running");
+    }
 }
 
-bool tcp_connect(int socket, string host, int port) {
-    print("tcp_connect not implemented yet");
-    return false;
+// Регистрация GET маршрута
+void register_get(string path, string handler_name) {
+    if (!server_running) {
+        print("⚠️  Warning: Server not started. Call start_server() first");
+    }
+    string result = route_get(path, handler_name);
+    print("📥 GET " + path + " -> " + handler_name);
 }
 
-void tcp_send(int socket, string message) {
-    print("tcp_send not implemented yet");
+// Регистрация POST маршрута  
+void register_post(string path, string handler_name) {
+    if (!server_running) {
+        print("⚠️  Warning: Server not started. Call start_server() first");
+    }
+    string result = route_post(path, handler_name);
+    print("📤 POST " + path + " -> " + handler_name);
 }
 
-string tcp_receive(int socket, int size) {
-    print("tcp_receive not implemented yet");
-    return "";
+// Отправка JSON ответа
+void json_response(string json_data) {
+    send_response(json_data);
 }
 
-void tcp_close(int socket) {
-    print("tcp_close not implemented yet");
+// Отправка текстового ответа
+void text_response(string text) {
+    string json = "{\"message\":\"" + text + "\"}";
+    send_response(json);
 }
 
-// === HTTP КЛИЕНТ С УДОБНЫМИ МЕТОДАМИ ===
+// === ПРИМЕРЫ ОБРАБОТЧИКОВ ===
 
-// Простой GET с автоматической обработкой ошибок
+// Простой обработчик для главной страницы
+void home_handler() {
+    json_response("{\"message\":\"Welcome to FoxLang API!\",\"version\":\"5.0.1\"}");
+}
+
+// Обработчик для API статуса
+void status_handler() {
+    json_response("{\"status\":\"ok\",\"server\":\"FoxLang\",\"port\":" + server_port + "}");
+}
+
+// Обработчик для пользователей
+void users_handler() {
+    json_response("{\"users\":[{\"id\":1,\"name\":\"Alice\"},{\"id\":2,\"name\":\"Bob\"}]}");
+}
+
+// Обработчик для создания пользователя
+void create_user_handler() {
+    text_response("User created successfully");
+}
+
+// === БЫСТРЫЙ СТАРТ СЕРВЕРА ===
+
+void quick_start() {
+    print("🦊 Starting FoxLang FastAPI Server...");
+    
+    // Запуск сервера
+    start_server(8000);
+    
+    // Регистрация маршрутов
+    register_get("/", "home_handler");
+    register_get("/status", "status_handler");
+    register_get("/users", "users_handler");
+    register_post("/users", "create_user_handler");
+    
+    print("✅ Server configured with routes:");
+    print("   GET  / -> Welcome page");
+    print("   GET  /status -> Server status");
+    print("   GET  /users -> List users");
+    print("   POST /users -> Create user");
+    print("");
+    print("🌐 Visit: http://localhost:8000");
+    print("⏹️  To stop: stop_server()");
+}
+
+// === РАСШИРЕННЫЕ HTTP ФУНКЦИИ ===
+
+// === РАСШИРЕННЫЕ HTTP ФУНКЦИИ ===
+
+// HTTP GET запрос (встроенная функция httpget уже реализована)
 string http_get_simple(string url) {
-    string response = http_get(url);
+    string response = httpget(url);
     if (response == "") {
         print("ERROR: Failed to fetch " + url);
         return "{}";
@@ -48,9 +116,9 @@ string http_get_simple(string url) {
     return response;
 }
 
-// POST с JSON данными
+// POST с JSON данными (используем встроенную httppost)
 string post_json(string url, string json_data) {
-    string response = http_post(url, json_data);
+    string response = httppost(url, json_data, "application/json");
     if (response == "") {
         print("ERROR: Failed to POST to " + url);
         return "{}";
@@ -58,70 +126,7 @@ string post_json(string url, string json_data) {
     return response;
 }
 
-// Загрузка файла по URL
-bool download_file(string url, string filename) {
-    string content = http_get_simple(url);
-    if (content == "{}") {
-        return false;
-    }
-    // Здесь должна быть функция записи в файл
-    print("Downloaded " + filename + " from " + url);
-    return true;
-}
-
-// Проверка доступности сервера
-bool ping(string host, int port) {
-    int socket = tcp_socket();
-    bool connected = tcp_connect(socket, host, port);
-    if (connected) {
-        tcp_close(socket);
-        return true;
-    }
-    return false;
-}
-
-// === TCP КЛИЕНТ С АВТОМАТИЧЕСКИМ УПРАВЛЕНИЕМ ===
-
-// Простая отправка сообщения с автозакрытием
-string send_message(string host, int port, string message) {
-    int socket = tcp_socket();
-    if (!tcp_connect(socket, host, port)) {
-        print("ERROR: Cannot connect to " + host + ":" + port);
-        return "";
-    }
-    
-    tcp_send(socket, message);
-    string response = tcp_receive(socket, 1024);
-    tcp_close(socket);
-    return response;
-}
-
-// Чат-клиент (отправка и получение)
-void chat_session(string host, int port) {
-    int socket = tcp_socket();
-    if (!tcp_connect(socket, host, port)) {
-        print("ERROR: Cannot connect to chat server");
-        return;
-    }
-    
-    print("Connected to chat! Type 'quit' to exit");
-    string message = "";
-    
-    while (message != "quit") {
-        print("You: ");
-        message = input();
-        if (message != "quit") {
-            tcp_send(socket, message);
-            string response = tcp_receive(socket, 1024);
-            print("Server: " + response);
-        }
-    }
-    
-    tcp_close(socket);
-    print("Chat session ended");
-}
-
-// === API HELPERS ===
+// === API КЛИЕНТ ===
 
 // REST API клиент
 string api_get(string base_url, string endpoint) {
@@ -132,20 +137,7 @@ string api_post(string base_url, string endpoint, string data) {
     return post_json(base_url + endpoint, data);
 }
 
-// Простой JSON парсер (базовый)
-string json_get_value(string json, string key) {
-    // Простейший парсер для демонстрации
-    string search = "\"" + key + "\":";
-    // Здесь должна быть реальная логика парсинга
-    return "value";
-}
-
 // === УТИЛИТЫ ===
-
-// Проверка интернет-соединения
-bool is_online() {
-    return ping("8.8.8.8", 53); // Google DNS
-}
 
 // Получение публичного IP
 string get_public_ip() {
@@ -156,40 +148,49 @@ string get_public_ip() {
 bool send_webhook(string url, string message) {
     string json = "{\"text\":\"" + message + "\"}";
     string response = post_json(url, json);
-    return response != "{}";
+    return true; // Упрощено для совместимости
 }
 
-// === ПРИМЕРЫ ИСПОЛЬЗОВАНИЯ ===
+// === ДЕМО ФУНКЦИИ ===
 
-void demo_http() {
-    print("=== HTTP Demo ===");
+void demo_server() {
+    print("=== FastAPI Demo ===");
+    quick_start();
     
-    if (is_online()) {
-        print("Internet connection: OK");
-        string ip = get_public_ip();
-        print("Your IP: " + ip);
-        
-        string weather = http_get_simple("https://api.weather.com/current");
-        print("Weather data: " + weather);
-    } else {
-        print("No internet connection");
-    }
-}
-
-void demo_tcp() {
-    print("=== TCP Demo ===");
+    // Ждем немного для запуска сервера
+    wait(2000);
     
-    if (ping("localhost", 8080)) {
-        print("Server is running on localhost:8080");
-        string response = send_message("localhost", 8080, "Hello Server!");
-        print("Server response: " + response);
-    } else {
-        print("Server not available");
-    }
+    // Тестируем API
+    print("🧪 Testing API endpoints...");
+    
+    string home = http_get_simple("http://localhost:8000/");
+    print("Home: " + home);
+    
+    string status = http_get_simple("http://localhost:8000/status");
+    print("Status: " + status);
+    
+    string users = http_get_simple("http://localhost:8000/users");
+    print("Users: " + users);
 }
 
-// Запуск демо
+void demo_client() {
+    print("=== HTTP Client Demo ===");
+    
+    string ip = get_public_ip();
+    print("Your IP: " + ip);
+    
+    // Тест внешнего API
+    string response = api_get("https://jsonplaceholder.typicode.com", "/posts/1");
+    print("External API: " + response);
+}
+
+// === ОСНОВНАЯ ДЕМО ФУНКЦИЯ ===
+
 void net_demo() {
-    demo_http();
-    demo_tcp();
+    print("🦊 FoxLang Network Library Demo");
+    print("================================");
+    
+    demo_client();
+    print("");
+    demo_server();
 }

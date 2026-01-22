@@ -25,6 +25,9 @@ enum class TokenType {
     // Сетевые функции
     HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE,
     
+    // FastAPI-подобные функции
+    SERVER_START, SERVER_STOP, ROUTE_GET, ROUTE_POST, SEND_RESPONSE,
+    
     // Ввод с клавиатуры
     GETCH, KBHIT,
     

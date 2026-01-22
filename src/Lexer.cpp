@@ -103,6 +103,11 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "httpdelete") tokens.push_back({TokenType::HTTP_DELETE, id, line});
             else if (id == "getch") tokens.push_back({TokenType::GETCH, id, line});
             else if (id == "kbhit") tokens.push_back({TokenType::KBHIT, id, line});
+            else if (id == "server_start") tokens.push_back({TokenType::SERVER_START, id, line});
+            else if (id == "server_stop") tokens.push_back({TokenType::SERVER_STOP, id, line});
+            else if (id == "route_get") tokens.push_back({TokenType::ROUTE_GET, id, line});
+            else if (id == "route_post") tokens.push_back({TokenType::ROUTE_POST, id, line});
+            else if (id == "send_response") tokens.push_back({TokenType::SEND_RESPONSE, id, line});
             else tokens.push_back({TokenType::IDENTIFIER, id, line});
         } 
         else {

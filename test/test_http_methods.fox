@@ -1,0 +1,36 @@
+// Тест всех HTTP запросов в FoxLang
+
+void test_http_requests() {
+    print("🌐 Testing HTTP requests in FoxLang");
+    print("===================================");
+    
+    // GET запрос
+    print("📥 GET request:");
+    string get_response = httpget("https://httpbin.org/get");
+    print("Response: " + get_response);
+    print("");
+    
+    // POST запрос
+    print("📤 POST request:");
+    string post_data = "{\"name\":\"FoxLang\",\"version\":\"5.0.1\"}";
+    string post_response = httppost("https://httpbin.org/post", post_data);
+    print("Response: " + post_response);
+    print("");
+    
+    // PUT запрос
+    print("🔄 PUT request:");
+    string put_data = "{\"updated\":\"true\"}";
+    string put_response = httpput("https://httpbin.org/put", put_data);
+    print("Response: " + put_response);
+    print("");
+    
+    // DELETE запрос
+    print("🗑️ DELETE request:");
+    string delete_response = httpdelete("https://httpbin.org/delete");
+    print("Response: " + delete_response);
+    print("");
+    
+    print("✅ All HTTP methods tested!");
+}
+
+test_http_requests();

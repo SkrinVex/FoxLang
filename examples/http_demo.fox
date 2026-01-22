@@ -1,0 +1,36 @@
+// Демонстрация всех HTTP возможностей FoxLang
+
+void demo_http_client() {
+    print("🌐 HTTP Client Demo");
+    print("==================");
+    
+    // GET запрос
+    print("📥 GET request to JSONPlaceholder:");
+    string user = httpget("https://jsonplaceholder.typicode.com/users/1");
+    print("User: " + user);
+    print("");
+    
+    // POST запрос
+    print("📤 POST request (create post):");
+    string post_data = "{\"title\":\"FoxLang Post\",\"body\":\"Hello from FoxLang!\",\"userId\":1}";
+    string new_post = httppost("https://jsonplaceholder.typicode.com/posts", post_data);
+    print("Created: " + new_post);
+    print("");
+    
+    // PUT запрос
+    print("🔄 PUT request (update post):");
+    string update_data = "{\"id\":1,\"title\":\"Updated by FoxLang\",\"body\":\"Modified content\",\"userId\":1}";
+    string updated = httpput("https://jsonplaceholder.typicode.com/posts/1", update_data);
+    print("Updated: " + updated);
+    print("");
+    
+    // DELETE запрос
+    print("🗑️ DELETE request:");
+    string deleted = httpdelete("https://jsonplaceholder.typicode.com/posts/1");
+    print("Deleted: " + deleted);
+    print("");
+    
+    print("✅ HTTP Client demo completed!");
+}
+
+demo_http_client();

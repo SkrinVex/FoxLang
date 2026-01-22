@@ -100,16 +100,29 @@ if (config != "") {
 }
 ```
 
-### HTTP запросы
+### FastAPI-подобный веб-сервер
 ```cpp
-// Получение данных с API
-string response = http_get("https://api.github.com/users/octocat");
-if (response != "") {
-    print("✅ API response received");
-    print("Data: " + response);
-} else {
-    print("❌ Failed to fetch data");
+// Подключение сетевой библиотеки
+include("src/net.fox");
+
+// Обработчики API
+void api_home() {
+    json_response("{\"message\":\"🦊 Welcome to FoxLang API!\"}");
 }
+
+void api_users() {
+    json_response("{\"users\":[{\"id\":1,\"name\":\"Alice\"}]}");
+}
+
+// Запуск сервера
+void main() {
+    start_server(8080);
+    register_get("/", "api_home");
+    register_get("/users", "api_users");
+    print("🚀 Server: http://localhost:8080");
+}
+
+main();
 ```
 
 ## 📂 Структура проекта

@@ -9,7 +9,8 @@
 6. [Массивы](#6-массивы)
 7. [Модули и Импорт](#7-модули-и-импорт)
 8. [Встроенные функции](#8-встроенные-функции)
-9. [Современный синтаксис](#9-современный-синтаксис)
+9. [Сетевые возможности и HTTP](#9-сетевые-возможности-и-http)
+10. [Современный синтаксис](#10-современный-синтаксис)
 
 ---
 
@@ -309,6 +310,15 @@ FoxLang поддерживает импорт внешних модулей.
 | `httpput(url, data, content_type)` | HTTP PUT с указанием типа контента. | `httpput(url, data, "text/plain");` |
 | `httpdelete(url)` | Выполняет HTTP DELETE запрос. | `string response = httpdelete(url);` |
 
+### FastAPI-подобный веб-сервер
+| Функция | Описание | Пример |
+| --- | --- | --- |
+| `server_start(port)` | Запускает HTTP сервер на указанном порту. | `string result = server_start(8080);` |
+| `server_stop()` | Останавливает HTTP сервер. | `string result = server_stop();` |
+| `route_get(path, handler)` | Регистрирует GET маршрут с обработчиком. | `string result = route_get("/api", "handler");` |
+| `route_post(path, handler)` | Регистрирует POST маршрут с обработчиком. | `string result = route_post("/users", "create");` |
+| `send_response(data)` | Отправляет ответ клиенту (используется в обработчиках). | `send_response("{\"status\":\"ok\"}");` |
+
 ### Работа со строками и JSON
 | Функция | Описание | Пример |
 | --- | --- | --- |
@@ -330,7 +340,461 @@ FoxLang поддерживает импорт внешних модулей.
 
 ---
 
-## 9. Современный синтаксис
+## 9. Сетевые возможности и HTTP
+
+FoxLang предоставляет мощные возможности для работы с сетью и HTTP запросами. Поддерживаются все основные HTTP методы и создание веб-серверов.
+
+### HTTP клиент - Отправка запросов
+
+#### GET запросы
+```cpp
+// Простой GET запрос
+string response = httpget("https://api.github.com/users/octocat");
+print("Response: " + response);
+
+// Получение JSON данных
+string user_data = httpget("https://jsonplaceholder.typicode.com/users/1");
+print("User: " + user_data);
+```
+
+#### POST запросы
+```cpp
+// POST с JSON данными
+string json_data = "{\"name\":\"John\",\"email\":\"john@example.com\"}";
+string response = httppost("https://jsonplaceholder.typicode.com/users", json_data, "application/json");
+print("Created: " + response);
+
+// POST без указания Content-Type (по умолчанию application/json)
+string simple_post = httppost("https://httpbin.org/post", "{\"test\":\"data\"}");
+print("POST result: " + simple_post);
+```
+
+#### PUT запросы (обновление данных)
+```cpp
+// Обновление существующего ресурса
+string update_data = "{\"name\":\"John Updated\",\"email\":\"john.new@example.com\"}";
+string updated = httpput("https://jsonplaceholder.typicode.com/users/1", update_data, "application/json");
+print("Updated: " + updated);
+```
+
+#### DELETE запросы (удаление данных)
+```cpp
+// Удаление ресурса
+string deleted = httpdelete("https://jsonplaceholder.typicode.com/users/1");
+print("Deleted: " + deleted);
+```
+
+### Работа с различными API
+
+#### Пример работы с REST API
+```cpp
+void work_with_api() {
+    string base_url = "https://jsonplaceholder.typicode.com";
+    
+    // Получить список пользователей
+    string users = httpget(base_url + "/users");
+    print("All users: " + users);
+    
+    // Получить конкретного пользователя
+    string user = httpget(base_url + "/users/1");
+    print("User 1: " + user);
+    
+    // Создать новый пост
+    string new_post = "{\"title\":\"My Post\",\"body\":\"Post content\",\"userId\":1}";
+    string created = httppost(base_url + "/posts", new_post, "application/json");
+    print("Created post: " + created);
+    
+    // Обновить пост
+    string updated_post = "{\"id\":1,\"title\":\"Updated Post\",\"body\":\"New content\",\"userId\":1}";
+    string updated = httpput(base_url + "/posts/1", updated_post, "application/json");
+    print("Updated post: " + updated);
+    
+    // Удалить пост
+    string deleted = httpdelete(base_url + "/posts/1");
+    print("Deleted post: " + deleted);
+}
+
+work_with_api();
+```
+
+### FastAPI-подобный веб-сервер
+
+FoxLang поддерживает создание веб-серверов через библиотеку `net.fox`:
+
+#### Быстрый старт сервера
+```cpp
+include("src/net.fox");
+
+// Обработчики маршрутов
+void api_home() {
+    json_response("{\"message\":\"Welcome to FoxLang API!\",\"version\":\"5.0.1\"}");
+}
+
+void api_users() {
+    json_response("{\"users\":[{\"id\":1,\"name\":\"Alice\"},{\"id\":2,\"name\":\"Bob\"}]}");
+}
+
+void create_user() {
+    json_response("{\"message\":\"User created\",\"id\":3,\"name\":\"Charlie\"}");
+}
+
+// Запуск сервера
+void main() {
+    // Старт сервера на порту 8080
+    start_server(8080);
+    
+    // Регистрация маршрутов
+    register_get("/", "api_home");
+    register_get("/users", "api_users");
+    register_post("/users", "create_user");
+    
+    print("🚀 Server running on http://localhost:8080");
+    print("Available endpoints:");
+    print("  GET  / - Welcome message");
+    print("  GET  /users - List users");
+    print("  POST /users - Create user");
+}
+
+main();
+```
+
+#### Встроенные серверные функции
+
+| Функция | Описание | Пример |
+|---------|----------|---------|
+| `server_start(port)` | Запускает HTTP сервер | `server_start(8080);` |
+| `server_stop()` | Останавливает сервер | `server_stop();` |
+| `route_get(path, handler)` | Регистрирует GET маршрут | `route_get("/api", "handler");` |
+| `route_post(path, handler)` | Регистрирует POST маршрут | `route_post("/users", "create");` |
+| `send_response(data)` | Отправляет ответ клиенту | `send_response("{\"status\":\"ok\"}");` |
+
+#### Библиотека net.fox - Высокоуровневые функции
+
+```cpp
+include("src/net.fox");
+
+// Удобные функции из библиотеки:
+start_server(8080);              // Запуск сервера
+register_get("/", "handler");    // Регистрация GET маршрута
+register_post("/api", "create"); // Регистрация POST маршрута
+json_response("{\"key\":\"value\"}"); // JSON ответ
+text_response("Hello World");    // Текстовый ответ
+```
+
+### Практические примеры
+
+#### HTTP клиент для тестирования API
+```cpp
+void test_external_apis() {
+    // Тест GitHub API
+    string github_user = httpget("https://api.github.com/users/octocat");
+    print("GitHub user: " + github_user);
+    
+    // Тест погодного API (пример)
+    string weather = httpget("https://api.openweathermap.org/data/2.5/weather?q=Moscow&appid=YOUR_KEY");
+    print("Weather: " + weather);
+    
+    // Отправка данных в webhook
+    string webhook_data = "{\"text\":\"Hello from FoxLang!\"}";
+    string webhook_response = httppost("https://hooks.slack.com/services/YOUR/WEBHOOK/URL", webhook_data);
+    print("Webhook sent: " + webhook_response);
+}
+```
+
+#### Простой API сервер с обработкой данных
+```cpp
+include("src/net.fox");
+
+global array users 10;
+global int user_count = 0;
+
+void get_users() {
+    string users_json = "{\"users\":[";
+    int i = 0;
+    while (i < user_count) {
+        if (i > 0) {
+            users_json = users_json + ",";
+        }
+        users_json = users_json + "{\"id\":" + i + ",\"name\":\"" + get(users, i) + "\"}";
+        i = i + 1;
+    }
+    users_json = users_json + "],\"total\":" + user_count + "}";
+    json_response(users_json);
+}
+
+void add_user() {
+    if (user_count < 10) {
+        set(users, user_count, "User" + user_count);
+        user_count = user_count + 1;
+        json_response("{\"message\":\"User added\",\"id\":" + (user_count - 1) + "}");
+    } else {
+        json_response("{\"error\":\"Maximum users reached\"}");
+    }
+}
+
+void main() {
+    start_server(3000);
+    register_get("/users", "get_users");
+    register_post("/users", "add_user");
+    print("API server ready on http://localhost:3000");
+}
+
+main();
+```
+
+### Обработка ошибок и проверки
+
+```cpp
+void safe_http_request(string url) {
+    string response = httpget(url);
+    
+    if (response == "") {
+        print("❌ Request failed: " + url);
+        return;
+    }
+    
+    // Проверка на успешный ответ (простая проверка)
+    if (str_contains(response, "error") || str_contains(response, "Error")) {
+        print("⚠️ API returned error: " + response);
+        return;
+    }
+    
+    print("✅ Success: " + response);
+}
+
+// Использование
+safe_http_request("https://api.github.com/users/nonexistent");
+safe_http_request("https://api.github.com/users/octocat");
+```
+
+### Краткий справочник HTTP функций
+
+#### 📋 Все встроенные HTTP функции
+| Функция | Описание | Пример |
+|---------|----------|---------|
+| `httpget(url)` | GET запрос | `httpget("https://api.com/users")` |
+| `httppost(url, data)` | POST запрос | `httppost(url, "{\"key\":\"value\"}")` |
+| `httppost(url, data, type)` | POST с Content-Type | `httppost(url, data, "application/json")` |
+| `httpput(url, data)` | PUT запрос | `httpput(url, "{\"updated\":true}")` |
+| `httpput(url, data, type)` | PUT с Content-Type | `httpput(url, data, "text/plain")` |
+| `httpdelete(url)` | DELETE запрос | `httpdelete("https://api.com/item/1")` |
+
+#### 🚀 Серверные функции (встроенные)
+| Функция | Описание | Пример |
+|---------|----------|---------|
+| `server_start(port)` | Запуск сервера | `server_start(8080)` |
+| `server_stop()` | Остановка сервера | `server_stop()` |
+| `route_get(path, handler)` | GET маршрут | `route_get("/api", "handler")` |
+| `route_post(path, handler)` | POST маршрут | `route_post("/users", "create")` |
+| `send_response(data)` | Отправка ответа | `send_response("{\"ok\":true}")` |
+
+#### 📚 Библиотека net.fox (высокоуровневые функции)
+| Функция | Описание | Пример |
+|---------|----------|---------|
+| `start_server(port)` | Удобный запуск сервера | `start_server(8080)` |
+| `register_get(path, handler)` | Регистрация GET | `register_get("/", "home")` |
+| `register_post(path, handler)` | Регистрация POST | `register_post("/api", "create")` |
+| `json_response(json)` | JSON ответ | `json_response("{\"status\":\"ok\"}")` |
+| `text_response(text)` | Текстовый ответ | `text_response("Hello World")` |
+
+#### ⚡ Быстрые примеры
+
+**HTTP клиент:**
+```cpp
+// GET
+string user = httpget("https://api.github.com/users/octocat");
+
+// POST
+string data = "{\"name\":\"John\"}";
+string created = httppost("https://api.com/users", data, "application/json");
+
+// PUT
+string updated = httpput("https://api.com/users/1", "{\"name\":\"Jane\"}");
+
+// DELETE
+string deleted = httpdelete("https://api.com/users/1");
+```
+
+**Веб-сервер:**
+```cpp
+include("src/net.fox");
+
+void api_home() {
+    json_response("{\"message\":\"Hello FoxLang API!\"}");
+}
+
+void main() {
+    start_server(8080);
+    register_get("/", "api_home");
+    print("🚀 Server: http://localhost:8080");
+}
+
+main();
+```
+
+#### 🧪 Компиляция и запуск
+```bash
+# Компиляция
+cd src && g++ -std=c++17 main.cpp Lexer.cpp Parser.cpp -o foxlang
+
+# Запуск HTTP клиента
+./foxlang examples/http_demo.fox
+
+# Запуск веб-сервера
+./foxlang examples/fastapi_demo.fox
+```
+
+### Расширенные примеры использования
+
+#### Webhook отправка
+```cpp
+void send_notification(string message) {
+    string webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL";
+    string payload = "{\"text\":\"" + message + "\"}";
+    string response = httppost(webhook_url, payload);
+    
+    if (response != "") {
+        print("✅ Notification sent");
+    } else {
+        print("❌ Failed to send notification");
+    }
+}
+
+send_notification("Hello from FoxLang!");
+```
+
+#### Полный REST API сервер с данными
+```cpp
+include("src/net.fox");
+
+global array users 10;
+global int user_count = 0;
+
+void get_users() {
+    string users_json = "{\"users\":[";
+    int i = 0;
+    while (i < user_count) {
+        if (i > 0) {
+            users_json = users_json + ",";
+        }
+        users_json = users_json + "{\"id\":" + i + ",\"name\":\"" + get(users, i) + "\"}";
+        i = i + 1;
+    }
+    users_json = users_json + "],\"total\":" + user_count + "}";
+    json_response(users_json);
+}
+
+void add_user() {
+    if (user_count < 10) {
+        set(users, user_count, "User" + user_count);
+        user_count = user_count + 1;
+        json_response("{\"message\":\"User added\",\"id\":" + (user_count - 1) + "}");
+    } else {
+        json_response("{\"error\":\"Maximum users reached\"}");
+    }
+}
+
+void main() {
+    start_server(3000);
+    register_get("/users", "get_users");
+    register_post("/users", "add_user");
+    print("API server ready on http://localhost:3000");
+}
+
+main();
+```
+
+#### Тестирование множественных API
+```cpp
+void test_multiple_apis() {
+    print("🧪 Testing multiple APIs:");
+    
+    // GitHub API
+    string github = httpget("https://api.github.com/users/octocat");
+    print("GitHub API: " + github);
+    
+    // JSONPlaceholder API
+    string posts = httpget("https://jsonplaceholder.typicode.com/posts/1");
+    print("JSONPlaceholder: " + posts);
+    
+    // HTTPBin для тестирования POST
+    string test_post = httppost("https://httpbin.org/post", "{\"test\":\"data\"}");
+    print("HTTPBin POST: " + test_post);
+    
+    // Создание нового поста
+    string new_post = "{\"title\":\"FoxLang Test\",\"body\":\"API testing\"}";
+    string created = httppost("https://jsonplaceholder.typicode.com/posts", new_post);
+    print("Created post: " + created);
+}
+
+test_multiple_apis();
+```
+
+#### Простой счетчик API
+```cpp
+include("src/net.fox");
+
+global int counter = 0;
+
+void get_counter() {
+    json_response("{\"counter\":" + counter + ",\"message\":\"Current value\"}");
+}
+
+void increment_counter() {
+    counter = counter + 1;
+    json_response("{\"counter\":" + counter + ",\"message\":\"Incremented\"}");
+}
+
+void decrement_counter() {
+    counter = counter - 1;
+    json_response("{\"counter\":" + counter + ",\"message\":\"Decremented\"}");
+}
+
+void reset_counter() {
+    counter = 0;
+    json_response("{\"counter\":0,\"message\":\"Reset to zero\"}");
+}
+
+void main() {
+    start_server(4000);
+    
+    register_get("/counter", "get_counter");
+    register_post("/counter/increment", "increment_counter");
+    register_post("/counter/decrement", "decrement_counter");
+    register_post("/counter/reset", "reset_counter");
+    
+    print("🔢 Counter API running on http://localhost:4000");
+    print("Available endpoints:");
+    print("  GET  /counter - Get current value");
+    print("  POST /counter/increment - Add 1");
+    print("  POST /counter/decrement - Subtract 1");
+    print("  POST /counter/reset - Reset to 0");
+}
+
+main();
+```
+
+### Технические особенности
+
+#### Content-Type заголовки
+- По умолчанию POST/PUT используют `application/json`
+- Можно указать свой: `httppost(url, data, "text/plain")`
+- Поддерживаются: `application/json`, `text/plain`, `application/x-www-form-urlencoded`
+
+#### Обработка ответов
+- Все функции возвращают `string` с телом ответа
+- Пустая строка `""` означает ошибку соединения
+- HTTP коды ошибок (404, 500) возвращают тело ответа сервера
+
+#### Сервер
+- Использует простую реализацию HTTP сервера
+- Поддерживает GET и POST методы
+- JSON ответы автоматически получают правильный Content-Type
+- Сервер работает в фоновом режиме
+
+---
+
+## 10. Современный синтаксис
 
 FoxLang поддерживает современные соглашения по именованию и синтаксису:
 

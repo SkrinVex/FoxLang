@@ -1,0 +1,103 @@
+// Полная демонстрация FastAPI возможностей FoxLang
+include("src/net.fox");
+
+// === ОБРАБОТЧИКИ МАРШРУТОВ ===
+
+void home() {
+    json_response("{\"message\":\"🦊 Welcome to FoxLang FastAPI!\",\"version\":\"5.0.1\",\"features\":[\"HTTP Server\",\"REST API\",\"JSON Support\"]}");
+}
+
+void health() {
+    json_response("{\"status\":\"healthy\",\"uptime\":\"running\",\"memory\":\"ok\"}");
+}
+
+void users_list() {
+    json_response("{\"users\":[{\"id\":1,\"name\":\"Alice\",\"role\":\"admin\"},{\"id\":2,\"name\":\"Bob\",\"role\":\"user\"},{\"id\":3,\"name\":\"Charlie\",\"role\":\"guest\"}],\"total\":3}");
+}
+
+void create_user() {
+    json_response("{\"message\":\"User created successfully\",\"id\":4,\"status\":\"created\"}");
+}
+
+void api_docs() {
+    json_response("{\"title\":\"FoxLang API Documentation\",\"version\":\"1.0\",\"endpoints\":[\"/\",\"/health\",\"/users\",\"POST /users\",\"/docs\"]}");
+}
+
+// === ГЛАВНАЯ ФУНКЦИЯ ===
+
+void main() {
+    print("🦊 FoxLang FastAPI Server Demo");
+    print("==============================");
+    print("");
+    
+    // Запуск сервера
+    print("🚀 Starting server...");
+    start_server(8080);
+    
+    // Регистрация маршрутов
+    print("📋 Registering routes...");
+    register_get("/", "home");
+    register_get("/health", "health");
+    register_get("/users", "users_list");
+    register_get("/docs", "api_docs");
+    register_post("/users", "create_user");
+    
+    print("");
+    print("✅ Server is ready!");
+    print("🌐 Base URL: http://localhost:8080");
+    print("");
+    print("📋 Available endpoints:");
+    print("   GET  /        - Welcome & API info");
+    print("   GET  /health  - Health check");
+    print("   GET  /users   - List all users");
+    print("   GET  /docs    - API documentation");
+    print("   POST /users   - Create new user");
+    print("");
+    print("🧪 Testing endpoints in 3 seconds...");
+    
+    // Ждем запуска сервера
+    wait(3000);
+    
+    // Тестирование API
+    print("🔍 Testing API endpoints:");
+    print("");
+    
+    string base = "http://localhost:8080";
+    
+    print("📥 GET /");
+    string home_resp = api_get(base, "/");
+    print("Response: " + home_resp);
+    print("");
+    
+    print("📥 GET /health");
+    string health_resp = api_get(base, "/health");
+    print("Response: " + health_resp);
+    print("");
+    
+    print("📥 GET /users");
+    string users_resp = api_get(base, "/users");
+    print("Response: " + users_resp);
+    print("");
+    
+    print("📤 POST /users");
+    string create_resp = api_post(base, "/users", "{\"name\":\"David\",\"role\":\"user\"}");
+    print("Response: " + create_resp);
+    print("");
+    
+    print("📥 GET /docs");
+    string docs_resp = api_get(base, "/docs");
+    print("Response: " + docs_resp);
+    print("");
+    
+    print("✅ All tests completed!");
+    print("");
+    print("🎯 Try these curl commands:");
+    print("   curl http://localhost:8080/");
+    print("   curl http://localhost:8080/users");
+    print("   curl -X POST http://localhost:8080/users -d '{\"name\":\"Eve\"}'");
+    print("");
+    print("⏹️  To stop server: stop_server() or Ctrl+C");
+}
+
+// Запуск демо
+main();
