@@ -133,22 +133,6 @@ main();
 * `CHANGELOG.md` — История изменений
 * `DOCUMENTATION.md` — Полная документация языка
 
-## 🤖 Telegram Bot
-
-FoxLang поставляется с Telegram ботом, написанным на чистом FoxLang!
-
-### Быстрый запуск бота:
-```bash
-# Настройте токен бота
-cd telegram_bot
-nano token.txt  # Вставьте токен от @BotFather
-
-# Запустите бота
-./run_bot.sh
-```
-
-Подробнее: [telegram_bot/README.md](telegram_bot/README.md)
-
 ## 🧪 Тестирование
 
 ```bash
