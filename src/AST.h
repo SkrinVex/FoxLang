@@ -19,6 +19,12 @@
 #include <fcntl.h>
 #endif
 
+#ifdef _WIN32
+    #include <cstdio>
+    #define popen _popen
+    #define pclose _pclose
+#endif
+
 struct Node;
 
 struct FuncParam {
@@ -48,7 +54,7 @@ struct Context {
         if (parent) return parent->getVar(name);
         throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
     }
-    
+
     std::vector<Value>& getArray(const std::string& name) {
         if (arrays.count(name)) return arrays[name];
         if (parent) return parent->getArray(name);
@@ -70,9 +76,9 @@ struct Context {
     }
 
     void setVar(const std::string& name, Value val) {
-        if (variables.count(name)) { 
+        if (variables.count(name)) {
             variables[name].value = val.value;
-            return; 
+            return;
         }
         if (parent) { parent->setVar(name, val); return; }
         throw std::runtime_error("Error: Variable '" + name + "' not defined!");
@@ -104,7 +110,7 @@ struct FuncDefNode : Node {
     std::vector<FuncParam> params;
     std::shared_ptr<Node> body;
 
-    FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b) 
+    FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b)
         : returnType(rt), name(n), params(p), body(b) {}
 
     Value eval(Context& ctx) override { return {"void", ""}; }
@@ -115,7 +121,7 @@ struct ReturnNode : Node {
     ReturnNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
     Value eval(Context& ctx) override {
         Value result = expr ? expr->eval(ctx) : Value{"void", ""};
-        throw ReturnValue{result}; 
+        throw ReturnValue{result};
     }
 };
 
@@ -123,7 +129,7 @@ struct FuncCallNode : Node {
     std::string name;
     std::vector<std::unique_ptr<Node>> args;
 
-    FuncCallNode(std::string n, std::vector<std::unique_ptr<Node>> a) 
+    FuncCallNode(std::string n, std::vector<std::unique_ptr<Node>> a)
         : name(n), args(std::move(a)) {}
 
     Value eval(Context& ctx) override {
@@ -145,7 +151,7 @@ struct FuncCallNode : Node {
                 // Вывести приглашение
                 std::cout << args[0]->eval(ctx).value;
             }
-            std::string input; 
+            std::string input;
             std::getline(std::cin, input);
             return {"string", input};
         }
@@ -200,24 +206,24 @@ struct FuncCallNode : Node {
             if (filenameVal.type != "string") {
                 throw std::runtime_error("read_file() requires string filename");
             }
-            
+
             std::ifstream file(filenameVal.value);
             if (!file.is_open()) {
                 return {"string", ""};  // Возвращаем пустую строку при ошибке
             }
-            
+
             std::string line;
             while (std::getline(file, line)) {
                 // Пропускаем комментарии и пустые строки
                 if (line.empty() || line[0] == '#') continue;
-                
+
                 // Если строка не пустая и не комментарий, возвращаем её
                 if (!line.empty()) {
                     file.close();
                     return {"string", line};
                 }
             }
-            
+
             file.close();
             return {"string", ""};
         }
@@ -226,30 +232,30 @@ struct FuncCallNode : Node {
             if (urlVal.type != "string") {
                 throw std::runtime_error("http_get() requires string URL");
             }
-            
+
             // Простая реализация через system curl
             std::string cmd = "curl -s \"" + urlVal.value + "\"";
             FILE* pipe = popen(cmd.c_str(), "r");
             if (!pipe) {
                 return {"string", ""};
             }
-            
+
             std::string result;
             char buffer[128];
             while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
                 result += buffer;
             }
             pclose(pipe);
-            
+
             return {"string", result};
         }
         if (name == "json_get" && args.size() == 2) {
             Value jsonVal = args[0]->eval(ctx);
             Value keyVal = args[1]->eval(ctx);
-            
+
             std::string json = jsonVal.value;
             std::string key = keyVal.value;
-            
+
             // Простой JSON парсер для Telegram API
             if (key == "chat_id") {
                 size_t pos = json.find("\"chat\":{\"id\":");
@@ -279,7 +285,7 @@ struct FuncCallNode : Node {
                     lastPos = pos;
                     pos = json.find("\"update_id\":", pos + 1);
                 }
-                
+
                 if (lastPos != 0) {
                     lastPos += 12; // длина "\"update_id\":"
                     size_t end = json.find(",", lastPos);
@@ -288,16 +294,16 @@ struct FuncCallNode : Node {
                     }
                 }
             }
-            
+
             return {"string", ""};
         }
         if (name == "str_contains" && args.size() == 2) {
             Value textVal = args[0]->eval(ctx);
             Value substrVal = args[1]->eval(ctx);
-            
+
             std::string text = textVal.value;
             std::string substr = substrVal.value;
-            
+
             bool found = text.find(substr) != std::string::npos;
             return {"bool", found ? "true" : "false"};
         }
@@ -306,7 +312,7 @@ struct FuncCallNode : Node {
             if (strVal.type != "string") {
                 return {"int", "0"};
             }
-            
+
             try {
                 int result = std::stoi(strVal.value);
                 return {"int", std::to_string(result)};
@@ -319,7 +325,7 @@ struct FuncCallNode : Node {
             std::string cmd = "curl -s \"" + urlVal.value + "\"";
             FILE* pipe = popen(cmd.c_str(), "r");
             if (!pipe) return {"string", ""};
-            
+
             std::string result;
             char buffer[128];
             while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
@@ -332,11 +338,11 @@ struct FuncCallNode : Node {
             Value urlVal = args[0]->eval(ctx);
             Value dataVal = args[1]->eval(ctx);
             std::string contentType = args.size() > 2 ? args[2]->eval(ctx).value : "application/json";
-            
+
             std::string cmd = "curl -s -X POST -H \"Content-Type: " + contentType + "\" -d \"" + dataVal.value + "\" \"" + urlVal.value + "\"";
             FILE* pipe = popen(cmd.c_str(), "r");
             if (!pipe) return {"string", ""};
-            
+
             std::string result;
             char buffer[128];
             while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
@@ -349,11 +355,11 @@ struct FuncCallNode : Node {
             Value urlVal = args[0]->eval(ctx);
             Value dataVal = args[1]->eval(ctx);
             std::string contentType = args.size() > 2 ? args[2]->eval(ctx).value : "application/json";
-            
+
             std::string cmd = "curl -s -X PUT -H \"Content-Type: " + contentType + "\" -d \"" + dataVal.value + "\" \"" + urlVal.value + "\"";
             FILE* pipe = popen(cmd.c_str(), "r");
             if (!pipe) return {"string", ""};
-            
+
             std::string result;
             char buffer[128];
             while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
@@ -367,7 +373,7 @@ struct FuncCallNode : Node {
             std::string cmd = "curl -s -X DELETE \"" + urlVal.value + "\"";
             FILE* pipe = popen(cmd.c_str(), "r");
             if (!pipe) return {"string", ""};
-            
+
             std::string result;
             char buffer[128];
             while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
@@ -380,38 +386,38 @@ struct FuncCallNode : Node {
         // FastAPI-подобные функции
         if (name == "server_start" && args.size() == 1) {
             int port = std::stoi(args[0]->eval(ctx).value);
-            
+
             // Простая заглушка сервера
             std::cout << "HTTP Server started on port " << port << std::endl;
             std::cout << "Note: This is a simulation. Real server implementation requires additional setup." << std::endl;
-            
+
             return {"string", "Server started on port " + std::to_string(port)};
         }
-        
+
         if (name == "server_stop" && args.size() == 0) {
             std::cout << "HTTP Server stopped" << std::endl;
             return {"string", "Server stopped"};
         }
-        
+
         if (name == "route_get" && args.size() == 2) {
             Value pathVal = args[0]->eval(ctx);
             Value handlerVal = args[1]->eval(ctx);
-            
+
             std::cout << "Registered GET route: " << pathVal.value << " -> " << handlerVal.value << std::endl;
             return {"string", "GET route registered: " + pathVal.value};
         }
-        
+
         if (name == "route_post" && args.size() == 2) {
             Value pathVal = args[0]->eval(ctx);
             Value handlerVal = args[1]->eval(ctx);
-            
+
             std::cout << "Registered POST route: " << pathVal.value << " -> " << handlerVal.value << std::endl;
             return {"string", "POST route registered: " + pathVal.value};
         }
-        
+
         if (name == "send_response" && args.size() == 1) {
             Value responseVal = args[0]->eval(ctx);
-            
+
             std::cout << "HTTP Response: " << responseVal.value << std::endl;
             return {"void", ""};
         }
@@ -421,9 +427,9 @@ struct FuncCallNode : Node {
         if (!funcNodeBase) {
             throw std::runtime_error("Runtime Error: Function '" + name + "' not found!");
         }
-        
+
         FuncDefNode* funcDef = static_cast<FuncDefNode*>(funcNodeBase.get());
-        
+
         if (args.size() != funcDef->params.size()) {
             throw std::runtime_error("Args count mismatch for '" + name + "'");
         }
@@ -441,7 +447,7 @@ struct FuncCallNode : Node {
         try {
             funcDef->body->eval(funcScope);
         } catch (const ReturnValue& ret) {
-            return ret.value; 
+            return ret.value;
         }
 
         return {"void", ""};
@@ -478,7 +484,7 @@ struct VarAccessNode : Node {
 struct VarDeclNode : Node {
     std::string type, name;
     std::unique_ptr<Node> expr;
-    VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e) 
+    VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e)
         : type(t), name(n), expr(std::move(e)) {}
     Value eval(Context& ctx) override {
         ctx.defineVar(name, type, expr->eval(ctx));
@@ -489,7 +495,7 @@ struct VarDeclNode : Node {
 struct GlobalVarDeclNode : Node {
     std::string type, name;
     std::unique_ptr<Node> expr;
-    GlobalVarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e) 
+    GlobalVarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e)
         : type(t), name(n), expr(std::move(e)) {}
     Value eval(Context& ctx) override {
         Context* root = &ctx;
@@ -512,13 +518,13 @@ struct VarAssignNode : Node {
 struct BinOpNode : Node {
     char op;
     std::unique_ptr<Node> left, right;
-    BinOpNode(char o, std::unique_ptr<Node> l, std::unique_ptr<Node> r) 
+    BinOpNode(char o, std::unique_ptr<Node> l, std::unique_ptr<Node> r)
         : op(o), left(std::move(l)), right(std::move(r)) {}
-    
+
     Value eval(Context& ctx) override {
         Value lval = left->eval(ctx);
         Value rval = right->eval(ctx);
-        
+
         if (op == '+') {
             if (lval.type == "string" || rval.type == "string") {
                 return {"string", lval.value + rval.value};
@@ -530,24 +536,24 @@ struct BinOpNode : Node {
             int l = std::stoi(lval.value), r = std::stoi(rval.value);
             return {"int", std::to_string(l + r)};
         }
-        
+
         if (op == '-' || op == '*' || op == '/' || op == '%') {
             if (lval.type == "float" || rval.type == "float") {
                 double l = std::stod(lval.value), r = std::stod(rval.value);
-                double result = (op == '-') ? l - r : (op == '*') ? l * r : 
+                double result = (op == '-') ? l - r : (op == '*') ? l * r :
                                (op == '/') ? l / r : std::fmod(l, r);
                 return {"float", formatNumber(result)};
             }
             int l = std::stoi(lval.value), r = std::stoi(rval.value);
-            int result = (op == '-') ? l - r : (op == '*') ? l * r : 
+            int result = (op == '-') ? l - r : (op == '*') ? l * r :
                         (op == '/') ? l / r : l % r;
             return {"int", std::to_string(result)};
         }
-        
+
         if (op == '=' || op == '!' || op == '<' || op == '>') {
             bool result;
             if (lval.type == "string" && rval.type == "string") {
-                result = (op == '=') ? lval.value == rval.value : 
+                result = (op == '=') ? lval.value == rval.value :
                         (op == '!') ? lval.value != rval.value :
                         (op == '<') ? lval.value < rval.value : lval.value > rval.value;
             } else {
@@ -557,13 +563,13 @@ struct BinOpNode : Node {
             }
             return {"bool", result ? "true" : "false"};
         }
-        
+
         if (op == '&' || op == '|') {
             bool l = (lval.value == "true"), r = (rval.value == "true");
             bool result = (op == '&') ? l && r : l || r;
             return {"bool", result ? "true" : "false"};
         }
-        
+
         return {"void", ""};
     }
 };
@@ -606,7 +612,7 @@ struct ArrayDeclNode : Node {
 struct ArraySetNode : Node {
     std::string name;
     std::unique_ptr<Node> index, value;
-    ArraySetNode(std::string n, std::unique_ptr<Node> i, std::unique_ptr<Node> v) 
+    ArraySetNode(std::string n, std::unique_ptr<Node> i, std::unique_ptr<Node> v)
         : name(n), index(std::move(i)), value(std::move(v)) {}
     Value eval(Context& ctx) override {
         int idx = std::stoi(index->eval(ctx).value);
@@ -635,7 +641,7 @@ struct BlockNode : Node {
 
 struct IfNode : Node {
     std::unique_ptr<Node> condition, thenB, elseB;
-    IfNode(std::unique_ptr<Node> c, std::unique_ptr<Node> t, std::unique_ptr<Node> e = nullptr) 
+    IfNode(std::unique_ptr<Node> c, std::unique_ptr<Node> t, std::unique_ptr<Node> e = nullptr)
         : condition(std::move(c)), thenB(std::move(t)), elseB(std::move(e)) {}
     Value eval(Context& ctx) override {
         bool cond = (condition->eval(ctx).value == "true");
@@ -647,7 +653,7 @@ struct IfNode : Node {
 
 struct WhileNode : Node {
     std::unique_ptr<Node> condition, body;
-    WhileNode(std::unique_ptr<Node> c, std::unique_ptr<Node> b) 
+    WhileNode(std::unique_ptr<Node> c, std::unique_ptr<Node> b)
         : condition(std::move(c)), body(std::move(b)) {}
     Value eval(Context& ctx) override {
         while (condition->eval(ctx).value == "true") {
@@ -665,7 +671,7 @@ struct WhileNode : Node {
 
 struct ForNode : Node {
     std::unique_ptr<Node> init, condition, step, body;
-    ForNode(std::unique_ptr<Node> i, std::unique_ptr<Node> c, std::unique_ptr<Node> s, std::unique_ptr<Node> b) 
+    ForNode(std::unique_ptr<Node> i, std::unique_ptr<Node> c, std::unique_ptr<Node> s, std::unique_ptr<Node> b)
         : init(std::move(i)), condition(std::move(c)), step(std::move(s)), body(std::move(b)) {}
     Value eval(Context& ctx) override {
         if (init) init->eval(ctx);
@@ -709,14 +715,14 @@ struct SwitchNode : Node {
     std::unique_ptr<Node> expr;
     std::vector<std::pair<std::unique_ptr<Node>, std::unique_ptr<Node>>> cases; // value, body
     std::unique_ptr<Node> defaultCase;
-    
+
     SwitchNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
-    
+
     Value eval(Context& ctx) override {
         Value switchValue = expr->eval(ctx);
         bool executed = false;
         bool fallthrough = false;
-        
+
         for (auto& caseItem : cases) {
             if (!executed && !fallthrough) {
                 Value caseValue = caseItem.first->eval(ctx);
@@ -725,7 +731,7 @@ struct SwitchNode : Node {
                     fallthrough = true;
                 }
             }
-            
+
             if (fallthrough) {
                 try {
                     caseItem.second->eval(ctx);
@@ -735,11 +741,11 @@ struct SwitchNode : Node {
                 }
             }
         }
-        
+
         if (!executed && defaultCase) {
             defaultCase->eval(ctx);
         }
-        
+
         return {"void", ""};
     }
 };
@@ -754,32 +760,32 @@ struct InputNode : Node {
 struct ReadFileNode : Node {
     std::unique_ptr<Node> filename;
     ReadFileNode(std::unique_ptr<Node> fn) : filename(std::move(fn)) {}
-    
+
     Value eval(Context& ctx) override {
         Value filenameVal = filename->eval(ctx);
         if (filenameVal.type != "string") {
             throw std::runtime_error("read_file() requires string filename");
         }
-        
+
         std::ifstream file(filenameVal.value);
         if (!file.is_open()) {
             return {"string", ""};  // Возвращаем пустую строку при ошибке
         }
-        
+
         std::string content;
         std::string line;
         bool first = true;
         while (std::getline(file, line)) {
             // Пропускаем комментарии и пустые строки
             if (line.empty() || line[0] == '#') continue;
-            
+
             // Если строка не пустая и не комментарий, возвращаем её
             if (!line.empty()) {
                 file.close();
                 return {"string", line};
             }
         }
-        
+
         file.close();
         return {"string", ""};
     }

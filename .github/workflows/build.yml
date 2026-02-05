@@ -1,46 +1,75 @@
-name: Build FoxLang
+name: Build and Release FoxLang
 
 on:
   push:
-    branches: ["main", "master"]
-  pull_request:
-    branches: ["main", "master"]
+    branches: ["main"]
+    tags:
+      - "v*" # Срабатывает, когда ты пушишь тег, например v5.0.2
+
+permissions:
+  contents: write # Разрешаем создавать релизы
 
 jobs:
-  # --- Сборка для Linux (Ubuntu) ---
+  # --- 1. Сборка Linux ---
   build-linux:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Compile with G++
         run: |
-          g++ -std=c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
+          # Создаем папку build, чтобы туда сложить бинарник
+          mkdir build
+          g++ -std=c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp -o build/foxlang
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
           name: foxlang-linux
-          path: foxlang
+          path: build/foxlang
 
-  # --- Сборка для Windows (MSVC) ---
+  # --- 2. Сборка Windows ---
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Compile with CL (MSVC)
-        # Используем флаги: /EHsc (обработка исключений), /std:c++17, /Fe (имя выходного файла)
+      - name: Compile with CL
+        # Добавил создание папки build для порядка
         run: |
-          cl /EHsc /std:c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp /Fefoxlang.exe
+          mkdir build
+          cl /EHsc /std:c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp /Febuild/foxlang.exe
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: foxlang-windows
-          path: foxlang.exe
+          path: build/foxlang.exe
+
+  # --- 3. Публикация Релиза (Только если есть тег) ---
+  release:
+    needs: [build-linux, build-windows] # Ждем окончания сборок
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: foxlang-linux
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: foxlang-windows
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            foxlang
+            foxlang.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
