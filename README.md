@@ -18,15 +18,32 @@
 
 ## 🚀 Быстрый старт
 
-### 1. Сборка
+### 1. Сборка (Linux)
 ```bash
 cd src
 g++ main.cpp Lexer.cpp Parser.cpp -o foxlang
 ```
 
-### 2. Запуск
+### 1.2. Сборка (Windows)
+```bash
+cd src
+g++ main.cpp Lexer.cpp Parser.cpp -o foxlang.exe
+```
+
+### 1.3. Сборка Wimdows (MSVC)
+```bash
+cd src
+cl main.cpp Lexer.cpp Parser.cpp /Fefoxlang.exe
+```
+
+### 2. Запуск (Linux)
 ```bash
 ./foxlang script.fox
+```
+
+### 2.1. Запуск (Windows)
+```bash
+foxlang.exe script.fox
 ```
 
 ## 💻 Примеры кода
@@ -135,11 +152,7 @@ main();
 
 ## 🧪 Тестирование
 
-```bash
-# Запуск всех тестов
-./test_all.sh
-
-# Отдельные тесты
+# Тесты
 ./src/foxlang test/variables.fox      # Тест переменных и типов
 ./src/foxlang test/functions.fox      # Тест пользовательских функций
 ./src/foxlang test/arrays.fox         # Тест массивов
