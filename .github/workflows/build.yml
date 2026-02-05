@@ -1,0 +1,46 @@
+name: Build FoxLang
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  # --- Сборка для Linux (Ubuntu) ---
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compile with G++
+        run: |
+          g++ -std=c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: foxlang-linux
+          path: foxlang
+
+  # --- Сборка для Windows (MSVC) ---
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Compile with CL (MSVC)
+        # Используем флаги: /EHsc (обработка исключений), /std:c++17, /Fe (имя выходного файла)
+        run: |
+          cl /EHsc /std:c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp /Fefoxlang.exe
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: foxlang-windows
+          path: foxlang.exe

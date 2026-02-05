@@ -152,13 +152,14 @@ main();
 
 ## 🧪 Тестирование
 
+```bash
 # Тесты
-./src/foxlang test/variables.fox      # Тест переменных и типов
-./src/foxlang test/functions.fox      # Тест пользовательских функций
-./src/foxlang test/arrays.fox         # Тест массивов
-./src/foxlang test/control_flow.fox   # Тест циклов и условий
+./src/foxlang test/variables.fox       # Тест переменных и типов
+./src/foxlang test/functions.fox       # Тест пользовательских функций
+./src/foxlang test/arrays.fox          # Тест массивов
+./src/foxlang test/control_flow.fox    # Тест циклов и условий
 ./src/foxlang test/math_operations.fox # Тест математических операций
-./src/foxlang test/modules.fox        # Тест модульной системы
+./src/foxlang test/modules.fox         # Тест модульной системы
 ./src/foxlang test/builtin_functions.fox # Тест встроенных функций
 ```
 
