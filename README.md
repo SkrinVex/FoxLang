@@ -1,6 +1,6 @@
 # 🦊 FoxLang
 
-![Version](https://img.shields.io/badge/version-5.0.1-orange) ![Language](https://img.shields.io/badge/language-C++17-blue) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-5.0.2-orange) ![Language](https://img.shields.io/badge/language-C++17-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 **FoxLang** — современный интерпретируемый язык программирования общего назначения с поддержкой пользовательских функций, модульной системы и строгой типизацией.
 
