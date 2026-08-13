@@ -2,7 +2,7 @@ name: Build and Release FoxLang
 
 on:
   push:
-    branches: ["main"]
+    branches: ["master"]
     tags:
       - "v*" # Срабатывает, когда ты пушишь тег, например v5.0.2
 
