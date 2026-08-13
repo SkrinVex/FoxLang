@@ -61,6 +61,12 @@ struct Context {
         throw std::runtime_error("Runtime Error: Array '" + name + "' not found!");
     }
 
+    Context* getRoot() {
+        Context* curr = this;
+        while (curr->parent) curr = curr->parent;
+        return curr;
+    }
+
     void defineFunc(const std::string& name, std::shared_ptr<Node> func) {
         functions[name] = func;
     }
@@ -77,6 +83,16 @@ struct Context {
 
     void setVar(const std::string& name, Value val) {
         if (variables.count(name)) {
+            if (variables[name].type != val.type) {
+                if (variables[name].type == "float" && val.type == "int") {
+                    val.type = "float";
+                } else if (variables[name].type == "int" && val.type == "float") {
+                    val.type = "int";
+                    val.value = std::to_string((int)std::stod(val.value));
+                } else {
+                    throw std::runtime_error("Type Error: Cannot assign value of type '" + val.type + "' to variable '" + name + "' of type '" + variables[name].type + "'");
+                }
+            }
             variables[name].value = val.value;
             return;
         }
@@ -212,20 +228,52 @@ struct FuncCallNode : Node {
                 return {"string", ""};  // Возвращаем пустую строку при ошибке
             }
 
+            std::string content;
             std::string line;
             while (std::getline(file, line)) {
-                // Пропускаем комментарии и пустые строки
-                if (line.empty() || line[0] == '#') continue;
-
-                // Если строка не пустая и не комментарий, возвращаем её
-                if (!line.empty()) {
-                    file.close();
-                    return {"string", line};
-                }
+                content += line + "\n";
             }
 
             file.close();
-            return {"string", ""};
+            return {"string", content};
+        }
+        if (name == "write_file" && args.size() == 2) {
+            Value filenameVal = args[0]->eval(ctx);
+            Value contentVal = args[1]->eval(ctx);
+            if (filenameVal.type != "string" || contentVal.type != "string") {
+                throw std::runtime_error("write_file() requires string filename and content");
+            }
+            std::ofstream file(filenameVal.value);
+            if (file.is_open()) {
+                file << contentVal.value;
+                file.close();
+                return {"bool", "true"};
+            }
+            return {"bool", "false"};
+        }
+        if (name == "append_file" && args.size() == 2) {
+            Value filenameVal = args[0]->eval(ctx);
+            Value contentVal = args[1]->eval(ctx);
+            if (filenameVal.type != "string" || contentVal.type != "string") {
+                throw std::runtime_error("append_file() requires string filename and content");
+            }
+            std::ofstream file(filenameVal.value, std::ios_base::app);
+            if (file.is_open()) {
+                file << contentVal.value;
+                file.close();
+                return {"bool", "true"};
+            }
+            return {"bool", "false"};
+        }
+        if (name == "size" && args.size() == 1) {
+            Value val = args[0]->eval(ctx);
+            if (val.type == "string") {
+                return {"int", std::to_string(val.value.length())};
+            }
+            if (val.type == "array") {
+                return {"int", std::to_string(ctx.getRoot()->arrays[val.value].size())};
+            }
+            throw std::runtime_error("size() requires array or string");
         }
         if (name == "http_get" && args.size() == 1) {
             Value urlVal = args[0]->eval(ctx);
@@ -306,6 +354,47 @@ struct FuncCallNode : Node {
 
             bool found = text.find(substr) != std::string::npos;
             return {"bool", found ? "true" : "false"};
+        }
+        if (name == "str_replace" && args.size() == 3) {
+            Value strVal = args[0]->eval(ctx);
+            Value oldVal = args[1]->eval(ctx);
+            Value newVal = args[2]->eval(ctx);
+            if (strVal.type != "string" || oldVal.type != "string" || newVal.type != "string") {
+                throw std::runtime_error("str_replace() requires string arguments");
+            }
+            std::string s = strVal.value;
+            size_t pos = 0;
+            while ((pos = s.find(oldVal.value, pos)) != std::string::npos) {
+                s.replace(pos, oldVal.value.length(), newVal.value);
+                pos += newVal.value.length();
+            }
+            return {"string", s};
+        }
+        if (name == "str_split" && args.size() == 2) {
+            Value strVal = args[0]->eval(ctx);
+            Value delimVal = args[1]->eval(ctx);
+            if (strVal.type != "string" || delimVal.type != "string") {
+                throw std::runtime_error("str_split() requires string arguments");
+            }
+            std::vector<Value> result;
+            std::string s = strVal.value;
+            std::string delim = delimVal.value;
+            size_t pos = 0;
+            if (delim.empty()) {
+                for (char c : s) {
+                    result.push_back({"string", std::string(1, c)});
+                }
+            } else {
+                while ((pos = s.find(delim)) != std::string::npos) {
+                    result.push_back({"string", s.substr(0, pos)});
+                    s.erase(0, pos + delim.length());
+                }
+                result.push_back({"string", s});
+            }
+            static int splitCounter = 0;
+            std::string arrayId = "__split_" + std::to_string(splitCounter++);
+            ctx.getRoot()->arrays[arrayId] = result;
+            return {"array", arrayId};
         }
         if (name == "str_to_int" && args.size() == 1) {
             Value strVal = args[0]->eval(ctx);
@@ -448,6 +537,10 @@ struct FuncCallNode : Node {
             funcDef->body->eval(funcScope);
         } catch (const ReturnValue& ret) {
             return ret.value;
+        } catch (const BreakException&) {
+            throw std::runtime_error("Runtime Error: 'break' outside of loop in function '" + name + "'");
+        } catch (const ContinueException&) {
+            throw std::runtime_error("Runtime Error: 'continue' outside of loop in function '" + name + "'");
         }
 
         return {"void", ""};
@@ -487,7 +580,20 @@ struct VarDeclNode : Node {
     VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e)
         : type(t), name(n), expr(std::move(e)) {}
     Value eval(Context& ctx) override {
-        ctx.defineVar(name, type, expr->eval(ctx));
+        Value val = expr->eval(ctx);
+        if (type != val.type) {
+            if (type == "float" && val.type == "int") {
+                val.type = "float";
+            } else if (type == "int" && val.type == "float") {
+                val.type = "int";
+                val.value = std::to_string((int)std::stod(val.value));
+            } else if (type == "string") {
+                val.type = "string";
+            } else {
+                throw std::runtime_error("Type Error: Cannot initialize variable '" + name + "' of type '" + type + "' with value of type '" + val.type + "'");
+            }
+        }
+        ctx.defineVar(name, type, val);
         return {"void", ""};
     }
 };
@@ -498,9 +604,21 @@ struct GlobalVarDeclNode : Node {
     GlobalVarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e)
         : type(t), name(n), expr(std::move(e)) {}
     Value eval(Context& ctx) override {
-        Context* root = &ctx;
-        while (root->parent != nullptr) root = root->parent;
-        root->defineVar(name, type, expr->eval(ctx));
+        Context* root = ctx.getRoot();
+        Value val = expr->eval(ctx);
+        if (type != val.type) {
+            if (type == "float" && val.type == "int") {
+                val.type = "float";
+            } else if (type == "int" && val.type == "float") {
+                val.type = "int";
+                val.value = std::to_string((int)std::stod(val.value));
+            } else if (type == "string") {
+                val.type = "string";
+            } else {
+                throw std::runtime_error("Type Error: Cannot initialize global variable '" + name + "' of type '" + type + "' with value of type '" + val.type + "'");
+            }
+        }
+        root->defineVar(name, type, val);
         return {"void", ""};
     }
 };
@@ -516,16 +634,16 @@ struct VarAssignNode : Node {
 };
 
 struct BinOpNode : Node {
-    char op;
+    std::string op;
     std::unique_ptr<Node> left, right;
-    BinOpNode(char o, std::unique_ptr<Node> l, std::unique_ptr<Node> r)
+    BinOpNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r)
         : op(o), left(std::move(l)), right(std::move(r)) {}
 
     Value eval(Context& ctx) override {
         Value lval = left->eval(ctx);
         Value rval = right->eval(ctx);
 
-        if (op == '+') {
+        if (op == "+" || op == "+=") {
             if (lval.type == "string" || rval.type == "string") {
                 return {"string", lval.value + rval.value};
             }
@@ -537,36 +655,42 @@ struct BinOpNode : Node {
             return {"int", std::to_string(l + r)};
         }
 
-        if (op == '-' || op == '*' || op == '/' || op == '%') {
+        if (op == "-" || op == "-=" || op == "*" || op == "*=" || op == "/" || op == "/=" || op == "%") {
             if (lval.type == "float" || rval.type == "float") {
                 double l = std::stod(lval.value), r = std::stod(rval.value);
-                double result = (op == '-') ? l - r : (op == '*') ? l * r :
-                               (op == '/') ? l / r : std::fmod(l, r);
+                double result = (op == "-" || op == "-=") ? l - r : (op == "*" || op == "*=") ? l * r :
+                               (op == "/" || op == "/=") ? l / r : std::fmod(l, r);
                 return {"float", formatNumber(result)};
             }
             int l = std::stoi(lval.value), r = std::stoi(rval.value);
-            int result = (op == '-') ? l - r : (op == '*') ? l * r :
-                        (op == '/') ? l / r : l % r;
+            int result = (op == "-" || op == "-=") ? l - r : (op == "*" || op == "*=") ? l * r :
+                        (op == "/" || op == "/=") ? l / r : l % r;
             return {"int", std::to_string(result)};
         }
 
-        if (op == '=' || op == '!' || op == '<' || op == '>') {
+        if (op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=") {
             bool result;
             if (lval.type == "string" && rval.type == "string") {
-                result = (op == '=') ? lval.value == rval.value :
-                        (op == '!') ? lval.value != rval.value :
-                        (op == '<') ? lval.value < rval.value : lval.value > rval.value;
+                result = (op == "==") ? lval.value == rval.value :
+                        (op == "!=") ? lval.value != rval.value :
+                        (op == "<") ? lval.value < rval.value :
+                        (op == "<=") ? lval.value <= rval.value :
+                        (op == ">=") ? lval.value >= rval.value :
+                        lval.value > rval.value;
             } else {
                 double l = std::stod(lval.value), r = std::stod(rval.value);
-                result = (op == '=') ? l == r : (op == '!') ? l != r :
-                        (op == '<') ? l < r : l > r;
+                result = (op == "==") ? l == r : (op == "!=") ? l != r :
+                        (op == "<") ? l < r :
+                        (op == "<=") ? l <= r :
+                        (op == ">=") ? l >= r :
+                        l > r;
             }
             return {"bool", result ? "true" : "false"};
         }
 
-        if (op == '&' || op == '|') {
+        if (op == "&&" || op == "||") {
             bool l = (lval.value == "true"), r = (rval.value == "true");
-            bool result = (op == '&') ? l && r : l || r;
+            bool result = (op == "&&") ? l && r : l || r;
             return {"bool", result ? "true" : "false"};
         }
 
@@ -601,10 +725,14 @@ struct PostIncNode : Node {
 
 struct ArrayDeclNode : Node {
     std::string name;
-    int size;
-    ArrayDeclNode(std::string n, int s) : name(n), size(s) {}
+    std::unique_ptr<Node> sizeNode;
+    ArrayDeclNode(std::string n, std::unique_ptr<Node> s) : name(n), sizeNode(std::move(s)) {}
     Value eval(Context& ctx) override {
-        ctx.arrays[name] = std::vector<Value>(size, {"int", "0"});
+        int sz = std::stoi(sizeNode->eval(ctx).value);
+        static int arrayCounter = 0;
+        std::string arrayId = "__arr_" + std::to_string(arrayCounter++);
+        ctx.getRoot()->arrays[arrayId] = std::vector<Value>(sz, {"int", "0"});
+        ctx.defineVar(name, "array", {"array", arrayId});
         return {"void", ""};
     }
 };
@@ -615,8 +743,10 @@ struct ArraySetNode : Node {
     ArraySetNode(std::string n, std::unique_ptr<Node> i, std::unique_ptr<Node> v)
         : name(n), index(std::move(i)), value(std::move(v)) {}
     Value eval(Context& ctx) override {
+        Value arrVal = ctx.getVar(name);
+        if (arrVal.type != "array") throw std::runtime_error("Runtime Error: '" + name + "' is not an array");
         int idx = std::stoi(index->eval(ctx).value);
-        ctx.getArray(name)[idx] = value->eval(ctx);
+        ctx.getRoot()->arrays[arrVal.value][idx] = value->eval(ctx);
         return {"void", ""};
     }
 };
@@ -626,8 +756,10 @@ struct ArrayGetNode : Node {
     std::unique_ptr<Node> index;
     ArrayGetNode(std::string n, std::unique_ptr<Node> i) : name(n), index(std::move(i)) {}
     Value eval(Context& ctx) override {
+        Value arrVal = ctx.getVar(name);
+        if (arrVal.type != "array") throw std::runtime_error("Runtime Error: '" + name + "' is not an array");
         int idx = std::stoi(index->eval(ctx).value);
-        return ctx.getArray(name)[idx];
+        return ctx.getRoot()->arrays[arrVal.value][idx];
     }
 };
 
@@ -774,20 +906,12 @@ struct ReadFileNode : Node {
 
         std::string content;
         std::string line;
-        bool first = true;
         while (std::getline(file, line)) {
-            // Пропускаем комментарии и пустые строки
-            if (line.empty() || line[0] == '#') continue;
-
-            // Если строка не пустая и не комментарий, возвращаем её
-            if (!line.empty()) {
-                file.close();
-                return {"string", line};
-            }
+            content += line + "\n";
         }
 
         file.close();
-        return {"string", ""};
+        return {"string", content};
     }
 };
 

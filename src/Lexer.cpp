@@ -117,8 +117,26 @@ std::vector<Token> Lexer::tokenize() {
             if (current == '!' && pos+1 < source.length() && source[pos+1] == '=') {
                 tokens.push_back({TokenType::NEQ, "!=", line}); pos+=2; continue;
             }
+            if (current == '<' && pos+1 < source.length() && source[pos+1] == '=') {
+                tokens.push_back({TokenType::LTE, "<=", line}); pos+=2; continue;
+            }
+            if (current == '>' && pos+1 < source.length() && source[pos+1] == '=') {
+                tokens.push_back({TokenType::GTE, ">=", line}); pos+=2; continue;
+            }
             if (current == '+' && pos+1 < source.length() && source[pos+1] == '+') {
                 tokens.push_back({TokenType::INC, "++", line}); pos+=2; continue;
+            }
+            if (current == '+' && pos+1 < source.length() && source[pos+1] == '=') {
+                tokens.push_back({TokenType::PLUS_ASSIGN, "+=", line}); pos+=2; continue;
+            }
+            if (current == '-' && pos+1 < source.length() && source[pos+1] == '=') {
+                tokens.push_back({TokenType::MINUS_ASSIGN, "-=", line}); pos+=2; continue;
+            }
+            if (current == '*' && pos+1 < source.length() && source[pos+1] == '=') {
+                tokens.push_back({TokenType::STAR_ASSIGN, "*=", line}); pos+=2; continue;
+            }
+            if (current == '/' && pos+1 < source.length() && source[pos+1] == '=') {
+                tokens.push_back({TokenType::SLASH_ASSIGN, "/=", line}); pos+=2; continue;
             }
             if (current == '&' && pos+1 < source.length() && source[pos+1] == '&') {
                 tokens.push_back({TokenType::AND, "&&", line}); pos+=2; continue;
