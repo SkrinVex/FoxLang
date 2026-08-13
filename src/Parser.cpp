@@ -23,7 +23,7 @@ std::unique_ptr<Node> Parser::primary() {
     if (tokens[pos].type == TokenType::MINUS) {
         consume(TokenType::MINUS);
         // Превращаем -5 в (0 - 5)
-        return std::make_unique<BinOpNode>('-', 
+        return std::make_unique<BinOpNode>("-", 
             std::make_unique<NumberNode>("0"), 
             primary() // Рекурсивно вызываем primary, чтобы считать само число или скобку
         );
@@ -236,7 +236,7 @@ std::unique_ptr<Node> Parser::primary() {
 std::unique_ptr<Node> Parser::multiplication() {
     auto node = primary();
     while (tokens[pos].type == TokenType::STAR || tokens[pos].type == TokenType::SLASH || tokens[pos].type == TokenType::MOD) {
-        char op = tokens[pos].value[0]; pos++;
+        std::string op = tokens[pos].value; pos++;
         node = std::make_unique<BinOpNode>(op, std::move(node), primary());
     }
     return node;
@@ -245,7 +245,7 @@ std::unique_ptr<Node> Parser::multiplication() {
 std::unique_ptr<Node> Parser::expression() {
     auto node = multiplication();
     while (tokens[pos].type == TokenType::PLUS || tokens[pos].type == TokenType::MINUS) {
-        char op = tokens[pos].value[0]; pos++;
+        std::string op = tokens[pos].value; pos++;
         node = std::make_unique<BinOpNode>(op, std::move(node), multiplication());
     }
     return node;
@@ -254,9 +254,10 @@ std::unique_ptr<Node> Parser::expression() {
 std::unique_ptr<Node> Parser::comparison() {
     auto node = expression();
     if (tokens[pos].type == TokenType::EQ || tokens[pos].type == TokenType::NEQ || 
-        tokens[pos].type == TokenType::LT || tokens[pos].type == TokenType::GT) {
+        tokens[pos].type == TokenType::LT || tokens[pos].type == TokenType::GT ||
+        tokens[pos].type == TokenType::LTE || tokens[pos].type == TokenType::GTE) {
         std::string op = tokens[pos].value; pos++;
-        return std::make_unique<BinOpNode>(op[0], std::move(node), expression());
+        return std::make_unique<BinOpNode>(op, std::move(node), expression());
     }
     return node;
 }
@@ -265,7 +266,7 @@ std::unique_ptr<Node> Parser::logicalAnd() {
     auto node = comparison();
     while (tokens[pos].type == TokenType::AND) {
         std::string op = tokens[pos].value; pos++;
-        node = std::make_unique<BinOpNode>(op[0], std::move(node), comparison());
+        node = std::make_unique<BinOpNode>(op, std::move(node), comparison());
     }
     return node;
 }
@@ -274,7 +275,7 @@ std::unique_ptr<Node> Parser::logicalOr() {
     auto node = logicalAnd();
     while (tokens[pos].type == TokenType::OR) {
         std::string op = tokens[pos].value; pos++;
-        node = std::make_unique<BinOpNode>(op[0], std::move(node), logicalAnd());
+        node = std::make_unique<BinOpNode>(op, std::move(node), logicalAnd());
     }
     return node;
 }
@@ -432,10 +433,13 @@ std::unique_ptr<Node> Parser::statement() {
 
         std::unique_ptr<Node> step = nullptr;
         if (tokens[pos].type != TokenType::RPAREN) {
-            if (tokens[pos].type == TokenType::IDENTIFIER && tokens[pos+1].type == TokenType::ASSIGN) {
+            if (tokens[pos].type == TokenType::IDENTIFIER && (tokens[pos+1].type == TokenType::ASSIGN || tokens[pos+1].type == TokenType::PLUS_ASSIGN || tokens[pos+1].type == TokenType::MINUS_ASSIGN || tokens[pos+1].type == TokenType::STAR_ASSIGN || tokens[pos+1].type == TokenType::SLASH_ASSIGN)) {
                  std::string name = consume(TokenType::IDENTIFIER).value;
-                 consume(TokenType::ASSIGN);
+                 auto opToken = tokens[pos++]; // ASSIGN, PLUS_ASSIGN, etc.
                  auto expr = expression();
+                 if (opToken.type != TokenType::ASSIGN) {
+                     expr = std::make_unique<BinOpNode>(opToken.value, std::make_unique<VarAccessNode>(name), std::move(expr));
+                 }
                  step = std::make_unique<VarAssignNode>(name, std::move(expr));
             } else {
                  step = expression();
@@ -545,9 +549,10 @@ std::unique_ptr<Node> Parser::statement() {
     if (tokens[pos].type == TokenType::ARRAY) {
         consume(TokenType::ARRAY);
         std::string name = consume(TokenType::IDENTIFIER).value;
-        int size = std::stoi(consume(TokenType::NUMBER).value);
+        auto sizeNode = expression();
         consume(TokenType::SEMICOLON);
-        return std::make_unique<ArrayDeclNode>(name, size);
+        if (importMode) return std::make_unique<BlockNode>();
+        return std::make_unique<ArrayDeclNode>(name, std::move(sizeNode));
     }
     
     if (tokens[pos].type == TokenType::SET) {
@@ -561,12 +566,15 @@ std::unique_ptr<Node> Parser::statement() {
     }
 
     if (tokens[pos].type == TokenType::IDENTIFIER) {
-        if (tokens[pos+1].type == TokenType::ASSIGN) {
+        if (tokens[pos+1].type == TokenType::ASSIGN || tokens[pos+1].type == TokenType::PLUS_ASSIGN || tokens[pos+1].type == TokenType::MINUS_ASSIGN || tokens[pos+1].type == TokenType::STAR_ASSIGN || tokens[pos+1].type == TokenType::SLASH_ASSIGN) {
             std::string name = consume(TokenType::IDENTIFIER).value;
-            consume(TokenType::ASSIGN);
+            auto opToken = tokens[pos++]; // ASSIGN, PLUS_ASSIGN, etc.
             auto expr = expression();
             consume(TokenType::SEMICOLON);
             if (importMode) return std::make_unique<BlockNode>();
+            if (opToken.type != TokenType::ASSIGN) {
+                expr = std::make_unique<BinOpNode>(opToken.value, std::make_unique<VarAccessNode>(name), std::move(expr));
+            }
             return std::make_unique<VarAssignNode>(name, std::move(expr));
         }
         if (tokens[pos+1].type == TokenType::LPAREN) {
@@ -601,7 +609,13 @@ std::unique_ptr<Node> Parser::statement() {
 }
 
 void Parser::run() {
-    while (tokens[pos].type != TokenType::END) {
-        statement()->eval(globalContext);
+    try {
+        while (tokens[pos].type != TokenType::END) {
+            statement()->eval(globalContext);
+        }
+    } catch (const BreakException&) {
+        throw std::runtime_error("Runtime Error: 'break' outside of loop in global scope");
+    } catch (const ContinueException&) {
+        throw std::runtime_error("Runtime Error: 'continue' outside of loop in global scope");
     }
 }
