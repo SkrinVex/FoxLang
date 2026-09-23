@@ -5,194 +5,279 @@
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
 
-**FoxLang** — небольшой интерпретируемый язык программирования общего назначения с понятным C-подобным синтаксисом, строгими типами, функциями, массивами, модулями, стандартной библиотекой и сетевыми возможностями.
+**FoxLang** — встраиваемый и интерпретируемый язык программирования общего назначения с понятным C-подобным синтаксисом, строгими типами, функциями, массивами, модулями, стандартной библиотекой и сетевыми возможностями.
+
+Архитектура проекта разделена на **переиспользуемое ядро-библиотеку** (`foxlang_core`) и **тонкий CLI-интерпретатор** (`foxlang`).
+
+```text
+    FoxLang исходный код
+             ↓
+           Lexer
+             ↓
+           Parser
+             ↓
+            AST
+          ↙     ↘
+   Analyzer      Runtime (foxlang_core)
+      ↓                 ↑
+   Будущий LSP   ┌──────┴──────┐
+                 │             │
+                CLI      Встраивание в C++/JNI
+```
+
+---
 
 ## Возможности
 
-- типы `int`, `float`, `string`, `bool`, `void`;
-- пользовательские функции, параметры и `return`;
-- `if / else`, `while`, `for`, `switch`;
-- массивы и функции работы с ними;
-- логические операторы `&&`, `||`, `!`;
-- подключение файлов через `include("file.fox")`;
-- стандартные модули через `using module;`;
-- стандартная библиотека `std/`;
-- файловый ввод-вывод;
-- терминальный/TUI API;
-- DNS и настоящие TCP-соединения на POSIX;
-- HTTP GET/POST/PUT/DELETE;
-- математические и строковые функции;
-- Linux и Windows сборки в GitHub Actions.
+- Типы данных: `int`, `float`, `string`, `bool`, `void`.
+- Пользовательские функции, параметры и `return`, рекурсия.
+- Управляющие конструкции: `if / else`, `while`, `for`, `switch / case / default`, `break`, `continue`.
+- Массивы и функции работы с ними: `array`, `set`, `get`, `size`.
+- Операторы: арифметические, сравнения, составные присваивания (`+=`, `-=`, `*=`, `/=`), инкремент `++`.
+- Логические операторы: `&&`, `||`, `!`.
+- Модульная система: `include("file.fox")` и стандартная библиотека через `using module;`.
+- Предотвращение повторной загрузки модулей.
+- Полноценная работа с JSON (вложенные пути `message.chat.id`, Unicode `\uXXXX`, суррогатные пары UTF-16 для emoji, экранирование `json_safe`).
+- Чтение переменных окружения `env()` и строгие обязательные секреты `secret()`.
+- Автоматическая загрузка конфигурации из `.env`.
+- Уровневое логирование (`debug`, `info`, `warn`, `error`, `off`).
+- Файловый ввод-вывод (`read_file`, `write_file`, `append_file`).
+- Терминальный/TUI API (ANSI-цвета, позиционирование курсора, очистка).
+- Сетевой клиент (DNS, TCP-сокеты, HTTP GET/POST/PUT/DELETE).
+- HTTP/webhook-сервер на POSIX (`get`, `post`, `body`, `method`, `path`, `respond`, `listen`, `server_stop`).
+- Независимая C++17 библиотека ядра для встраивания в приложения, тесты и будущий LSP-сервер.
 
-## Установка
+---
 
-### Linux — готовый релиз
+## Сборка и тестирование (CMake)
 
-Скачай архив `FoxLang-<версия>-linux-x86_64.tar.gz` из Releases, распакуй и запусти установщик:
+Проект использует стандартную систему сборки **CMake** (требуется C++17) и **CTest** для автоматического запуска регрессионных и модульных тестов.
+
+### Быстрая сборка
 
 ```bash
-tar -xzf FoxLang-*-linux-x86_64.tar.gz
-cd FoxLang-*-linux-x86_64
-./install.sh
+git clone https://github.com/SkrinVex/FoxLang.git
+cd FoxLang
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
 ```
 
-По умолчанию FoxLang устанавливается в `~/.local/share/foxlang`, а команда `foxlang` — в `~/.local/bin`. Root не требуется.
-
-После установки:
+### Запуск тестов
 
 ```bash
+ctest --test-dir build -C Release --output-on-failure
+```
+
+Все тесты (native unit-тесты Lexer, Parser, Interpreter API, регрессионные тесты языка, локальные тесты HTTP сервера/клиента) запускаются в едином цикле CTest и завершаются с ненулевым статусом при обнаружении регрессий.
+
+### Прямая компиляция (для быстрой отладки)
+
+Если CMake недоступен, собрать CLI напрямую можно одной командой:
+
+```bash
+# Linux
+g++ -std=c++17 -Wall -Wextra -pedantic -Iinclude src/core/*.cpp src/cli/main.cpp -o foxlang
+
+# Windows (MSVC)
+cl /EHsc /std:c++17 /Iinclude src/core/*.cpp src/cli/main.cpp /Fe:foxlang.exe
+```
+
+---
+
+## Использование CLI
+
+Команда `foxlang` — это тонкая консольная обёртка над ядром `foxlang_core`.
+
+```bash
+# Запуск программы
+foxlang program.fox
+
+# Просмотр версии
 foxlang --version
-foxlang hello.fox
+foxlang -v
+
+# Справка
+foxlang --help
+foxlang -h
 ```
 
-Удаление:
+Коды возврата:
+- `0` — успешное завершение;
+- `1` — синтаксическая ошибка, ошибка выполнения (Runtime Error), отсутствие обязательного секрета или файла.
 
-```bash
-~/.local/share/foxlang/uninstall.sh
-```
+---
 
-### Сборка из исходников
+## Встраивание FoxLang в C++ приложения
 
-```bash
-g++ -std=c++17 -O2 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
-./foxlang --version
-```
-
-## Быстрый старт
-
-Создай `hello.fox`:
+Благодаря разделению архитектуры, FoxLang можно использовать как библиотеку в настольных приложениях, бэкендах, игровых движках и через JNI в Android:
 
 ```cpp
-void main() {
-    print("Привет из FoxLang! 🦊");
+#include <foxlang/FoxLang.h>
+#include <iostream>
+
+int main() {
+    foxlang::Interpreter interpreter;
+
+    // Выполнение кода из строки
+    foxlang::RunResult res = interpreter.runSource("int a = 10; int b = 32; int c = a + b;");
+    if (res.success) {
+        std::cout << "Результат c = " << interpreter.getGlobal("c").value << std::endl;
+    } else {
+        std::cerr << "Ошибка: " << res.errorMessage << std::endl;
+    }
+
+    // Выполнение файла
+    foxlang::RunResult fileRes = interpreter.runFile("script.fox");
+    return fileRes.exitCode;
 }
-
-main();
 ```
 
-Запусти:
+---
 
-```bash
-foxlang hello.fox
+## Архитектура репозитория
+
+```text
+FoxLang/
+├── CMakeLists.txt              # Корневой файл сборки CMake
+├── VERSION                     # Текущая версия (5.4.7)
+├── include/
+│   └── foxlang/                # Публичные C++ заголовочные файлы
+│       ├── FoxLang.h           # Публичный API: Interpreter, RunResult, Options
+│       ├── Context.h           # Контекст переменных, функций и массивов
+│       ├── AST.h               # Чистые узлы абстрактного синтаксического дерева
+│       ├── Lexer.h             # Лексический анализатор
+│       ├── Parser.h            # Синтаксический анализатор (формирует AST)
+│       ├── Runtime.h           # Встроенные функции, JSON, логирование, .env
+│       ├── Platform.h          # Изоляция платформозависимого кода (POSIX/Windows)
+│       └── Token.h             # Определение токенов и позиций
+├── src/
+│   ├── core/                   # Реализация библиотеки ядра (foxlang_core)
+│   │   ├── Context.cpp
+│   │   ├── Platform.cpp
+│   │   ├── Runtime.cpp
+│   │   ├── Lexer.cpp
+│   │   ├── Parser.cpp
+│   │   └── Interpreter.cpp
+│   └── cli/                    # Тонкий исполняемый файл CLI
+│       └── main.cpp
+├── std/                        # Стандартная библиотека FoxLang
+│   ├── env.fox
+│   ├── http.fox
+│   ├── json.fox
+│   ├── log.fox
+│   ├── math.fox
+│   ├── net.fox
+│   ├── server.fox
+│   ├── string.fox
+│   ├── terminal.fox
+│   └── time.fox
+├── tests/                      # Набор тестов (CTest)
+│   ├── CMakeLists.txt
+│   ├── unit/                   # Native C++ unit-тесты (Lexer, Parser, API)
+│   │   ├── test_lexer.cpp
+│   │   ├── test_parser.cpp
+│   │   └── test_interpreter.cpp
+│   └── regression/             # Регрессионные тесты языка и окружения (*.fox, *.sh)
+├── examples/                   # Примеры программ и Telegram webhook-бот
+├── packaging/                  # Скрипты развёртывания и упаковки
+├── DOCUMENTATION.md            # Полная документация синтаксиса и модулей
+└── CHANGELOG.md                # История версий
 ```
+
+---
+
+## Подготовка к LSP и Semantic Analyzer
+
+Архитектура FoxLang подготовлена для добавления полноценного Language Server Protocol (LSP) сервера:
+1. **Чистое построение AST**: `Parser::parseProgram()` строит узлы AST без немедленного выполнения инструкций.
+2. **Точные позиции токенов**: `Token` содержит номер строки `line` и колонки `column`.
+3. **Будущий Semantic Analyzer**: планируется модуль анализатора, который будет обходить AST после парсера, проверять типы, видимость переменных и сигнатуры функций, выдавая диагностики в LSP сервер без запуска самого кода.
+
+---
+
+## Подготовка к Android (JNI)
+
+Архитектура изолирует платформозависимый код в `Platform.h` / `Platform.cpp` и `foxlang_core`. Библиотека может компилироваться в `libfoxlang.so` для Android с помощью Android NDK.
+
+**Текущие особенности и ограничения при встраивании в Android:**
+- **Отсутствие утилиты curl**: на обычном Android нет системного бинарника `curl`. При встраивании в Android HTTP-клиент следует перенаправлять в Java-стек (`HttpURLConnection` / `OkHttp`) через JNI или линковать проект с `libcurl.so`.
+- **Терминальный ввод**: функции `getch()` и `kbhit()` обращаются к `stdin` TUI, который не поддерживается в графических Android-активностях.
+- **Сетевые сокеты**: требуют разрешения `android.permission.INTERNET` в манифесте приложения.
+- **Файловая система и FOXLANG_HOME**: на Android путь к стандартной библиотеке `std/` должен указывать на внутренний каталог приложения (например, `/data/data/<package>/files/std`), задаваемый через `InterpreterOptions.foxHome`.
+- **Переменные окружения**: Android-приложения не используют глобальные переменные процесса; настройки и секреты передаются через API `Interpreter::setGlobal`.
+
+---
 
 ## Стандартная библиотека
 
-FoxLang использует каталог `std/`. Модуль подключается так:
+Подключение стандартных библиотек осуществляется через `using <модуль>;`:
 
 ```cpp
 using math;
 using string;
 using time;
-using terminal;
+using log;
+using env;
+using json;
+using server;
 using net;
 using http;
+using terminal;
 ```
 
-`using net;` сначала ищет `std/net.fox`, затем обычный `net.fox`. При установленной версии путь к стандартной библиотеке автоматически задаётся установщиком через обёртку `foxlang`.
+Стандартный порядок разрешения модулей:
+1. `std/<модуль>.fox`;
+2. `<модуль>.fox`;
+3. Путь относительно вызывающего скрипта;
+4. Пути внутри переменной окружения `FOXLANG_HOME`.
 
-Доступные модули:
+---
 
-| Модуль | Назначение |
-| --- | --- |
-| `math` | `min`, `max`, `clamp` и математические помощники |
-| `string` | поиск, замена и преобразования строк |
-| `time` | задержки и время |
-| `terminal` | очистка экрана, курсор, цвет и вывод без переноса |
-| `net` | DNS и TCP-клиент |
-| `http` | HTTP-запросы |
+## Telegram Webhook-бот на FoxLang
 
-## Сеть
-
-### TCP
+Пример рабочего webhook-сервера доступен в [`examples/telegram_webhook.fox`](examples/telegram_webhook.fox):
 
 ```cpp
-using net;
+using server;
+using http;
+using env;
+using log;
+using json;
+
+string token = secret("TELEGRAM_BOT_TOKEN");
+string api = "https://api.telegram.org/bot" + token + "/";
+
+void health() {
+    respond("{\"ok\":true,\"service\":\"foxbot\"}");
+}
+
+void webhook() {
+    string update = body();
+    string chat_id = json_path(update, "message.chat.id");
+    string text = json_path(update, "message.text");
+    info("Сообщение от " + chat_id + ": " + text);
+    respond("{\"ok\":true}");
+}
 
 void main() {
-    string ip = resolve_host("example.com");
-    print("IP: " + ip);
-
-    int socket = connect_tcp("example.com", 80);
-    if (socket >= 0) {
-        send_tcp(socket, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
-        string response = recv_tcp(socket, 4096);
-        print(response);
-        close_tcp(socket);
-    }
+    get("/health", "health");
+    post("/telegram", "webhook");
+    listen(8080);
 }
 
 main();
 ```
 
-### HTTP
+---
 
-```cpp
-using http;
+## Документация и ссылки
 
-string body = http_fetch("https://example.com");
-print(body);
-```
-
-### HTTP/webhook-сервер
-
-На Linux/POSIX FoxLang содержит встроенный HTTP-сервер для webhook-приложений. Подключи `using server;`, зарегистрируй `get(...)` / `post(...)` и вызови `listen(port)`. Для публичного HTTPS рекомендуется reverse proxy или Cloudflare Tunnel.
-
-Для конфигурации и секретов доступен `using env;`: FoxLang автоматически читает `.env` рядом со скриптом (системные переменные окружения имеют приоритет). `secret("NAME")` завершает программу с ошибкой, если обязательного секрета нет.
-
-Логирование через `using log;` управляется `FOXLANG_LOG_LEVEL=debug|info|warn|error|off`. По умолчанию используется `info`.
-
-## Терминальный API
-
-```cpp
-using terminal;
-
-clear();
-hide_cursor();
-goto_xy(4, 10);
-color(36);
-write("FoxLang");
-reset_color();
-show_cursor();
-```
-
-На этом API можно делать псевдографические игры и TUI-приложения.
-
-## Структура репозитория
-
-```text
-FoxLang/
-├── src/          # интерпретатор на C++17
-├── std/          # стандартная библиотека FoxLang
-├── examples/     # примеры программ
-├── test/         # старый набор тестов
-├── tests/        # новые CI/smoke-тесты
-├── doc/          # дополнительная документация
-├── VERSION       # текущая версия
-├── DOCUMENTATION.md
-└── CHANGELOG.md
-```
-
-## Автоматические релизы
-
-Release workflow запускается при изменении файла `VERSION` и сверяет его с `foxlang --version`.
-
-Если тег для этой версии ещё не существует, CI:
-
-1. собирает FoxLang для Linux и Windows;
-2. создаёт тег `v<версия>`;
-3. формирует Linux-пакет с установщиком и стандартной библиотекой;
-4. формирует Windows-архив;
-5. автоматически публикует GitHub Release.
-
-Если версия не изменилась и тег уже существует, новый Release не создаётся.
-
-## Документация
-
-Полное описание синтаксиса и встроенных функций находится в [DOCUMENTATION.md](DOCUMENTATION.md). История изменений — в [CHANGELOG.md](CHANGELOG.md).
+- Подробное руководство по языку: [DOCUMENTATION.md](DOCUMENTATION.md)
+- История версий: [CHANGELOG.md](CHANGELOG.md)
+- Репозиторий: [https://github.com/SkrinVex/FoxLang](https://github.com/SkrinVex/FoxLang)
 
 ## Лицензия
 
-FoxLang распространяется по лицензии MIT.
+FoxLang распространяется под лицензией MIT.
 
 **Автор:** [SkrinVex](https://skrinvex.su)

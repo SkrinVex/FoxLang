@@ -78,7 +78,7 @@ void greet(string name) {
 
 // Функция без параметров
 string get_version() {
-    return "FoxLang 5.2.0";
+    return "FoxLang 5.4.7";
 }
 ```
 
@@ -954,40 +954,6 @@ main();
 
 Доступны `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status` и `listen`. Сервер принимает реальные TCP/HTTP-запросы и передаёт тело запроса обработчику.
 
-## 12. Логирование и переменные окружения
-
-Для диагностики приложений доступны модули `log` и `env`.
-
-```cpp
-using log;
-using env;
-
-info("Приложение запущено");
-warn("Это предупреждение");
-error("Это ошибка");
-string token = secret("TELEGRAM_BOT_TOKEN");
-```
-
-Сообщения логгера выводятся в stderr. Секреты рекомендуется передавать через переменные окружения, а не хранить прямо в исходниках.
-
-### Автоматические проверки
-
-Перед созданием Linux-релиза CI запускает smoke-тесты ядра и стандартной библиотеки. Релиз не публикуется, если базовый синтаксис или stdlib не проходят проверку.
-
-
-### Файл .env
-
-Перед запуском скрипта FoxLang автоматически загружает `.env` рядом со скриптом (или в текущем каталоге). Уже заданные системные переменные имеют приоритет.
-
-```dotenv
-TELEGRAM_BOT_TOKEN=replace_me
-```
-
-`env("NAME")` возвращает пустую строку для отсутствующего значения, а `secret("NAME")` завершает программу с понятной ошибкой. Настоящий `.env` нельзя коммитить в Git.
-
-
----
-
 ## 11. Конфигурация, .env и секреты
 
 Перед запуском скрипта FoxLang автоматически загружает `.env` рядом со скриптом, а затем при необходимости `.env` текущего каталога. Уже заданные системные переменные имеют приоритет.
@@ -997,17 +963,42 @@ TELEGRAM_BOT_TOKEN=replace_me
 FOXLANG_LOG_LEVEL=info
 ```
 
-`using env;` предоставляет `env("NAME")` для необязательных значений и `secret("NAME")` для обязательных секретов. Файлы `.env` исключены из Git; `.env.example` можно хранить как шаблон.
+`using env;` предоставляет:
+- `env("NAME")` — возвращает значение переменной окружения или пустую строку, если она не задана;
+- `secret("NAME")` — возвращает значение обязательного секрета; если переменная отсутствует или пуста, программа немедленно завершается с понятной ошибкой (Runtime Error).
+
+Файлы `.env` исключены из Git; `.env.example` можно хранить как публичный шаблон.
+
+---
 
 ## 12. Логирование
 
-`using log;` предоставляет `debug()`, `info()`, `warn()` и `error()`.
+`using log;` предоставляет функции:
+- `debug(message)`
+- `info(message)`
+- `warn(message)`
+- `error(message)`
 
-`FOXLANG_LOG_LEVEL` задаёт минимальный уровень: `debug`, `info`, `warn`, `error`, `off`. Значение по умолчанию — `info`. Для обратной совместимости `FOXLANG_LOG=false` (также `0`, `off`, `no`) полностью отключает std/log.
+Сообщения выводятся в `stderr`.
+
+Переменная `FOXLANG_LOG_LEVEL` задаёт порог отображения: `debug`, `info`, `warn`, `error`, `off`. По умолчанию активен уровень `info`.
+
+Для обратной совместимости флаг `FOXLANG_LOG=false` (а также `0`, `off`, `no`) полностью отключает вывод логов.
+
+---
 
 ## 13. HTTP/webhook-сервер
 
-В Linux/POSIX модуль `server` предоставляет настоящий TCP/HTTP runtime: `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`, `listen`.
+На Linux/POSIX FoxLang предоставляет встроенный HTTP runtime:
+- `get(path, handler_func_name)` — регистрация GET-обработчика;
+- `post(path, handler_func_name)` — регистрация POST-обработчика;
+- `body()` — получение тела запроса;
+- `method()` — метод HTTP запроса (GET/POST);
+- `path()` — путь запроса;
+- `respond(data)` — отправка ответа с кодом 200;
+- `respond_status(status, data)` — отправка ответа с произвольным HTTP-кодом (например, 201 или 400);
+- `listen(port)` — запуск цикла обработки входящих запросов;
+- `server_stop()` — корректная остановка сервера после обработки текущего запроса.
 
 ```cpp
 using server;
@@ -1015,6 +1006,7 @@ using server;
 void webhook() {
     string payload = body();
     respond_status(200, "{\"ok\":true}");
+    // server_stop(); // для остановки сервера из обработчика
 }
 
 void main() {
@@ -1026,11 +1018,23 @@ void main() {
 main();
 ```
 
-Сервер слушает HTTP. Для публичных webhook в интернете поставь перед ним HTTPS reverse proxy либо tunnel.
+Сервер слушает соединения по HTTP. Для развёртывания в публичном интернете рекомендуется использовать HTTPS reverse proxy (Nginx, Caddy) либо туннель Cloudflare.
 
-## 14. JSON
+---
 
-`using json;` предоставляет `json_path(document, path)` и `json_safe(text)`. Вложенные пути записываются через точку, например `message.chat.id` или `message.from.username`. JSON-строки декодируют стандартные escape-последовательности и Unicode `\\uXXXX`, включая surrogate pairs.
+## 14. Работа с JSON
+
+Модуль `using json;` предоставляет:
+- `json_path(json_string, path)` — извлечение значения по вложенному точечному пути (например, `message.chat.id`, `message.from.first_name`, `user.name`);
+- `json_safe(text)` — безопасное экранирование специальных символов (`"`, `\`, переносов строк, табуляций) для формирования корректного JSON-документа.
+
+Парсер поддерживает:
+- строки, целые и дробные числа, булевы значения;
+- стандартные управляющие символы (`\n`, `\t`, `\r`, `\"`, `\\`);
+- последовательности Unicode `\uXXXX` (включая русские/кириллические символы);
+- суррогатные пары UTF-16 для emoji (например, `\uD83E\uDD8A` -> 🦊).
+
+---
 
 ## 15. CLI и ссылки
 
@@ -1040,6 +1044,99 @@ foxlang --version
 foxlang --help
 ```
 
-Репозиторий: https://github.com/SkrinVex/FoxLang
-
+Репозиторий: https://github.com/SkrinVex/FoxLang  
 Документация: https://github.com/SkrinVex/FoxLang/blob/master/DOCUMENTATION.md
+
+---
+
+## 16. Архитектура ядра и C++ API библиотеки (foxlang_core)
+
+Реализация FoxLang отделена от консольного интерфейса и скомпонована в статическую библиотеку `foxlang_core`. Консольная команда `foxlang` — это тонкая обёртка над C++ API.
+
+### Подключение в C++:
+
+```cpp
+#include <foxlang/FoxLang.h>
+#include <iostream>
+
+int main() {
+    foxlang::Interpreter interpreter;
+
+    // Выполнение кода из строки
+    foxlang::RunResult res = interpreter.runSource("int x = 20; int y = 22; int z = x + y;");
+    if (res.success) {
+        std::cout << "Результат: " << interpreter.getGlobal("z").value << std::endl;
+    } else {
+        std::cerr << "Ошибка: " << res.errorMessage << std::endl;
+    }
+
+    // Выполнение файла
+    foxlang::RunResult fileRes = interpreter.runFile("script.fox");
+    return fileRes.exitCode;
+}
+```
+
+### Основные классы C++ API:
+- `foxlang::Interpreter` — основной экземпляр рантайма FoxLang. Хранит глобальный контекст переменных, функций и кеш модулей;
+- `foxlang::InterpreterOptions` — настройки интерпретатора (`foxHome`, `loadDotEnv`, `workingDir`);
+- `foxlang::RunResult` — результат выполнения программы: `bool success`, `int exitCode`, `std::string errorMessage`;
+- `foxlang::Lexer` — токенизатор исходного кода, формирующий список `Token` с номерами строк и колонок;
+- `foxlang::Parser` — синтаксический анализатор, формирующий дерево AST (`BlockNode`) без немедленного выполнения;
+- `foxlang::Context` — иерархическая таблица символов (переменные, массивы, функции);
+- `foxlang::platform` — абстракция системных вызовов (сокеты, терминал, процессы).
+
+---
+
+## 17. Сборка, тестирование и разработка (CMake/CTest)
+
+Стандартная сборка проекта выполняется через CMake (требуется компилятор с поддержкой C++17):
+
+```bash
+# Конфигурация и сборка
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+
+# Запуск набора регрессионных и unit-тестов
+ctest --test-dir build -C Release --output-on-failure
+```
+
+Все тесты завершаются с ненулевым кодом при обнаружении расхождений.
+
+---
+
+## 18. Подготовка к LSP и Semantic Analyzer
+
+Архитектура FoxLang подготовлена для интеграции в редакторы кода и создания языкового сервера (LSP):
+
+```text
+    FoxLang исходный код
+             ↓
+           Lexer
+             ↓
+           Parser
+             ↓
+            AST
+          ↙     ↘
+  Semantic Analyzer   Runtime (eval)
+         ↓
+     foxlang-lsp
+```
+
+1. **Разделение парсинга и исполнения**: `Parser::parseProgram()` строит узлы AST без вызова `eval()`.
+2. **Точные позиции токенов**: каждый токен содержит номер строки `line` и колонки `column`.
+3. **Планы развития**:
+   - `Semantic Analyzer`: обход готового AST для проверки типов, разрешения импортов и сбора областей видимости;
+   - `LSP Server`: отдельный бинарник `foxlang-lsp`, использующий библиотеку `foxlang_core` для автодополнения, перехода к определению и выдачи диагностик в IDE без запуска пользовательского скрипта.
+
+---
+
+## 19. Подготовка к встраиванию в Android (JNI)
+
+Ядро FoxLang может компилироваться с помощью Android NDK в разделяемую библиотеку `libfoxlang.so` и вызываться из Kotlin/Java через JNI.
+
+### Особенности платформы Android:
+1. **HTTP-клиент и curl**: в стандартном Android нет системной утилиты `/system/bin/curl`. При сборке под Android сетевой клиент должен быть либо слинкован с `libcurl.so`, либо перенаправлен через JNI в Java HTTP-клиент (`HttpURLConnection` / OkHttp).
+2. **Терминал**: интерактивные вызовы `getch()` и `kbhit()` требуют наличия TTY в `stdin` и не применяются в контексте Android GUI.
+3. **Разрешения сети**: использование сетевых сокетов и HTTP-сервера требует объявления `<uses-permission android:name="android.permission.INTERNET" />`.
+4. **Стандартная библиотека**: пути к модулям (`std/`) на Android должны конфигурироваться через `options.foxHome` во внутреннее хранилище приложения (`context.filesDir`).
+
