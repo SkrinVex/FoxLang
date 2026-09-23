@@ -2,6 +2,7 @@
 import argparse
 import http.client
 import http.server
+import json
 import os
 from pathlib import Path
 import shutil
@@ -74,6 +75,9 @@ def hello(s):
     s.run("Hello from FoxLang!\n")
     # Embedded programs take precedence over CLI-looking arguments.
     s.run("Hello from FoxLang!\n", ["--help"])
+    licenses = s.command([s.app, "--foxlang-licenses"], s.receiver)
+    assert licenses.returncode == 0 and "libcurl 8.22.0" in licenses.stdout
+    assert "Hello from FoxLang!" not in licenses.stdout
     print(f"minimal standalone: {s.app.stat().st_size} bytes")
 
 
@@ -86,9 +90,9 @@ def cli(s):
         assert result.returncode != 0 and result.stderr, (args, result)
     assert "standalone" in s.command([s.cli, "--help"]).stdout
     assert s.command([s.cli, "--version"]).stdout.startswith("FoxLang ")
-    s.build("valid.fox", "output with spaces", "--output")
+    s.build("valid.fox", "output with spaces.Exe", "--output")
     before = (s.project / s.app.name).read_bytes()
-    result = s.command([s.cli, "build", "valid.fox", "-o", "output with spaces"])
+    result = s.command([s.cli, "build", "valid.fox", "-o", "output with spaces.Exe"])
     assert result.returncode != 0 and "already exists" in result.stderr
     assert (s.project / s.app.name).read_bytes() == before
     s.source("broken.fox", "int x = ;")
@@ -206,19 +210,19 @@ def corruption(s):
 
 
 def http_server(s):
-    assert os.name != "nt", "POSIX HTTP server only"
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
     s.source("main.fox", '''using server; using json; using env; using log;
 void health() { respond("ready"); }
+void failure() { int broken = 1 / 0; }
 void webhook() {
     string update = body();
     info("webhook " + method() + " " + path());
     respond_status(201, "Привет, " + json_path(update, "message.from.first_name") + " " + json_path(update, "message.chat.id"));
     server_stop();
 }
-get("/health", "health"); post("/telegram", "webhook");
+get("/health", "health"); get("/failure", "failure"); post("/telegram", "webhook");
 listen(str_to_int(secret("FOX_TEST_PORT")));
 ''')
     s.build()
@@ -242,8 +246,19 @@ listen(str_to_int(secret("FOX_TEST_PORT")));
         else:
             raise AssertionError("standalone HTTP server did not start")
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", "/failure")
+        response = conn.getresponse()
+        assert response.status == 500 and b"Handler failed" in response.read()
+        conn.close()
+        for header, expected in [(b"Content-Length: -1", 400),
+                                 (b"Content-Length: 9999999999", 413),
+                                 (b"Content-Length: 0\r\nContent-Length: 1", 400)]:
+            with socket.create_connection(("127.0.0.1", port), timeout=5) as peer:
+                peer.sendall(b"POST /telegram HTTP/1.1\r\nHost: localhost\r\n" + header + b"\r\n\r\n")
+                assert peer.recv(4096).startswith(f"HTTP/1.1 {expected} ".encode())
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
         payload = r'{"message":{"from":{"first_name":"Алексей \uD83E\uDD8A"},"chat":{"id":42}}}'.encode()
-        conn.request("POST", "/telegram", body=payload, headers={"Content-Type": "application/json"})
+        conn.request("POST", "/telegram", body=payload, headers={"Content-Type": "application/json", "cOnTeNt-LeNgTh": str(len(payload))})
         response = conn.getresponse()
         assert response.status == 201
         assert response.read().decode() == "Привет, Алексей 🦊 42"
@@ -266,6 +281,17 @@ def http_client(s):
             self.end_headers()
             self.wfile.write(body)
 
+        def do_POST(self):
+            assert self.headers["Content-Type"] == "application/json"
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        do_PUT = do_POST
+        do_DELETE = do_GET
+
         def log_message(self, *args):
             pass
 
@@ -273,21 +299,73 @@ def http_client(s):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            s.source("main.fox", 'using http; using json; using env; print(json_path(http_fetch(env("FOX_TEST_URL")), "ok"));')
+            payload = 'Привет 🦊 "quotes" \\path %PATH% $() `test` & literal'
+            literal = json.dumps(payload, ensure_ascii=False)
+            s.source("main.fox", f'''using http; using json; using env;
+string url = env("FOX_TEST_URL");
+print(json_path(http_fetch(url), "ok"));
+print(http_post_json(url, {literal}));
+print(http_put_json(url, {literal}));
+print(json_path(http_remove(url), "ok"));
+''')
             s.build()
             s.isolate()
-            env = dict(s.env, PATH=os.environ["PATH"], FOX_TEST_URL=f"http://127.0.0.1:{server.server_port}/")
-            assert shutil.which("curl", path=env["PATH"]), "HTTP client requires curl"
-            s.run("true\n", env=env)
+            env = dict(s.env, FOX_TEST_URL=f"http://127.0.0.1:{server.server_port}/", NO_PROXY="127.0.0.1")
+            assert env["PATH"] == ""
+            s.run(f"true\n{payload}\n{payload}\ntrue\n", env=env)
         finally:
             server.shutdown()
             thread.join(timeout=5)
 
 
+def tcp(s):
+    with socket.socket() as server:
+        server.bind(("127.0.0.1", 0))
+        server.listen()
+        server.settimeout(15)
+        failures = []
+
+        def echo():
+            try:
+                with server.accept()[0] as peer:
+                    peer.settimeout(10)
+                    while True:
+                        data = peer.recv(8192)
+                        if not data:
+                            break
+                        peer.sendall(data)
+            except Exception as error:
+                failures.append(error)
+
+        s.source("main.fox", '''using net; using env;
+print(resolve_host("127.0.0.1")); print(resolve_host("localhost") != "");
+int socket = connect_tcp("127.0.0.1", str_to_int(env("FOX_TEST_PORT")));
+string payload = "Привет 🦊";
+int count = 0;
+while (count < 10) { payload += payload; count++; }
+print(send_tcp(socket, payload) == size(payload));
+string received = "";
+while (size(received) < size(payload)) {
+    string part = recv_tcp(socket, 65536);
+    if (part == "") { break; }
+    received += part;
+}
+print(received == payload); print(close_tcp(socket)); print(close_tcp(socket));
+print(connect_tcp("127.0.0.1", 70000));
+''')
+        s.build()
+        s.isolate()
+        thread = threading.Thread(target=echo, daemon=True)
+        thread.start()
+        s.run("127.0.0.1\ntrue\ntrue\ntrue\ntrue\nfalse\n-1\n", env=dict(s.env, FOX_TEST_PORT=str(server.getsockname()[1])))
+        thread.join(timeout=15)
+        assert not thread.is_alive() and not failures, failures
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("binary", type=Path)
-    parser.add_argument("case", choices=["hello", "cli", "modules", "unicode_json", "environment", "errors", "corruption", "http_server", "http_client"])
+    parser.add_argument("case", choices=["hello", "cli", "modules", "unicode_json", "environment", "errors", "corruption", "http_server", "http_client", "tcp"])
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="fox-standalone-test-") as directory:
         globals()[args.case](Scenario(args.binary.resolve(), directory))

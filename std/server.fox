@@ -1,4 +1,4 @@
-// Реальный HTTP/webhook сервер FoxLang (Linux/POSIX).
+// HTTP/webhook сервер FoxLang (Linux и Windows).
 void get(string path, string handler) { route_get(path, handler); }
 void post(string path, string handler) { route_post(path, handler); }
 string body() { return request_body(); }

@@ -138,13 +138,23 @@ entry identity also prevents a cyclic import from re-importing the main program.
 - `read_file`, `write_file` and `append_file` still access the real filesystem,
   with relative paths resolved from the recipient's working directory. Supply
   configuration/data files separately. Source bundling is not resource bundling.
-- HTTP clients still invoke an external `curl` through `popen`/`_popen`. `httpget`
-  and `httppost` need curl supporting `--fail-with-body`; HTTPS also needs trust
-  certificates. These are runtime dependencies when using HTTP, not part of the
-  bundle. No Internet requests are made by the tests.
-- HTTP server and TCP/DNS use POSIX sockets. Windows networking support remains
-  limited to the curl HTTP client: the server reports unsupported, TCP/DNS retain
-  their existing stub results. Packaging does not add Winsock support.
+- HTTP(S) uses statically linked libcurl 8.22.0, without subprocesses or an
+  external `curl`. Linux statically includes Mbed TLS 3.6.7; Windows uses Schannel.
+  Certificate chain and hostname verification are enabled. Linux reads the OS CA
+  bundle (`ca-certificates`); Windows uses the OS certificate store. A runtime
+  `FOXLANG_CA_BUNDLE` may select a PEM CA file on either OS; Linux also honors
+  `SSL_CERT_FILE`. CA files are not automatically bundled. No Internet requests
+  are made by the tests. Schannel checks revocation when available (best effort
+  for offline/private CAs); certificate and hostname validation remain mandatory.
+  HTTP replies are limited to 16 MiB, connection timeout
+  is 10 seconds and the overall request timeout is 35 seconds.
+- HTTP server and TCP/DNS use POSIX sockets on Linux and Winsock on Windows.
+  The HTTP server handles one connection at a time, HTTP/1.0–1.1, up to 64 KiB
+  headers and 1 MiB bodies with Content-Length. Chunked requests are unsupported;
+  server HTTPS requires a TLS reverse proxy. Handler exceptions return HTTP 500.
+  Socket receive/send timeouts are five seconds. DNS resolution uses OS facilities.
+- `--foxlang-licenses` prints embedded dependency licenses in both the CLI and
+  standalone apps. This reserved argument takes precedence over executing a bundle.
 - Terminal APIs still require the relevant console/TTY and ANSI support.
 - MSVC uses `/MT` (static CRT); MinGW statically links compiler support libraries.
   Normal OS DLLs are still required. MinGW builds using UCRT target Windows with
@@ -164,15 +174,27 @@ ctest --test-dir build -C Release --output-on-failure
 ctest --test-dir build -C Release -L standalone --output-on-failure
 ```
 
-Python 3 is required for tests only. CI runs the same suite in `desktop-linux`
-and `desktop-windows`; the POSIX server test runs only on Linux. The integration
+Building FoxLang itself requires CMake 3.18+, C and C++17 compilers. CMake fetches
+pinned, SHA-256-verified dependency archives (see `cmake/Networking.cmake`). For
+offline builds, set `FETCHCONTENT_SOURCE_DIR_CURL` and, on Linux,
+`FETCHCONTENT_SOURCE_DIR_MBEDTLS` to extracted source directories of these versions.
+Packaging programs with an already built CLI never downloads or compiles anything.
+
+Python 3 and the `openssl` utility are required for tests only. On Windows the
+OpenSSL supplied with Git for Windows suffices. The older Linux shell integration
+test still uses curl as a test client. CI runs the portable network suite in both
+`desktop-linux` and `desktop-windows`. The integration
 tests copy only the CLI into a temporary developer directory (without stdlib),
 package source fixtures, copy only the resulting executable into a separate
 recipient directory, delete both sources and copied CLI, and execute there.
-PATH is empty except in the explicit curl test. Tests cover exact stdout, CLI
+PATH is empty in all standalone tests, including networking. Tests cover exact stdout, CLI
 failures, all stdlib imports, transitive/local/cyclic imports, JSON/Unicode,
 environment timing, secret/resource exclusion, runtime errors, corrupted images,
-and local HTTP client/server with a Telegram-style Unicode webhook.
+local HTTP GET/POST/PUT/DELETE, TCP echo, DNS, and a Telegram-style Unicode webhook.
+HTTPS tests generate ephemeral certificates, accept a trusted CA and reject an
+untrusted CA and a mismatched hostname. Server tests reject malformed lengths and
+verify that handler failures return HTTP 500. Version tests check editor metadata
+and generated VSIX manifests against VERSION.
 
 The C++ format test also checks malformed payloads and native/PE stub structures,
 including every truncation position in a sample payload. The hello integration

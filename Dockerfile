@@ -7,7 +7,8 @@ RUN apk add --no-cache \
     make \
     python3 \
     curl \
-    curl-dev \
+    openssl \
+    ca-certificates \
     bash
 
 WORKDIR /usr/src/foxlang
@@ -22,7 +23,6 @@ FROM alpine:3.19
 
 RUN apk add --no-cache \
     libstdc++ \
-    curl \
     ca-certificates \
     bash
 

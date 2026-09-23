@@ -71,7 +71,7 @@ Interpreter::Interpreter(InterpreterOptions opts) : options(std::move(opts)) {
 }
 
 std::string Interpreter::getVersion() {
-    return "5.5.3";
+    return FOXLANG_VERSION;
 }
 
 Context& Interpreter::getContext() {

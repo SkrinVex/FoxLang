@@ -992,7 +992,7 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         const char* doc;
     };
     static const std::vector<ModuleDoc> stdModules = {
-        {"server", "Модуль HTTP/webhook сервера на POSIX (`listen`, `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`)."},
+        {"server", "Модуль HTTP/webhook сервера для Linux и Windows (`listen`, `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`)."},
         {"http", "Модуль исходящих HTTP-клиентских запросов (`http_fetch`, `http_post_json`, `http_post_as`, `http_put_json`, `http_remove`)."},
         {"env", "Модуль переменных окружения и секретов (`env`, `secret`, `env_default`). Автоматически читает `.env` файл."},
         {"log", "Модуль уровневого логирования (`debug`, `info`, `warn`, `error`)."},

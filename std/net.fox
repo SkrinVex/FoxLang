@@ -1,5 +1,5 @@
 // FoxLang 5.2 networking standard library.
-// POSIX builds provide real TCP sockets and DNS through the runtime.
+// Linux and Windows provide TCP sockets and DNS through the runtime.
 // Socket handles are ints; -1 means connect failed.
 
 int connect_tcp(string host, int port) {

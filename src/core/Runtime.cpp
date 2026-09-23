@@ -439,7 +439,7 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     if (name == "term_color" && args.size() == 1) { std::cout << "\033[" << args[0].value << "m" << std::flush; return {"void", ""}; }
     if (name == "term_reset" && args.empty()) { std::cout << "\033[0m" << std::flush; return {"void", ""}; }
 
-    // POSIX TCP primitives
+    // Portable TCP primitives
     if (name == "tcp_connect" && args.size() == 2) {
         int port = std::stoi(args[1].value);
         int fd = platform::tcpConnect(args[0].value, port);
@@ -514,58 +514,26 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
         throw std::runtime_error("size() requires array or string");
     }
 
-    // HTTP client primitives
-    if (name == "http_get" && args.size() == 1) {
-        if (args[0].type != "string") throw std::runtime_error("http_get() requires string URL");
-        std::string cmd = "curl -s " + platform::shellQuote(args[0].value);
-        std::string result;
-        platform::executeCommandCapture(cmd, result);
-        return {"string", result};
-    }
-
-    if (name == "httpget" && args.size() == 1) {
-        if (args[0].type != "string") throw std::runtime_error("httpget() requires string URL");
-        std::string cmd = "curl -sS --fail-with-body --connect-timeout 10 --max-time 35 " +
-                          platform::shellQuote(args[0].value) + " 2>&1";
-        std::string result;
-        int status = platform::executeCommandCapture(cmd, result);
-        if (status != 0) {
-            std::cerr << "[HTTP ERROR] GET " << args[0].value << " (curl exit code " << status << ")\n"
-                      << result << std::endl;
+    // In-process HTTP(S): no shell parsing, subprocesses or external curl executable.
+    if ((name == "http_get" || name == "httpget" || name == "httpdelete") && args.size() == 1) {
+        if (args[0].type != "string") throw std::runtime_error(name + "() requires string URL");
+        try {
+            return {"string", platform::httpRequest(name == "httpdelete" ? "DELETE" : "GET", args[0].value,
+                                                    "", "application/json", name == "httpget")};
+        } catch (const std::exception& error) {
+            std::cerr << "[HTTP ERROR] " << error.what() << std::endl;
             return {"string", ""};
         }
-        return {"string", result};
     }
-
-    if (name == "httppost" && args.size() >= 2) {
-        std::string contentType = args.size() > 2 ? args[2].value : "application/json";
-        std::string cmd = "curl -sS --fail-with-body --connect-timeout 10 --max-time 35 -X POST -H " +
-                          platform::shellQuote("Content-Type: " + contentType) + " --data-binary " +
-                          platform::shellQuote(args[1].value) + " " + platform::shellQuote(args[0].value) + " 2>&1";
-        std::string result;
-        int status = platform::executeCommandCapture(cmd, result);
-        if (status != 0) {
-            std::cerr << "[HTTP ERROR] POST " << args[0].value << " (curl exit code " << status << ")\n"
-                      << result << std::endl;
+    if ((name == "httppost" || name == "httpput") && (args.size() == 2 || args.size() == 3)) {
+        std::string contentType = args.size() == 3 ? args[2].value : "application/json";
+        try {
+            return {"string", platform::httpRequest(name == "httppost" ? "POST" : "PUT", args[0].value,
+                                                    args[1].value, contentType, name == "httppost")};
+        } catch (const std::exception& error) {
+            std::cerr << "[HTTP ERROR] " << error.what() << std::endl;
             return {"string", ""};
         }
-        return {"string", result};
-    }
-
-    if (name == "httpput" && args.size() >= 2) {
-        std::string contentType = args.size() > 2 ? args[2].value : "application/json";
-        std::string cmd = "curl -s -X PUT -H " + platform::shellQuote("Content-Type: " + contentType) +
-                          " -d " + platform::shellQuote(args[1].value) + " " + platform::shellQuote(args[0].value);
-        std::string result;
-        platform::executeCommandCapture(cmd, result);
-        return {"string", result};
-    }
-
-    if (name == "httpdelete" && args.size() == 1) {
-        std::string cmd = "curl -s -X DELETE " + platform::shellQuote(args[0].value);
-        std::string result;
-        platform::executeCommandCapture(cmd, result);
-        return {"string", result};
     }
 
     // Logging primitives
