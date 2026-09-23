@@ -6,7 +6,7 @@ on:
     branches: [master]
 
 jobs:
-  build:
+  desktop:
     strategy:
       fail-fast: false
       matrix:
@@ -16,7 +16,7 @@ jobs:
           - os: windows-latest
             name: windows
     runs-on: ${{ matrix.os }}
-    name: build-${{ matrix.name }}
+    name: desktop-${{ matrix.name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -34,15 +34,79 @@ jobs:
         shell: cmd
         run: cl /EHsc /std:c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp /Fe:foxlang.exe
 
-      - name: Check version
+      - name: Version and help
         shell: bash
         run: |
-          EXPECTED="$(cat VERSION)"
-          if [ "$RUNNER_OS" = "Windows" ]; then ACTUAL="$(./foxlang.exe --version)"; else ACTUAL="$(./foxlang --version)"; fi
-          test "$ACTUAL" = "FoxLang $EXPECTED"
+          BIN=./foxlang
+          if [ "$RUNNER_OS" = "Windows" ]; then BIN=./foxlang.exe; fi
+          test "$($BIN --version)" = "FoxLang $(cat VERSION)"
+          $BIN --help | grep -q "github.com/SkrinVex/FoxLang"
 
-      - name: Stdlib smoke test
+      - name: Core language tests
         if: runner.os == 'Linux'
         env:
           FOXLANG_HOME: ${{ github.workspace }}
-        run: ./foxlang examples/stdlib_demo.fox
+        run: |
+          set -euo pipefail
+          for spec in "core_smoke:CORE_SMOKE_OK" "language_core:LANGUAGE_CORE_OK" "control_flow:CONTROL_FLOW_OK" "stdlib_smoke:STDLIB_SMOKE_OK" "json_unicode:JSON_UNICODE_OK"; do
+            file="${spec%%:*}"; marker="${spec##*:}"
+            ./foxlang "tests/$file.fox" | tee "/tmp/$file.out"
+            grep -q "$marker" "/tmp/$file.out"
+            ! grep -q "FAIL" "/tmp/$file.out"
+          done
+
+      - name: Environment and logging test
+        if: runner.os == 'Linux'
+        env:
+          FOXLANG_HOME: ${{ github.workspace }}
+          FOXLANG_TEST_VALUE: works
+          FOXLANG_LOG_LEVEL: info
+        run: |
+          ./foxlang tests/env_logging.fox > /tmp/env.out 2>&1
+          grep -q "ENV_LOGGING_OK" /tmp/env.out
+          grep -q "\[INFO\] visible-info" /tmp/env.out
+          ! grep -q "hidden-debug" /tmp/env.out
+          ! grep -q "FAIL" /tmp/env.out
+
+      - name: HTTP server test
+        if: runner.os == 'Linux'
+        env:
+          FOXLANG_HOME: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          ./foxlang tests/server_smoke.fox >/tmp/server.out 2>&1 &
+          pid=$!
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/ping | grep -q '"ok":true'; then ok=1; break; fi
+            sleep 0.2
+          done
+          wait "$pid"
+          test "$ok" = 1
+
+  android-arm64:
+    runs-on: ubuntu-latest
+    name: android-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;27.2.12479018"
+
+      - name: Build Android arm64-v8a
+        run: |
+          CXX="$ANDROID_SDK_ROOT/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
+          "$CXX" -std=c++17 -O2 -Wall -Wextra src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang-android-arm64
+
+      - name: Verify Android binary
+        run: |
+          file foxlang-android-arm64
+          file foxlang-android-arm64 | grep -q "ARM aarch64"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foxlang-android-arm64
+          path: foxlang-android-arm64
