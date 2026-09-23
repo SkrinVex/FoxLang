@@ -1,0 +1,20 @@
+// Core syntax, arithmetic, comparisons, booleans, strings and functions.
+int a = 2 + 3 * 4;
+if (a != 14) { print("FAIL arithmetic"); }
+float f = 7.5 - 2.5;
+if (f != 5) { print("FAIL float"); }
+bool yes = true;
+bool no = false;
+if (!(yes == true && no == false)) { print("FAIL bool"); }
+string joined = "Fox" + "Lang";
+if (joined != "FoxLang") { print("FAIL string concat"); }
+string adjacent = "Fox" "Lang";
+if (adjacent != "FoxLang") { print("FAIL adjacent strings"); }
+int inc = 1;
+inc++;
+if (inc != 2) { print("FAIL increment"); }
+inc += 3;
+if (inc != 5) { print("FAIL plus assign"); }
+int add(int x, int y) { return x + y; }
+if (add(4, 5) != 9) { print("FAIL function"); }
+print("LANGUAGE_CORE_OK");
