@@ -432,17 +432,27 @@ struct FuncCallNode : Node {
 
             return {"string", result};
         }
-        auto logsEnabled = []() {
-            const char* raw = std::getenv("FOXLANG_LOG");
-            if (!raw || !*raw) return true;
-            std::string v(raw);
-            std::transform(v.begin(), v.end(), v.begin(), [](unsigned char ch){ return (char)std::tolower(ch); });
-            return v != "0" && v != "false" && v != "off" && v != "no";
+        auto logThreshold = []() {
+            const char* legacy = std::getenv("FOXLANG_LOG");
+            if (legacy && *legacy) {
+                std::string v(legacy);
+                std::transform(v.begin(), v.end(), v.begin(), [](unsigned char ch){ return (char)std::tolower(ch); });
+                if (v == "0" || v == "false" || v == "off" || v == "no") return 99;
+            }
+            const char* raw = std::getenv("FOXLANG_LOG_LEVEL");
+            std::string level = (raw && *raw) ? raw : "info";
+            std::transform(level.begin(), level.end(), level.begin(), [](unsigned char ch){ return (char)std::tolower(ch); });
+            if (level == "debug") return 10;
+            if (level == "info") return 20;
+            if (level == "warn" || level == "warning") return 30;
+            if (level == "error") return 40;
+            if (level == "off" || level == "none") return 99;
+            return 20;
         };
-        if (name == "log_debug" && args.size() == 1) { Value v=args[0]->eval(ctx); if (logsEnabled()) std::cerr << "[DEBUG] " << v.value << std::endl; return {"void", ""}; }
-        if (name == "log_info" && args.size() == 1) { Value v=args[0]->eval(ctx); if (logsEnabled()) std::cerr << "[INFO] " << v.value << std::endl; return {"void", ""}; }
-        if (name == "log_warn" && args.size() == 1) { Value v=args[0]->eval(ctx); if (logsEnabled()) std::cerr << "[WARN] " << v.value << std::endl; return {"void", ""}; }
-        if (name == "log_error" && args.size() == 1) { Value v=args[0]->eval(ctx); if (logsEnabled()) std::cerr << "[ERROR] " << v.value << std::endl; return {"void", ""}; }
+        if (name == "log_debug" && args.size() == 1) { Value v=args[0]->eval(ctx); if (10 >= logThreshold()) std::cerr << "[DEBUG] " << v.value << std::endl; return {"void", ""}; }
+        if (name == "log_info" && args.size() == 1) { Value v=args[0]->eval(ctx); if (20 >= logThreshold()) std::cerr << "[INFO] " << v.value << std::endl; return {"void", ""}; }
+        if (name == "log_warn" && args.size() == 1) { Value v=args[0]->eval(ctx); if (30 >= logThreshold()) std::cerr << "[WARN] " << v.value << std::endl; return {"void", ""}; }
+        if (name == "log_error" && args.size() == 1) { Value v=args[0]->eval(ctx); if (40 >= logThreshold()) std::cerr << "[ERROR] " << v.value << std::endl; return {"void", ""}; }
         if (name == "env_get" && args.size() == 1) {
             std::string key = args[0]->eval(ctx).value;
             const char* value = std::getenv(key.c_str());
