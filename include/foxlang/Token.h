@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include "foxlang/SourceLocation.h"
 
 namespace foxlang {
 
@@ -34,10 +35,22 @@ enum class TokenType {
 };
 
 struct Token {
-    TokenType type;
+    TokenType type = TokenType::END;
     std::string value;
     int line = 1;
     int column = 1;
+    SourceRange range;
+
+    Token() = default;
+    Token(TokenType t, std::string v, int l, int c, SourceRange r = {})
+        : type(t), value(std::move(v)), line(l), column(c), range(r) {
+        if (range.start.line == 0) {
+            range.start.line = l;
+            range.start.column = c;
+            range.end.line = l;
+            range.end.column = c + static_cast<int>(value.size());
+        }
+    }
 };
 
 const char* tokenTypeName(TokenType type);

@@ -11,12 +11,14 @@
 #include <iostream>
 #include "foxlang/Context.h"
 #include "foxlang/Runtime.h"
+#include "foxlang/SourceLocation.h"
 
 namespace foxlang {
 
 struct Node {
     virtual ~Node() = default;
     virtual Value eval(Context& ctx) = 0;
+    SourceRange range;
 };
 
 struct FuncDefNode : Node {
@@ -24,9 +26,10 @@ struct FuncDefNode : Node {
     std::string name;
     std::vector<FuncParam> params;
     std::shared_ptr<Node> body;
+    SourceRange nameRange;
 
-    FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b)
-        : returnType(std::move(rt)), name(std::move(n)), params(std::move(p)), body(std::move(b)) {}
+    FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b, SourceRange nr = {})
+        : returnType(std::move(rt)), name(std::move(n)), params(std::move(p)), body(std::move(b)), nameRange(nr) {}
 
     Value eval(Context& ctx) override {
         ctx.getRoot()->defineFunc(name, std::make_shared<FuncDefNode>(returnType, name, params, body));
@@ -46,9 +49,10 @@ struct ReturnNode : Node {
 struct FuncCallNode : Node {
     std::string name;
     std::vector<std::unique_ptr<Node>> args;
+    SourceRange nameRange;
 
-    FuncCallNode(std::string n, std::vector<std::unique_ptr<Node>> a)
-        : name(std::move(n)), args(std::move(a)) {}
+    FuncCallNode(std::string n, std::vector<std::unique_ptr<Node>> a, SourceRange nr = {})
+        : name(std::move(n)), args(std::move(a)), nameRange(nr) {}
 
     Value eval(Context& ctx) override {
         std::vector<Value> argValues;
@@ -118,15 +122,17 @@ struct BoolNode : Node {
 
 struct VarAccessNode : Node {
     std::string name;
-    VarAccessNode(std::string n) : name(std::move(n)) {}
+    SourceRange nameRange;
+    VarAccessNode(std::string n, SourceRange nr = {}) : name(std::move(n)), nameRange(nr) {}
     Value eval(Context& ctx) override { return ctx.getVar(name); }
 };
 
 struct VarDeclNode : Node {
     std::string type, name;
     std::unique_ptr<Node> expr;
-    VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e)
-        : type(std::move(t)), name(std::move(n)), expr(std::move(e)) {}
+    SourceRange nameRange;
+    VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e, SourceRange nr = {})
+        : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr) {}
     Value eval(Context& ctx) override {
         Value val = expr->eval(ctx);
         if (type != val.type) {
@@ -149,8 +155,9 @@ struct VarDeclNode : Node {
 struct GlobalVarDeclNode : Node {
     std::string type, name;
     std::unique_ptr<Node> expr;
-    GlobalVarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e)
-        : type(std::move(t)), name(std::move(n)), expr(std::move(e)) {}
+    SourceRange nameRange;
+    GlobalVarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e, SourceRange nr = {})
+        : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr) {}
     Value eval(Context& ctx) override {
         Context* root = ctx.getRoot();
         Value val = expr->eval(ctx);
@@ -174,7 +181,9 @@ struct GlobalVarDeclNode : Node {
 struct VarAssignNode : Node {
     std::string name;
     std::unique_ptr<Node> expr;
-    VarAssignNode(std::string n, std::unique_ptr<Node> e) : name(std::move(n)), expr(std::move(e)) {}
+    SourceRange nameRange;
+    VarAssignNode(std::string n, std::unique_ptr<Node> e, SourceRange nr = {})
+        : name(std::move(n)), expr(std::move(e)), nameRange(nr) {}
     Value eval(Context& ctx) override {
         ctx.setVar(name, expr->eval(ctx));
         return {"void", ""};

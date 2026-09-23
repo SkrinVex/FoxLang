@@ -90,58 +90,93 @@ const char* tokenTypeName(TokenType type) {
     }
 }
 
-Lexer::Lexer(std::string src) : source(std::move(src)) {}
+Lexer::Lexer(std::string src, bool collectDiags)
+    : source(std::move(src)), collectDiagnostics(collectDiags) {}
+
+SourcePosition Lexer::currentPosition() const {
+    return {line, column, pos};
+}
+
+void Lexer::advanceChar() {
+    if (pos >= source.size()) return;
+    char current = source[pos];
+    if (current == '\n') {
+        line++;
+        column = 1;
+        pos++;
+        return;
+    }
+    unsigned char b = static_cast<unsigned char>(current);
+    if (b < 0x80) {
+        column += 1;
+        pos += 1;
+    } else if ((b & 0xE0) == 0xC0 && pos + 1 < source.size()) {
+        column += 1;
+        pos += 2;
+    } else if ((b & 0xF0) == 0xE0 && pos + 2 < source.size()) {
+        column += 1;
+        pos += 3;
+    } else if ((b & 0xF8) == 0xF0 && pos + 3 < source.size()) {
+        column += 2; // 4-byte UTF-8 emoji corresponds to 2 UTF-16 code units
+        pos += 4;
+    } else {
+        column += 1;
+        pos += 1;
+    }
+}
 
 std::vector<Token> Lexer::tokenize() {
     std::vector<Token> tokens;
+    diagnostics.clear();
+
     while (pos < source.length()) {
         char current = source[pos];
-        int startCol = column;
 
         if (std::isspace(static_cast<unsigned char>(current))) {
-            if (current == '\n') {
-                line++;
-                column = 1;
-            } else {
-                column++;
-            }
-            pos++;
+            advanceChar();
             continue;
         }
 
+        // Single-line comments: //
         if (current == '/' && pos + 1 < source.length() && source[pos + 1] == '/') {
             while (pos < source.length() && source[pos] != '\n') {
-                pos++;
-                column++;
+                advanceChar();
             }
             continue;
         }
+
+        SourcePosition startPos = currentPosition();
 
         if (std::isdigit(static_cast<unsigned char>(current))) {
             std::string num;
             while (pos < source.length() && std::isdigit(static_cast<unsigned char>(source[pos]))) {
-                num += source[pos++];
-                column++;
+                num += source[pos];
+                advanceChar();
             }
             if (pos < source.length() && source[pos] == '.' &&
                 pos + 1 < source.length() && std::isdigit(static_cast<unsigned char>(source[pos + 1]))) {
-                num += source[pos++];
-                column++;
+                num += source[pos];
+                advanceChar();
                 while (pos < source.length() && std::isdigit(static_cast<unsigned char>(source[pos]))) {
-                    num += source[pos++];
-                    column++;
+                    num += source[pos];
+                    advanceChar();
                 }
             }
-            tokens.push_back({TokenType::NUMBER, num, line, startCol});
+            SourcePosition endPos = currentPosition();
+            tokens.push_back({TokenType::NUMBER, num, startPos.line, startPos.column, {startPos, endPos}});
         } 
         else if (current == '"') {
-            pos++;
-            column++;
+            advanceChar(); // consume opening quote
             std::string str;
-            while (pos < source.length() && source[pos] != '"') {
+            bool closed = false;
+            while (pos < source.length()) {
+                if (source[pos] == '"') {
+                    closed = true;
+                    advanceChar(); // consume closing quote
+                    break;
+                }
                 if (source[pos] == '\\' && pos + 1 < source.length()) {
-                    pos++;
-                    column++;
+                    advanceChar(); // consume backslash
                     char escaped = source[pos];
                     switch (escaped) {
                         case 'n': str += '\n'; break;
@@ -151,135 +186,185 @@ std::vector<Token> Lexer::tokenize() {
                         case '"': str += '"'; break;
                         default: str += escaped; break;
                     }
+                    advanceChar();
                 } else {
-                    if (source[pos] == '\n') {
-                        line++;
-                        column = 0;
-                    }
-                    str += source[pos];
+                    size_t curPos = pos;
+                    advanceChar();
+                    str.append(source.data() + curPos, pos - curPos);
                 }
-                pos++;
-                column++;
             }
-            if (pos < source.length() && source[pos] == '"') {
-                pos++;
-                column++;
+            SourcePosition endPos = currentPosition();
+            if (!closed) {
+                std::string msg = "Unclosed string literal";
+                if (collectDiagnostics) {
+                    diagnostics.push_back({DiagnosticSeverity::Error, msg, {startPos, endPos}});
+                } else {
+                    throw std::runtime_error("Syntax Error: " + msg + " at line " + std::to_string(startPos.line));
+                }
             }
-            tokens.push_back({TokenType::STRING_LITERAL, str, line, startCol});
+            tokens.push_back({TokenType::STRING_LITERAL, str, startPos.line, startPos.column, {startPos, endPos}});
         } 
         else if (std::isalpha(static_cast<unsigned char>(current)) || current == '_') {
             std::string id;
             while (pos < source.length() && (std::isalnum(static_cast<unsigned char>(source[pos])) || source[pos] == '_')) {
-                id += source[pos++];
-                column++;
+                id += source[pos];
+                advanceChar();
             }
+            SourcePosition endPos = currentPosition();
+            SourceRange range{startPos, endPos};
 
+            TokenType type = TokenType::IDENTIFIER;
             if (id.find('_') != std::string::npos) {
-                tokens.push_back({TokenType::IDENTIFIER, id, line, startCol});
+                // Builtins with underscore
+                if (id == "read_file") type = TokenType::READ_FILE;
+                else if (id == "json_get") type = TokenType::JSON_GET;
+                else if (id == "str_contains") type = TokenType::STR_CONTAINS;
+                else if (id == "str_to_int") type = TokenType::STR_TO_INT;
+                else if (id == "server_start") type = TokenType::SERVER_START;
+                else if (id == "server_stop") type = TokenType::SERVER_STOP;
+                else if (id == "route_get") type = TokenType::ROUTE_GET;
+                else if (id == "route_post") type = TokenType::ROUTE_POST;
+                else if (id == "send_response") type = TokenType::SEND_RESPONSE;
+                else type = TokenType::IDENTIFIER;
             }
-            else if (id == "print") tokens.push_back({TokenType::PRINT, id, line, startCol});
-            else if (id == "input") tokens.push_back({TokenType::INPUT, id, line, startCol});
-            else if (id == "fox") tokens.push_back({TokenType::FOX, id, line, startCol});
-            else if (id == "readfile") tokens.push_back({TokenType::READ_FILE, id, line, startCol});
-            else if (id == "int") tokens.push_back({TokenType::INT_KW, id, line, startCol});
-            else if (id == "float") tokens.push_back({TokenType::FLOAT_KW, id, line, startCol});
-            else if (id == "string") tokens.push_back({TokenType::STRING_KW, id, line, startCol});
-            else if (id == "bool") tokens.push_back({TokenType::BOOL_KW, id, line, startCol});
-            else if (id == "true") tokens.push_back({TokenType::TRUE_KW, id, line, startCol});
-            else if (id == "false") tokens.push_back({TokenType::FALSE_KW, id, line, startCol});
-            else if (id == "void") tokens.push_back({TokenType::VOID_KW, id, line, startCol});
-            else if (id == "while") tokens.push_back({TokenType::WHILE, id, line, startCol});
-            else if (id == "for") tokens.push_back({TokenType::FOR, id, line, startCol});
-            else if (id == "if") tokens.push_back({TokenType::IF, id, line, startCol});
-            else if (id == "else") tokens.push_back({TokenType::ELSE, id, line, startCol});
-            else if (id == "switch") tokens.push_back({TokenType::SWITCH, id, line, startCol});
-            else if (id == "case") tokens.push_back({TokenType::CASE, id, line, startCol});
-            else if (id == "default") tokens.push_back({TokenType::DEFAULT, id, line, startCol});
-            else if (id == "break") tokens.push_back({TokenType::BREAK, id, line, startCol});
-            else if (id == "continue") tokens.push_back({TokenType::CONTINUE, id, line, startCol});
-            else if (id == "wait") tokens.push_back({TokenType::WAIT, id, line, startCol});
-            else if (id == "array") tokens.push_back({TokenType::ARRAY, id, line, startCol});
-            else if (id == "set") tokens.push_back({TokenType::SET, id, line, startCol});
-            else if (id == "include") tokens.push_back({TokenType::INCLUDE, id, line, startCol});
-            else if (id == "using") tokens.push_back({TokenType::USING, id, line, startCol});
-            else if (id == "return") tokens.push_back({TokenType::RETURN, id, line, startCol});
-            else if (id == "global") tokens.push_back({TokenType::GLOBAL, id, line, startCol});
-            else if (id == "httpget") tokens.push_back({TokenType::HTTP_GET, id, line, startCol});
-            else if (id == "httppost") tokens.push_back({TokenType::HTTP_POST, id, line, startCol});
-            else if (id == "httpput") tokens.push_back({TokenType::HTTP_PUT, id, line, startCol});
-            else if (id == "httpdelete") tokens.push_back({TokenType::HTTP_DELETE, id, line, startCol});
-            else if (id == "getch") tokens.push_back({TokenType::GETCH, id, line, startCol});
-            else if (id == "kbhit") tokens.push_back({TokenType::KBHIT, id, line, startCol});
-            else if (id == "server_start") tokens.push_back({TokenType::SERVER_START, id, line, startCol});
-            else if (id == "server_stop") tokens.push_back({TokenType::SERVER_STOP, id, line, startCol});
-            else if (id == "route_get") tokens.push_back({TokenType::ROUTE_GET, id, line, startCol});
-            else if (id == "route_post") tokens.push_back({TokenType::ROUTE_POST, id, line, startCol});
-            else if (id == "send_response") tokens.push_back({TokenType::SEND_RESPONSE, id, line, startCol});
-            else tokens.push_back({TokenType::IDENTIFIER, id, line, startCol});
+            else if (id == "print") type = TokenType::PRINT;
+            else if (id == "input") type = TokenType::INPUT;
+            else if (id == "round") type = TokenType::ROUND;
+            else if (id == "random") type = TokenType::RANDOM;
+            else if (id == "fox") type = TokenType::FOX;
+            else if (id == "readfile") type = TokenType::READ_FILE;
+            else if (id == "int") type = TokenType::INT_KW;
+            else if (id == "float") type = TokenType::FLOAT_KW;
+            else if (id == "string") type = TokenType::STRING_KW;
+            else if (id == "bool") type = TokenType::BOOL_KW;
+            else if (id == "void") type = TokenType::VOID_KW;
+            else if (id == "true") type = TokenType::TRUE_KW;
+            else if (id == "false") type = TokenType::FALSE_KW;
+            else if (id == "while") type = TokenType::WHILE;
+            else if (id == "for") type = TokenType::FOR;
+            else if (id == "if") type = TokenType::IF;
+            else if (id == "else") type = TokenType::ELSE;
+            else if (id == "switch") type = TokenType::SWITCH;
+            else if (id == "case") type = TokenType::CASE;
+            else if (id == "default") type = TokenType::DEFAULT;
+            else if (id == "break") type = TokenType::BREAK;
+            else if (id == "continue") type = TokenType::CONTINUE;
+            else if (id == "wait") type = TokenType::WAIT;
+            else if (id == "array") type = TokenType::ARRAY;
+            else if (id == "set") type = TokenType::SET;
+            else if (id == "include") type = TokenType::INCLUDE;
+            else if (id == "using") type = TokenType::USING;
+            else if (id == "return") type = TokenType::RETURN;
+            else if (id == "global") type = TokenType::GLOBAL;
+            else if (id == "httpget") type = TokenType::HTTP_GET;
+            else if (id == "httppost") type = TokenType::HTTP_POST;
+            else if (id == "httpput") type = TokenType::HTTP_PUT;
+            else if (id == "httpdelete") type = TokenType::HTTP_DELETE;
+            else if (id == "getch") type = TokenType::GETCH;
+            else if (id == "kbhit") type = TokenType::KBHIT;
+            else type = TokenType::IDENTIFIER;
+
+            tokens.push_back({type, id, startPos.line, startPos.column, range});
         } 
         else {
+            // Check 2-character operators
             if (current == '=' && pos + 1 < source.length() && source[pos + 1] == '=') {
-                tokens.push_back({TokenType::EQ, "==", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::EQ, "==", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '!' && pos + 1 < source.length() && source[pos + 1] == '=') {
-                tokens.push_back({TokenType::NEQ, "!=", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::NEQ, "!=", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '<' && pos + 1 < source.length() && source[pos + 1] == '=') {
-                tokens.push_back({TokenType::LTE, "<=", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::LTE, "<=", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '>' && pos + 1 < source.length() && source[pos + 1] == '=') {
-                tokens.push_back({TokenType::GTE, ">=", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::GTE, ">=", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '+' && pos + 1 < source.length() && source[pos + 1] == '+') {
-                tokens.push_back({TokenType::INC, "++", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::INC, "++", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '+' && pos + 1 < source.length() && source[pos + 1] == '=') {
-                tokens.push_back({TokenType::PLUS_ASSIGN, "+=", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::PLUS_ASSIGN, "+=", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '-' && pos + 1 < source.length() && source[pos + 1] == '=') {
-                tokens.push_back({TokenType::MINUS_ASSIGN, "-=", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::MINUS_ASSIGN, "-=", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '*' && pos + 1 < source.length() && source[pos + 1] == '=') {
-                tokens.push_back({TokenType::STAR_ASSIGN, "*=", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::STAR_ASSIGN, "*=", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '/' && pos + 1 < source.length() && source[pos + 1] == '=') {
-                tokens.push_back({TokenType::SLASH_ASSIGN, "/=", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::SLASH_ASSIGN, "/=", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '&' && pos + 1 < source.length() && source[pos + 1] == '&') {
-                tokens.push_back({TokenType::AND, "&&", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::AND, "&&", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
             if (current == '|' && pos + 1 < source.length() && source[pos + 1] == '|') {
-                tokens.push_back({TokenType::OR, "||", line, startCol}); pos += 2; column += 2; continue;
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::OR, "||", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
             }
 
+            TokenType singleType = TokenType::ERROR;
+            std::string singleVal(1, current);
             switch (current) {
-                case '+': tokens.push_back({TokenType::PLUS, "+", line, startCol}); break;
-                case '-': tokens.push_back({TokenType::MINUS, "-", line, startCol}); break;
-                case '*': tokens.push_back({TokenType::STAR, "*", line, startCol}); break;
-                case '/': tokens.push_back({TokenType::SLASH, "/", line, startCol}); break;
-                case '%': tokens.push_back({TokenType::MOD, "%", line, startCol}); break;
-                case '(': tokens.push_back({TokenType::LPAREN, "(", line, startCol}); break;
-                case ')': tokens.push_back({TokenType::RPAREN, ")", line, startCol}); break;
-                case '{': tokens.push_back({TokenType::LBRACE, "{", line, startCol}); break;
-                case '}': tokens.push_back({TokenType::RBRACE, "}", line, startCol}); break;
-                case '[': tokens.push_back({TokenType::LBRACKET, "[", line, startCol}); break;
-                case ']': tokens.push_back({TokenType::RBRACKET, "]", line, startCol}); break;
-                case ';': tokens.push_back({TokenType::SEMICOLON, ";", line, startCol}); break;
-                case ',': tokens.push_back({TokenType::COMMA, ",", line, startCol}); break;
-                case '=': tokens.push_back({TokenType::ASSIGN, "=", line, startCol}); break;
-                case '.': tokens.push_back({TokenType::DOT, ".", line, startCol}); break;
-                case '!': tokens.push_back({TokenType::NOT, "!", line, startCol}); break;
-                case '<': tokens.push_back({TokenType::LT, "<", line, startCol}); break;
-                case '>': tokens.push_back({TokenType::GT, ">", line, startCol}); break;
-                case ':': tokens.push_back({TokenType::COLON, ":", line, startCol}); break;
+                case '+': singleType = TokenType::PLUS; break;
+                case '-': singleType = TokenType::MINUS; break;
+                case '*': singleType = TokenType::STAR; break;
+                case '/': singleType = TokenType::SLASH; break;
+                case '%': singleType = TokenType::MOD; break;
+                case '(': singleType = TokenType::LPAREN; break;
+                case ')': singleType = TokenType::RPAREN; break;
+                case '{': singleType = TokenType::LBRACE; break;
+                case '}': singleType = TokenType::RBRACE; break;
+                case '[': singleType = TokenType::LBRACKET; break;
+                case ']': singleType = TokenType::RBRACKET; break;
+                case ';': singleType = TokenType::SEMICOLON; break;
+                case ',': singleType = TokenType::COMMA; break;
+                case '=': singleType = TokenType::ASSIGN; break;
+                case '.': singleType = TokenType::DOT; break;
+                case '!': singleType = TokenType::NOT; break;
+                case '<': singleType = TokenType::LT; break;
+                case '>': singleType = TokenType::GT; break;
+                case ':': singleType = TokenType::COLON; break;
                 default: 
-                    throw std::runtime_error(std::string("Runtime Error: Unknown character '") + current + "' at line " + std::to_string(line));
+                    advanceChar();
+                    SourcePosition badEnd = currentPosition();
+                    std::string err = std::string("Unknown character '") + current + "'";
+                    if (collectDiagnostics) {
+                        diagnostics.push_back({DiagnosticSeverity::Error, err, {startPos, badEnd}});
+                        tokens.push_back({TokenType::ERROR, singleVal, startPos.line, startPos.column, {startPos, badEnd}});
+                        continue;
+                    } else {
+                        throw std::runtime_error(std::string("Runtime Error: Unknown character '") + current + "' at line " + std::to_string(startPos.line));
+                    }
             }
-            pos++;
-            column++;
+            advanceChar();
+            tokens.push_back({singleType, singleVal, startPos.line, startPos.column, {startPos, currentPosition()}});
         }
     }
-    tokens.push_back({TokenType::END, "", line, column});
+
+    SourcePosition eofPos = currentPosition();
+    tokens.push_back({TokenType::END, "", eofPos.line, eofPos.column, {eofPos, eofPos}});
     return tokens;
 }
 

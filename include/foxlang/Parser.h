@@ -4,6 +4,7 @@
 #include <string>
 #include "foxlang/Token.h"
 #include "foxlang/AST.h"
+#include "foxlang/SourceLocation.h"
 
 namespace foxlang {
 
@@ -13,6 +14,7 @@ public:
 
     // Pure AST parsing
     std::unique_ptr<BlockNode> parseProgram();
+    std::unique_ptr<BlockNode> parseProgramWithDiagnostics(std::vector<Diagnostic>& outDiagnostics);
     std::unique_ptr<Node> statement();
     std::unique_ptr<BlockNode> parseBlock();
 
@@ -28,6 +30,9 @@ public:
     const Token& peek(size_t offset = 0) const;
     bool match(TokenType type);
 
+    void setCollectDiagnostics(bool enable) { collectDiagnostics = enable; }
+    const std::vector<Diagnostic>& getDiagnostics() const { return diagnostics; }
+
     // Context & compatibility properties
     Context globalContext;
     std::string currentFile;
@@ -37,6 +42,10 @@ public:
 private:
     std::vector<Token> tokens;
     size_t pos = 0;
+    bool collectDiagnostics = false;
+    std::vector<Diagnostic> diagnostics;
+
+    void synchronize();
 };
 
 } // namespace foxlang
