@@ -5,6 +5,7 @@ RUN apk add --no-cache \
     build-base \
     cmake \
     make \
+    python3 \
     curl \
     curl-dev \
     bash
