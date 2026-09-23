@@ -1,0 +1,10 @@
+using server;
+void ping() {
+    respond("{\"ok\":true}");
+    server_stop();
+}
+void main() {
+    get("/ping", "ping");
+    listen(18080);
+}
+main();
