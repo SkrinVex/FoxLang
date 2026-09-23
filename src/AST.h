@@ -432,10 +432,17 @@ struct FuncCallNode : Node {
 
             return {"string", result};
         }
-        if (name == "log_debug" && args.size() == 1) { std::cerr << "[DEBUG] " << args[0]->eval(ctx).value << std::endl; return {"void", ""}; }
-        if (name == "log_info" && args.size() == 1) { std::cerr << "[INFO] " << args[0]->eval(ctx).value << std::endl; return {"void", ""}; }
-        if (name == "log_warn" && args.size() == 1) { std::cerr << "[WARN] " << args[0]->eval(ctx).value << std::endl; return {"void", ""}; }
-        if (name == "log_error" && args.size() == 1) { std::cerr << "[ERROR] " << args[0]->eval(ctx).value << std::endl; return {"void", ""}; }
+        auto logsEnabled = []() {
+            const char* raw = std::getenv("FOXLANG_LOG");
+            if (!raw || !*raw) return true;
+            std::string v(raw);
+            std::transform(v.begin(), v.end(), v.begin(), [](unsigned char ch){ return (char)std::tolower(ch); });
+            return v != "0" && v != "false" && v != "off" && v != "no";
+        };
+        if (name == "log_debug" && args.size() == 1) { Value v=args[0]->eval(ctx); if (logsEnabled()) std::cerr << "[DEBUG] " << v.value << std::endl; return {"void", ""}; }
+        if (name == "log_info" && args.size() == 1) { Value v=args[0]->eval(ctx); if (logsEnabled()) std::cerr << "[INFO] " << v.value << std::endl; return {"void", ""}; }
+        if (name == "log_warn" && args.size() == 1) { Value v=args[0]->eval(ctx); if (logsEnabled()) std::cerr << "[WARN] " << v.value << std::endl; return {"void", ""}; }
+        if (name == "log_error" && args.size() == 1) { Value v=args[0]->eval(ctx); if (logsEnabled()) std::cerr << "[ERROR] " << v.value << std::endl; return {"void", ""}; }
         if (name == "env_get" && args.size() == 1) {
             std::string key = args[0]->eval(ctx).value;
             const char* value = std::getenv(key.c_str());
@@ -450,9 +457,41 @@ struct FuncCallNode : Node {
         if (name == "json_get" && args.size() == 2) {
             std::string json=args[0]->eval(ctx).value, path=args[1]->eval(ctx).value;
             auto skip=[&](size_t& p){ while(p<json.size() && std::isspace((unsigned char)json[p])) p++; };
+            auto hexVal=[](char ch)->int { if(ch>='0'&&ch<='9')return ch-'0'; if(ch>='a'&&ch<='f')return ch-'a'+10; if(ch>='A'&&ch<='F')return ch-'A'+10; return -1; };
+            auto appendUtf8=[](std::string& out, unsigned cp) {
+                if(cp<=0x7F) out+=(char)cp;
+                else if(cp<=0x7FF){out+=(char)(0xC0|(cp>>6));out+=(char)(0x80|(cp&0x3F));}
+                else if(cp<=0xFFFF){out+=(char)(0xE0|(cp>>12));out+=(char)(0x80|((cp>>6)&0x3F));out+=(char)(0x80|(cp&0x3F));}
+                else {out+=(char)(0xF0|(cp>>18));out+=(char)(0x80|((cp>>12)&0x3F));out+=(char)(0x80|((cp>>6)&0x3F));out+=(char)(0x80|(cp&0x3F));}
+            };
             auto valueAt=[&](size_t p)->std::string {
                 skip(p); if(p>=json.size()) return "";
-                if(json[p]=='"') { p++; std::string out; bool esc=false; for(;p<json.size();p++){char ch=json[p]; if(esc){ if(ch=='n')out+='\n'; else if(ch=='r')out+='\r'; else if(ch=='t')out+='\t'; else out+=ch; esc=false;} else if(ch=='\\')esc=true; else if(ch=='"')break; else out+=ch;} return out; }
+                if(json[p]=='"') {
+                    p++; std::string out;
+                    for(;p<json.size();p++){
+                        char ch=json[p];
+                        if(ch=='"') break;
+                        if(ch!='\\'){out+=ch;continue;}
+                        if(++p>=json.size()) break;
+                        ch=json[p];
+                        if(ch=='n')out+='\n'; else if(ch=='r')out+='\r'; else if(ch=='t')out+='\t';
+                        else if(ch=='b')out+='\b'; else if(ch=='f')out+='\f'; else if(ch=='"'||ch=='\\'||ch=='/')out+=ch;
+                        else if(ch=='u' && p+4<json.size()){
+                            unsigned cp=0; bool ok=true;
+                            for(int n=1;n<=4;n++){int h=hexVal(json[p+n]);if(h<0){ok=false;break;}cp=(cp<<4)|(unsigned)h;}
+                            if(ok){
+                                p+=4;
+                                if(cp>=0xD800&&cp<=0xDBFF&&p+6<json.size()&&json[p+1]=='\\'&&json[p+2]=='u'){
+                                    unsigned low=0; bool lok=true;
+                                    for(int n=3;n<=6;n++){int h=hexVal(json[p+n]);if(h<0){lok=false;break;}low=(low<<4)|(unsigned)h;}
+                                    if(lok&&low>=0xDC00&&low<=0xDFFF){cp=0x10000+((cp-0xD800)<<10)+(low-0xDC00);p+=6;}
+                                }
+                                appendUtf8(out,cp);
+                            } else out+='u';
+                        } else out+=ch;
+                    }
+                    return out;
+                }
                 size_t e=p; while(e<json.size() && json[e]!=',' && json[e]!='}' && json[e]!=']' && !std::isspace((unsigned char)json[e])) e++; return json.substr(p,e-p);
             };
             size_t scopeStart=0, scopeEnd=json.size();
