@@ -41,8 +41,9 @@ jobs:
 
       - name: Verify source version
         run: |
-          g++ -std=c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang-version-check
-          test "$(./foxlang-version-check --version)" = "FoxLang ${{ steps.version.outputs.version }}"
+          cmake -B build-check -S . -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-check --config Release
+          test "$(./build-check/foxlang --version)" = "FoxLang ${{ steps.version.outputs.version }}"
 
   build-linux:
     needs: version
@@ -50,19 +51,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build Linux binary
-        run: g++ -std=c++17 -O2 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang.bin
-      - name: Core smoke tests
+      - name: Build Linux binary and run tests
         run: |
-          ./foxlang.bin tests/core_smoke.fox | tee /tmp/core.out
-          grep -q "CORE_SMOKE_OK" /tmp/core.out
-          ! grep -q "FAIL" /tmp/core.out
-      - name: Stdlib smoke tests
-        env:
-          FOXLANG_HOME: ${{ github.workspace }}
-        run: |
-          ./foxlang.bin tests/stdlib_smoke.fox | tee /tmp/stdlib.out
-          grep -q "STDLIB_SMOKE_OK" /tmp/stdlib.out
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+          ctest --test-dir build -C Release --output-on-failure
+          cp build/foxlang foxlang.bin
       - name: Build installable Linux package
         shell: bash
         run: |
@@ -85,9 +79,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ilammy/msvc-dev-cmd@v1
-      - shell: cmd
-        run: mkdir dist && cl /EHsc /O2 /std:c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp /Fe:dist\\foxlang.exe
+      - name: Build Windows binary and run tests
+        shell: bash
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+          ctest --test-dir build -C Release --output-on-failure
+          mkdir -p dist
+          if [ -f "./build/Release/foxlang.exe" ]; then
+            cp ./build/Release/foxlang.exe dist/foxlang.exe
+          else
+            cp ./build/foxlang.exe dist/foxlang.exe
+          fi
       - shell: pwsh
         run: Compress-Archive -Path dist/foxlang.exe -DestinationPath "FoxLang-${{ needs.version.outputs.version }}-windows-x86_64.zip"
       - uses: actions/upload-artifact@v4

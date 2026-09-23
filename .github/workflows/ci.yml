@@ -21,65 +21,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Linux
-        if: runner.os == 'Linux'
-        run: g++ -std=c++17 -Wall -Wextra -pedantic src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
+      - name: Configure CMake
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
-      - name: Setup MSVC
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+      - name: Build
+        run: cmake --build build --config Release
 
-      - name: Build Windows
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: cl /EHsc /std:c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp /Fe:foxlang.exe
+      - name: Run Tests (CTest)
+        run: ctest --test-dir build -C Release --output-on-failure
 
-      - name: Version and help
+      - name: Verify Version and Help
         shell: bash
         run: |
-          BIN=./foxlang
-          if [ "$RUNNER_OS" = "Windows" ]; then BIN=./foxlang.exe; fi
-          test "$($BIN --version)" = "FoxLang $(cat VERSION)"
+          BIN=./build/foxlang
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            if [ -f "./build/Release/foxlang.exe" ]; then
+              BIN=./build/Release/foxlang.exe
+            else
+              BIN=./build/foxlang.exe
+            fi
+          fi
+          test "$($BIN --version)" = "FoxLang $(tr -d '[:space:]' < VERSION)"
           $BIN --help | grep -q "github.com/SkrinVex/FoxLang"
-
-      - name: Core language tests
-        if: runner.os == 'Linux'
-        env:
-          FOXLANG_HOME: ${{ github.workspace }}
-        run: |
-          set -euo pipefail
-          for spec in "core_smoke:CORE_SMOKE_OK" "language_core:LANGUAGE_CORE_OK" "control_flow:CONTROL_FLOW_OK" "stdlib_smoke:STDLIB_SMOKE_OK" "json_unicode:JSON_UNICODE_OK"; do
-            file="${spec%%:*}"; marker="${spec##*:}"
-            ./foxlang "tests/$file.fox" | tee "/tmp/$file.out"
-            grep -q "$marker" "/tmp/$file.out"
-            ! grep -q "FAIL" "/tmp/$file.out"
-          done
-
-      - name: Environment and logging test
-        if: runner.os == 'Linux'
-        env:
-          FOXLANG_HOME: ${{ github.workspace }}
-          FOXLANG_TEST_VALUE: works
-          FOXLANG_LOG_LEVEL: info
-        run: |
-          ./foxlang tests/env_logging.fox > /tmp/env.out 2>&1
-          grep -q "ENV_LOGGING_OK" /tmp/env.out
-          grep -q "\[INFO\] visible-info" /tmp/env.out
-          ! grep -q "hidden-debug" /tmp/env.out
-          ! grep -q "FAIL" /tmp/env.out
-
-      - name: HTTP server test
-        if: runner.os == 'Linux'
-        env:
-          FOXLANG_HOME: ${{ github.workspace }}
-        run: |
-          set -euo pipefail
-          ./foxlang tests/server_smoke.fox >/tmp/server.out 2>&1 &
-          pid=$!
-          ok=0
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:18080/ping | grep -q '"ok":true'; then ok=1; break; fi
-            sleep 0.2
-          done
-          wait "$pid"
-          test "$ok" = 1
+          $BIN --help | grep -q "DOCUMENTATION.md"
