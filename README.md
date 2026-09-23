@@ -1,6 +1,6 @@
 # 🦊 FoxLang
 
-![Версия](https://img.shields.io/badge/version-5.5.1-orange)
+![Версия](https://img.shields.io/badge/version-5.5.2-orange)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
@@ -138,14 +138,19 @@ foxlang -h
 * [`language-configuration.json`](editors/vscode/language-configuration.json) — автозакрытие скобок, кавычек и правила комментариев;
 * [`client/extension.js`](editors/vscode/client/extension.js) — клиент LSP.
 
-**Быстрая установка из репозитория:**
-```bash
-mkdir -p ~/.vscode/extensions && cp -R editors/vscode ~/.vscode/extensions/foxlang
-cd ~/.vscode/extensions/foxlang && npm install
-```
-
-**Установка из готового архива релиза:**
-Скачайте архив [`foxlang-vscode.zip`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip) и распакуйте в папку `~/.vscode/extensions/`.
+**Быстрая установка:**
+* **Через установщик**: скрипт `install.sh` автоматически регистрирует расширение в VS Code / VSCodium / Flatpak.
+* **Через пакет VSIX**: скачайте [`foxlang-5.5.2.vsix`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-5.5.2.vsix) и выполните:
+  ```bash
+  code --install-extension foxlang-5.5.2.vsix
+  ```
+  *(или выберите в VS Code: Расширения `Ctrl+Shift+X` → `...` → **Install from VSIX...**)*
+* **Вручную из репозитория**:
+  ```bash
+  mkdir -p ~/.vscode/extensions/foxlang.foxlang-5.5.2
+  cp -R editors/vscode/* ~/.vscode/extensions/foxlang.foxlang-5.5.2/
+  ```
+*(Расширение полностью автономно и не требует запуска `npm install`)*
 
 📖 Полное руководство по архитектуре, диагностикам и отладке LSP: [`docs/EDITORS.md`](docs/EDITORS.md).
 
@@ -183,7 +188,7 @@ int main() {
 ```text
 FoxLang/
 ├── CMakeLists.txt              # Корневой файл сборки CMake
-├── VERSION                     # Текущая версия (5.5.1)
+├── VERSION                     # Текущая версия (5.5.2)
 ├── include/
 │   └── foxlang/                # Публичные C++ заголовочные файлы
 │       ├── FoxLang.h           # Публичный API: Interpreter, RunResult, Options

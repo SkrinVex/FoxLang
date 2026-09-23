@@ -1,4 +1,4 @@
-# 📚 Документация FoxLang v5.5.1
+# 📚 Документация FoxLang v5.5.2
 
 ## Оглавление
 1. [Основы синтаксиса](#1-основы-синтаксиса)
@@ -78,7 +78,7 @@ void greet(string name) {
 
 // Функция без параметров
 string get_version() {
-    return "FoxLang 5.5.1";
+    return "FoxLang 5.5.2";
 }
 ```
 

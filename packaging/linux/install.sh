@@ -5,6 +5,7 @@ PREFIX="${FOXLANG_PREFIX:-$HOME/.local}"
 LIBDIR="$PREFIX/share/foxlang"
 BINDIR="$PREFIX/bin"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION="$(tr -d '[:space:]' < "$HERE/VERSION")"
 
 mkdir -p "$LIBDIR" "$BINDIR"
 install -m755 "$HERE/foxlang.bin" "$LIBDIR/foxlang"
@@ -15,12 +16,18 @@ rm -rf "$LIBDIR/std"
 cp -R "$HERE/std" "$LIBDIR/std"
 cp "$HERE/VERSION" "$LIBDIR/VERSION"
 
-# Сохраняем каталог editors в share/foxlang
+# Сохраняем каталог editors и пакет vsix в share/foxlang
 if [ -d "$HERE/editors" ]; then
   rm -rf "$LIBDIR/editors"
   cp -R "$HERE/editors" "$LIBDIR/editors"
 fi
+for vsix in "$HERE"/foxlang-*.vsix; do
+  if [ -f "$vsix" ]; then
+    cp "$vsix" "$LIBDIR/"
+  fi
+done
 
+# Создаем исполняемые обёртки в BINDIR
 cat > "$BINDIR/foxlang" <<EOF
 #!/usr/bin/env bash
 export FOXLANG_HOME="$LIBDIR"
@@ -61,30 +68,71 @@ if [ -f "$HERE/editors/kate/settings.json" ]; then
   fi
 fi
 
-# 2. Автоматическая настройка Visual Studio Code
-VSCODE_EXT_DIR="$HOME/.vscode/extensions/foxlang"
-if [ -d "$HOME/.vscode" ] || [ -d "$HOME/.vscode/extensions" ]; then
-  mkdir -p "$HOME/.vscode/extensions"
-  if [ -d "$HERE/editors/vscode" ]; then
-    rm -rf "$VSCODE_EXT_DIR"
-    cp -R "$HERE/editors/vscode" "$VSCODE_EXT_DIR"
-    echo "✔ Расширение для VS Code установлено в $VSCODE_EXT_DIR"
+# 2. Автоматическая интеграция с Visual Studio Code / VSCodium / Flatpak
+VSIX_FILE=""
+for f in "$HERE"/foxlang-*.vsix; do
+  if [ -f "$f" ]; then
+    VSIX_FILE="$f"
+    break
+  fi
+done
+
+# Если доступна консольная утилита code, устанавливаем .vsix напрямую
+if command -v code >/dev/null 2>&1 && [ -n "$VSIX_FILE" ]; then
+  if code --install-extension "$VSIX_FILE" --force >/dev/null 2>&1; then
+    echo "✔ Расширение FoxLang для VS Code успешно установлено через команду 'code'"
   fi
 fi
 
+# Прямая установка в каталоги расширений (VS Code, VSCodium, Flatpak)
+EXTENSION_TARGET_BASES=(
+  "$HOME/.vscode/extensions"
+  "$HOME/.vscode-oss/extensions"
+  "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions"
+  "$HOME/.var/app/com.vscodium.codium/data/vscode/extensions"
+)
+
+for ext_base in "${EXTENSION_TARGET_BASES[@]}"; do
+  parent_dir="$(dirname "$ext_base")"
+  if [ -d "$parent_dir" ] || [ -d "$ext_base" ]; then
+    mkdir -p "$ext_base"
+    TARGET_EXT_DIR="$ext_base/foxlang.foxlang-$VERSION"
+
+    # Удаляем старые или некорректно названные версии
+    rm -rf "$ext_base/foxlang" "$ext_base/foxlang.foxlang-"* 2>/dev/null || true
+
+    # Снимаем пометку obsolete, если она была установлена VS Code
+    if [ -f "$ext_base/.obsolete" ]; then
+      sed -i '/foxlang\.foxlang/d' "$ext_base/.obsolete" 2>/dev/null || true
+    fi
+
+    if [ -d "$HERE/editors/vscode" ]; then
+      cp -R "$HERE/editors/vscode" "$TARGET_EXT_DIR"
+      echo "✔ Каталог расширения VS Code установлен в $TARGET_EXT_DIR"
+    fi
+  fi
+done
+
+# Скрипт полного удаления
 cat > "$LIBDIR/uninstall.sh" <<EOF
 #!/usr/bin/env bash
 set -e
+if command -v code >/dev/null 2>&1; then
+  code --uninstall-extension foxlang.foxlang 2>/dev/null || true
+fi
 rm -f "$BINDIR/foxlang" "$BINDIR/foxlang-lsp"
 rm -f "$HOME/.local/share/org.kde.syntax-highlighting/syntax/foxlang.xml"
-rm -rf "$HOME/.vscode/extensions/foxlang"
+rm -rf "$HOME/.vscode/extensions/foxlang"* 2>/dev/null || true
+rm -rf "$HOME/.vscode-oss/extensions/foxlang"* 2>/dev/null || true
+rm -rf "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions/foxlang"* 2>/dev/null || true
+rm -rf "$HOME/.var/app/com.vscodium.codium/data/vscode/extensions/foxlang"* 2>/dev/null || true
 rm -rf "$LIBDIR"
-echo "FoxLang и связанные конфигурации редакторов удалены."
+echo "FoxLang и связанные расширения редакторов успешно удалены."
 EOF
 chmod +x "$LIBDIR/uninstall.sh"
 
 echo ""
-echo "FoxLang $(cat "$HERE/VERSION") успешно установлен."
+echo "FoxLang $VERSION успешно установлен."
 echo "Команда CLI:  $BINDIR/foxlang"
 if [ -f "$BINDIR/foxlang-lsp" ]; then
   echo "Сервер LSP:   $BINDIR/foxlang-lsp"
@@ -93,9 +141,8 @@ echo "Удаление:     $LIBDIR/uninstall.sh"
 echo ""
 echo "Редакторы:"
 echo "  • Kate:    подсветка активна; включите плагин 'Клиент LSP' в настройках Kate."
-echo "  • VS Code: файлы расширения доступны в $LIBDIR/editors/vscode"
-echo "             (установка: cp -R $LIBDIR/editors/vscode ~/.vscode/extensions/foxlang)"
+echo "  • VS Code: расширение установлено (распознавание языка .fox, подсветка и LSP)."
 case ":$PATH:" in
   *":$BINDIR:"*) ;;
-  *) echo "" && echo "Добавьте $BINDIR в PATH, если команды foxlang и foxlang-lsp пока не находятся в терминале." ;;
+  *) echo "" && echo "Внимание: добавьте $BINDIR в переменную PATH, если команды foxlang и foxlang-lsp пока не находятся." ;;
 esac

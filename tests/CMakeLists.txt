@@ -74,13 +74,13 @@ endforeach()
 
 # CLI flags tests
 add_test(NAME cli_version COMMAND foxlang --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "FoxLang 5.5.1")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "FoxLang 5.5.2")
 
 add_test(NAME cli_help COMMAND foxlang --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "https://github.com/SkrinVex/FoxLang")
 
 add_test(NAME lsp_cli_version COMMAND foxlang-lsp --version)
-set_tests_properties(lsp_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "foxlang-lsp 5.5.1")
+set_tests_properties(lsp_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "foxlang-lsp 5.5.2")
 
 add_test(NAME lsp_cli_help COMMAND foxlang-lsp --help)
 set_tests_properties(lsp_cli_help PROPERTIES PASS_REGULAR_EXPRESSION "Language Server")

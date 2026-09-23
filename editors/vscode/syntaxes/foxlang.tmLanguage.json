@@ -6,19 +6,45 @@
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#numbers" },
+    { "include": "#modules" },
     { "include": "#keywords" },
     { "include": "#types" },
     { "include": "#constants" },
-    { "include": "#functions" },
+    { "include": "#function-definitions" },
     { "include": "#builtins" },
-    { "include": "#operators" }
+    { "include": "#function-calls" },
+    { "include": "#variable-declarations" },
+    { "include": "#operators" },
+    { "include": "#delimiters" }
   ],
   "repository": {
     "comments": {
       "patterns": [
         {
+          "name": "comment.block.fox",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "patterns": [
+            {
+              "name": "keyword.codetag.notation.fox",
+              "match": "\\b(TODO|FIXME|NOTE|WARN|WARNING|BUG|XXX)\\b:?"
+            },
+            {
+              "name": "storage.type.class.javadoc.fox",
+              "match": "@(param|return|throws|brief|deprecated)\\b"
+            }
+          ]
+        },
+        {
           "name": "comment.line.double-slash.fox",
-          "match": "//.*$"
+          "begin": "//",
+          "end": "$",
+          "patterns": [
+            {
+              "name": "keyword.codetag.notation.fox",
+              "match": "\\b(TODO|FIXME|NOTE|WARN|WARNING|BUG|XXX)\\b:?"
+            }
+          ]
         }
       ]
     },
@@ -28,16 +54,32 @@
       "end": "\"",
       "patterns": [
         {
+          "name": "constant.character.escape.unicode.fox",
+          "match": "\\\\u[0-9a-fA-F]{4}"
+        },
+        {
           "name": "constant.character.escape.fox",
-          "match": "\\\\([\"\\\\/bfnrt]|u[0-9a-fA-F]{4})"
+          "match": "\\\\[\"\\\\/bfnrt]"
+        },
+        {
+          "name": "invalid.illegal.unknown-escape.fox",
+          "match": "\\\\[^\"\\\\/bfnrtu]"
+        },
+        {
+          "name": "markup.underline.link.fox",
+          "match": "https?://[a-zA-Z0-9\\-._~:/?#\\[\\]@!$&'()*+,;%=]+"
         }
       ]
     },
     "numbers": {
       "patterns": [
         {
+          "name": "constant.numeric.hex.fox",
+          "match": "\\b0[xX][0-9a-fA-F]+\\b"
+        },
+        {
           "name": "constant.numeric.float.fox",
-          "match": "\\b[0-9]+\\.[0-9]+\\b"
+          "match": "\\b[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?\\b"
         },
         {
           "name": "constant.numeric.integer.fox",
@@ -45,15 +87,30 @@
         }
       ]
     },
+    "modules": {
+      "patterns": [
+        {
+          "match": "\\b(using|include)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.directive.fox" },
+            "2": { "name": "entity.name.namespace.fox" }
+          }
+        },
+        {
+          "match": "\\b(global)\\b",
+          "name": "storage.modifier.fox"
+        }
+      ]
+    },
     "keywords": {
       "patterns": [
         {
-          "name": "keyword.control.fox",
-          "match": "\\b(if|else|while|for|switch|case|default|break|continue|return)\\b"
+          "name": "keyword.control.flow.fox",
+          "match": "\\b(if|else|while|for|switch|case|default|break|continue|return|wait)\\b"
         },
         {
           "name": "keyword.other.module.fox",
-          "match": "\\b(using|include|global)\\b"
+          "match": "\\b(using|include)\\b"
         }
       ]
     },
@@ -73,19 +130,13 @@
         }
       ]
     },
-    "functions": {
+    "function-definitions": {
       "patterns": [
         {
           "match": "\\b(int|float|string|bool|void)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
           "captures": {
             "1": { "name": "storage.type.primitive.fox" },
-            "2": { "name": "entity.name.function.fox" }
-          }
-        },
-        {
-          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
-          "captures": {
-            "1": { "name": "entity.name.function.call.fox" }
+            "2": { "name": "entity.name.function.definition.fox" }
           }
         }
       ]
@@ -94,15 +145,72 @@
       "patterns": [
         {
           "name": "support.function.builtin.fox",
-          "match": "\\b(print|fox|input|round|random|read_file|readfile|json_get|json_path|json_safe|str_contains|str_to_int|size|set|get|server_start|server_stop|route_get|route_post|send_response|request_body|request_method|request_path|respond|respond_status|listen|body|method|path|http_get|http_post|http_put|http_delete|http_post_json|httpget|httppost|httpput|httpdelete|getch|kbhit|log_debug|log_info|log_warn|log_error|env_get|env_set)\\b"
+          "match": "\\b(print|fox|input|getch|kbhit|round|random|abs|min|max|sqrt|pow|floor|ceil|str_to_int|str_contains|size|set|get|length|substring|trim|split|replace|read_file|readfile|write_file|append_file|file_exists|json_get|json_path|json_safe|json_parse|json_stringify|secret|env_get|env_set|get_env|load_env|server_start|server_stop|route_get|route_post|send_response|request_body|request_method|request_path|respond|respond_status|listen|body|method|path|http_get|http_post|http_put|http_delete|http_post_json|httpget|httppost|httpput|httpdelete|log_debug|log_info|log_warn|log_error|debug|info|warn|error|sleep)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "function-calls": {
+      "patterns": [
+        {
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.call.fox" }
+          }
+        }
+      ]
+    },
+    "variable-declarations": {
+      "patterns": [
+        {
+          "match": "\\b(int|float|string|bool|array)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+          "captures": {
+            "1": { "name": "storage.type.primitive.fox" },
+            "2": { "name": "variable.other.declaration.fox" }
+          }
         }
       ]
     },
     "operators": {
       "patterns": [
         {
-          "name": "keyword.operator.fox",
-          "match": "(\\+\\+|\\+=|-=|\\*=|/=|==|!=|<=|>=|&&|\\|\\||\\+|-|\\*|/|%|!|=|<|>)"
+          "name": "keyword.operator.arithmetic.fox",
+          "match": "(\\+\\+|--|\\+=|-=|\\*=|/=|\\+|-|\\*|/|%)"
+        },
+        {
+          "name": "keyword.operator.comparison.fox",
+          "match": "(==|!=|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.logical.fox",
+          "match": "(&&|\\|\\||!)"
+        },
+        {
+          "name": "keyword.operator.assignment.fox",
+          "match": "(=)"
+        }
+      ]
+    },
+    "delimiters": {
+      "patterns": [
+        {
+          "name": "punctuation.terminator.statement.fox",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.comma.fox",
+          "match": ","
+        },
+        {
+          "name": "punctuation.section.parens.fox",
+          "match": "[()]"
+        },
+        {
+          "name": "punctuation.section.braces.fox",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.section.brackets.fox",
+          "match": "[\\[\\]]"
         }
       ]
     }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE language SYSTEM "language.dtd">
-<language name="FoxLang" version="2" kateversion="5.0" section="Sources"
+<language name="FoxLang" version="3" kateversion="5.0" section="Sources"
           extensions="*.fox" mimetype="text/x-foxlang" author="SkrinVex" license="MIT">
   <highlighting>
     <list name="controlflow">
@@ -14,11 +14,15 @@
       <item>break</item>
       <item>continue</item>
       <item>return</item>
+      <item>wait</item>
     </list>
-    <list name="modules">
+    <list name="directives">
       <item>using</item>
       <item>include</item>
+    </list>
+    <list name="modifiers">
       <item>global</item>
+      <item>const</item>
     </list>
     <list name="types">
       <item>int</item>
@@ -36,18 +40,42 @@
       <item>print</item>
       <item>fox</item>
       <item>input</item>
+      <item>getch</item>
+      <item>kbhit</item>
       <item>round</item>
       <item>random</item>
-      <item>read_file</item>
-      <item>readfile</item>
-      <item>json_get</item>
-      <item>json_path</item>
-      <item>json_safe</item>
-      <item>str_contains</item>
+      <item>abs</item>
+      <item>min</item>
+      <item>max</item>
+      <item>sqrt</item>
+      <item>pow</item>
+      <item>floor</item>
+      <item>ceil</item>
       <item>str_to_int</item>
+      <item>str_contains</item>
       <item>size</item>
       <item>set</item>
       <item>get</item>
+      <item>length</item>
+      <item>substring</item>
+      <item>trim</item>
+      <item>split</item>
+      <item>replace</item>
+      <item>read_file</item>
+      <item>readfile</item>
+      <item>write_file</item>
+      <item>append_file</item>
+      <item>file_exists</item>
+      <item>json_get</item>
+      <item>json_path</item>
+      <item>json_safe</item>
+      <item>json_parse</item>
+      <item>json_stringify</item>
+      <item>secret</item>
+      <item>env_get</item>
+      <item>env_set</item>
+      <item>get_env</item>
+      <item>load_env</item>
       <item>server_start</item>
       <item>server_stop</item>
       <item>route_get</item>
@@ -71,33 +99,61 @@
       <item>httppost</item>
       <item>httpput</item>
       <item>httpdelete</item>
-      <item>getch</item>
-      <item>kbhit</item>
       <item>log_debug</item>
       <item>log_info</item>
       <item>log_warn</item>
       <item>log_error</item>
-      <item>env_get</item>
-      <item>env_set</item>
+      <item>debug</item>
+      <item>info</item>
+      <item>warn</item>
+      <item>error</item>
+      <item>sleep</item>
     </list>
 
     <contexts>
       <context name="Normal" attribute="Normal Text" lineEndContext="#stay">
         <DetectSpaces/>
-        <Detect2Chars char="/" char1="/" attribute="Comment" context="Comment"/>
+        <Detect2Chars char="/" char1="/" attribute="Comment" context="LineComment"/>
+        <Detect2Chars char="/" char1="*" attribute="Comment" context="BlockComment" beginRegion="CommentRegion"/>
+        
         <keyword attribute="Control Flow" context="#stay" String="controlflow"/>
-        <keyword attribute="Keyword" context="#stay" String="modules"/>
+        <keyword attribute="Directive" context="#stay" String="directives"/>
+        <keyword attribute="Storage Modifier" context="#stay" String="modifiers"/>
         <keyword attribute="Data Type" context="#stay" String="types"/>
         <keyword attribute="Constant" context="#stay" String="constants"/>
         <keyword attribute="Builtin" context="#stay" String="builtins"/>
+        
         <DetectChar char="&quot;" attribute="String" context="String"/>
+        
+        <!-- Numbers -->
+        <HlCHex attribute="Hex" context="#stay"/>
         <Float attribute="Float" context="#stay"/>
         <Int attribute="Decimal" context="#stay"/>
-        <AnyChar String="+-*/%=!&lt;&gt;&amp;|" attribute="Operator" context="#stay"/>
+        
+        <!-- Block folding -->
+        <DetectChar char="{" attribute="Symbol" context="#stay" beginRegion="BraceBlock"/>
+        <DetectChar char="}" attribute="Symbol" context="#stay" endRegion="BraceBlock"/>
+        
+        <!-- Operators and Delimiters -->
+        <AnyChar String="+-*/%=!&lt;&gt;&amp;|^~" attribute="Operator" context="#stay"/>
+        <AnyChar String="();,[]" attribute="Symbol" context="#stay"/>
       </context>
 
-      <context name="Comment" attribute="Comment" lineEndContext="#pop">
+      <context name="LineComment" attribute="Comment" lineEndContext="#pop">
         <DetectSpaces/>
+        <StringDetect String="TODO" attribute="Alert" context="#stay"/>
+        <StringDetect String="FIXME" attribute="Alert" context="#stay"/>
+        <StringDetect String="NOTE" attribute="Alert" context="#stay"/>
+        <StringDetect String="WARN" attribute="Alert" context="#stay"/>
+      </context>
+
+      <context name="BlockComment" attribute="Comment" lineEndContext="#stay">
+        <DetectSpaces/>
+        <Detect2Chars char="*" char1="/" attribute="Comment" context="#pop" endRegion="CommentRegion"/>
+        <StringDetect String="TODO" attribute="Alert" context="#stay"/>
+        <StringDetect String="FIXME" attribute="Alert" context="#stay"/>
+        <StringDetect String="NOTE" attribute="Alert" context="#stay"/>
+        <StringDetect String="WARN" attribute="Alert" context="#stay"/>
       </context>
 
       <context name="String" attribute="String" lineEndContext="#stay">
@@ -106,28 +162,38 @@
       </context>
 
       <context name="StringEscape" attribute="Char" lineEndContext="#pop">
-        <AnyChar String="&quot;\/bfnrtu" attribute="Char" context="#pop"/>
+        <Detect2Chars char="\" char1="u" attribute="Char" context="UnicodeEscape"/>
+        <AnyChar String="&quot;\/bfnrt" attribute="Char" context="#pop"/>
+      </context>
+
+      <context name="UnicodeEscape" attribute="Char" lineEndContext="#pop" fallthrough="true" fallthroughContext="#pop">
+        <RegExpr String="[0-9a-fA-F]{4}" attribute="Char" context="#pop#pop"/>
       </context>
     </contexts>
 
     <itemDatas>
       <itemData name="Normal Text" defStyleNum="dsNormal"/>
       <itemData name="Control Flow" defStyleNum="dsControlFlow"/>
-      <itemData name="Keyword" defStyleNum="dsKeyword"/>
+      <itemData name="Directive" defStyleNum="dsPreprocessor"/>
+      <itemData name="Storage Modifier" defStyleNum="dsAttribute"/>
       <itemData name="Data Type" defStyleNum="dsDataType"/>
       <itemData name="Constant" defStyleNum="dsConstant"/>
       <itemData name="Builtin" defStyleNum="dsFunction"/>
       <itemData name="Decimal" defStyleNum="dsDecVal"/>
+      <itemData name="Hex" defStyleNum="dsBaseN"/>
       <itemData name="Float" defStyleNum="dsFloat"/>
       <itemData name="String" defStyleNum="dsString"/>
       <itemData name="Char" defStyleNum="dsSpecialChar"/>
       <itemData name="Comment" defStyleNum="dsComment"/>
+      <itemData name="Alert" defStyleNum="dsAlert"/>
       <itemData name="Operator" defStyleNum="dsOperator"/>
+      <itemData name="Symbol" defStyleNum="dsNormal"/>
     </itemDatas>
   </highlighting>
   <general>
     <comments>
       <comment name="singleLine" value="//"/>
+      <comment name="multiLine" start="/*" end="*/"/>
     </comments>
     <keywords casesensitive="1"/>
   </general>

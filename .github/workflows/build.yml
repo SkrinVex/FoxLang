@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           PKG="FoxLang-${{ needs.version.outputs.version }}-linux-x86_64"
-          mkdir -p "$PKG"
+          mkdir -p "$PKG" dist-editors
           cp foxlang.bin "$PKG/foxlang.bin"
           cp foxlang-lsp.bin "$PKG/foxlang-lsp.bin"
           cp VERSION "$PKG/VERSION"
@@ -71,10 +71,14 @@ jobs:
           chmod +x "$PKG/install.sh" "$PKG/foxlang.bin" "$PKG/foxlang-lsp.bin"
           cp -R std "$PKG/std"
           cp -R editors "$PKG/editors"
+
+          # Build official .vsix package
+          python3 packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" "dist-editors/foxlang-${{ needs.version.outputs.version }}.vsix"
+          cp "dist-editors/foxlang-${{ needs.version.outputs.version }}.vsix" "$PKG/foxlang-${{ needs.version.outputs.version }}.vsix"
+
           tar -czf "$PKG.tar.gz" "$PKG"
 
           # Standalone editor assets for direct download in GitHub Releases
-          mkdir -p dist-editors
           cp editors/kate/foxlang.xml dist-editors/foxlang.xml
           (cd editors && zip -r ../dist-editors/foxlang-vscode.zip vscode)
       - uses: actions/upload-artifact@v4
@@ -86,6 +90,7 @@ jobs:
           name: editors-release
           path: |
             dist-editors/foxlang.xml
+            dist-editors/foxlang-*.vsix
             dist-editors/foxlang-vscode.zip
 
   build-windows:
@@ -110,6 +115,7 @@ jobs:
           fi
           cp -R std dist/std
           cp -R editors dist/editors
+          python packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" "dist/foxlang-${{ needs.version.outputs.version }}.vsix"
       - shell: pwsh
         run: Compress-Archive -Path dist/* -DestinationPath "FoxLang-${{ needs.version.outputs.version }}-windows-x86_64.zip"
       - uses: actions/upload-artifact@v4
