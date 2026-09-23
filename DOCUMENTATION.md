@@ -643,8 +643,11 @@ main();
 
 #### 🧪 Компиляция и запуск
 ```bash
-# Компиляция
-cd src && g++ -std=c++17 main.cpp Lexer.cpp Parser.cpp -o foxlang
+# Сборка через CMake (рекомендуется)
+cmake -S . -B build && cmake --build build
+
+# Или прямая компиляция через g++
+g++ -std=c++17 -Iinclude src/core/*.cpp src/cli/main.cpp -o foxlang
 
 # Запуск HTTP клиента
 ./foxlang examples/http_demo.fox

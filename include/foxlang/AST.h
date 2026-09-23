@@ -29,7 +29,7 @@ struct FuncDefNode : Node {
         : returnType(std::move(rt)), name(std::move(n)), params(std::move(p)), body(std::move(b)) {}
 
     Value eval(Context& ctx) override {
-        ctx.defineFunc(name, std::make_shared<FuncDefNode>(returnType, name, params, body));
+        ctx.getRoot()->defineFunc(name, std::make_shared<FuncDefNode>(returnType, name, params, body));
         return {"void", ""};
     }
 };

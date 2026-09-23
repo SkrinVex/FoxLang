@@ -55,21 +55,60 @@ fi
 grep -q '"route":"post_ok"' /tmp/fox_post.out || { echo "FAIL: POST route not matched"; exit 1; }
 grep -q 'hello_from_fox_test' /tmp/fox_post.out || { echo "FAIL: POST body not matched"; exit 1; }
 
-# 4. Test 404 for unknown route
+# 4. Test Telegram-style Webhook route with Unicode/emoji and json_path
+TG_PAYLOAD='{"update_id":123,"message":{"message_id":1,"from":{"id":42,"first_name":"Алексей 🦊"},"chat":{"id":"987654"},"text":"/ping 🦊"}}'
+TG_STATUS=$(curl -s -o /tmp/fox_tg.out -w "%{http_code}" -X POST -H "Content-Type: application/json; charset=utf-8" -d "$TG_PAYLOAD" "http://127.0.0.1:$PORT/telegram")
+if [[ "$TG_STATUS" != "200" ]]; then
+    echo "FAIL: Expected Telegram webhook status 200, got $TG_STATUS"
+    exit 1
+fi
+
+grep -q '"ok":true' /tmp/fox_tg.out || { echo "FAIL: Telegram response ok flag missing"; exit 1; }
+grep -q '"chat_id":"987654"' /tmp/fox_tg.out || { echo "FAIL: Telegram chat_id not matched"; exit 1; }
+grep -q 'Привет, Алексей 🦊' /tmp/fox_tg.out || { echo "FAIL: Telegram response Cyrillic/emoji not matched"; exit 1; }
+
+# 5. Test FoxLang HTTP client with http_post_json against the local server
+CLIENT_SCRIPT="/tmp/fox_client_test_$$.fox"
+cat << 'EOF' > "$CLIENT_SCRIPT"
+using http;
+using json;
+
+void main() {
+    string payload = "{\"update_id\":999,\"message\":{\"chat\":{\"id\":\"55555\"},\"from\":{\"first_name\":\"Клиент\"},\"text\":\"Тест http_post_json\"}}";
+    string resp = http_post_json("http://127.0.0.1:18095/telegram", payload);
+    string ok = json_path(resp, "ok");
+    string chat = json_path(resp, "chat_id");
+    if (ok != "true" || chat != "55555") {
+        print("FAIL_CLIENT_RESPONSE: " + resp);
+    } else {
+        print("CLIENT_HTTP_POST_JSON_OK");
+    }
+}
+main();
+EOF
+
+CLIENT_OUT=$("$FOXLANG_BIN" "$CLIENT_SCRIPT")
+rm -f "$CLIENT_SCRIPT"
+if ! echo "$CLIENT_OUT" | grep -q "CLIENT_HTTP_POST_JSON_OK"; then
+    echo "FAIL: http_post_json failed, output: $CLIENT_OUT"
+    exit 1
+fi
+
+# 6. Test 404 for unknown route
 NOT_FOUND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/unknown_route")
 if [[ "$NOT_FOUND_STATUS" != "404" ]]; then
     echo "FAIL: Expected 404 for unknown route, got $NOT_FOUND_STATUS"
     exit 1
 fi
 
-# 5. Stop server gracefully via /stop
+# 7. Stop server gracefully via /stop
 STOP_RESP=$(curl -s "http://127.0.0.1:$PORT/stop")
 if ! echo "$STOP_RESP" | grep -q '"stopped":true'; then
     echo "FAIL: Server stop response invalid: $STOP_RESP"
     exit 1
 fi
 
-# 6. Verify server process exits cleanly with code 0
+# 8. Verify server process exits cleanly with code 0
 wait "$SERVER_PID"
 EXIT_CODE=$?
 if [[ "$EXIT_CODE" -ne 0 ]]; then

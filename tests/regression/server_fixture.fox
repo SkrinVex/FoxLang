@@ -1,4 +1,5 @@
 using server;
+using json;
 
 void handle_get() {
     respond_status(200, "{\"route\":\"get_ok\",\"path\":\"" + path() + "\",\"method\":\"" + method() + "\"}");
@@ -9,6 +10,15 @@ void handle_post() {
     respond_status(201, "{\"route\":\"post_ok\",\"received\":" + b + "}");
 }
 
+void handle_webhook() {
+    string update = body();
+    string chat_id = json_path(update, "message.chat.id");
+    string text = json_path(update, "message.text");
+    string first_name = json_path(update, "message.from.first_name");
+    string echo = "Привет, " + first_name + "! Ты прислал: " + text;
+    respond_status(200, "{\"ok\":true,\"chat_id\":\"" + json_safe(chat_id) + "\",\"echo\":\"" + json_safe(echo) + "\"}");
+}
+
 void handle_stop() {
     respond("{\"stopped\":true}");
     server_stop();
@@ -17,6 +27,7 @@ void handle_stop() {
 void main() {
     get("/test/get", "handle_get");
     post("/test/post", "handle_post");
+    post("/telegram", "handle_webhook");
     get("/stop", "handle_stop");
     listen(18095);
 }
