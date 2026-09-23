@@ -39,9 +39,25 @@ int main(int argc, char* argv[]) {
         std::cout << "FoxLang " << FOX_VERSION << std::endl;
         return 0;
     }
+    if (argc == 2 && (std::string(argv[1]) == "--help" || std::string(argv[1]) == "-h")) {
+        std::cout << "FoxLang " << FOX_VERSION << "\n\n"
+                  << "Usage:\n"
+                  << "  foxlang <script.fox>    Run a FoxLang program\n"
+                  << "  foxlang --version       Show version\n"
+                  << "  foxlang --help          Show this help\n\n"
+                  << "Environment:\n"
+                  << "  FOXLANG_HOME            FoxLang installation/std library path\n"
+                  << "  FOXLANG_LOG_LEVEL       debug | info | warn | error | off\n"
+                  << "  FOXLANG_LOG             Legacy master log switch\n\n"
+                  << "Repository & documentation:\n"
+                  << "  https://github.com/SkrinVex/FoxLang\n"
+                  << "  https://github.com/SkrinVex/FoxLang/blob/master/DOCUMENTATION.md\n";
+        return 0;
+    }
 
     if (argc < 2) {
         std::cout << "FoxLang " << FOX_VERSION << "\nUsage: foxlang <script.fox>\n"
+                  << "       foxlang --help\n"
                   << "       foxlang --version" << std::endl;
         return 1;
     }
