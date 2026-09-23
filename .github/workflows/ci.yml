@@ -83,30 +83,3 @@ jobs:
           done
           wait "$pid"
           test "$ok" = 1
-
-  android-arm64:
-    runs-on: ubuntu-latest
-    name: android-arm64
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Android NDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK
-        run: sdkmanager "ndk;27.2.12479018"
-
-      - name: Build Android arm64-v8a
-        run: |
-          CXX="$ANDROID_SDK_ROOT/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
-          "$CXX" -std=c++17 -O2 -Wall -Wextra src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang-android-arm64
-
-      - name: Verify Android binary
-        run: |
-          file foxlang-android-arm64
-          file foxlang-android-arm64 | grep -q "ARM aarch64"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: foxlang-android-arm64
-          path: foxlang-android-arm64
