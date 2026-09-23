@@ -874,3 +874,62 @@ void sort_user_scores(array scores, int count) {
 ```
 
 ---
+
+
+---
+
+## 11. FoxLang 5.2 standard library
+
+### Module resolution
+
+`include("path.fox")` remains supported. FoxLang 5.2 additionally makes `using module;` useful as a package import. Resolution order is:
+
+1. `std/module.fox`
+2. `module.fox`
+3. paths relative to the current source file
+4. paths under `FOXLANG_HOME`
+
+Resolved modules are cached and imported once per interpreter process.
+
+### Standard modules
+
+| Module | Purpose |
+|---|---|
+| `terminal` | clear screen, cursor movement, ANSI color, raw terminal output |
+| `net` | DNS lookup and TCP client sockets on POSIX |
+| `http` | GET/POST/PUT/DELETE convenience wrappers |
+| `math` | clamp/min/max helpers |
+| `string` | contains/replace/integer conversion helpers |
+| `time` | sleep and Unix millisecond timestamp |
+
+### TCP API
+
+```cpp
+using net;
+
+string ip = resolve_host("example.com");
+int sock = connect_tcp("example.com", 80);
+int sent = send_tcp(sock, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
+string chunk = recv_tcp(sock, 4096);
+bool closed = close_tcp(sock);
+```
+
+A socket handle below zero indicates a connection failure. `recv_tcp` returns an empty string when the peer closes the connection or an error occurs.
+
+### Terminal API
+
+```cpp
+using terminal;
+
+clear();
+hide_cursor();
+goto_xy(2, 4);
+color(36);
+write("FoxLang");
+reset_color();
+show_cursor();
+```
+
+### Compatibility note
+
+The legacy `server_start`, `route_get`, `route_post`, and `send_response` builtins are compatibility shims in the current runtime; they are not a real HTTP server. Use the TCP primitives for real socket I/O. A native HTTP server API can be added without pretending the legacy shims already provide one.

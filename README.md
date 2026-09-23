@@ -167,3 +167,45 @@ main();
 
 **Author:** [SkrinVex](https://skrinvex.su)  
 **License:** MIT
+
+
+## FoxLang 5.2: standard library and networking
+
+FoxLang 5.2 introduces a real `std/` library layout. Package-style imports use:
+
+```cpp
+using net;
+using http;
+using terminal;
+using math;
+using string;
+using time;
+```
+
+`using name;` resolves `std/name.fox` first and then `name.fox`. Imports are cached, so the same module is not evaluated repeatedly. Set `FOXLANG_HOME` to the FoxLang installation directory when running scripts outside the repository.
+
+### Networking
+
+On POSIX systems, `std/net.fox` exposes real DNS and TCP sockets:
+
+```cpp
+using net;
+
+int sock = connect_tcp("example.com", 80);
+send_tcp(sock, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
+string data = recv_tcp(sock, 4096);
+close_tcp(sock);
+```
+
+HTTPS remains available through the HTTP runtime helpers and `std/http.fox`. The old simulated server helpers are retained for compatibility but are not documented as a production server.
+
+### Build
+
+```bash
+g++ -std=c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
+export FOXLANG_HOME="$PWD"
+./foxlang examples/stdlib_demo.fox
+./foxlang examples/tcp_client.fox
+```
+
+See `DOCUMENTATION.md` for the 5.2 module/runtime reference.

@@ -290,44 +290,71 @@ std::unique_ptr<BlockNode> Parser::parseBlock() {
     return block;
 }
 
-void processInclude(std::string filename, Context& ctx, std::string currentFile) {
-    std::string dir = getDirectory(currentFile);
-    std::string fullPath = dir + filename; 
-    std::ifstream file(fullPath);
-    
-    // Если не нашли по полному пути, ищем рядом с исполняемым файлом
-    if (!file.is_open()) { 
-        file.open(filename); 
-        if(!file.is_open()) {
-            throw std::runtime_error("Include Error: File '" + filename + "' not found.");
-        }
+static std::set<std::string> g_loadedModules;
+
+static std::string foxHome() {
+    const char* env = std::getenv("FOXLANG_HOME");
+    return env ? std::string(env) : "";
+}
+
+static std::string resolveFoxFile(const std::string& requested, const std::string& currentFile) {
+    namespace fs = std::filesystem;
+    std::vector<fs::path> candidates;
+    fs::path req(requested);
+
+    if (req.is_absolute()) candidates.push_back(req);
+    if (!currentFile.empty()) candidates.push_back(fs::path(getDirectory(currentFile)) / req);
+    candidates.push_back(req);
+
+    std::string home = foxHome();
+    if (!home.empty()) {
+        candidates.push_back(fs::path(home) / req);
+        candidates.push_back(fs::path(home) / "std" / req);
     }
 
-    std::stringstream buffer; 
-    buffer << file.rdbuf();
-    
-    Lexer lexer(buffer.str());
-    std::vector<Token> tokens = lexer.tokenize(); 
+    for (const auto& candidate : candidates) {
+        std::error_code ec;
+        if (fs::exists(candidate, ec) && fs::is_regular_file(candidate, ec)) {
+            return fs::weakly_canonical(candidate, ec).string();
+        }
+    }
+    throw std::runtime_error("Module Error: File '" + requested + "' not found. Checked current file, working directory and FOXLANG_HOME.");
+}
 
-    Parser parser(tokens);
-    
-    // Копируем контекст и устанавливаем режим импорта
-    parser.globalContext = ctx; 
-    parser.currentFile = fullPath; 
-    parser.importMode = true; // Только парсим функции, не выполняем код
-    
-    parser.run(); 
-    
-    // Возвращаем обновленный контекст с новыми функциями
-    ctx = parser.globalContext; 
+void processInclude(std::string filename, Context& ctx, std::string currentFile) {
+    std::string fullPath = resolveFoxFile(filename, currentFile);
+    if (g_loadedModules.count(fullPath)) return;
+    g_loadedModules.insert(fullPath);
+
+    std::ifstream file(fullPath);
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+
+    Lexer lexer(buffer.str());
+    Parser parser(lexer.tokenize());
+    parser.globalContext = ctx;
+    parser.currentFile = fullPath;
+    parser.importMode = true;
+    parser.run();
+    ctx = parser.globalContext;
 }
 
 void Parser::processUsing(const std::string& libName, Context& ctx) {
-    if (libName == "net.fox" || libName == "net") {
-        // Добавляем сетевые функции в контекст
-        // Эти функции будут доступны как встроенные
-        // Реализация уже есть в FuncCallNode
+    std::string module = libName;
+    if (module.size() < 4 || module.substr(module.size() - 4) != ".fox") module += ".fox";
+
+    // "using foo;" is the package-style form. Search std/ first, then regular include paths.
+    std::vector<std::string> candidates = {"std/" + module, module};
+    std::string lastError;
+    for (const auto& candidate : candidates) {
+        try {
+            processInclude(candidate, ctx, currentFile);
+            return;
+        } catch (const std::runtime_error& e) {
+            lastError = e.what();
+        }
     }
+    throw std::runtime_error("Module Error: Module '" + libName + "' not found. " + lastError);
 }
 
 std::unique_ptr<Node> Parser::statement() {
@@ -341,7 +368,10 @@ std::unique_ptr<Node> Parser::statement() {
 
     if (tokens[pos].type == TokenType::USING) {
         consume(TokenType::USING);
-        std::string libName = consume(TokenType::IDENTIFIER).value;
+        if (tokens[pos].type == TokenType::END || tokens[pos].type == TokenType::SEMICOLON) {
+            throw std::runtime_error("Module Error: Expected module name after 'using'");
+        }
+        std::string libName = tokens[pos++].value;
         if (pos < tokens.size() && tokens[pos].type == TokenType::DOT) {
             consume(TokenType::DOT);
             if (pos < tokens.size() && tokens[pos].type == TokenType::IDENTIFIER) {
@@ -385,7 +415,12 @@ std::unique_ptr<Node> Parser::statement() {
                 }
             }
             consume(TokenType::RPAREN);
+            // Imported modules must keep executable statements inside function bodies.
+            // importMode only suppresses top-level execution.
+            bool outerImportMode = importMode;
+            importMode = false;
             auto body = parseBlock();
+            importMode = outerImportMode;
             globalContext.defineFunc(name, std::make_shared<FuncDefNode>(type, name, params, std::move(body)));
             return std::make_unique<BlockNode>();
         }

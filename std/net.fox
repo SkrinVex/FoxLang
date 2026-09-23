@@ -1,0 +1,23 @@
+// FoxLang 5.2 networking standard library.
+// POSIX builds provide real TCP sockets and DNS through the runtime.
+// Socket handles are ints; -1 means connect failed.
+
+int connect_tcp(string host, int port) {
+    return tcp_connect(host, port);
+}
+
+int send_tcp(int socket, string data) {
+    return tcp_send(socket, data);
+}
+
+string recv_tcp(int socket, int max_bytes) {
+    return tcp_recv(socket, max_bytes);
+}
+
+bool close_tcp(int socket) {
+    return tcp_close(socket);
+}
+
+string resolve_host(string host) {
+    return dns_lookup(host);
+}

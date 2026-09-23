@@ -1,0 +1,12 @@
+// FoxLang 5.2 string helpers
+bool contains(string text, string needle) {
+    return str_contains(text, needle);
+}
+
+string replace(string text, string from, string to) {
+    return str_replace(text, from, to);
+}
+
+int to_int(string text) {
+    return str_to_int(text);
+}

@@ -1,3 +1,27 @@
+# FoxLang 5.2.0 - Changelog
+
+## Standard library
+- Added first-class `std/` layout with `terminal`, `net`, `http`, `math`, `string`, and `time`.
+- `using module;` now resolves real FoxLang modules instead of being a no-op.
+- Added `FOXLANG_HOME` lookup and import deduplication.
+
+## Networking
+- Added real POSIX DNS lookup and TCP client primitives.
+- Added FoxLang wrappers: `connect_tcp`, `send_tcp`, `recv_tcp`, `close_tcp`, and `resolve_host`.
+- Kept HTTPS HTTP helpers for compatibility.
+- Documentation now explicitly marks the old server API as compatibility shims instead of claiming it is a real background server.
+
+## Runtime
+- Fixed Linux `kbhit()` so it no longer blocks waiting for input.
+- Added reusable terminal primitives.
+- Added `abs`, `min`, `max`, `clamp`, and `time_ms` runtime helpers.
+
+## Examples
+- Added `examples/tcp_client.fox`.
+- Added `examples/stdlib_demo.fox`.
+
+---
+
 # FoxLang 5.0.1 - Changelog
 
 ## 🆕 Новые возможности

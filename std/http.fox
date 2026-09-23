@@ -1,0 +1,22 @@
+// FoxLang 5.2 HTTP helpers.
+// Names avoid language keywords such as get.
+
+string http_fetch(string url) {
+    return httpget(url);
+}
+
+string http_post_json(string url, string body) {
+    return httppost(url, body, "application/json");
+}
+
+string http_post_as(string url, string body, string content_type) {
+    return httppost(url, body, content_type);
+}
+
+string http_put_json(string url, string body) {
+    return httpput(url, body, "application/json");
+}
+
+string http_remove(string url) {
+    return httpdelete(url);
+}
