@@ -24,7 +24,13 @@ static void loadDotEnv(const std::string& scriptPath) {
         while (!key.empty() && (key.back() == ' ' || key.back() == '\t')) key.pop_back();
         size_t ks = key.find_first_not_of(" \t"); if (ks != std::string::npos) key = key.substr(ks);
         if (value.size() >= 2 && ((value.front() == '"' && value.back() == '"') || (value.front() == '\'' && value.back() == '\''))) value = value.substr(1, value.size()-2);
-        if (!key.empty() && std::getenv(key.c_str()) == nullptr) setenv(key.c_str(), value.c_str(), 0);
+        if (!key.empty() && std::getenv(key.c_str()) == nullptr) {
+#ifdef _WIN32
+            _putenv_s(key.c_str(), value.c_str());
+#else
+            setenv(key.c_str(), value.c_str(), 0);
+#endif
+        }
     }
 }
 
