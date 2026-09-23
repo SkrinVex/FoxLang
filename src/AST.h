@@ -837,6 +837,13 @@ struct BinOpNode : Node {
                         (op == "<=") ? lval.value <= rval.value :
                         (op == ">=") ? lval.value >= rval.value :
                         lval.value > rval.value;
+            } else if (lval.type == "bool" && rval.type == "bool") {
+                bool l = lval.value == "true", r = rval.value == "true";
+                result = (op == "==") ? l == r : (op == "!=") ? l != r :
+                        (op == "<") ? l < r :
+                        (op == "<=") ? l <= r :
+                        (op == ">=") ? l >= r :
+                        l > r;
             } else {
                 double l = std::stod(lval.value), r = std::stod(rval.value);
                 result = (op == "==") ? l == r : (op == "!=") ? l != r :
