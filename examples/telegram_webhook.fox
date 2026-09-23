@@ -1,0 +1,24 @@
+using server;
+using env;
+using log;
+
+string token = secret("TELEGRAM_BOT_TOKEN");
+
+void telegram_webhook() {
+    string update = body();
+    info("Получен webhook, байт: " + size(update));
+    respond("{\"ok\":true}");
+}
+
+void health() {
+    respond("{\"status\":\"ok\"}");
+}
+
+void main() {
+    get("/health", "health");
+    post("/telegram", "telegram_webhook");
+    info("Webhook server: 0.0.0.0:8080");
+    listen(8080);
+}
+
+main();
