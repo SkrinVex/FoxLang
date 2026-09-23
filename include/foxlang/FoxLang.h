@@ -22,6 +22,7 @@ struct InterpreterOptions {
     std::string foxHome;
     bool loadDotEnv = true;
     std::string workingDir = ".";
+    std::shared_ptr<const SourceProvider> sources;
 };
 
 class Interpreter {
@@ -53,6 +54,8 @@ private:
     InterpreterOptions options;
     Context globalContext;
     std::set<std::string> loadedModules;
+    std::shared_ptr<const SourceProvider> sources;
+    void executeModule(const std::string& identity, bool importOnly);
 };
 
 } // namespace foxlang

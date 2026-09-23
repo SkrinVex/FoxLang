@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iostream>
 #include <typeinfo>
+#include <filesystem>
 
 namespace foxlang {
 
@@ -62,12 +63,11 @@ void executeUsingHook(const std::string& libName, Context& ctx, const std::strin
     }
 }
 
-Interpreter::Interpreter() {
-    globalContext.interpreter = this;
-}
+Interpreter::Interpreter() : Interpreter(InterpreterOptions{}) {}
 
 Interpreter::Interpreter(InterpreterOptions opts) : options(std::move(opts)) {
     globalContext.interpreter = this;
+    sources = options.sources ? options.sources : filesystemSources(options.foxHome);
 }
 
 std::string Interpreter::getVersion() {
@@ -102,21 +102,15 @@ const std::set<std::string>& Interpreter::getLoadedModules() const {
 }
 
 void Interpreter::executeInclude(const std::string& path, const std::string& currentFile, bool importOnly) {
-    std::string fullPath = runtime::resolveFoxFile(path, currentFile, options.foxHome);
+    executeModule(sources->resolve({path, false}, currentFile), importOnly);
+}
+
+void Interpreter::executeModule(const std::string& fullPath, bool importOnly) {
     if (loadedModules.count(fullPath)) return;
-    loadedModules.insert(fullPath);
-
-    std::ifstream file(fullPath);
-    if (!file.is_open()) {
-        throw std::runtime_error("Module Error: Cannot open file '" + fullPath + "'");
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-
-    Lexer lexer(buffer.str());
+    Lexer lexer(sources->read(fullPath));
     Parser parser(lexer.tokenize(), fullPath);
     auto program = parser.parseProgram();
+    loadedModules.insert(fullPath);
 
     for (auto& stmt : program->stmts) {
         if (!stmt) continue;
@@ -135,22 +129,7 @@ void Interpreter::executeInclude(const std::string& path, const std::string& cur
 }
 
 void Interpreter::executeUsing(const std::string& libName, const std::string& currentFile) {
-    std::string module = libName;
-    if (module.size() < 4 || module.substr(module.size() - 4) != ".fox") {
-        module += ".fox";
-    }
-
-    std::vector<std::string> candidates = {"std/" + module, module};
-    std::string lastError;
-    for (const auto& candidate : candidates) {
-        try {
-            executeInclude(candidate, currentFile, true);
-            return;
-        } catch (const std::runtime_error& e) {
-            lastError = e.what();
-        }
-    }
-    throw std::runtime_error("Module Error: Module '" + libName + "' not found. " + lastError);
+    executeModule(sources->resolve({libName, true}, currentFile), true);
 }
 
 RunResult Interpreter::runFile(const std::string& filepath) {
@@ -165,7 +144,9 @@ RunResult Interpreter::runFile(const std::string& filepath) {
 
     std::stringstream buffer;
     buffer << file.rdbuf();
-    return runSource(buffer.str(), filepath);
+    std::error_code ec;
+    auto identity = std::filesystem::weakly_canonical(filepath, ec).string();
+    return runSource(buffer.str(), ec ? filepath : identity);
 }
 
 RunResult Interpreter::runSource(const std::string& source, const std::string& scriptPath) {
@@ -173,7 +154,7 @@ RunResult Interpreter::runSource(const std::string& source, const std::string& s
         Lexer lexer(source);
         Parser parser(lexer.tokenize(), scriptPath);
         auto program = parser.parseProgram();
-
+        loadedModules.insert(scriptPath);
         program->eval(globalContext);
         return {true, 0, ""};
     } catch (const BreakException&) {

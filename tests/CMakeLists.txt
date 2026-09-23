@@ -30,6 +30,23 @@ target_include_directories(test_lsp_protocol PRIVATE ${CMAKE_SOURCE_DIR}/src/lsp
 target_link_libraries(test_lsp_protocol PRIVATE foxlang_core)
 add_test(NAME unit_lsp_protocol COMMAND test_lsp_protocol)
 
+# Packaging is tested from a copied CLI with no stdlib, then with only the result
+# in a clean recipient directory. Python is a test dependency, never a runtime one.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_executable(test_bundle unit/test_bundle.cpp)
+target_link_libraries(test_bundle PRIVATE foxlang_bundle)
+add_test(NAME standalone_bundle_format COMMAND test_bundle $<TARGET_FILE:foxlang>)
+set_tests_properties(standalone_bundle_format PROPERTIES LABELS standalone)
+set(STANDALONE_TESTS hello cli modules unicode_json environment errors corruption http_client)
+if(UNIX AND NOT APPLE)
+    list(APPEND STANDALONE_TESTS http_server)
+endif()
+foreach(T IN LISTS STANDALONE_TESTS)
+    add_test(NAME standalone_${T}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_standalone.py $<TARGET_FILE:foxlang> ${T})
+    set_tests_properties(standalone_${T} PROPERTIES TIMEOUT 60 LABELS standalone)
+endforeach()
+
 # Common environment for FoxLang script tests
 set(FOXLANG_TEST_ENV
     "FOXLANG_HOME=${CMAKE_SOURCE_DIR}"

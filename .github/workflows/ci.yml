@@ -21,6 +21,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
       - name: Configure CMake
         run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
@@ -28,7 +32,10 @@ jobs:
         run: cmake --build build --config Release
 
       - name: Run Tests (CTest)
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ctest --test-dir build -C Release --output-on-failure -LE standalone
+
+      - name: Build and run standalone executables in clean temporary directories
+        run: ctest --test-dir build -C Release --output-on-failure -L standalone
 
       - name: Verify Version and Help
         shell: bash
