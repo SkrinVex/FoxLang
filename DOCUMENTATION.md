@@ -11,6 +11,7 @@
 8. [Встроенные функции](#8-встроенные-функции)
 9. [Сетевые возможности и HTTP](#9-сетевые-возможности-и-http)
 10. [Современный синтаксис](#10-современный-синтаксис)
+11. [Standalone приложения](#21-standalone-приложения-foxlang-build)
 
 ---
 
@@ -643,18 +644,15 @@ main();
 
 #### 🧪 Компиляция и запуск
 ```bash
-# Сборка через CMake (рекомендуется)
-cmake -S . -B build && cmake --build build
-
-# Или прямая компиляция через g++
+# Сборка runtime через CMake
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 
 # Запуск HTTP клиента
-./foxlang examples/http_demo.fox
+./build/foxlang examples/http_demo.fox
 
 # Запуск веб-сервера
-./foxlang examples/fastapi_demo.fox
+./build/foxlang examples/fastapi_demo.fox
 ```
 
 ### Расширенные примеры использования

@@ -89,11 +89,12 @@ HTTP-клиент по-прежнему требует внешний `curl` в 
 
 | Платформа | CLI | Standalone build |
 |---|---|---|
-| Linux x86_64 | Проверено локально, CTest | Проверено из чистого временного каталога |
-| Windows x86_64 | Job `desktop-windows` в CI | Job `desktop-windows`: сборка и запуск `.exe` в чистом каталоге; результат текущего изменения ещё требует проверки |
+| Linux x86_64 | Да, локальные тесты и CI | Да, запуск из чистого временного каталога в CI |
+| Windows x86_64 | Да, MSVC в CI | Да, создание и запуск `.exe` в чистом каталоге в CI |
 | Android | Планируется отдельная интеграция | Планируется, не реализовано |
 
 Тесты Linux и Windows находятся в [обычном CI](.github/workflows/ci.yml).
+Первый подтверждённый прогон: [Linux и Windows, оба job прошли](https://github.com/SkrinVex/FoxLang/actions/runs/35911331060).
 Wine/MinGW не заменяют проверку на Windows runner.
 
 ---
