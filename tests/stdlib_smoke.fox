@@ -1,0 +1,10 @@
+using math;
+using string;
+using time;
+using log;
+using env;
+int a = min_int(2, 7);
+int b = max_int(2, 7);
+bool c = contains("FoxLang", "Lang");
+info("stdlib smoke");
+if (a == 2 && b == 7 && c == true) { print("STDLIB_SMOKE_OK"); }
