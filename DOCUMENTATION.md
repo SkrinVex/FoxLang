@@ -78,7 +78,7 @@ void greet(string name) {
 
 // Функция без параметров
 string get_version() {
-    return "FoxLang 5.0.2";
+    return "FoxLang 5.2.0";
 }
 ```
 
