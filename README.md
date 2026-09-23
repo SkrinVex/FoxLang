@@ -1,6 +1,6 @@
 # 🦊 FoxLang
 
-![Версия](https://img.shields.io/badge/version-5.5.2-orange)
+![Версия](https://img.shields.io/badge/version-5.5.3-orange)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
@@ -221,15 +221,15 @@ docker build -t foxlang:latest .
 
 **Быстрая установка:**
 * **Через установщик**: скрипт `install.sh` автоматически регистрирует расширение в VS Code / VSCodium / Flatpak.
-* **Через пакет VSIX**: скачайте [`foxlang-5.5.2.vsix`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-5.5.2.vsix) и выполните:
+* **Через пакет VSIX**: скачайте [`foxlang-5.5.3.vsix`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-5.5.3.vsix) и выполните:
   ```bash
-  code --install-extension foxlang-5.5.2.vsix
+  code --install-extension foxlang-5.5.3.vsix
   ```
   *(или выберите в VS Code: Расширения `Ctrl+Shift+X` → `...` → **Install from VSIX...**)*
 * **Вручную из репозитория**:
   ```bash
-  mkdir -p ~/.vscode/extensions/foxlang.foxlang-5.5.2
-  cp -R editors/vscode/* ~/.vscode/extensions/foxlang.foxlang-5.5.2/
+  mkdir -p ~/.vscode/extensions/foxlang.foxlang-5.5.3
+  cp -R editors/vscode/* ~/.vscode/extensions/foxlang.foxlang-5.5.3/
   ```
 *(Расширение полностью автономно и не требует запуска `npm install`)*
 

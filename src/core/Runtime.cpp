@@ -336,7 +336,7 @@ bool isBuiltin(const std::string& name) {
         "read_file", "write_file", "append_file",
         "http_get", "httpget", "httppost", "httpput", "httpdelete",
         "log_debug", "log_info", "log_warn", "log_error",
-        "env_get", "env_required", "json_get", "json_escape",
+        "env_get", "env_required", "env_default", "json_get", "json_escape",
         "str_contains", "str_replace", "str_split", "str_to_int",
         "route_get", "route_post", "request_body", "request_method", "request_path",
         "send_response", "server_start", "server_stop", "get"
@@ -594,6 +594,13 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
         std::string val = platform::getEnvVar(args[0].value);
         if (val.empty()) {
             throw std::runtime_error("Environment Error: required secret '" + args[0].value + "' is not set");
+        }
+        return {"string", val};
+    }
+    if (name == "env_default" && args.size() == 2) {
+        std::string val = platform::getEnvVar(args[0].value);
+        if (val.empty()) {
+            return {"string", args[1].value};
         }
         return {"string", val};
     }

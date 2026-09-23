@@ -44,34 +44,143 @@ void SemanticAnalyzer::addBuiltins() {
         rootScope->symbols[name] = sym;
     };
 
-    addFn("print", "void", {}, "print(...args): Print values to standard output");
-    addFn("input", "string", {}, "input(): Read a line from standard input");
-    addFn("fox", "void", {}, "fox(): Print FoxLang ASCII banner");
-    addFn("round", "int", {{"float", "value"}}, "round(float val): Round float to nearest integer");
-    addFn("random", "int", {{"int", "min"}, {"int", "max"}}, "random(int min, int max): Generate random integer between min and max");
-    addFn("readfile", "string", {{"string", "path"}}, "readfile(string path): Read entire file contents as string");
-    addFn("read_file", "string", {{"string", "path"}}, "read_file(string path): Read file contents as string");
-    addFn("json_get", "string", {{"string", "json"}, {"string", "key"}}, "json_get(string json, string key): Extract value from JSON by key");
-    addFn("str_contains", "bool", {{"string", "str"}, {"string", "sub"}}, "str_contains(string str, string sub): Check if substring exists");
-    addFn("str_to_int", "int", {{"string", "str"}}, "str_to_int(string str): Parse integer from string");
-    addFn("getch", "string", {}, "getch(): Read single character without echo");
-    addFn("kbhit", "bool", {}, "kbhit(): Check if a key was pressed");
+    addFn("print", "void", {},
+        "Вывод значений в стандартный поток вывода с переводом строки.\n\n"
+        "**Параметры:**\n- `...args`: аргументы любого типа для печати\n\n"
+        "**Пример:**\n```foxlang\nprint(\"Привет, мир! 🦊\");\n```");
 
-    addFn("httpget", "string", {{"string", "url"}}, "httpget(string url): Send HTTP GET request");
-    addFn("httppost", "string", {{"string", "url"}, {"string", "data"}}, "httppost(string url, string data, string type = \"application/json\"): Send HTTP POST request");
-    addFn("httpput", "string", {{"string", "url"}, {"string", "data"}}, "httpput(string url, string data, string type = \"application/json\"): Send HTTP PUT request");
-    addFn("httpdelete", "string", {{"string", "url"}}, "httpdelete(string url): Send HTTP DELETE request");
+    addFn("input", "string", {},
+        "Чтение строки из стандартного потока ввода пользователя.\n\n"
+        "**Возвращает:** `string` — введённая строка\n\n"
+        "**Пример:**\n```foxlang\nstring name = input();\n```");
 
-    addFn("server_start", "string", {{"int", "port"}}, "server_start(int port): Start HTTP server on specified port");
-    addFn("server_stop", "string", {}, "server_stop(): Gracefully stop running HTTP server");
-    addFn("route_get", "string", {{"string", "path"}, {"string", "handler"}}, "route_get(string path, string handler): Register HTTP GET route");
-    addFn("route_post", "string", {{"string", "path"}, {"string", "handler"}}, "route_post(string path, string handler): Register HTTP POST route");
-    addFn("send_response", "void", {{"string", "data"}}, "send_response(string data): Send HTTP response body");
+    addFn("fox", "void", {},
+        "Печать фирменного ASCII-баннера лисы FoxLang в консоль.\n\n"
+        "**Пример:**\n```foxlang\nfox();\n```");
 
-    addFn("array", "void", {{"identifier", "name"}, {"int", "size"}}, "array <name> <size>: Declare fixed-size array");
-    addFn("set", "void", {{"array", "arr"}, {"int", "idx"}, {"any", "val"}}, "set(arr, idx, val): Set array element");
-    addFn("get", "any", {{"array", "arr"}, {"int", "idx"}}, "get(arr, idx): Get array element or server GET route");
-    addFn("size", "int", {{"array", "arr"}}, "size(arr): Get number of elements in array");
+    addFn("round", "int", {{"float", "value"}},
+        "Округление числа с плавающей точкой до ближайшего целого.\n\n"
+        "**Параметры:**\n- `value`: дробное число `float`\n\n"
+        "**Возвращает:** `int`\n\n"
+        "**Пример:**\n```foxlang\nint r = round(3.6); // 4\n```");
+
+    addFn("random", "int", {{"int", "min"}, {"int", "max"}},
+        "Генерация псевдослучайного целого числа в диапазоне от `min` до `max` включительно.\n\n"
+        "**Параметры:**\n- `min`: минимальное значение диапазона\n- `max`: максимальное значение диапазона\n\n"
+        "**Возвращает:** `int`\n\n"
+        "**Пример:**\n```foxlang\nint dice = random(1, 6);\n```");
+
+    addFn("read_file", "string", {{"string", "path"}},
+        "Чтение всего содержимого файла в виде строки.\n\n"
+        "**Параметры:**\n- `path`: путь к файлу на диске\n\n"
+        "**Возвращает:** `string` (пустая строка, если файл не найден)\n\n"
+        "**Пример:**\n```foxlang\nstring content = read_file(\"config.json\");\n```");
+
+    addFn("readfile", "string", {{"string", "path"}},
+        "Псевдоним для `read_file`: чтение всего содержимого файла в виде строки.");
+
+    addFn("write_file", "void", {{"string", "path"}, {"string", "data"}},
+        "Запись строковых данных в файл (перезапись содержимого файла).\n\n"
+        "**Параметры:**\n- `path`: путь к файлу\n- `data`: записываемый текст");
+
+    addFn("append_file", "void", {{"string", "path"}, {"string", "data"}},
+        "Добавление строковых данных в конец файла.\n\n"
+        "**Параметры:**\n- `path`: путь к файлу\n- `data`: добавляемый текст");
+
+    addFn("json_get", "string", {{"string", "json"}, {"string", "key"}},
+        "Извлечение строкового значения из JSON-строки по ключу.\n\n"
+        "**Параметры:**\n- `json`: JSON-строка\n- `key`: имя ключа верхнего уровня");
+
+    addFn("json_escape", "string", {{"string", "str"}},
+        "Экранирование спецсимволов строки для безопасного включения в JSON.");
+
+    addFn("str_contains", "bool", {{"string", "str"}, {"string", "sub"}},
+        "Проверка вхождения подстроки `sub` в строку `str`.\n\n"
+        "**Возвращает:** `bool` (`true` если подстрока найдена)");
+
+    addFn("str_replace", "string", {{"string", "str"}, {"string", "from"}, {"string", "to"}},
+        "Замена всех вхождений подстроки `from` на `to` в строке `str`.");
+
+    addFn("str_split", "void", {{"string", "str"}, {"string", "delim"}},
+        "Разбиение строки по разделителю `delim`.");
+
+    addFn("str_to_int", "int", {{"string", "str"}},
+        "Преобразование строки в целое число `int`.\n\n"
+        "**Параметры:**\n- `str`: строка, содержащая десятичное число\n\n"
+        "**Возвращает:** `int`\n\n"
+        "**Пример:**\n```foxlang\nint val = str_to_int(\"42\");\n```");
+
+    addFn("env_get", "string", {{"string", "key"}},
+        "Чтение переменной окружения или файла конфигурации `.env`.\n\n"
+        "**Возвращает:** `string` (пустая строка, если переменная не установлена)");
+
+    addFn("env_required", "string", {{"string", "key"}},
+        "Чтение обязательной переменной окружения или секрета.\n"
+        "Если переменная не установлена, рантайм вызывает ошибку `Environment Error`.\n\n"
+        "**Пример:**\n```foxlang\nstring tok = env_required(\"API_KEY\");\n```");
+
+    addFn("env_default", "string", {{"string", "key"}, {"string", "fallback"}},
+        "Чтение переменной окружения с возвратом значения по умолчанию `fallback`.\n\n"
+        "**Параметры:**\n- `key`: имя переменной\n- `fallback`: значение по умолчанию\n\n"
+        "**Возвращает:** `string`\n\n"
+        "**Пример:**\n```foxlang\nstring port = env_default(\"PORT\", \"8080\");\n```");
+
+    addFn("getch", "string", {},
+        "Неблокирующее чтение одного символа с клавиатуры без вывода в консоль (эхо).\n\n"
+        "**Возвращает:** `string` — прочитанный символ");
+
+    addFn("kbhit", "bool", {},
+        "Проверка наличия нажатой клавиши в буфере ввода терминала.\n\n"
+        "**Возвращает:** `bool` (`true`, если клавиша была нажата)");
+
+    addFn("wait", "void", {{"int", "milliseconds"}},
+        "Приостановка выполнения текущей программы на указанное число миллисекунд.");
+
+    addFn("httpget", "string", {{"string", "url"}},
+        "Низкоуровневый исходящий HTTP GET-запрос по URL.");
+
+    addFn("httppost", "string", {{"string", "url"}, {"string", "data"}},
+        "Низкоуровневый исходящий HTTP POST-запрос по URL.");
+
+    addFn("httpput", "string", {{"string", "url"}, {"string", "data"}},
+        "Низкоуровневый исходящий HTTP PUT-запрос.");
+
+    addFn("httpdelete", "string", {{"string", "url"}},
+        "Низкоуровневый исходящий HTTP DELETE-запрос.");
+
+    addFn("server_start", "string", {{"int", "port"}},
+        "Низкоуровневый запуск встроенного HTTP-сервера на порту.");
+
+    addFn("server_stop", "string", {},
+        "Остановка запущенного встроенного HTTP-сервера.");
+
+    addFn("route_get", "string", {{"string", "path"}, {"string", "handler"}},
+        "Регистрация маршрута для входящих HTTP GET-запросов.");
+
+    addFn("route_post", "string", {{"string", "path"}, {"string", "handler"}},
+        "Регистрация маршрута для входящих HTTP POST-запросов.");
+
+    addFn("send_response", "void", {{"string", "data"}},
+        "Отправка тела ответа клиенту HTTP-сервера.");
+
+    addFn("array", "void", {{"identifier", "name"}, {"int", "size"}},
+        "Синтаксис объявления массива фиксированного размера: `array <имя> <размер>;`.");
+
+    addFn("set", "void", {{"array", "arr"}, {"int", "idx"}, {"any", "val"}},
+        "Установка значения элемента массива по индексу.\n\n"
+        "**Параметры:**\n- `arr`: массив\n- `idx`: индекс (начиная с 0)\n- `val`: записываемое значение\n\n"
+        "**Пример:**\n```foxlang\nset(numbers, 0, 100);\n```");
+
+    addFn("get", "any", {{"array", "arr"}, {"int", "idx"}},
+        "Получение элемента массива по индексу или регистрация HTTP GET маршрута при импорте `using server;`.\n\n"
+        "**Параметры:**\n- `arr`: массив\n- `idx`: индекс (начиная с 0)\n\n"
+        "**Пример:**\n```foxlang\nint val = get(numbers, 0);\n```");
+
+    addFn("size", "int", {{"any", "val"}},
+        "Получение количества элементов в массиве или длины строки в символах.\n\n"
+        "**Параметры:**\n- `val`: массив или строка\n\n"
+        "**Возвращает:** `int` — размер\n\n"
+        "**Пример:**\n```foxlang\nint n = size(my_arr);\n```");
 }
 
 void SemanticAnalyzer::loadModuleSymbols(const std::string& moduleName, SourceRange importRange) {
@@ -87,63 +196,232 @@ void SemanticAnalyzer::loadModuleSymbols(const std::string& moduleName, SourceRa
     };
 
     if (moduleName == "server") {
-        addFn("listen", "void", {{"int", "port"}}, "listen(int port): Start listening on port");
-        addFn("respond", "void", {{"string", "data"}}, "respond(string data): Send HTTP response 200");
-        addFn("respond_status", "void", {{"int", "status"}, {"string", "data"}}, "respond_status(int status, string data): Send response with status code");
-        addFn("body", "string", {}, "body(): Get request body");
-        addFn("method", "string", {}, "method(): Get request method (GET, POST)");
-        addFn("path", "string", {}, "path(): Get request URL path");
-        addFn("get", "void", {{"string", "path"}, {"string", "handler"}}, "get(string path, string handler): Register GET handler");
-        addFn("post", "void", {{"string", "path"}, {"string", "handler"}}, "post(string path, string handler): Register POST handler");
+        addFn("listen", "void", {{"int", "port"}},
+            "Запустить HTTP/webhook сервер на указанном порту (0.0.0.0).\n"
+            "Блокирует текущий поток до вызова `server_stop()`.\n\n"
+            "**Параметры:**\n- `port`: номер TCP-порта (например, `8080`)\n\n"
+            "**Пример:**\n```foxlang\nlisten(8080);\n```");
+
+        addFn("get", "void", {{"string", "path"}, {"string", "handler"}},
+            "Зарегистрировать обработчик входящих HTTP GET запросов по пути `path`.\n\n"
+            "**Параметры:**\n- `path`: URL-путь (например, `\"/health\"`)\n- `handler`: имя функции-обработчика\n\n"
+            "**Пример:**\n```foxlang\nget(\"/health\", \"health\");\n```");
+
+        addFn("post", "void", {{"string", "path"}, {"string", "handler"}},
+            "Зарегистрировать обработчик входящих HTTP POST запросов по пути `path`.\n\n"
+            "**Параметры:**\n- `path`: URL-путь (например, `\"/telegram\"`)\n- `handler`: имя функции-обработчика\n\n"
+            "**Пример:**\n```foxlang\npost(\"/telegram\", \"telegram_webhook\");\n```");
+
+        addFn("body", "string", {},
+            "Получить тело текущего входящего HTTP-запроса (JSON update, форма, текст).\n\n"
+            "**Возвращает:** `string`\n\n"
+            "**Пример:**\n```foxlang\nstring update = body();\n```");
+
+        addFn("method", "string", {},
+            "Получить метод входящего HTTP-запроса (`\"GET\"`, `\"POST\"`).\n\n"
+            "**Возвращает:** `string`");
+
+        addFn("path", "string", {},
+            "Получить запрошенный URL-путь (например, `\"/telegram\"`).\n\n"
+            "**Возвращает:** `string`");
+
+        addFn("respond", "void", {{"string", "data"}},
+            "Отправить клиенту HTTP-ответ с кодом 200 OK и телом `data`.\n\n"
+            "**Параметры:**\n- `data`: тело ответа (обычно JSON)\n\n"
+            "**Пример:**\n```foxlang\nrespond(\"{\\\"ok\\\":true}\");\n```");
+
+        addFn("respond_status", "void", {{"int", "status"}, {"string", "data"}},
+            "Отправить клиенту HTTP-ответ с заданным кодом статуса `status` и телом `data`.\n\n"
+            "**Параметры:**\n- `status`: код состояния HTTP (`200`, `400`, `404`, `500`)\n- `data`: тело ответа\n\n"
+            "**Пример:**\n```foxlang\nrespond_status(404, \"{\\\"error\\\":\\\"Not found\\\"}\");\n```");
+
     } else if (moduleName == "http") {
-        addFn("http_fetch", "string", {{"string", "url"}}, "http_fetch(string url): Perform HTTP GET request");
-        addFn("http_post_json", "string", {{"string", "url"}, {"string", "body"}}, "http_post_json(string url, string body): Send JSON POST request");
-        addFn("http_post_as", "string", {{"string", "url"}, {"string", "body"}, {"string", "content_type"}}, "http_post_as(string url, string body, string type): Send POST with content type");
-        addFn("http_put_json", "string", {{"string", "url"}, {"string", "body"}}, "http_put_json(string url, string body): Send JSON PUT request");
-        addFn("http_remove", "string", {{"string", "url"}}, "http_remove(string url): Send HTTP DELETE request");
+        addFn("http_fetch", "string", {{"string", "url"}},
+            "Выполнить исходящий HTTP GET-запрос по указанному URL.\n\n"
+            "**Параметры:**\n- `url`: целевой URL (`\"https://...\"`)\n\n"
+            "**Возвращает:** `string` — тело ответа\n\n"
+            "**Пример:**\n```foxlang\nstring html = http_fetch(\"https://example.com\");\n```");
+
+        addFn("http_post_json", "string", {{"string", "url"}, {"string", "body"}},
+            "Выполнить исходящий HTTP POST-запрос с `Content-Type: application/json`.\n\n"
+            "**Параметры:**\n- `url`: целевой URL API\n- `body`: тело запроса в формате JSON\n\n"
+            "**Возвращает:** `string` — ответ удалённого сервера\n\n"
+            "**Пример:**\n```foxlang\nstring res = http_post_json(api + \"sendMessage\", payload);\n```");
+
+        addFn("http_post_as", "string", {{"string", "url"}, {"string", "body"}, {"string", "content_type"}},
+            "Выполнить исходящий HTTP POST-запрос с произвольным заголовком `Content-Type`.\n\n"
+            "**Параметры:**\n- `url`: адрес назначения\n- `body`: данные тела запроса\n- `content_type`: MIME-тип контента\n\n"
+            "**Возвращает:** `string` — ответ сервера");
+
+        addFn("http_put_json", "string", {{"string", "url"}, {"string", "body"}},
+            "Выполнить исходящий HTTP PUT-запрос с `Content-Type: application/json`.\n\n"
+            "**Параметры:**\n- `url`: адрес назначения\n- `body`: тело запроса\n\n"
+            "**Возвращает:** `string`");
+
+        addFn("http_remove", "string", {{"string", "url"}},
+            "Выполнить исходящий HTTP DELETE-запрос по указанному URL.\n\n"
+            "**Параметры:**\n- `url`: адрес ресурса\n\n"
+            "**Возвращает:** `string`");
+
     } else if (moduleName == "env") {
-        addFn("env", "string", {{"string", "key"}}, "env(string key, string fallback = \"\"): Get environment variable");
-        addFn("secret", "string", {{"string", "key"}}, "secret(string key): Get required secret from env or error");
+        addFn("env", "string", {{"string", "name"}},
+            "Получить значение переменной окружения или настройки из файла `.env`.\n\n"
+            "**Параметры:**\n- `name`: имя переменной\n\n"
+            "**Возвращает:** `string` (пустая строка, если переменная не найдена)\n\n"
+            "**Пример:**\n```foxlang\nstring p = env(\"PORT\");\n```");
+
+        addFn("secret", "string", {{"string", "name"}},
+            "Получить обязательную переменную окружения или секрет из `.env`.\n"
+            "Если переменная не найдена, рантайм аварийно завершает программу с ошибкой.\n\n"
+            "**Параметры:**\n- `name`: имя секрета\n\n"
+            "**Возвращает:** `string`\n\n"
+            "**Пример:**\n```foxlang\nstring token = secret(\"TELEGRAM_BOT_TOKEN\");\n```");
+
+        addFn("env_default", "string", {{"string", "name"}, {"string", "fallback"}},
+            "Получить значение переменной окружения `name` или вернуть `fallback`, если переменная не задана.\n\n"
+            "**Параметры:**\n- `name`: имя переменной\n- `fallback`: значение по умолчанию\n\n"
+            "**Возвращает:** `string`\n\n"
+            "**Пример:**\n```foxlang\nstring port = env_default(\"PORT\", \"8080\");\n```");
+
     } else if (moduleName == "log") {
-        addFn("debug", "void", {{"string", "message"}}, "debug(string msg): Log message at DEBUG level");
-        addFn("info", "void", {{"string", "message"}}, "info(string msg): Log message at INFO level");
-        addFn("warn", "void", {{"string", "message"}}, "warn(string msg): Log message at WARN level");
-        addFn("error", "void", {{"string", "message"}}, "error(string msg): Log message at ERROR level");
+        addFn("debug", "void", {{"string", "message"}},
+            "Записать сообщение уровня `[DEBUG]` (серый цвет в консоли).\n\n"
+            "**Параметры:**\n- `message`: текст сообщения");
+
+        addFn("info", "void", {{"string", "message"}},
+            "Записать информационное сообщение `[INFO]`.\n\n"
+            "**Параметры:**\n- `message`: текст сообщения\n\n"
+            "**Пример:**\n```foxlang\ninfo(\"🦊 FoxBot запущен на порту \" + port);\n```");
+
+        addFn("warn", "void", {{"string", "message"}},
+            "Записать предупреждающее сообщение `[WARN]` (жёлтый цвет в консоли).\n\n"
+            "**Параметры:**\n- `message`: текст сообщения");
+
+        addFn("error", "void", {{"string", "message"}},
+            "Записать сообщение об ошибке `[ERROR]` (красный цвет в консоли).\n\n"
+            "**Параметры:**\n- `message`: текст сообщения");
+
     } else if (moduleName == "json") {
-        addFn("json_path", "string", {{"string", "json"}, {"string", "path"}}, "json_path(string json, string path): Extract value at nested path");
-        addFn("json_safe", "string", {{"string", "str"}}, "json_safe(string str): Escape string for JSON embedding");
-    } else if (moduleName == "math") {
-        addFn("abs", "int", {{"int", "x"}}, "abs(int x): Absolute value");
-        addFn("min", "int", {{"int", "a"}, {"int", "b"}}, "min(int a, int b): Minimum of two integers");
-        addFn("max", "int", {{"int", "a"}, {"int", "b"}}, "max(int a, int b): Maximum of two integers");
-        addFn("pow", "int", {{"int", "base"}, {"int", "exp"}}, "pow(int base, int exp): Power function");
-        addFn("sqrt", "int", {{"int", "x"}}, "sqrt(int x): Integer square root");
+        addFn("json_path", "string", {{"string", "json"}, {"string", "path"}},
+            "Извлечь строковое значение из JSON по вложенному точечному пути.\n"
+            "Корректно декодирует суррогатные пары UTF-16 и Unicode эмодзи (🦊).\n\n"
+            "**Параметры:**\n- `json`: исходный текст в формате JSON\n- `path`: путь к полю (например, `\"message.chat.id\"`)\n\n"
+            "**Возвращает:** `string`\n\n"
+            "**Пример:**\n```foxlang\nstring chat_id = json_path(update, \"message.chat.id\");\n```");
+
+        addFn("json_safe", "string", {{"string", "text"}},
+            "Экранировать спецсимволы строки (кавычки `\"`, переносы `\\n`, табы) для безопасной вставки в JSON.\n\n"
+            "**Параметры:**\n- `text`: исходный текст\n\n"
+            "**Возвращает:** `string`\n\n"
+            "**Пример:**\n```foxlang\nstring payload = \"{\\\"text\\\":\\\"\" + json_safe(msg) + \"\\\"}\";\n```");
+
     } else if (moduleName == "string") {
-        addFn("str_len", "int", {{"string", "s"}}, "str_len(string s): Length of string");
-        addFn("str_sub", "string", {{"string", "s"}, {"int", "start"}, {"int", "len"}}, "str_sub(string s, int start, int len): Substring");
-        addFn("str_find", "int", {{"string", "s"}, {"string", "sub"}}, "str_find(string s, string sub): Find substring index");
-        addFn("str_replace", "string", {{"string", "s"}, {"string", "from"}, {"string", "to"}}, "str_replace(string s, string from, string to): Replace substring");
-        addFn("str_upper", "string", {{"string", "s"}}, "str_upper(string s): Convert to uppercase");
-        addFn("str_lower", "string", {{"string", "s"}}, "str_lower(string s): Convert to lowercase");
-        addFn("str_trim", "string", {{"string", "s"}}, "str_trim(string s): Trim whitespace");
-        addFn("str_split", "string", {{"string", "s"}, {"string", "delim"}}, "str_split(string s, string delim): Split string into array");
-    } else if (moduleName == "time") {
-        addFn("time_ms", "string", {}, "time_ms(): Current UNIX time in milliseconds");
-        addFn("time_str", "string", {}, "time_str(): Current date/time formatted string");
-        addFn("sleep_ms", "void", {{"int", "ms"}}, "sleep_ms(int ms): Sleep for given milliseconds");
+        addFn("contains", "bool", {{"string", "text"}, {"string", "needle"}},
+            "Проверить, содержит ли строка `text` подстроку `needle`.\n\n"
+            "**Параметры:**\n- `text`: проверяемая строка\n- `needle`: искомая подстрока\n\n"
+            "**Возвращает:** `bool` (`true` или `false`)\n\n"
+            "**Пример:**\n```foxlang\nif (contains(msg, \"/start\")) { ... }\n```");
+
+        addFn("replace", "string", {{"string", "text"}, {"string", "from"}, {"string", "to"}},
+            "Заменить все вхождения подстроки `from` на `to` в строке `text`.\n\n"
+            "**Параметры:**\n- `text`: исходный текст\n- `from`: замещаемый фрагмент\n- `to`: новый фрагмент\n\n"
+            "**Возвращает:** `string`\n\n"
+            "**Пример:**\n```foxlang\nstring clean = replace(input, \"foo\", \"bar\");\n```");
+
+        addFn("to_int", "int", {{"string", "text"}},
+            "Преобразовать строковое представление числа в тип `int`.\n\n"
+            "**Параметры:**\n- `text`: строка с числом (например, `\"8080\"`)\n\n"
+            "**Возвращает:** `int`\n\n"
+            "**Пример:**\n```foxlang\nint port = to_int(port_string);\n```");
+
+        addFn("strtoint", "int", {{"string", "text"}},
+            "Псевдоним для `to_int`: преобразовать строку в целое число `int`.\n\n"
+            "**Параметры:**\n- `text`: строка с числом\n\n"
+            "**Возвращает:** `int`\n\n"
+            "**Пример:**\n```foxlang\nint port = strtoint(port_string);\n```");
+
+    } else if (moduleName == "math") {
+        addFn("clamp01", "float", {{"float", "value"}},
+            "Ограничить дробное число диапазоном от 0.0 до 1.0 включительно.\n\n"
+            "**Параметры:**\n- `value`: исходное число `float`\n\n"
+            "**Возвращает:** `float`");
+
+        addFn("min_int", "int", {{"int", "a"}, {"int", "b"}},
+            "Вычислить минимальное из двух целых чисел.\n\n"
+            "**Параметры:**\n- `a`: первое число\n- `b`: второе число\n\n"
+            "**Возвращает:** `int`\n\n"
+            "**Пример:**\n```foxlang\nint m = min_int(10, 20); // 10\n```");
+
+        addFn("max_int", "int", {{"int", "a"}, {"int", "b"}},
+            "Вычислить максимальное из двух целых чисел.\n\n"
+            "**Параметры:**\n- `a`: первое число\n- `b`: второе число\n\n"
+            "**Возвращает:** `int`\n\n"
+            "**Пример:**\n```foxlang\nint m = max_int(10, 20); // 20\n```");
+
     } else if (moduleName == "net") {
-        addFn("resolve_host", "string", {{"string", "host"}}, "resolve_host(string host): Resolve hostname to IP");
-        addFn("connect_tcp", "int", {{"string", "host"}, {"int", "port"}}, "connect_tcp(string host, int port): Connect TCP socket");
-        addFn("send_tcp", "int", {{"int", "sock"}, {"string", "data"}}, "send_tcp(int sock, string data): Send TCP data");
-        addFn("recv_tcp", "string", {{"int", "sock"}, {"int", "len"}}, "recv_tcp(int sock, int len): Receive TCP data");
-        addFn("close_tcp", "void", {{"int", "sock"}}, "close_tcp(int sock): Close TCP socket");
+        addFn("connect_tcp", "int", {{"string", "host"}, {"int", "port"}},
+            "Установить исходящее TCP-соединение с хостом по порту.\n\n"
+            "**Параметры:**\n- `host`: имя хоста или IP-адрес\n- `port`: TCP-порт\n\n"
+            "**Возвращает:** `int` — дескриптор сокета (или `-1` при ошибке соединения)");
+
+        addFn("send_tcp", "int", {{"int", "socket"}, {"string", "data"}},
+            "Отправить строковые данные в открытый TCP-сокет.\n\n"
+            "**Параметры:**\n- `socket`: дескриптор открытого сокета\n- `data`: отправляемые байты\n\n"
+            "**Возвращает:** `int` — число отправленных байт");
+
+        addFn("recv_tcp", "string", {{"int", "socket"}, {"int", "max_bytes"}},
+            "Прочитать до `max_bytes` байт из открытого TCP-сокета.\n\n"
+            "**Параметры:**\n- `socket`: дескриптор сокета\n- `max_bytes`: лимит байт для чтения\n\n"
+            "**Возвращает:** `string` — прочитанные данные");
+
+        addFn("close_tcp", "bool", {{"int", "socket"}},
+            "Закрыть дескриптор TCP-сокета.\n\n"
+            "**Параметры:**\n- `socket`: дескриптор сокета\n\n"
+            "**Возвращает:** `bool` (`true` при успешном закрытии)");
+
+        addFn("resolve_host", "string", {{"string", "host"}},
+            "Разрешить сетевое доменное имя в IPv4-адрес через DNS.\n\n"
+            "**Параметры:**\n- `host`: имя хоста (например, `\"api.telegram.org\"`)\n\n"
+            "**Возвращает:** `string` — IP-адрес");
+
     } else if (moduleName == "terminal") {
-        addFn("term_clear", "void", {}, "term_clear(): Clear terminal screen");
-        addFn("term_home", "void", {}, "term_home(): Move cursor to home (top-left)");
-        addFn("term_write", "void", {{"string", "s"}}, "term_write(string s): Write raw string to terminal");
-        addFn("term_goto", "void", {{"int", "row"}, {"int", "col"}}, "term_goto(int row, int col): Move cursor to row/col");
-        addFn("term_color", "void", {{"string", "c"}}, "term_color(string code): Set ANSI color");
-        addFn("term_reset", "void", {}, "term_reset(): Reset ANSI attributes");
+        addFn("clear", "void", {},
+            "Очистить экран терминала ANSI ESC-последовательностью.\n\n"
+            "**Пример:**\n```foxlang\nclear();\n```");
+
+        addFn("home", "void", {},
+            "Переместить курсор терминала в верхний левый угол (1, 1).");
+
+        addFn("write", "void", {{"string", "text"}},
+            "Вывести текст в терминал напрямую без добавления символа переноса строки.");
+
+        addFn("goto_xy", "void", {{"int", "row"}, {"int", "col"}},
+            "Переместить курсор терминала в указанную позицию (строка, колонка).\n\n"
+            "**Параметры:**\n- `row`: номер строки (начиная с 1)\n- `col`: номер колонки (начиная с 1)");
+
+        addFn("hide_cursor", "void", {},
+            "Скрыть курсор в окне терминала.");
+
+        addFn("show_cursor", "void", {},
+            "Показать курсор в окне терминала.");
+
+        addFn("color", "void", {{"int", "ansi_code"}},
+            "Установить ANSI-цвет для последующего вывода в терминал.\n\n"
+            "**Параметры:**\n- `ansi_code`: числовой ANSI-код (например, 31 - красный, 32 - зелёный)");
+
+        addFn("reset_color", "void", {},
+            "Сбросить цвета и текстовые атрибуты оформления терминала к стандартным.");
+
+    } else if (moduleName == "time") {
+        addFn("sleep_ms", "void", {{"int", "milliseconds"}},
+            "Приостановить выполнение программы на указанное число миллисекунд.\n\n"
+            "**Параметры:**\n- `milliseconds`: время задержки в миллисекундах\n\n"
+            "**Пример:**\n```foxlang\nsleep_ms(1000); // пауза 1 секунда\n```");
+
+        addFn("unix_time_ms", "string", {},
+            "Получить текущее UNIX-время в миллисекундах с 1 января 1970 года.\n\n"
+            "**Возвращает:** `string` — таймстемп в миллисекундах\n\n"
+            "**Пример:**\n```foxlang\nstring now = unix_time_ms();\n```");
     } else {
         // Attempt to resolve file on disk
         std::string modPath = moduleName;
@@ -495,6 +773,122 @@ void SemanticAnalyzer::visitInclude(const IncludeNode* node) {
     documentSymbols.push_back(docSym);
 }
 
+const Symbol* SemanticAnalyzer::findFunction(const std::string& name) const {
+    if (currentScope) {
+        Symbol* s = currentScope->find(name);
+        if (s && (s->kind == SymbolKind::Function || s->kind == SymbolKind::Builtin)) {
+            return s;
+        }
+    }
+    if (rootScope) {
+        auto it = rootScope->symbols.find(name);
+        if (it != rootScope->symbols.end()) {
+            if (it->second.kind == SymbolKind::Function || it->second.kind == SymbolKind::Builtin) {
+                return &it->second;
+            }
+        }
+    }
+    return nullptr;
+}
+
+SignatureHelpResult SemanticAnalyzer::getSignatureHelp(const std::string& code, int line, int col) const {
+    // 1. Calculate offset in code string
+    int curLine = 1;
+    int curCol = 1;
+    size_t offset = 0;
+    for (size_t i = 0; i < code.size(); i++) {
+        if (curLine == line && curCol >= col) {
+            offset = i;
+            break;
+        }
+        if (code[i] == '\n') {
+            curLine++;
+            curCol = 1;
+        } else {
+            curCol++;
+        }
+        offset = i + 1;
+    }
+
+    // 2. Scan backward to find unclosed '(' and count commas
+    int parenDepth = 0;
+    int commaCount = 0;
+    size_t openParenIdx = std::string::npos;
+    bool inString = false;
+
+    for (int i = static_cast<int>(offset) - 1; i >= 0; i--) {
+        char c = code[i];
+        if (c == '"' && (i == 0 || code[i - 1] != '\\')) {
+            inString = !inString;
+            continue;
+        }
+        if (inString) continue;
+
+        if (c == ')') {
+            parenDepth++;
+        } else if (c == '(') {
+            if (parenDepth > 0) {
+                parenDepth--;
+            } else {
+                openParenIdx = i;
+                break;
+            }
+        } else if (c == ',' && parenDepth == 0) {
+            commaCount++;
+        } else if (c == ';' || c == '{' || c == '}') {
+            break;
+        }
+    }
+
+    if (openParenIdx == std::string::npos) {
+        return {};
+    }
+
+    // 3. Find identifier right before open parenthesis
+    int idx = static_cast<int>(openParenIdx) - 1;
+    while (idx >= 0 && (code[idx] == ' ' || code[idx] == '\t' || code[idx] == '\r' || code[idx] == '\n')) {
+        idx--;
+    }
+    int endId = idx + 1;
+    while (idx >= 0 && (isalnum(static_cast<unsigned char>(code[idx])) || code[idx] == '_')) {
+        idx--;
+    }
+    int startId = idx + 1;
+    if (startId >= endId) {
+        return {};
+    }
+
+    std::string funcName = code.substr(startId, endId - startId);
+    const Symbol* fnSym = findFunction(funcName);
+    if (!fnSym) {
+        return {};
+    }
+
+    SignatureHelpResult result;
+    result.found = true;
+    result.activeSignature = 0;
+    result.activeParameter = commaCount;
+
+    SignatureInfo sig;
+    std::ostringstream sigLabel;
+    sigLabel << fnSym->name << "(";
+    for (size_t p = 0; p < fnSym->params.size(); p++) {
+        if (p > 0) sigLabel << ", ";
+        std::string pLabel = fnSym->params[p].type + " " + fnSym->params[p].name;
+        sigLabel << pLabel;
+        ParameterInfo paramInfo;
+        paramInfo.label = pLabel;
+        paramInfo.documentation = "Параметр `" + fnSym->params[p].name + "` (" + fnSym->params[p].type + ")";
+        sig.parameters.push_back(std::move(paramInfo));
+    }
+    sigLabel << ") -> " << fnSym->returnType;
+    sig.label = sigLabel.str();
+    sig.documentation = fnSym->documentation;
+
+    result.signatures.push_back(std::move(sig));
+    return result;
+}
+
 HoverInfo SemanticAnalyzer::getHover(int line, int col) const {
     const SymbolRef* best = nullptr;
     for (const auto& ref : symbolRefs) {
@@ -515,18 +909,18 @@ HoverInfo SemanticAnalyzer::getHover(int line, int col) const {
     std::ostringstream ss;
     ss << "```foxlang\n";
     if (best->symbol.kind == SymbolKind::Function || best->symbol.kind == SymbolKind::Builtin) {
-        ss << best->symbol.returnType << " " << best->symbol.name << "(";
+        ss << "(function) " << best->symbol.name << "(";
         for (size_t i = 0; i < best->symbol.params.size(); i++) {
             if (i > 0) ss << ", ";
             ss << best->symbol.params[i].type << " " << best->symbol.params[i].name;
         }
-        ss << ")";
+        ss << ") -> " << best->symbol.returnType;
     } else {
-        ss << best->symbol.type << " " << best->symbol.name;
+        ss << "(variable) " << best->symbol.type << " " << best->symbol.name;
     }
     ss << "\n```";
     if (!best->symbol.documentation.empty() && best->symbol.documentation != best->symbol.name) {
-        ss << "\n\n" << best->symbol.documentation;
+        ss << "\n\n---\n" << best->symbol.documentation;
     }
     info.markdown = ss.str();
     return info;
@@ -559,17 +953,61 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         }
     };
 
-    // 1. Language keywords
-    static const std::vector<std::string> keywords = {
-        "if", "else", "while", "for", "switch", "case", "default",
-        "break", "continue", "return", "int", "float", "string", "bool", "void",
-        "true", "false", "array", "set", "get", "size", "using", "include", "global"
+    // 1. Language keywords and directives
+    struct KeywordDoc {
+        const char* kw;
+        const char* detail;
+        const char* doc;
     };
-    for (const auto& kw : keywords) {
-        add(kw, "Keyword", "FoxLang keyword", "");
+    static const std::vector<KeywordDoc> kwDocs = {
+        {"if", "(keyword) if (cond) { ... }", "Условный оператор ветвления `if / else`.\n\n```foxlang\nif (условие) {\n    // истина\n} else {\n    // иначе\n}\n```"},
+        {"else", "(keyword) else", "Ветка `else` для оператора ветвления `if`.\n\n```foxlang\nif (cond) {\n    ...\n} else {\n    ...\n}\n```"},
+        {"while", "(keyword) while (cond) { ... }", "Цикл с предусловием `while`.\n\n```foxlang\nwhile (условие) {\n    // тело цикла\n}\n```"},
+        {"for", "(keyword) for (init; cond; step) { ... }", "Цикл со счётчиком `for`.\n\n```foxlang\nfor (int i = 0; i < 10; i++) {\n    print(i);\n}\n```"},
+        {"switch", "(keyword) switch (val) { case ... }", "Оператор множественного выбора `switch / case / default`.\n\n```foxlang\nswitch (val) {\n    case 1: { ... break; }\n    default: { ... }\n}\n```"},
+        {"case", "(keyword) case value:", "Ветка выбора `case` внутри оператора `switch`."},
+        {"default", "(keyword) default:", "Ветка по умолчанию `default` внутри `switch`."},
+        {"break", "(keyword) break;", "Прерывание выполнения текущего цикла или оператора `switch`."},
+        {"continue", "(keyword) continue;", "Переход к следующей итерации цикла."},
+        {"return", "(keyword) return [value];", "Возврат значения из функции или выход из `void` функции."},
+        {"using", "(keyword) using <module>;", "Директива подключения стандартной библиотеки FoxLang.\n\n```foxlang\nusing server;\nusing http;\nusing env;\nusing log;\nusing json;\nusing string;\n```"},
+        {"include", "(keyword) include(\"path.fox\");", "Директива подключения пользовательского файла с кодом.\n\n```foxlang\ninclude(\"helper.fox\");\n```"},
+        {"global", "(keyword) global type name = val;", "Объявление глобальной переменной в FoxLang.\n\n```foxlang\nglobal string token = secret(\"API_KEY\");\n```"},
+        {"int", "(type) int", "32-битное целое число со знаком."},
+        {"float", "(type) float", "Дробное число с плавающей точкой."},
+        {"string", "(type) string", "Текстовая строка с поддержкой UTF-8 и Unicode эмодзи."},
+        {"bool", "(type) bool", "Логический тип данных: `true` или `false`."},
+        {"void", "(type) void", "Тип отсутствия возвращаемого значения функции."},
+        {"true", "(keyword) true", "Логическая истина."},
+        {"false", "(keyword) false", "Логическая ложь."},
+        {"array", "(keyword) array <name> <size>;", "Объявление массива фиксированного размера: `array имя размер;`."}
+    };
+    for (const auto& kd : kwDocs) {
+        add(kd.kw, "Keyword", kd.detail, kd.doc);
     }
 
-    // 2. All visible symbols from root scope and symbol refs
+    // 2. Standard library modules
+    struct ModuleDoc {
+        const char* name;
+        const char* doc;
+    };
+    static const std::vector<ModuleDoc> stdModules = {
+        {"server", "Модуль HTTP/webhook сервера на POSIX (`listen`, `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`)."},
+        {"http", "Модуль исходящих HTTP-клиентских запросов (`http_fetch`, `http_post_json`, `http_post_as`, `http_put_json`, `http_remove`)."},
+        {"env", "Модуль переменных окружения и секретов (`env`, `secret`, `env_default`). Автоматически читает `.env` файл."},
+        {"log", "Модуль уровневого логирования (`debug`, `info`, `warn`, `error`)."},
+        {"json", "Модуль работы с JSON (`json_path`, `json_safe`, поддержка UTF-16 surrogate pairs и emoji)."},
+        {"string", "Модуль строковых операций (`contains`, `replace`, `to_int`, `strtoint`)."},
+        {"math", "Модуль математики (`clamp01`, `min_int`, `max_int`)."},
+        {"net", "Модуль низкоуровневых сокетов и DNS (`connect_tcp`, `send_tcp`, `recv_tcp`, `close_tcp`, `resolve_host`)."},
+        {"terminal", "Модуль TUI и ANSI-графики (`clear`, `home`, `write`, `goto_xy`, `color`, `reset_color`)."},
+        {"time", "Модуль времени и задержки (`sleep_ms`, `unix_time_ms`)."}
+    };
+    for (const auto& md : stdModules) {
+        add(md.name, "Module", std::string("(module) using ") + md.name + ";", md.doc);
+    }
+
+    // 3. All visible symbols from root scope and symbol refs
     std::vector<Symbol> allSymbols;
     rootScope->getAllSymbols(allSymbols);
     for (const auto& ref : symbolRefs) {
@@ -578,14 +1016,18 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
 
     for (const auto& sym : allSymbols) {
         std::string kindStr = (sym.kind == SymbolKind::Function || sym.kind == SymbolKind::Builtin) ? "Function" : "Variable";
-        std::string detail = sym.type + " " + sym.name;
+        std::string detail;
         if (sym.kind == SymbolKind::Function || sym.kind == SymbolKind::Builtin) {
-            detail = sym.returnType + " " + sym.name + "(";
+            std::ostringstream ss;
+            ss << "(function) " << sym.name << "(";
             for (size_t i = 0; i < sym.params.size(); i++) {
-                if (i > 0) detail += ", ";
-                detail += sym.params[i].type + " " + sym.params[i].name;
+                if (i > 0) ss << ", ";
+                ss << sym.params[i].type << " " << sym.params[i].name;
             }
-            detail += ")";
+            ss << ") -> " << sym.returnType;
+            detail = ss.str();
+        } else {
+            detail = "(variable) " + sym.type + " " + sym.name;
         }
         add(sym.name, kindStr, detail, sym.documentation);
     }

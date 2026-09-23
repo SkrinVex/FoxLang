@@ -20,4 +20,11 @@ assert_true(missing_val == "", "env(non_existent) returns empty string");
 string secret_val = secret("PATH");
 assert_true(secret_val == path_val, "secret(PATH) equals env(PATH)");
 
+// 4. env_default() for existing and non-existing variables
+string def1 = env_default("PATH", "default_path");
+assert_true(def1 == path_val, "env_default with existing var");
+
+string def2 = env_default("NON_EXISTENT_VAR_XYZ_123", "fallback_8080");
+assert_true(def2 == "fallback_8080", "env_default with missing var");
+
 print("ENV_OK");

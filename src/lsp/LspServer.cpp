@@ -46,6 +46,13 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
         compProvider["triggerCharacters"] = JsonValue(triggers);
         capabilities["completionProvider"] = JsonValue(compProvider);
 
+        std::map<std::string, JsonValue> sigProvider;
+        std::vector<JsonValue> sigTriggers;
+        sigTriggers.push_back(JsonValue("("));
+        sigTriggers.push_back(JsonValue(","));
+        sigProvider["triggerCharacters"] = JsonValue(sigTriggers);
+        capabilities["signatureHelpProvider"] = JsonValue(sigProvider);
+
         capabilities["hoverProvider"] = true;
         capabilities["definitionProvider"] = true;
         capabilities["documentSymbolProvider"] = true;
@@ -85,6 +92,7 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
                 else if (ci.kind == "Function") kindVal = 3;
                 else if (ci.kind == "Variable") kindVal = 6;
                 else if (ci.kind == "Type") kindVal = 7;
+                else if (ci.kind == "Module") kindVal = 9;
                 LspCompletionItem lci;
                 lci.label = ci.label;
                 lci.kind = kindVal;
@@ -94,6 +102,53 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
             }
         }
         sendResponse(id, JsonValue(items), out);
+        return;
+    }
+
+    if (method == "textDocument/signatureHelp") {
+        const auto& params = msg.get("params");
+        std::string uri = params.get("textDocument").get("uri").asString();
+        LspPosition pos = LspPosition::fromJson(params.get("position"));
+        const auto* doc = docManager.getDocument(uri);
+        if (doc && doc->analyzer) {
+            int line = utf::lspLineToLine(pos.line);
+            int col = utf::lspCharacterToColumn(pos.character);
+            auto sigHelp = doc->analyzer->getSignatureHelp(doc->text, line, col);
+            if (sigHelp.found) {
+                std::vector<JsonValue> sigs;
+                for (const auto& s : sigHelp.signatures) {
+                    std::map<std::string, JsonValue> sigObj;
+                    sigObj["label"] = s.label;
+                    if (!s.documentation.empty()) {
+                        std::map<std::string, JsonValue> docObj;
+                        docObj["kind"] = "markdown";
+                        docObj["value"] = s.documentation;
+                        sigObj["documentation"] = JsonValue(docObj);
+                    }
+                    std::vector<JsonValue> paramsList;
+                    for (const auto& p : s.parameters) {
+                        std::map<std::string, JsonValue> pObj;
+                        pObj["label"] = p.label;
+                        if (!p.documentation.empty()) {
+                            std::map<std::string, JsonValue> pDoc;
+                            pDoc["kind"] = "markdown";
+                            pDoc["value"] = p.documentation;
+                            pObj["documentation"] = JsonValue(pDoc);
+                        }
+                        paramsList.push_back(JsonValue(pObj));
+                    }
+                    sigObj["parameters"] = JsonValue(paramsList);
+                    sigs.push_back(JsonValue(sigObj));
+                }
+                std::map<std::string, JsonValue> res;
+                res["signatures"] = JsonValue(sigs);
+                res["activeSignature"] = sigHelp.activeSignature;
+                res["activeParameter"] = sigHelp.activeParameter;
+                sendResponse(id, JsonValue(res), out);
+                return;
+            }
+        }
+        sendResponse(id, JsonValue(), out);
         return;
     }
 

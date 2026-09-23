@@ -80,6 +80,24 @@ struct DocumentSymbolInfo {
     std::vector<DocumentSymbolInfo> children;
 };
 
+struct ParameterInfo {
+    std::string label;
+    std::string documentation;
+};
+
+struct SignatureInfo {
+    std::string label;
+    std::string documentation;
+    std::vector<ParameterInfo> parameters;
+};
+
+struct SignatureHelpResult {
+    std::vector<SignatureInfo> signatures;
+    int activeSignature = 0;
+    int activeParameter = 0;
+    bool found = false;
+};
+
 class SemanticAnalyzer {
 public:
     explicit SemanticAnalyzer(std::string currentFile = "", std::string foxHome = "");
@@ -95,6 +113,8 @@ public:
     DefinitionInfo getDefinition(int line, int col) const;
     std::vector<CompletionItem> getCompletions(int line, int col) const;
     std::vector<DocumentSymbolInfo> getDocumentSymbols() const;
+    SignatureHelpResult getSignatureHelp(const std::string& code, int line, int col) const;
+    const Symbol* findFunction(const std::string& name) const;
 
 private:
     std::string currentFile;

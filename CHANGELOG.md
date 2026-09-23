@@ -1,3 +1,20 @@
+# FoxLang 5.5.3 — Changelog
+
+- **Функция `env_default(name, fallback)`**:
+  - Добавлена функция чтения переменных окружения со значением по умолчанию в рантайм `Runtime.cpp` и модуль `std/env.fox`.
+  - Добавлен алиас `strtoint(text)` в `std/string.fox`.
+- **Первоклассная справка и подсказки в редакторах (VS Code & Kate)**:
+  - **Signature Help (`textDocument/signatureHelp`)**: при вводе скобки `(` или запятой `,` отображается интерактивная подсказка сигнатуры с подсветкой текущего активного параметра в стиле Kotlin и Zig.
+  - **Богатое автодополнение (Rich Completions)**: полная Markdown-документация с примерами кода для ключевых слов (`if`, `while`, `for`, `switch`, `using`, `include`, `secret` и др.), модулей и всех встроенных функций.
+  - **Информативные Hover-подсказки**: всплывающие окна с точными сигнатурами `(function) name(args...) -> returnType`, описанием параметров, типов и примерами.
+  - **Точная синхронизация стандартной библиотеки**: функции всех 10 модулей (`server`, `http`, `env`, `log`, `json`, `string`, `math`, `net`, `terminal`, `time`) приведены в полное соответствие с `std/*.fox`.
+- **Контейнеризация и GHCR**:
+  - Официальный многоэтапный Dockerfile на базе Alpine Linux (~29 МБ) с предустановленными `foxlang`, `foxlang-lsp` и `std/`.
+  - Автоматическая сборка и публикация в GitHub Container Registry (`ghcr.io/skrinvex/foxlang`) через GitHub Actions.
+  - Подготовка VSIX-пакета `foxlang-5.5.3.vsix`.
+
+---
+
 # FoxLang 5.5.2 — Changelog
 
 - **Улучшенная подсветка синтаксиса**:

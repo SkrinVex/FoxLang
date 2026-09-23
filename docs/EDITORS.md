@@ -41,19 +41,20 @@
 ```bash
 # Проверка версии сервера
 foxlang-lsp --version
-# foxlang-lsp 5.5.2
+# foxlang-lsp 5.5.3
 
 # Справка по использованию
 foxlang-lsp --help
 ```
 
 ### Поддерживаемые методы LSP:
-* `initialize` / `initialized`: обмен возможностями (capabilities: hover, definition, completion, documentSymbol, textDocumentSync).
+* `initialize` / `initialized`: обмен возможностями (capabilities: hover, signatureHelp, definition, completion, documentSymbol, textDocumentSync).
 * `textDocument/didOpen`: разбор документа и немедленная публикация диагностики (`textDocument/publishDiagnostics`).
 * `textDocument/didChange`: динамическое обновление документа при редактировании с повторным разбором и обновлением ошибок в реальном времени.
 * `textDocument/didClose`: очистка состояния документа из памяти сервера.
-* `textDocument/hover`: всплывающие подсказки с сигнатурами функций и типами переменных в Markdown.
-* `textDocument/completion`: контекстное автодополнение ключевых слов, функций стандартной библиотеки и объявленных идентификаторов.
+* `textDocument/signatureHelp`: интерактивные всплывающие подсказки сигнатуры при вводе `(` или `,` с подсветкой активного параметра (в стиле Kotlin и Zig).
+* `textDocument/hover`: всплывающие подсказки с форматированными сигнатурами, типами и Markdown-документацией с примерами.
+* `textDocument/completion`: контекстное автодополнение ключевых слов, модулей, функций стандартной библиотеки и переменных.
 * `textDocument/definition`: переход к объявлению переменной или функции (`Go to Definition`).
 * `textDocument/documentSymbol`: структура/аутлайн файла для быстрой навигации (`Document Symbols`).
 * `shutdown` / `exit`: корректное завершение работы сервера.

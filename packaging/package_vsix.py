@@ -58,6 +58,6 @@ def build_vsix(source_dir, output_vsix, version):
 
 if __name__ == '__main__':
     src = sys.argv[1] if len(sys.argv) > 1 else 'editors/vscode'
-    ver = sys.argv[2] if len(sys.argv) > 2 else '5.5.2'
+    ver = sys.argv[2] if len(sys.argv) > 2 else '5.5.3'
     out = sys.argv[3] if len(sys.argv) > 3 else f'foxlang-{ver}.vsix'
     build_vsix(src, out, ver)

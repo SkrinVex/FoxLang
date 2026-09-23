@@ -190,6 +190,7 @@ function startServer(context) {
             textDocument: {
                 synchronization: { dynamicRegistration: false },
                 completion: { dynamicRegistration: false },
+                signatureHelp: { dynamicRegistration: false },
                 hover: { dynamicRegistration: false },
                 definition: { dynamicRegistration: false },
                 documentSymbol: { dynamicRegistration: false }
@@ -315,6 +316,43 @@ function activate(context) {
             }
         }
     }, '.', ' '));
+
+    // Signature Help Provider (Fires on '(' and ',')
+    context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('fox', {
+        async provideSignatureHelp(document, position) {
+            try {
+                const res = await sendRequest('textDocument/signatureHelp', {
+                    textDocument: { uri: document.uri.toString() },
+                    position: { line: position.line, character: position.character }
+                });
+                if (!res || !res.signatures || res.signatures.length === 0) return null;
+                const sh = new vscode.SignatureHelp();
+                sh.activeSignature = res.activeSignature || 0;
+                sh.activeParameter = res.activeParameter || 0;
+                sh.signatures = res.signatures.map(s => {
+                    const sig = new vscode.SignatureInformation(s.label);
+                    if (s.documentation) {
+                        const doc = typeof s.documentation === 'string' ? s.documentation : (s.documentation.value || '');
+                        sig.documentation = new vscode.MarkdownString(doc);
+                    }
+                    if (Array.isArray(s.parameters)) {
+                        sig.parameters = s.parameters.map(p => {
+                            const pi = new vscode.ParameterInformation(p.label);
+                            if (p.documentation) {
+                                const pdoc = typeof p.documentation === 'string' ? p.documentation : (p.documentation.value || '');
+                                pi.documentation = new vscode.MarkdownString(pdoc);
+                            }
+                            return pi;
+                        });
+                    }
+                    return sig;
+                });
+                return sh;
+            } catch {
+                return null;
+            }
+        }
+    }, '(', ','));
 
     // Definition Provider (F12 / Ctrl+Click)
     context.subscriptions.push(vscode.languages.registerDefinitionProvider('fox', {

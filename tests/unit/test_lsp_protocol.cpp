@@ -222,6 +222,29 @@ int main() {
         TEST_ASSERT(dList.empty());
     }
 
+    // 10b. textDocument/signatureHelp
+    {
+        std::string req = "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{\"textDocument\":{\"uri\":\"" + fileUri + "\",\"version\":4},\"contentChanges\":[{\"text\":\"using env;\\nvoid test() {\\n    string p = env_default(\\\"PORT\\\", \\\"8080\\\");\\n}\\n\"}]}}";
+        sendClientMessage(req);
+        pump();
+        readServerMessage(); // diagnostics
+
+        std::string sigReq = "{\"jsonrpc\":\"2.0\",\"id\":88,\"method\":\"textDocument/signatureHelp\",\"params\":{\"textDocument\":{\"uri\":\"" + fileUri + "\"},\"position\":{\"line\":2,\"character\":35}}}";
+        sendClientMessage(sigReq);
+        pump();
+
+        std::string sigResp = readServerMessage();
+        TEST_ASSERT(!sigResp.empty());
+        auto sigVal = JsonValue::parse(sigResp);
+        TEST_ASSERT(sigVal.get("id").asInt() == 88);
+        auto sigResult = sigVal.get("result");
+        TEST_ASSERT(sigResult.isObject());
+        auto sigs = sigResult.get("signatures").asArray();
+        TEST_ASSERT(!sigs.empty());
+        TEST_ASSERT(sigs[0].get("label").asString().find("env_default") != std::string::npos);
+        TEST_ASSERT(sigResult.get("activeParameter").asInt() == 1);
+    }
+
     // 11. Shutdown Request
     {
         sendClientMessage("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"shutdown\"}");
