@@ -1,44 +1,29 @@
-; FoxLang Tree-sitter Highlighting Queries for Zed
+; FoxLang Tree-sitter Highlighting Queries for Zed (based on C grammar)
 
 ; Keywords
-[
-  "if"
-  "else"
-  "while"
-  "for"
-  "return"
-  "break"
-  "continue"
-] @keyword
+"if" @keyword
+"else" @keyword
+"while" @keyword
+"for" @keyword
+"return" @keyword
+"break" @keyword
+"continue" @keyword
 
-[
-  "using"
-] @keyword.import
+((identifier) @keyword.import
+  (#match? @keyword.import "^using$"))
 
 ; Types
-[
-  "int"
-  "string"
-  "bool"
-  "void"
-  "array"
-  "float"
-  "double"
-  "char"
-] @type.builtin
-
 (primitive_type) @type.builtin
 (type_identifier) @type
 
-; Boolean & Null Constants
-[
-  "true"
-  "false"
-] @boolean
+((type_identifier) @type.builtin
+  (#match? @type.builtin "^(int|string|bool|void|array|float|double|char)$"))
 
-[
-  "null"
-] @constant.builtin
+; Boolean & Null Constants
+((identifier) @boolean
+  (#match? @boolean "^(true|false)$"))
+
+(null) @constant.builtin
 
 ; Built-in Standard Library Functions
 ((identifier) @function.builtin
@@ -62,46 +47,41 @@
 (system_lib_string) @string
 (escape_sequence) @string.escape
 (number_literal) @number
+(char_literal) @string
 
 ; Comments
 (comment) @comment
 
 ; Operators
-[
-  "="
-  "+"
-  "-"
-  "*"
-  "/"
-  "%"
-  "=="
-  "!="
-  "<"
-  "<="
-  ">"
-  ">="
-  "&&"
-  "||"
-  "!"
-  "+="
-  "-="
-  "*="
-  "/="
-] @operator
+"=" @operator
+"+" @operator
+"-" @operator
+"*" @operator
+"/" @operator
+"%" @operator
+"==" @operator
+"!=" @operator
+"<" @operator
+"<=" @operator
+">" @operator
+">=" @operator
+"&&" @operator
+"||" @operator
+"!" @operator
+"+=" @operator
+"-=" @operator
+"*=" @operator
+"/=" @operator
 
 ; Delimiters & Punctuation
-[
-  ";"
-  ","
-  "."
-  ":"
-] @punctuation.delimiter
+";" @punctuation.delimiter
+"," @punctuation.delimiter
+"." @punctuation.delimiter
 
-[
-  "{"
-  "}"
-  "["
-  "]"
-  "("
-  ")"
-] @punctuation.bracket
+; Brackets
+"{" @punctuation.bracket
+"}" @punctuation.bracket
+"[" @punctuation.bracket
+"]" @punctuation.bracket
+"(" @punctuation.bracket
+")" @punctuation.bracket

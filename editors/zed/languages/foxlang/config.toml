@@ -1,5 +1,5 @@
 name = "FoxLang"
-grammar = "foxlang"
+grammar = "c"
 path_suffixes = ["fox"]
 line_comments = ["// "]
 block_comment = ["/*", "*/"]
