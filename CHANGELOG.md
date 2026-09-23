@@ -1,3 +1,13 @@
+# FoxLang 5.2.1 — Changelog
+
+- README полностью переработан на русском и приведён к актуальной структуре 5.2.
+- Linux Release теперь содержит полноценный пользовательский установщик, бинарник и `std/`.
+- Установщик размещает runtime в `~/.local/share/foxlang` и команду в `~/.local/bin/foxlang`.
+- Добавлен скрипт удаления установленной версии.
+- Release workflow упаковывает готовый Linux SDK/runtime вместо одиночного бинарника.
+
+---
+
 # FoxLang 5.2.0 - Changelog
 
 ## Standard library
