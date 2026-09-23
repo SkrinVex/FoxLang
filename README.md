@@ -1,211 +1,194 @@
 # 🦊 FoxLang
 
-![Version](https://img.shields.io/badge/version-5.0.2-orange) ![Language](https://img.shields.io/badge/language-C++17-blue) ![License](https://img.shields.io/badge/license-MIT-green)
+![Версия](https://img.shields.io/badge/version-5.2.1-orange)
+![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
+![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
+![Лицензия](https://img.shields.io/badge/license-MIT-green)
 
-**FoxLang** — современный интерпретируемый язык программирования общего назначения с поддержкой пользовательских функций, модульной системы и строгой типизацией.
+**FoxLang** — небольшой интерпретируемый язык программирования общего назначения с понятным C-подобным синтаксисом, строгими типами, функциями, массивами, модулями, стандартной библиотекой и сетевыми возможностями.
 
-## ✨ Ключевые возможности
+> Текущая версия: **5.2.1**. Файл `VERSION` является источником версии для CI и автоматических релизов.
 
-- **🔧 Пользовательские функции:** Полная поддержка функций с параметрами и возвратом значений
-- **📁 Модульная система:** Подключение библиотек через `include("lib.fox")` с поддержкой пользовательских функций
-- **🔤 Современный синтаксис:** Идентификаторы с подчеркиваниями (`user_name`, `get_data`)
-- **📦 Массивы:** Встроенная поддержка создания, чтения и записи массивов
-- **🔄 Управление потоком:** Циклы `while`, `for` и условия `if/else`
-- **🔢 Строгая типизация:** `int`, `float`, `string`, `bool`, `void` с автоматическим приведением
-- **🧠 Логические операторы:** Поддержка `&&`, `||`, `!` для boolean логики
-- **🛠 Безопасность:** Защита от крашей, информативные ошибки синтаксиса
-- **🎲 Встроенные функции:** Математика, ввод/вывод, генерация чисел, чтение файлов
+## Возможности
 
-## 🚀 Быстрый старт
+- типы `int`, `float`, `string`, `bool`, `void`;
+- пользовательские функции, параметры и `return`;
+- `if / else`, `while`, `for`, `switch`;
+- массивы и функции работы с ними;
+- логические операторы `&&`, `||`, `!`;
+- подключение файлов через `include("file.fox")`;
+- стандартные модули через `using module;`;
+- стандартная библиотека `std/`;
+- файловый ввод-вывод;
+- терминальный/TUI API;
+- DNS и настоящие TCP-соединения на POSIX;
+- HTTP GET/POST/PUT/DELETE;
+- математические и строковые функции;
+- Linux и Windows сборки в GitHub Actions.
 
-### 1. Сборка (Linux)
+## Установка
+
+### Linux — готовый релиз
+
+Скачай архив `FoxLang-<версия>-linux-x86_64.tar.gz` из Releases, распакуй и запусти установщик:
+
 ```bash
-cd src
-g++ main.cpp Lexer.cpp Parser.cpp -o foxlang
+tar -xzf FoxLang-*-linux-x86_64.tar.gz
+cd FoxLang-*-linux-x86_64
+./install.sh
 ```
 
-### 1.2. Сборка (Windows)
+По умолчанию FoxLang устанавливается в `~/.local/share/foxlang`, а команда `foxlang` — в `~/.local/bin`. Root не требуется.
+
+После установки:
+
 ```bash
-cd src
-g++ main.cpp Lexer.cpp Parser.cpp -o foxlang.exe
+foxlang --version
+foxlang hello.fox
 ```
 
-### 1.3. Сборка Wimdows (MSVC)
+Удаление:
+
 ```bash
-cd src
-cl main.cpp Lexer.cpp Parser.cpp /Fefoxlang.exe
+~/.local/share/foxlang/uninstall.sh
 ```
 
-### 2. Запуск (Linux)
+### Сборка из исходников
+
 ```bash
-./foxlang script.fox
+g++ -std=c++17 -O2 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
+./foxlang --version
 ```
 
-### 2.1. Запуск (Windows)
-```bash
-foxlang.exe script.fox
-```
+## Быстрый старт
 
-## 💻 Примеры кода
+Создай `hello.fox`:
 
-### Пользовательские функции
 ```cpp
-int factorial(int n) {
-    if (n <= 1) {
-        return 1;
-    }
-    return n * factorial(n - 1);
-}
-
 void main() {
-    int result = factorial(5);
-    print("5! = " + result);
+    print("Привет из FoxLang! 🦊");
 }
 
 main();
 ```
 
-### Работа с массивами
-```cpp
-void bubble_sort(array arr, int size) {
-    int i = 0;
-    while (i < size - 1) {
-        int j = 0;
-        while (j < size - i - 1) {
-            if (get(arr, j) > get(arr, j + 1)) {
-                int temp = get(arr, j);
-                set(arr, j, get(arr, j + 1));
-                set(arr, j + 1, temp);
-            }
-            j = j + 1;
-        }
-        i = i + 1;
-    }
-}
-```
-
-### Модульная система
-```cpp
-// math_lib.fox
-int add(int a, int b) {
-    return a + b;
-}
-
-float average(int a, int b) {
-    return (a + b) / 2.0;
-}
-
-// main.fox
-include("math_lib.fox");
-
-int sum = add(10, 20);
-float avg = average(15, 25);
-print("Sum: " + sum + ", Average: " + avg);
-```
-
-### Чтение файлов
-```cpp
-// config.txt содержит: server_port=8080
-string config = read_file("config.txt");
-print("Config: " + config);
-
-// Проверка успешного чтения
-if (config != "") {
-    print("✅ Config loaded successfully");
-} else {
-    print("❌ Failed to load config");
-}
-```
-
-### FastAPI-подобный веб-сервер
-```cpp
-// Подключение сетевой библиотеки
-include("src/net.fox");
-
-// Обработчики API
-void api_home() {
-    json_response("{\"message\":\"🦊 Welcome to FoxLang API!\"}");
-}
-
-void api_users() {
-    json_response("{\"users\":[{\"id\":1,\"name\":\"Alice\"}]}");
-}
-
-// Запуск сервера
-void main() {
-    start_server(8080);
-    register_get("/", "api_home");
-    register_get("/users", "api_users");
-    print("🚀 Server: http://localhost:8080");
-}
-
-main();
-```
-
-## 📂 Структура проекта
-
-* `src/` — Исходный код интерпретатора (C++)
-* `test/` — Тесты функциональности
-* `doc/` — Документация
-* `CHANGELOG.md` — История изменений
-* `DOCUMENTATION.md` — Полная документация языка
-
-## 🧪 Тестирование
+Запусти:
 
 ```bash
-# Тесты
-./src/foxlang test/variables.fox       # Тест переменных и типов
-./src/foxlang test/functions.fox       # Тест пользовательских функций
-./src/foxlang test/arrays.fox          # Тест массивов
-./src/foxlang test/control_flow.fox    # Тест циклов и условий
-./src/foxlang test/math_operations.fox # Тест математических операций
-./src/foxlang test/modules.fox         # Тест модульной системы
-./src/foxlang test/builtin_functions.fox # Тест встроенных функций
+foxlang hello.fox
 ```
 
----
+## Стандартная библиотека
 
-**Author:** [SkrinVex](https://skrinvex.su)  
-**License:** MIT
-
-
-## FoxLang 5.2: standard library and networking
-
-FoxLang 5.2 introduces a real `std/` library layout. Package-style imports use:
+FoxLang 5.2 использует каталог `std/`. Модуль подключается так:
 
 ```cpp
-using net;
-using http;
-using terminal;
 using math;
 using string;
 using time;
+using terminal;
+using net;
+using http;
 ```
 
-`using name;` resolves `std/name.fox` first and then `name.fox`. Imports are cached, so the same module is not evaluated repeatedly. Set `FOXLANG_HOME` to the FoxLang installation directory when running scripts outside the repository.
+`using net;` сначала ищет `std/net.fox`, затем обычный `net.fox`. При установленной версии путь к стандартной библиотеке автоматически задаётся установщиком через обёртку `foxlang`.
 
-### Networking
+Доступные модули:
 
-On POSIX systems, `std/net.fox` exposes real DNS and TCP sockets:
+| Модуль | Назначение |
+| --- | --- |
+| `math` | `min`, `max`, `clamp` и математические помощники |
+| `string` | поиск, замена и преобразования строк |
+| `time` | задержки и время |
+| `terminal` | очистка экрана, курсор, цвет и вывод без переноса |
+| `net` | DNS и TCP-клиент |
+| `http` | HTTP-запросы |
+
+## Сеть
+
+### TCP
 
 ```cpp
 using net;
 
-int sock = connect_tcp("example.com", 80);
-send_tcp(sock, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
-string data = recv_tcp(sock, 4096);
-close_tcp(sock);
+void main() {
+    string ip = resolve_host("example.com");
+    print("IP: " + ip);
+
+    int socket = connect_tcp("example.com", 80);
+    if (socket >= 0) {
+        send_tcp(socket, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
+        string response = recv_tcp(socket, 4096);
+        print(response);
+        close_tcp(socket);
+    }
+}
+
+main();
 ```
 
-HTTPS remains available through the HTTP runtime helpers and `std/http.fox`. The old simulated server helpers are retained for compatibility but are not documented as a production server.
+### HTTP
 
-### Build
+```cpp
+using http;
 
-```bash
-g++ -std=c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
-export FOXLANG_HOME="$PWD"
-./foxlang examples/stdlib_demo.fox
-./foxlang examples/tcp_client.fox
+string body = http_fetch("https://example.com");
+print(body);
 ```
 
-See `DOCUMENTATION.md` for the 5.2 module/runtime reference.
+Старые `server_start` и `route_*` сохранены ради совместимости, но это не полноценный production HTTP-сервер.
+
+## Терминальный API
+
+```cpp
+using terminal;
+
+clear();
+hide_cursor();
+goto_xy(4, 10);
+color(36);
+write("FoxLang");
+reset_color();
+show_cursor();
+```
+
+На этом API можно делать псевдографические игры и TUI-приложения.
+
+## Структура репозитория
+
+```text
+FoxLang/
+├── src/          # интерпретатор на C++17
+├── std/          # стандартная библиотека FoxLang
+├── examples/     # примеры программ
+├── test/         # старый набор тестов
+├── tests/        # новые CI/smoke-тесты
+├── doc/          # дополнительная документация
+├── VERSION       # текущая версия
+├── DOCUMENTATION.md
+└── CHANGELOG.md
+```
+
+## Автоматические релизы
+
+При каждом push в `master` GitHub Actions сверяет `VERSION` с `foxlang --version`.
+
+Если тег для этой версии ещё не существует, CI:
+
+1. собирает FoxLang для Linux и Windows;
+2. создаёт тег `v<версия>`;
+3. формирует Linux-пакет с установщиком и стандартной библиотекой;
+4. формирует Windows-архив;
+5. автоматически публикует GitHub Release.
+
+Если версия не изменилась и тег уже существует, новый Release не создаётся.
+
+## Документация
+
+Полное описание синтаксиса и встроенных функций находится в [DOCUMENTATION.md](DOCUMENTATION.md). История изменений — в [CHANGELOG.md](CHANGELOG.md).
+
+## Лицензия
+
+FoxLang распространяется по лицензии MIT.
+
+**Автор:** [SkrinVex](https://skrinvex.su)
