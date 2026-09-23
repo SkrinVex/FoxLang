@@ -1,0 +1,11 @@
+// FoxLang 5.2 terminal standard library
+// Thin wrappers around portable runtime terminal primitives.
+
+void clear() { term_clear(); }
+void home() { term_home(); }
+void write(string text) { term_write(text); }
+void goto_xy(int row, int col) { term_goto(row, col); }
+void hide_cursor() { term_hide_cursor(); }
+void show_cursor() { term_show_cursor(); }
+void color(int ansi_code) { term_color(ansi_code); }
+void reset_color() { term_reset(); }
