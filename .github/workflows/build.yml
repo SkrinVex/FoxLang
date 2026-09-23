@@ -3,6 +3,8 @@ name: Build and Auto Release FoxLang
 on:
   push:
     branches: [master]
+    paths:
+      - VERSION
 
 permissions:
   contents: write
