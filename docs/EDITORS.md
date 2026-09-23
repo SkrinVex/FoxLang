@@ -73,7 +73,7 @@ foxlang-lsp --help
    ```
 2. Скопируйте каталог расширения в папку расширений VS Code:
    ```bash
-   cp -r editors/vscode ~/.vscode/extensions/SkrinVex.foxlang-5.5.3
+   cp -r editors/vscode ~/.vscode/extensions/SkrinVex.foxlang-language-5.5.3
    ```
 3. Перезапустите VS Code либо вызовите команду `Developer: Reload Window` через палитру команд (`Ctrl+Shift+P`).
 4. При открытии любого файла с расширением `.fox` активируется подсветка синтаксиса и автоматически запустится `foxlang-lsp`.

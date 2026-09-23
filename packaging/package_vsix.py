@@ -13,7 +13,7 @@ def build_vsix(source_dir, output_vsix, version):
         pkg = json.load(f)
 
     pkg_version = pkg.get('version', version)
-    pkg_id = pkg.get('name', 'foxlang')
+    pkg_id = pkg.get('name', 'foxlang-language')
     pkg_publisher = pkg.get('publisher', 'SkrinVex')
     display_name = pkg.get('displayName', 'FoxLang')
     description = pkg.get('description', 'FoxLang Language Support')

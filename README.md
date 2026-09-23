@@ -228,8 +228,8 @@ docker build -t foxlang:latest .
   *(или выберите в VS Code: Расширения `Ctrl+Shift+X` → `...` → **Install from VSIX...**)*
 * **Вручную из репозитория**:
   ```bash
-  mkdir -p ~/.vscode/extensions/SkrinVex.foxlang-5.5.3
-  cp -R editors/vscode/* ~/.vscode/extensions/SkrinVex.foxlang-5.5.3/
+  mkdir -p ~/.vscode/extensions/SkrinVex.foxlang-language-5.5.3
+  cp -R editors/vscode/* ~/.vscode/extensions/SkrinVex.foxlang-language-5.5.3/
   ```
 *(Расширение полностью автономно и не требует запуска `npm install`)*
 
