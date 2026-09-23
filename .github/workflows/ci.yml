@@ -25,6 +25,10 @@ jobs:
         if: runner.os == 'Linux'
         run: g++ -std=c++17 -Wall -Wextra -pedantic src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
 
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Build Windows
         if: runner.os == 'Windows'
         shell: cmd
