@@ -2,3 +2,8 @@
 web-ide
 desktop-app
 src/foxlang
+
+# Local secrets
+.env
+.env.*
+!.env.example
