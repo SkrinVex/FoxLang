@@ -5,7 +5,7 @@
 #include "Lexer.h"
 #include "Parser.h"
 
-static constexpr const char* FOX_VERSION = "5.2.1";
+static constexpr const char* FOX_VERSION = "5.2.2";
 
 int main(int argc, char* argv[]) {
     if (argc == 2 && (std::string(argv[1]) == "--version" || std::string(argv[1]) == "-v")) {
