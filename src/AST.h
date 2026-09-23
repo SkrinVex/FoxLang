@@ -14,6 +14,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <unordered_set>
+#include <atomic>
+#include <csignal>
 #ifndef _WIN32
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -27,6 +29,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/wait.h>
 #endif
 
 #ifdef _WIN32
@@ -417,6 +420,12 @@ struct FuncCallNode : Node {
             const char* value = std::getenv(key.c_str());
             return {"string", value ? value : ""};
         }
+        if (name == "env_required" && args.size() == 1) {
+            std::string key = args[0]->eval(ctx).value;
+            const char* value = std::getenv(key.c_str());
+            if (!value || !*value) throw std::runtime_error("Environment Error: required secret '" + key + "' is not set");
+            return {"string", value};
+        }
         if (name == "json_get" && args.size() == 2) {
             Value jsonVal = args[0]->eval(ctx);
             Value keyVal = args[1]->eval(ctx);
@@ -543,7 +552,7 @@ struct FuncCallNode : Node {
             while (fgets(buffer, sizeof(buffer), pipe) != nullptr) result += buffer;
             int status = pclose(pipe);
             if (status != 0) {
-                std::cerr << "[HTTP ERROR] GET " << urlVal.value << " (curl status " << status << ")\n"
+                std::cerr << "[HTTP ERROR] GET " << urlVal.value << " (curl exit code " << (WIFEXITED(status) ? WEXITSTATUS(status) : status) << ")\n"
                           << result << std::endl;
                 return {"string", ""};
             }
@@ -598,45 +607,85 @@ struct FuncCallNode : Node {
             return {"string", result};
         }
 
-        // FastAPI-подобные функции
-        if (name == "server_start" && args.size() == 1) {
-            int port = std::stoi(args[0]->eval(ctx).value);
-
-            // Простая заглушка сервера
-            std::cout << "HTTP Server started on port " << port << std::endl;
-            std::cout << "Note: This is a simulation. Real server implementation requires additional setup." << std::endl;
-
-            return {"string", "Server started on port " + std::to_string(port)};
-        }
-
-        if (name == "server_stop" && args.size() == 0) {
-            std::cout << "HTTP Server stopped" << std::endl;
-            return {"string", "Server stopped"};
-        }
-
+        // HTTP server runtime. Routes are stored in the root context and served synchronously.
+#ifndef _WIN32
         if (name == "route_get" && args.size() == 2) {
-            Value pathVal = args[0]->eval(ctx);
-            Value handlerVal = args[1]->eval(ctx);
-
-            std::cout << "Registered GET route: " << pathVal.value << " -> " << handlerVal.value << std::endl;
-            return {"string", "GET route registered: " + pathVal.value};
-        }
-
-        if (name == "route_post" && args.size() == 2) {
-            Value pathVal = args[0]->eval(ctx);
-            Value handlerVal = args[1]->eval(ctx);
-
-            std::cout << "Registered POST route: " << pathVal.value << " -> " << handlerVal.value << std::endl;
-            return {"string", "POST route registered: " + pathVal.value};
-        }
-
-        if (name == "send_response" && args.size() == 1) {
-            Value responseVal = args[0]->eval(ctx);
-
-            std::cout << "HTTP Response: " << responseVal.value << std::endl;
+            ctx.getRoot()->variables["__route_GET_" + args[0]->eval(ctx).value] = {"string", args[1]->eval(ctx).value};
             return {"void", ""};
         }
-
+        if (name == "route_post" && args.size() == 2) {
+            ctx.getRoot()->variables["__route_POST_" + args[0]->eval(ctx).value] = {"string", args[1]->eval(ctx).value};
+            return {"void", ""};
+        }
+        if (name == "request_body" && args.empty()) {
+            auto root = ctx.getRoot();
+            return root->variables.count("__http_body") ? root->variables["__http_body"] : Value{"string", ""};
+        }
+        if (name == "request_method" && args.empty()) {
+            auto root = ctx.getRoot();
+            return root->variables.count("__http_method") ? root->variables["__http_method"] : Value{"string", ""};
+        }
+        if (name == "request_path" && args.empty()) {
+            auto root = ctx.getRoot();
+            return root->variables.count("__http_path") ? root->variables["__http_path"] : Value{"string", ""};
+        }
+        if (name == "send_response" && (args.size() == 1 || args.size() == 2)) {
+            auto root = ctx.getRoot();
+            root->variables["__http_status"] = {"int", args.size() == 2 ? args[0]->eval(ctx).value : "200"};
+            root->variables["__http_response"] = {"string", args.back()->eval(ctx).value};
+            return {"void", ""};
+        }
+        if (name == "server_start" && args.size() == 1) {
+            int port = std::stoi(args[0]->eval(ctx).value);
+            int serverFd = socket(AF_INET, SOCK_STREAM, 0);
+            if (serverFd < 0) throw std::runtime_error("HTTP Server Error: socket() failed");
+            int yes = 1; setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+            sockaddr_in addr{}; addr.sin_family = AF_INET; addr.sin_addr.s_addr = htonl(INADDR_ANY); addr.sin_port = htons((uint16_t)port);
+            if (bind(serverFd, (sockaddr*)&addr, sizeof(addr)) < 0) { close(serverFd); throw std::runtime_error("HTTP Server Error: bind() failed on port " + std::to_string(port)); }
+            if (listen(serverFd, 32) < 0) { close(serverFd); throw std::runtime_error("HTTP Server Error: listen() failed"); }
+            std::cerr << "[HTTP] Listening on 0.0.0.0:" << port << std::endl;
+            auto root = ctx.getRoot();
+            for (;;) {
+                int client = accept(serverFd, nullptr, nullptr);
+                if (client < 0) continue;
+                std::string req; char buf[4096]; ssize_t n;
+                size_t headerEnd = std::string::npos; size_t contentLength = 0;
+                while ((n = recv(client, buf, sizeof(buf), 0)) > 0) {
+                    req.append(buf, (size_t)n);
+                    headerEnd = req.find("\r\n\r\n");
+                    if (headerEnd != std::string::npos) {
+                        size_t cl = req.find("Content-Length:");
+                        if (cl != std::string::npos && cl < headerEnd) contentLength = (size_t)std::stoul(req.substr(cl + 15));
+                        if (req.size() >= headerEnd + 4 + contentLength) break;
+                    }
+                    if (req.size() > 1024 * 1024) break;
+                }
+                std::istringstream first(req.substr(0, req.find("\r\n")));
+                std::string method, path, proto; first >> method >> path >> proto;
+                size_t q = path.find('?'); if (q != std::string::npos) path = path.substr(0, q);
+                std::string body = headerEnd == std::string::npos ? "" : req.substr(headerEnd + 4, contentLength);
+                root->variables["__http_method"]={"string",method}; root->variables["__http_path"]={"string",path}; root->variables["__http_body"]={"string",body};
+                root->variables["__http_status"]={"int","200"}; root->variables["__http_response"]={"string",""};
+                std::string key="__route_"+method+"_"+path;
+                int status=404; std::string response="{\"error\":\"Not Found\"}";
+                if (root->variables.count(key)) {
+                    auto fn=root->getFunc(root->variables[key].value);
+                    if (fn) {
+                        auto def=static_cast<FuncDefNode*>(fn.get()); Context scope; scope.parent=root;
+                        try { def->body->eval(scope); } catch(const ReturnValue&) {}
+                        status=std::stoi(root->variables["__http_status"].value); response=root->variables["__http_response"].value;
+                    } else { status=500; response="{\"error\":\"Handler not found\"}"; }
+                }
+                std::string reason=status==200?"OK":status==404?"Not Found":"Error";
+                std::string out="HTTP/1.1 "+std::to_string(status)+" "+reason+"\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: "+std::to_string(response.size())+"\r\nConnection: close\r\n\r\n"+response;
+                send(client,out.data(),out.size(),0); close(client);
+            }
+        }
+        if (name == "server_stop" && args.empty()) throw std::runtime_error("server_stop() is not supported from inside the blocking server loop; stop the process with SIGTERM/Ctrl+C");
+#else
+        if (name == "server_start" || name == "server_stop" || name == "route_get" || name == "route_post" || name == "request_body" || name == "request_method" || name == "request_path" || name == "send_response")
+            throw std::runtime_error("HTTP server runtime is currently available on Linux/POSIX builds");
+#endif
         // Пользовательские функции
         auto funcNodeBase = ctx.getFunc(name);
         if (!funcNodeBase) {
