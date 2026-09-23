@@ -20,6 +20,7 @@ add_library(foxlang_core STATIC
     src/core/Lexer.cpp
     src/core/Parser.cpp
     src/core/Interpreter.cpp
+    src/core/SemanticAnalyzer.cpp
 )
 
 target_include_directories(foxlang_core PUBLIC
@@ -31,6 +32,17 @@ target_include_directories(foxlang_core PUBLIC
 add_executable(foxlang src/cli/main.cpp)
 target_link_libraries(foxlang PRIVATE foxlang_core)
 
+# FoxLang Language Server executable (LSP)
+add_executable(foxlang-lsp
+    src/lsp/main.cpp
+    src/lsp/Json.cpp
+    src/lsp/Transport.cpp
+    src/lsp/DocumentManager.cpp
+    src/lsp/LspServer.cpp
+)
+target_include_directories(foxlang-lsp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/lsp)
+target_link_libraries(foxlang-lsp PRIVATE foxlang_core)
+
 # CTest integration
 include(CTest)
 if(BUILD_TESTING)
@@ -40,7 +52,7 @@ endif()
 
 # Installation rules
 include(GNUInstallDirs)
-install(TARGETS foxlang foxlang_core
+install(TARGETS foxlang foxlang-lsp foxlang_core
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
