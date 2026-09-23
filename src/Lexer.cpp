@@ -65,8 +65,6 @@ std::vector<Token> Lexer::tokenize() {
             }
             else if (id == "print") tokens.push_back({TokenType::PRINT, id, line});
             else if (id == "input") tokens.push_back({TokenType::INPUT, id, line});
-            else if (id == "round") tokens.push_back({TokenType::ROUND, id, line});
-            else if (id == "random") tokens.push_back({TokenType::RANDOM, id, line});
             else if (id == "fox") tokens.push_back({TokenType::FOX, id, line});
             else if (id == "readfile") tokens.push_back({TokenType::READ_FILE, id, line});
             else if (id == "jsonget") tokens.push_back({TokenType::JSON_GET, id, line});
