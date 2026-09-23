@@ -1,0 +1,15 @@
+// if/else, while, for, break and continue.
+int x = 0;
+if (true) { x = 1; } else { x = 99; }
+if (x != 1) { print("FAIL if"); }
+int w = 0;
+while (w < 3) { w++; }
+if (w != 3) { print("FAIL while"); }
+int sum = 0;
+for (int i = 0; i < 5; i++) {
+    if (i == 2) { continue; }
+    if (i == 4) { break; }
+    sum += i;
+}
+if (sum != 4) { print("FAIL for"); }
+print("CONTROL_FLOW_OK");
