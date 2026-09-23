@@ -2,19 +2,27 @@
 
 Интеграция языка FoxLang с редактором Kate: подсветка синтаксиса и полная поддержка Language Server Protocol (LSP).
 
+Файлы конфигурации в этом каталоге:
+* [`foxlang.xml`](foxlang.xml) — XML-схема подсветки синтаксиса (KSyntaxHighlighting).
+* [`settings.json`](settings.json) — готовый фрагмент конфигурации для плагина LSP Client.
+
+> **💡 Быстрая установка**: Скрипт `install.sh` из дистрибутива FoxLang автоматически устанавливает подсветку синтаксиса и регистрирует LSP для Kate!
+
 ## 1. Подсветка синтаксиса (KSyntaxHighlighting)
 
 Kate использует формат KSyntaxHighlighting XML для распознавания языков и правил раскраски кода.
 
-### Установка подсветки:
-Скопируйте `foxlang.xml` в каталог пользовательских синтаксисов KDE:
+### Ручная установка подсветки:
+Скопируйте [`foxlang.xml`](foxlang.xml) в каталог пользовательских синтаксисов KDE:
 
 ```bash
 mkdir -p ~/.local/share/org.kde.syntax-highlighting/syntax/
 cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 ```
 
-После перезапуска Kate файлы с расширением `.fox` будут автоматически распознаваться с подсветкой синтаксиса FoxLang (ключевые слова, типы, строки, числа, встроенные функции stdlib).
+Файл также доступен для прямой загрузки со страницы релизов: [`foxlang.xml`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.xml).
+
+После этого файлы с расширением `.fox` будут автоматически распознаваться с подсветкой синтаксиса FoxLang (ключевые слова, типы, строки, числа, встроенные функции stdlib).
 
 ---
 
@@ -60,3 +68,7 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 * **Подсказки при наведении (Hover)**: всплывающее окно с сигнатурой функции или типом переменной.
 * **Переход к определению (Go to Definition)**: клавиша `F12` или контекстное меню правой кнопки мыши -> *Go to Definition*.
 * **Символы документа**: панель навигации по функциям и переменным файла.
+ 
+---
+
+Подробное описание архитектуры и возможностей языкового сервера приведено в документе [`docs/EDITORS.md`](../../docs/EDITORS.md).

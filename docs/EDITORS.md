@@ -41,7 +41,7 @@
 ```bash
 # Проверка версии сервера
 foxlang-lsp --version
-# foxlang-lsp 5.5.0
+# foxlang-lsp 5.5.1
 
 # Справка по использованию
 foxlang-lsp --help

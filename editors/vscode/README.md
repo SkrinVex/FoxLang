@@ -2,6 +2,12 @@
 
 Официальное расширение поддержки языка FoxLang для Visual Studio Code.
 
+## Файлы расширения в этом каталоге
+* [`package.json`](package.json) — манифест расширения и регистрация языка `.fox`.
+* [`syntaxes/foxlang.tmLanguage.json`](syntaxes/foxlang.tmLanguage.json) — правила TextMate для подсветки синтаксиса.
+* [`language-configuration.json`](language-configuration.json) — настройка автозакрытия скобок, кавычек и правил комментариев.
+* [`client/extension.js`](client/extension.js) — клиент LSP для запуска и управления сервером `foxlang-lsp`.
+
 ## Возможности
 
 * **Распознавание файлов `.fox`**: автоматическое связывание и значок языка.
@@ -19,31 +25,38 @@
 
 ## Установка и запуск
 
-### 1. Сборка `foxlang-lsp`
-Скомпилируйте FoxLang и языковой сервер:
-```bash
-cmake -S . -B build
-cmake --build build
-```
-Убедитесь, что бинарник `foxlang-lsp` находится в `build/` или установлен в системный `PATH` (например, `/usr/local/bin`):
-```bash
-build/foxlang-lsp --version
-```
-
-### 2. Подключение расширения в VS Code
-Для использования локального расширения:
-1. Скопируйте каталог `editors/vscode` в директорию расширений VS Code:
+### Способ 1. Установка из репозитория (в 1 команду)
+1. Скопируйте каталог расширения в директорию расширений VS Code:
    ```bash
+   mkdir -p ~/.vscode/extensions
    cp -r editors/vscode ~/.vscode/extensions/foxlang
    ```
-2. Перезапустите VS Code или выполните `Developer: Reload Window` (`Ctrl+Shift+P`).
-3. При открытии любого `.fox` файла расширение автоматически запустит `foxlang-lsp`.
+2. Установите зависимости клиента LSP:
+   ```bash
+   cd ~/.vscode/extensions/foxlang && npm install
+   ```
+3. Перезапустите VS Code или выполните команду `Developer: Reload Window` (`Ctrl+Shift+P`).
 
-### 3. Настройка пути к `foxlang-lsp`
-В файле `settings.json` VS Code можно явно указать путь к серверу:
+### Способ 2. Загрузка готового архива из релиза
+Готовый архив расширения доступен на странице релизов:
+👉 **[foxlang-vscode.zip](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip)**
+
+Распакуйте его в `~/.vscode/extensions/foxlang`:
+```bash
+mkdir -p ~/.vscode/extensions/foxlang
+curl -L -o /tmp/foxlang-vscode.zip https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip
+unzip /tmp/foxlang-vscode.zip -d ~/.vscode/extensions/
+```
+
+### Настройка пути к `foxlang-lsp`
+В настройках VS Code (`settings.json`) при необходимости можно явно указать путь к серверу:
 ```json
 {
-  "foxlang.lsp.serverPath": "/path/to/FoxLang/build/foxlang-lsp"
+  "foxlang.lsp.serverPath": "foxlang-lsp"
 }
 ```
-По умолчанию расширение проверяет `build/foxlang-lsp` в текущем открытом каталоге проекта либо запускает команду `foxlang-lsp` из `PATH`.
+По умолчанию расширение проверяет команду `foxlang-lsp` в системном `PATH`, а также путь `./build/foxlang-lsp` в корне открытого проекта.
+
+---
+
+Подробное описание архитектуры языкового сервера приведено в [`docs/EDITORS.md`](../../docs/EDITORS.md).

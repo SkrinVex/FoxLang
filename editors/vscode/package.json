@@ -2,7 +2,7 @@
   "name": "foxlang",
   "displayName": "FoxLang",
   "description": "Официальная поддержка языка FoxLang для VS Code: подсветка синтаксиса, LSP (диагностика, автодополнение, наведение, переход к определению)",
-  "version": "5.5.0",
+  "version": "5.5.1",
   "publisher": "foxlang",
   "engines": {
     "vscode": "^1.75.0"

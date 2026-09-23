@@ -59,7 +59,7 @@ jobs:
           ctest --test-dir build -C Release --output-on-failure
           cp build/foxlang foxlang.bin
           cp build/foxlang-lsp foxlang-lsp.bin
-      - name: Build installable Linux package
+      - name: Build installable Linux package and editor assets
         shell: bash
         run: |
           PKG="FoxLang-${{ needs.version.outputs.version }}-linux-x86_64"
@@ -72,10 +72,21 @@ jobs:
           cp -R std "$PKG/std"
           cp -R editors "$PKG/editors"
           tar -czf "$PKG.tar.gz" "$PKG"
+
+          # Standalone editor assets for direct download in GitHub Releases
+          mkdir -p dist-editors
+          cp editors/kate/foxlang.xml dist-editors/foxlang.xml
+          (cd editors && zip -r ../dist-editors/foxlang-vscode.zip vscode)
       - uses: actions/upload-artifact@v4
         with:
           name: linux-release
           path: FoxLang-*-linux-x86_64.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: editors-release
+          path: |
+            dist-editors/foxlang.xml
+            dist-editors/foxlang-vscode.zip
 
   build-windows:
     needs: version
@@ -97,8 +108,10 @@ jobs:
             cp ./build/foxlang.exe dist/foxlang.exe
             cp ./build/foxlang-lsp.exe dist/foxlang-lsp.exe
           fi
+          cp -R std dist/std
+          cp -R editors dist/editors
       - shell: pwsh
-        run: Compress-Archive -Path dist/foxlang.exe, dist/foxlang-lsp.exe -DestinationPath "FoxLang-${{ needs.version.outputs.version }}-windows-x86_64.zip"
+        run: Compress-Archive -Path dist/* -DestinationPath "FoxLang-${{ needs.version.outputs.version }}-windows-x86_64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release

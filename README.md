@@ -1,6 +1,6 @@
 # 🦊 FoxLang
 
-![Версия](https://img.shields.io/badge/version-5.5.0-orange)
+![Версия](https://img.shields.io/badge/version-5.5.1-orange)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
@@ -108,6 +108,49 @@ foxlang -h
 
 ---
 
+## 💻 Поддержка редакторов и IDE (VS Code и Kate)
+
+Для языка FoxLang доступен автономный языковой сервер `foxlang-lsp` (Language Server Protocol 3.17) и готовые конфигурации для популярных редакторов:
+* **Подсветка синтаксиса**: распознавание файлов `.fox`, подсветка ключевых слов, типов, строк с экранированием, чисел и встроенных функций.
+* **Статический анализ кода в реальном времени**: обнаружение необъявленных переменных и функций, проверка количества аргументов и корректности возвратов без исполнения программы.
+* **Автодополнение (Autocomplete)**: контекстный выбор функций стандартной библиотеки, ключевых слов и локальных переменных.
+* **Подсказки при наведении (Hover)**: всплывающее окно с сигнатурами функций и типами идентификаторов.
+* **Переход к определению (Go to Definition)**: навигация к месту объявления по `F12` или `Ctrl+Click`.
+* **Символы документа (Document Symbols)**: аутлайн функций и переменных файла.
+
+### 🐧 Настройка текстового редактора Kate (KDE)
+* **Автоматически**: при запуске скрипта установки `install.sh` подсветка синтаксиса и настройки LSP устанавливаются в систему автоматически!
+* **Вручную**:
+  1. Скопируйте схему подсветки [`editors/kate/foxlang.xml`](editors/kate/foxlang.xml) в каталог:
+     ```bash
+     mkdir -p ~/.local/share/org.kde.syntax-highlighting/syntax/
+     cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
+     ```
+  2. Включите плагин **Клиент LSP** в меню Kate (*Настройка → Настроить Kate... → Модули → Клиент LSP*).
+  3. Конфигурация для `foxlang-lsp` находится в [`editors/kate/settings.json`](editors/kate/settings.json) (путь: `~/.config/kate/lspclient/settings.json`).
+
+Файл подсветки также можно скачать напрямую из релизов: [`foxlang.xml`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.xml).
+
+### 🟦 Настройка Visual Studio Code
+Исходный код расширения расположен в каталоге [`editors/vscode/`](editors/vscode/):
+* [`package.json`](editors/vscode/package.json) — манифест расширения и регистрация языка `.fox`;
+* [`syntaxes/foxlang.tmLanguage.json`](editors/vscode/syntaxes/foxlang.tmLanguage.json) — правила TextMate для подсветки синтаксиса;
+* [`language-configuration.json`](editors/vscode/language-configuration.json) — автозакрытие скобок, кавычек и правила комментариев;
+* [`client/extension.js`](editors/vscode/client/extension.js) — клиент LSP.
+
+**Быстрая установка из репозитория:**
+```bash
+mkdir -p ~/.vscode/extensions && cp -R editors/vscode ~/.vscode/extensions/foxlang
+cd ~/.vscode/extensions/foxlang && npm install
+```
+
+**Установка из готового архива релиза:**
+Скачайте архив [`foxlang-vscode.zip`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip) и распакуйте в папку `~/.vscode/extensions/`.
+
+📖 Полное руководство по архитектуре, диагностикам и отладке LSP: [`docs/EDITORS.md`](docs/EDITORS.md).
+
+---
+
 ## Встраивание FoxLang в C++ приложения
 
 Благодаря разделению архитектуры, FoxLang можно использовать как библиотеку в настольных приложениях, бэкендах, игровых движках и через JNI в Android:
@@ -140,7 +183,7 @@ int main() {
 ```text
 FoxLang/
 ├── CMakeLists.txt              # Корневой файл сборки CMake
-├── VERSION                     # Текущая версия (5.5.0)
+├── VERSION                     # Текущая версия (5.5.1)
 ├── include/
 │   └── foxlang/                # Публичные C++ заголовочные файлы
 │       ├── FoxLang.h           # Публичный API: Interpreter, RunResult, Options
