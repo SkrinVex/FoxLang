@@ -1,0 +1,3 @@
+// JSON helpers.
+string json_path(string json, string path) { return json_get(json, path); }
+string json_safe(string text) { return json_escape(text); }
