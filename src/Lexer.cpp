@@ -89,7 +89,7 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "wait") tokens.push_back({TokenType::WAIT, id, line});
             else if (id == "array") tokens.push_back({TokenType::ARRAY, id, line});
             else if (id == "set") tokens.push_back({TokenType::SET, id, line});
-            else if (id == "get") tokens.push_back({TokenType::GET, id, line});
+
 
             else if (id == "include") tokens.push_back({TokenType::INCLUDE, id, line});
             else if (id == "using") tokens.push_back({TokenType::USING, id, line});
