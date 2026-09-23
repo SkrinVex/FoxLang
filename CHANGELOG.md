@@ -1,3 +1,10 @@
+# FoxLang 5.4.3 — Changelog
+
+- Исправлен конфликт ключевого слова `get` с функцией `get()` из `std/server.fox`.
+- Проверены lexer keyword tokens: каждый оставшийся специальный токен имеет обработчик parser.
+
+---
+
 # FoxLang 5.4.1 — Changelog
 
 - JSON helper теперь понимает вложенные пути вроде `message.chat.id` и `message.from.username`.
