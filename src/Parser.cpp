@@ -415,7 +415,12 @@ std::unique_ptr<Node> Parser::statement() {
                 }
             }
             consume(TokenType::RPAREN);
+            // Imported modules must keep executable statements inside function bodies.
+            // importMode only suppresses top-level execution.
+            bool outerImportMode = importMode;
+            importMode = false;
             auto body = parseBlock();
+            importMode = outerImportMode;
             globalContext.defineFunc(name, std::make_shared<FuncDefNode>(type, name, params, std::move(body)));
             return std::make_unique<BlockNode>();
         }
