@@ -50,6 +50,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Linux binary
         run: g++ -std=c++17 -O2 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang.bin
+      - name: Core smoke tests
+        run: |
+          ./foxlang.bin tests/core_smoke.fox | tee /tmp/core.out
+          grep -q "CORE_SMOKE_OK" /tmp/core.out
+          ! grep -q "FAIL" /tmp/core.out
+      - name: Stdlib smoke tests
+        env:
+          FOXLANG_HOME: ${{ github.workspace }}
+        run: |
+          ./foxlang.bin tests/stdlib_smoke.fox | tee /tmp/stdlib.out
+          grep -q "STDLIB_SMOKE_OK" /tmp/stdlib.out
       - name: Build installable Linux package
         shell: bash
         run: |
