@@ -1,23 +1,67 @@
 using server;
+using http;
 using env;
 using log;
+using json;
 
 string token = secret("TELEGRAM_BOT_TOKEN");
+string api = "https://api.telegram.org/bot" + token + "/";
 
-void telegram_webhook() {
-    string update = body();
-    info("Получен webhook, байт: " + size(update));
-    respond("{\"ok\":true}");
+void send_message(string chat_id, string message) {
+    string payload = "{\"chat_id\":\"" + json_safe(chat_id) + "\",\"text\":\"" + json_safe(message) + "\"}";
+    string result = http_post_json(api + "sendMessage", payload);
+    if (result == "") {
+        error("Telegram sendMessage завершился ошибкой");
+    } else {
+        debug("Telegram sendMessage: " + result);
+    }
 }
 
 void health() {
-    respond("{\"status\":\"ok\"}");
+    respond("{\"ok\":true,\"service\":\"foxbot\"}");
+}
+
+void telegram_webhook() {
+    string update = body();
+    string update_id = json_path(update, "update_id");
+    string chat_id = json_path(update, "message.chat.id");
+    string text = json_path(update, "message.text");
+    string first_name = json_path(update, "message.from.first_name");
+    string username = json_path(update, "message.from.username");
+
+    info("update=" + update_id + " chat=" + chat_id + " user=@" + username + " text=" + text);
+
+    if (chat_id == "") {
+        warn("Update без message.chat.id; пропускаю");
+        respond("{\"ok\":true}");
+        return;
+    }
+
+    if (text == "/start") {
+        send_message(chat_id, "Привет, " + first_name + "! 🦊 Я работаю на FoxLang.");
+    } else if (text == "/help") {
+        send_message(chat_id, "Команды:\n/start — запуск\n/help — помощь\n/ping — проверка\n/about — о боте\n/id — твой chat id");
+    } else if (text == "/ping") {
+        send_message(chat_id, "Pong 🦊");
+    } else if (text == "/about") {
+        send_message(chat_id, "FoxBot — Telegram webhook-бот на FoxLang.");
+    } else if (text == "/id") {
+        send_message(chat_id, "Chat ID: " + chat_id);
+    } else if (text != "") {
+        send_message(chat_id, "Ты написал: " + text);
+    } else {
+        warn("Update без текстового сообщения");
+    }
+
+    respond("{\"ok\":true}");
 }
 
 void main() {
+    info("🦊 FoxBot запускается");
     get("/health", "health");
     post("/telegram", "telegram_webhook");
-    info("Webhook server: 0.0.0.0:8080");
+    info("Маршруты: GET /health, POST /telegram");
+    info("Слушаю 0.0.0.0:8080");
     listen(8080);
 }
 
