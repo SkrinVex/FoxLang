@@ -11,6 +11,25 @@ add_executable(test_interpreter unit/test_interpreter.cpp)
 target_link_libraries(test_interpreter PRIVATE foxlang_core)
 add_test(NAME unit_interpreter COMMAND test_interpreter)
 
+add_executable(test_positions unit/test_positions.cpp)
+target_link_libraries(test_positions PRIVATE foxlang_core)
+add_test(NAME unit_positions COMMAND test_positions)
+
+add_executable(test_semantic_analyzer unit/test_semantic_analyzer.cpp)
+target_link_libraries(test_semantic_analyzer PRIVATE foxlang_core)
+add_test(NAME unit_semantic_analyzer COMMAND test_semantic_analyzer)
+
+add_executable(test_lsp_protocol
+    unit/test_lsp_protocol.cpp
+    ${CMAKE_SOURCE_DIR}/src/lsp/Json.cpp
+    ${CMAKE_SOURCE_DIR}/src/lsp/Transport.cpp
+    ${CMAKE_SOURCE_DIR}/src/lsp/DocumentManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/lsp/LspServer.cpp
+)
+target_include_directories(test_lsp_protocol PRIVATE ${CMAKE_SOURCE_DIR}/src/lsp)
+target_link_libraries(test_lsp_protocol PRIVATE foxlang_core)
+add_test(NAME unit_lsp_protocol COMMAND test_lsp_protocol)
+
 # Common environment for FoxLang script tests
 set(FOXLANG_TEST_ENV
     "FOXLANG_HOME=${CMAKE_SOURCE_DIR}"
@@ -59,6 +78,12 @@ set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "FoxLang 5.4
 
 add_test(NAME cli_help COMMAND foxlang --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "https://github.com/SkrinVex/FoxLang")
+
+add_test(NAME lsp_cli_version COMMAND foxlang-lsp --version)
+set_tests_properties(lsp_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "foxlang-lsp 5.4.7")
+
+add_test(NAME lsp_cli_help COMMAND foxlang-lsp --help)
+set_tests_properties(lsp_cli_help PROPERTIES PASS_REGULAR_EXPRESSION "Language Server")
 
 # HTTP server/client local integration test (POSIX)
 if(NOT WIN32)
