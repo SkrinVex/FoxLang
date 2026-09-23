@@ -46,7 +46,12 @@ std::unique_ptr<Node> Parser::primary() {
 
     // 3. Строки
     if (tokens[pos].type == TokenType::STRING_LITERAL) {
-        return std::make_unique<StringNode>(consume(TokenType::STRING_LITERAL).value);
+        // C/C++-style adjacent string literal concatenation.
+        std::string value = consume(TokenType::STRING_LITERAL).value;
+        while (pos < tokens.size() && tokens[pos].type == TokenType::STRING_LITERAL) {
+            value += consume(TokenType::STRING_LITERAL).value;
+        }
+        return std::make_unique<StringNode>(value);
     }
     
     // 4. Boolean литералы
