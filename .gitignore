@@ -1,3 +1,9 @@
+build/
+build*/
+dist/
+/foxlang
+/foxlang.exe
+/foxlang.bin
 .kiro/settings/lsp.json
 web-ide
 desktop-app
