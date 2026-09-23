@@ -1,4 +1,4 @@
-# 📚 Документация FoxLang v5.0.2
+# 📚 Документация FoxLang v5.2.1
 
 ## Оглавление
 1. [Основы синтаксиса](#1-основы-синтаксиса)
@@ -878,29 +878,31 @@ void sort_user_scores(array scores, int count) {
 
 ---
 
-## 11. FoxLang 5.2 standard library
+## 11. Стандартная библиотека FoxLang 5.2
 
-### Module resolution
+### Поиск и подключение модулей
 
-`include("path.fox")` remains supported. FoxLang 5.2 additionally makes `using module;` useful as a package import. Resolution order is:
+`include("path.fox")` по-прежнему поддерживается. Начиная с FoxLang 5.2 конструкция `using module;` используется для подключения модулей стандартной библиотеки.
 
-1. `std/module.fox`
-2. `module.fox`
-3. paths relative to the current source file
-4. paths under `FOXLANG_HOME`
+Порядок поиска:
 
-Resolved modules are cached and imported once per interpreter process.
+1. `std/module.fox`;
+2. `module.fox`;
+3. путь относительно текущего исходного файла;
+4. каталоги внутри `FOXLANG_HOME`.
 
-### Standard modules
+Уже загруженный модуль повторно не выполняется в рамках одного процесса интерпретатора.
 
-| Module | Purpose |
+### Стандартные модули
+
+| Модуль | Назначение |
 |---|---|
-| `terminal` | clear screen, cursor movement, ANSI color, raw terminal output |
-| `net` | DNS lookup and TCP client sockets on POSIX |
-| `http` | GET/POST/PUT/DELETE convenience wrappers |
-| `math` | clamp/min/max helpers |
-| `string` | contains/replace/integer conversion helpers |
-| `time` | sleep and Unix millisecond timestamp |
+| `terminal` | очистка терминала, перемещение курсора, ANSI-цвета и вывод без переноса строки |
+| `net` | DNS и настоящие TCP-клиентские соединения на POSIX |
+| `http` | удобные обёртки для GET/POST/PUT/DELETE |
+| `math` | `clamp`, `min`, `max` и математические помощники |
+| `string` | поиск, замена и преобразование строк |
+| `time` | задержки и время в миллисекундах |
 
 ### TCP API
 
@@ -909,14 +911,14 @@ using net;
 
 string ip = resolve_host("example.com");
 int sock = connect_tcp("example.com", 80);
-int sent = send_tcp(sock, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
+int sent = send_tcp(sock, "GET / HTTP/1.0\\r\\nHost: example.com\\r\\n\\r\\n");
 string chunk = recv_tcp(sock, 4096);
 bool closed = close_tcp(sock);
 ```
 
-A socket handle below zero indicates a connection failure. `recv_tcp` returns an empty string when the peer closes the connection or an error occurs.
+Значение сокета меньше нуля означает ошибку подключения. `recv_tcp` возвращает пустую строку, если соединение закрыто удалённой стороной или произошла ошибка чтения.
 
-### Terminal API
+### Терминальный API
 
 ```cpp
 using terminal;
@@ -930,6 +932,6 @@ reset_color();
 show_cursor();
 ```
 
-### Compatibility note
+### Совместимость старого сетевого API
 
-The legacy `server_start`, `route_get`, `route_post`, and `send_response` builtins are compatibility shims in the current runtime; they are not a real HTTP server. Use the TCP primitives for real socket I/O. A native HTTP server API can be added without pretending the legacy shims already provide one.
+Старые встроенные функции `server_start`, `route_get`, `route_post` и `send_response` пока оставлены для обратной совместимости. В текущем runtime это заглушки, а не полноценный HTTP-сервер. Для настоящего сетевого ввода-вывода следует использовать TCP API из `std/net.fox` и HTTP-клиент из `std/http.fox`.
