@@ -96,14 +96,14 @@ for ext_base in "${EXTENSION_TARGET_BASES[@]}"; do
   parent_dir="$(dirname "$ext_base")"
   if [ -d "$parent_dir" ] || [ -d "$ext_base" ]; then
     mkdir -p "$ext_base"
-    TARGET_EXT_DIR="$ext_base/foxlang.foxlang-$VERSION"
+    TARGET_EXT_DIR="$ext_base/SkrinVex.foxlang-$VERSION"
 
     # Удаляем старые или некорректно названные версии
-    rm -rf "$ext_base/foxlang" "$ext_base/foxlang.foxlang-"* 2>/dev/null || true
+    rm -rf "$ext_base/foxlang" "$ext_base/foxlang.foxlang-"* "$ext_base/SkrinVex.foxlang-"* "$ext_base/skrinvex.foxlang-"* 2>/dev/null || true
 
     # Снимаем пометку obsolete, если она была установлена VS Code
     if [ -f "$ext_base/.obsolete" ]; then
-      sed -i '/foxlang\.foxlang/d' "$ext_base/.obsolete" 2>/dev/null || true
+      sed -i -E '/(foxlang\.foxlang|skrinvex\.foxlang|SkrinVex\.foxlang)/d' "$ext_base/.obsolete" 2>/dev/null || true
     fi
 
     if [ -d "$HERE/editors/vscode" ]; then
@@ -118,14 +118,15 @@ cat > "$LIBDIR/uninstall.sh" <<EOF
 #!/usr/bin/env bash
 set -e
 if command -v code >/dev/null 2>&1; then
+  code --uninstall-extension SkrinVex.foxlang 2>/dev/null || true
   code --uninstall-extension foxlang.foxlang 2>/dev/null || true
 fi
 rm -f "$BINDIR/foxlang" "$BINDIR/foxlang-lsp"
 rm -f "$HOME/.local/share/org.kde.syntax-highlighting/syntax/foxlang.xml"
-rm -rf "$HOME/.vscode/extensions/foxlang"* 2>/dev/null || true
-rm -rf "$HOME/.vscode-oss/extensions/foxlang"* 2>/dev/null || true
-rm -rf "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions/foxlang"* 2>/dev/null || true
-rm -rf "$HOME/.var/app/com.vscodium.codium/data/vscode/extensions/foxlang"* 2>/dev/null || true
+rm -rf "$HOME/.vscode/extensions/foxlang"* "$HOME/.vscode/extensions/SkrinVex.foxlang"* 2>/dev/null || true
+rm -rf "$HOME/.vscode-oss/extensions/foxlang"* "$HOME/.vscode-oss/extensions/SkrinVex.foxlang"* 2>/dev/null || true
+rm -rf "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions/foxlang"* "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions/SkrinVex.foxlang"* 2>/dev/null || true
+rm -rf "$HOME/.var/app/com.vscodium.codium/data/vscode/extensions/foxlang"* "$HOME/.var/app/com.vscodium.codium/data/vscode/extensions/SkrinVex.foxlang"* 2>/dev/null || true
 rm -rf "$LIBDIR"
 echo "FoxLang и связанные расширения редакторов успешно удалены."
 EOF
