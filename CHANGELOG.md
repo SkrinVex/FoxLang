@@ -1,3 +1,14 @@
+# FoxLang 5.4.0 — Changelog
+
+- Заглушки HTTP-сервера заменены реальным Linux/POSIX HTTP/webhook runtime.
+- Добавлены реальные GET/POST routes, request body/method/path и HTTP response status.
+- Добавлен модуль `std/server.fox`.
+- Добавлена автоматическая загрузка `.env` и обязательные секреты через `secret()`.
+- Добавлен пример Telegram webhook server.
+- Исправлено отображение exit code curl на POSIX.
+
+---
+
 # FoxLang 5.3.0 — Changelog
 
 - Исправлен разбор `round()` и `random()`: теперь это обычные runtime-функции, а не зарезервированные токены без рабочего parser path.
