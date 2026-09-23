@@ -1,19 +1,44 @@
 name: FoxLang CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches: [master]
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+          - os: windows-latest
+            name: windows
+    runs-on: ${{ matrix.os }}
+    name: build-${{ matrix.name }}
+
     steps:
       - uses: actions/checkout@v4
-      - name: Build
+
+      - name: Build Linux
+        if: runner.os == 'Linux'
         run: g++ -std=c++17 -Wall -Wextra -pedantic src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
-      - name: Version
-        run: ./foxlang --version
-      - name: Standard library smoke test
+
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: cl /EHsc /std:c++17 src/main.cpp src/Lexer.cpp src/Parser.cpp /Fe:foxlang.exe
+
+      - name: Check version
+        shell: bash
+        run: |
+          EXPECTED="$(cat VERSION)"
+          if [ "$RUNNER_OS" = "Windows" ]; then ACTUAL="$(./foxlang.exe --version)"; else ACTUAL="$(./foxlang --version)"; fi
+          test "$ACTUAL" = "FoxLang $EXPECTED"
+
+      - name: Stdlib smoke test
+        if: runner.os == 'Linux'
         env:
           FOXLANG_HOME: ${{ github.workspace }}
         run: ./foxlang examples/stdlib_demo.fox
