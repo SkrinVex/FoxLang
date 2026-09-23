@@ -1,0 +1,7 @@
+using json;
+string doc = "{\"message\":{\"chat\":{\"id\":123},\"text\":\"\\u0443\\u0440\\u0430\"}}";
+string id = json_path(doc, "message.chat.id");
+string text = json_path(doc, "message.text");
+if (id != "123") { print("FAIL json path"); }
+if (text != "ура") { print("FAIL json unicode"); }
+print("JSON_UNICODE_OK");
