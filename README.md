@@ -7,23 +7,94 @@
 
 **FoxLang** — встраиваемый и интерпретируемый язык программирования общего назначения с понятным C-подобным синтаксисом, строгими типами, функциями, массивами, модулями, стандартной библиотекой и сетевыми возможностями.
 
-Архитектура проекта разделена на **переиспользуемое ядро-библиотеку** (`foxlang_core`) и **тонкий CLI-интерпретатор** (`foxlang`).
+```cpp
+// hello.fox
+void main() {
+    print("Hello from FoxLang!");
+}
 
-```text
-    FoxLang исходный код
-             ↓
-           Lexer
-             ↓
-           Parser
-             ↓
-            AST
-          ↙     ↘
-   Analyzer      Runtime (foxlang_core)
-      ↓                 ↑
-   Будущий LSP   ┌──────┴──────┐
-                 │             │
-                CLI      Встраивание в C++/JNI
+main();
 ```
+
+## Установка
+
+Для сборки FoxLang из этого репозитория нужны CMake и компилятор C++17:
+
+```bash
+git clone https://github.com/SkrinVex/FoxLang.git
+cd FoxLang
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+cmake --build build --config Release
+cmake --install build --prefix ./install
+```
+
+Добавьте `install/bin` в `PATH` или запускайте `install/bin/foxlang` напрямую
+(на Windows — `install/bin/foxlang.exe`). Готовые пакеты опубликованных версий
+находятся в [GitHub Releases](https://github.com/SkrinVex/FoxLang/releases).
+Наличие новой команды в установленной версии можно проверить через `foxlang --help`.
+
+## Запуск программы
+
+```bash
+foxlang hello.fox
+```
+
+Это обычный запуск исходника: на этом компьютере нужны FoxLang и файл `hello.fox`.
+
+## Standalone приложения
+
+```bash
+foxlang build hello.fox -o hello
+```
+
+Запуск на Linux:
+
+```bash
+./hello
+```
+
+Запуск на Windows:
+
+```powershell
+.\hello.exe
+```
+
+**Получателю программы не требуется устанавливать FoxLang.** Передайте ему один
+executable для той же ОС и архитектуры. Внутри находятся FoxLang runtime,
+программа и её FoxLang-модули. Исходный `.fox`, CMake, C++ compiler и отдельный
+FoxLang runtime получателю не нужны. Сам `foxlang build` тоже работает без компилятора.
+
+`foxlang build hello.fox` создаёт `hello` (Linux) или `hello.exe` (Windows)
+в текущем каталоге. Поддерживается `--output`; существующий выходной файл
+не перезаписывается. Linux создаёт Linux executable, Windows — Windows executable.
+
+Это **упаковка со встроенным интерпретатором**, а не AOT-компиляция исходника
+непосредственно в машинный код. Стандартная библиотека встроена в FoxLang;
+локальные `using` и `include` собираются рекурсивно.
+
+`.env`, значения окружения при сборке и обычные ресурсы **не встраиваются**.
+Передавайте секреты через переменные окружения при запуске. Standalone не загружает
+`.env` автоматически. Секрет, записанный прямо в `.fox`, останется частью программы.
+Файлы для `read_file()` по-прежнему предоставляются отдельно.
+
+HTTP-клиент по-прежнему требует внешний `curl` в `PATH` (для HTTPS — также доверенные
+сертификаты ОС). HTTP-сервер и TCP/DNS доступны на Linux/POSIX; в Windows их
+реализация пока отсутствует. На Linux сохраняется зависимость от совместимых
+системных libc/libm и загрузчика; перенос между glibc и musl не гарантируется.
+
+Подробности: [standalone и ограничения](docs/STANDALONE.md),
+[полная документация языка](DOCUMENTATION.md).
+
+## Платформы и проверки
+
+| Платформа | CLI | Standalone build |
+|---|---|---|
+| Linux x86_64 | Проверено локально, CTest | Проверено из чистого временного каталога |
+| Windows x86_64 | Job `desktop-windows` в CI | Job `desktop-windows`: сборка и запуск `.exe` в чистом каталоге; результат текущего изменения ещё требует проверки |
+| Android | Планируется отдельная интеграция | Планируется, не реализовано |
+
+Тесты Linux и Windows находятся в [обычном CI](.github/workflows/ci.yml).
+Wine/MinGW не заменяют проверку на Windows runner.
 
 ---
 
@@ -71,17 +142,8 @@ ctest --test-dir build -C Release --output-on-failure
 
 Все тесты (native unit-тесты Lexer, Parser, Interpreter API, регрессионные тесты языка, локальные тесты HTTP сервера/клиента) запускаются в едином цикле CTest и завершаются с ненулевым статусом при обнаружении регрессий.
 
-### Прямая компиляция (для быстрой отладки)
-
-Если CMake недоступен, собрать CLI напрямую можно одной командой:
-
-```bash
-# Linux
-g++ -std=c++17 -Wall -Wextra -pedantic -Iinclude src/core/*.cpp src/cli/main.cpp -o foxlang
-
-# Windows (MSVC)
-cl /EHsc /std:c++17 /Iinclude src/core/*.cpp src/cli/main.cpp /Fe:foxlang.exe
-```
+Стандартная библиотека встраивается во время конфигурации CMake. Для тестов
+дополнительно нужен Python 3; в готовых CLI и standalone он не используется.
 
 ---
 
@@ -280,7 +342,7 @@ int main() {
 ```text
 FoxLang/
 ├── CMakeLists.txt              # Корневой файл сборки CMake
-├── VERSION                     # Текущая версия (5.5.2)
+├── VERSION                     # Версия выпуска
 ├── include/
 │   └── foxlang/                # Публичные C++ заголовочные файлы
 │       ├── FoxLang.h           # Публичный API: Interpreter, RunResult, Options
@@ -290,6 +352,7 @@ FoxLang/
 │       ├── AST.h               # Чистые узлы AST с диапазонами SourceRange
 │       ├── Lexer.h             # Лексический анализатор с отслеживанием UTF-16
 │       ├── Parser.h            # Синтаксический анализатор (формирует AST)
+│       ├── SourceProvider.h    # Общий доступ к исходникам на диске или в памяти
 │       ├── Runtime.h           # Встроенные функции, JSON, логирование, .env
 │       ├── Platform.h          # Изоляция платформозависимого кода (POSIX/Windows)
 │       └── Token.h             # Определение токенов и позиций
@@ -304,6 +367,7 @@ FoxLang/
 │   │   └── Interpreter.cpp
 │   ├── cli/                    # Тонкий исполняемый файл CLI (foxlang)
 │   │   └── main.cpp
+│   ├── standalone/             # Bundle, проверка ELF/PE, упаковка без компилятора
 │   └── lsp/                    # Языковой сервер Language Server Protocol (foxlang-lsp)
 │       ├── Json.h / Json.cpp
 │       ├── Transport.h / Transport.cpp
@@ -398,11 +462,10 @@ using http;
 using terminal;
 ```
 
-Стандартный порядок разрешения модулей:
-1. `std/<модуль>.fox`;
-2. `<модуль>.fox`;
-3. Путь относительно вызывающего скрипта;
-4. Пути внутри переменной окружения `FOXLANG_HOME`.
+Для `using` проверяются `std/<модуль>.fox`, затем `<модуль>.fox`: каждый путь
+ищется относительно импортирующего файла, текущего каталога и `FOXLANG_HOME`.
+Если файлов нет, используется встроенная stdlib. При упаковке применяется тот же
+порядок; при запуске standalone используются только уже упакованные модули.
 
 ---
 
