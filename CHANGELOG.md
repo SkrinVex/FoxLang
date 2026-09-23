@@ -1,3 +1,10 @@
+# FoxLang 5.4.5 — Changelog
+
+- JSON parser теперь декодирует `\\uXXXX` в UTF-8, включая surrogate pairs для emoji.
+- Добавлен env-флаг `FOXLANG_LOG`: `false`, `0`, `off` или `no` отключают std/log; по умолчанию логи включены.
+
+---
+
 # FoxLang 5.4.4 — Changelog
 
 - Исправлен HTTP POST: JSON body теперь безопасно передаётся curl без разрушения кавычек shell.
