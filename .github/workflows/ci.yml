@@ -1,0 +1,19 @@
+name: FoxLang CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: g++ -std=c++17 -Wall -Wextra -pedantic src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
+      - name: Version
+        run: ./foxlang --version
+      - name: Standard library smoke test
+        env:
+          FOXLANG_HOME: ${{ github.workspace }}
+        run: ./foxlang examples/stdlib_demo.fox
