@@ -1,0 +1,13 @@
+[package]
+name = "foxlang"
+version = "5.5.3"
+edition = "2021"
+authors = ["SkrinVex <skrinvex@gmail.com>"]
+description = "FoxLang language extension for Zed"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zed_extension_api = "0.7.0"

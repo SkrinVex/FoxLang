@@ -146,7 +146,60 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 
 ---
 
-## 5. Проверка работы и отладка
+## 5. Настройка редактора Zed IDE
+
+Поддержка редактора Zed IDE находится в каталоге [`editors/zed/`](../editors/zed/).
+
+Расширение обеспечивает:
+* Автоматическое распознавание файлов `.fox`;
+* Подсветку синтаксиса на основе Tree-sitter ([`highlights.scm`](../editors/zed/languages/foxlang/highlights.scm));
+* Автозакрытие и сопоставление скобок ([`brackets.scm`](../editors/zed/languages/foxlang/brackets.scm));
+* Интеграцию с `foxlang-lsp` через Rust/WASI расширение ([`src/lib.rs`](../editors/zed/src/lib.rs)).
+
+### Вариант А: Локальная установка dev-расширения в Zed
+1. Убедитесь, что бинарник `foxlang-lsp` установлен в системе (входит в PATH).
+2. Запустите Zed.
+3. Откройте командную палитру: `Ctrl+Shift+P` (Linux/Windows) или `Cmd+Shift+P` (macOS).
+4. Выполните команду `zed: install dev extension`.
+5. Выберите каталог [`editors/zed`](../editors/zed) из репозитория FoxLang.
+6. Zed автоматически скомпилирует расширение и подключит языковой сервер к `.fox` файлам.
+
+### Вариант Б: Быстрое подключение через `settings.json` (без расширения)
+Если вы хотите использовать FoxLang в Zed без сборки расширения, добавьте в `~/.config/zed/settings.json`:
+```json
+{
+  "lsp": {
+    "foxlang-lsp": {
+      "binary": {
+        "path": "foxlang-lsp",
+        "arguments": ["--stdio"]
+      }
+    }
+  },
+  "languages": {
+    "C": {
+      "language_servers": ["foxlang-lsp", "..."]
+    }
+  },
+  "file_types": {
+    "C": ["fox"]
+  }
+}
+```
+
+### Публикация расширения в официальный реестр Zed
+Zed использует открытый репозиторий [zed-industries/extensions](https://github.com/zed-industries/extensions):
+1. Опубликуйте каталог `editors/zed` в отдельном публичном репозитории GitHub (например, `https://github.com/SkrinVex/zed-foxlang`).
+2. Сделайте Fork репозитория `zed-industries/extensions`.
+3. Добавьте submodule:
+   ```bash
+   git submodule add https://github.com/SkrinVex/zed-foxlang.git extensions/foxlang
+   ```
+4. Создайте Pull Request в `zed-industries/extensions`. После мерджа расширение станет доступно во вкладке **Extensions** редактора Zed.
+
+---
+
+## 6. Проверка работы и отладка
 
 Вы можете вручную протестировать взаимодействие с `foxlang-lsp` через командную строку:
 
@@ -159,3 +212,4 @@ Content-Length: 64\r\n\r\n{"jsonrpc":"2.0","id":1,"method":"initialize","params"
 ```
 
 Сервер мгновенно вернёт ответ с полным списком возможностей. Все диагностические логи выводятся в `stderr`.
+

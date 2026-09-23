@@ -113,6 +113,40 @@ for ext_base in "${EXTENSION_TARGET_BASES[@]}"; do
   fi
 done
 
+# 3. Поддержка Zed IDE
+if [ -d "$HERE/editors/zed" ]; then
+  mkdir -p "$LIBDIR/editors/zed"
+  cp -R "$HERE/editors/zed/"* "$LIBDIR/editors/zed/"
+  echo "✔ Расширение Zed IDE скопировано в $LIBDIR/editors/zed"
+fi
+
+if [ -d "$HOME/.config/zed" ]; then
+  ZED_SETTINGS="$HOME/.config/zed/settings.json"
+  if [ ! -f "$ZED_SETTINGS" ]; then
+    cat > "$ZED_SETTINGS" <<'ZED_EOF'
+{
+  "lsp": {
+    "foxlang-lsp": {
+      "binary": {
+        "path": "foxlang-lsp",
+        "arguments": ["--stdio"]
+      }
+    }
+  },
+  "languages": {
+    "C": {
+      "language_servers": ["foxlang-lsp", "..."]
+    }
+  },
+  "file_types": {
+    "C": ["fox"]
+  }
+}
+ZED_EOF
+    echo "✔ Настройки FoxLang для Zed IDE записаны в $ZED_SETTINGS"
+  fi
+fi
+
 # Скрипт полного удаления
 cat > "$LIBDIR/uninstall.sh" <<EOF
 #!/usr/bin/env bash
@@ -144,6 +178,7 @@ echo ""
 echo "Редакторы:"
 echo "  • Kate:    подсветка активна; включите плагин 'Клиент LSP' в настройках Kate."
 echo "  • VS Code: расширение установлено (распознавание языка .fox, подсветка и LSP)."
+echo "  • Zed IDE: dev-расширение в $LIBDIR/editors/zed (zed: install dev extension)."
 case ":$PATH:" in
   *":$BINDIR:"*) ;;
   *) echo "" && echo "Внимание: добавьте $BINDIR в переменную PATH, если команды foxlang и foxlang-lsp пока не находятся." ;;

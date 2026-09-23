@@ -1,0 +1,15 @@
+id = "foxlang"
+name = "FoxLang"
+version = "5.5.3"
+schema_version = 1
+authors = ["SkrinVex <skrinvex@gmail.com>"]
+description = "Official FoxLang language support for Zed: syntax highlighting, brackets, and LSP integration (diagnostics, completions, hover, goto definition)."
+repository = "https://github.com/SkrinVex/FoxLang"
+
+[grammars.foxlang]
+repository = "https://github.com/tree-sitter/tree-sitter-c"
+commit = "b780e47fc780ddc8da13afa35a3f4ed5c157823d"
+
+[language_servers.foxlang-lsp]
+name = "foxlang-lsp"
+languages = ["FoxLang"]

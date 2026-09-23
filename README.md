@@ -46,7 +46,7 @@
 - Сетевой клиент (DNS, TCP-сокеты, HTTP GET/POST/PUT/DELETE).
 - HTTP/webhook-сервер на POSIX (`get`, `post`, `body`, `method`, `path`, `respond`, `listen`, `server_stop`).
 - Независимая C++17 библиотека ядра (`foxlang_core`) для встраивания в приложения и тесты.
-- Полнофункциональный языковой сервер `foxlang-lsp` (LSP 3.17) и готовые плагины для VS Code и Kate.
+- Полнофункциональный языковой сервер `foxlang-lsp` (LSP 3.17) и готовые плагины для VS Code, Kate и Zed IDE.
 
 ---
 
@@ -189,7 +189,7 @@ docker build -t foxlang:latest .
 
 ---
 
-## 💻 Поддержка редакторов и IDE (VS Code и Kate)
+## 💻 Поддержка редакторов и IDE (VS Code, Kate, Zed)
 
 Для языка FoxLang доступен автономный языковой сервер `foxlang-lsp` (Language Server Protocol 3.17) и готовые конфигурации для популярных редакторов:
 * **Подсветка синтаксиса**: распознавание файлов `.fox`, подсветка ключевых слов, типов, строк с экранированием, чисел и встроенных функций.
@@ -232,6 +232,17 @@ docker build -t foxlang:latest .
   cp -R editors/vscode/* ~/.vscode/extensions/SkrinVex.foxlang-language-5.5.3/
   ```
 *(Расширение полностью автономно и не требует запуска `npm install`)*
+
+### ⚡ Настройка Zed IDE
+Исходный код расширения для Zed расположен в [`editors/zed/`](editors/zed/):
+* [`extension.toml`](editors/zed/extension.toml) — манифест расширения Zed и подключение Tree-sitter грамматики;
+* [`languages/foxlang/config.toml`](editors/zed/languages/foxlang/config.toml) — конфигурация языка, комментариев и скобок;
+* [`languages/foxlang/highlights.scm`](editors/zed/languages/foxlang/highlights.scm) — правила подсветки синтаксиса Tree-sitter;
+* [`src/lib.rs`](editors/zed/src/lib.rs) — интеграция с `foxlang-lsp` через Zed Extension API (WASM).
+
+**Быстрая установка:**
+* **Dev-расширение в Zed**: в палитре команд `Ctrl+Shift+P` вызовите `zed: install dev extension` и укажите путь к [`editors/zed/`](editors/zed/).
+* **Через конфигурацию `settings.json`**: добавьте сервер `foxlang-lsp` в `~/.config/zed/settings.json` (подробнее см. [`docs/EDITORS.md`](docs/EDITORS.md)).
 
 📖 Полное руководство по архитектуре, диагностикам и отладке LSP: [`docs/EDITORS.md`](docs/EDITORS.md).
 
@@ -340,12 +351,12 @@ FoxLang/
 
 ---
 
-## Поддержка редакторов (VS Code, Kate) и Language Server (`foxlang-lsp`)
+## Поддержка редакторов (VS Code, Kate, Zed) и Language Server (`foxlang-lsp`)
 
 В FoxLang входит полнофункциональный языковой сервер **`foxlang-lsp`** по протоколу LSP 3.17, работающий через стандартные потоки ввода-вывода (JSON-RPC stdio).
 
 ### Возможности:
-* **Подсветка синтаксиса**: файлы подсветки TextMate для VS Code и KSyntaxHighlighting XML для Kate.
+* **Подсветка синтаксиса**: файлы подсветки TextMate для VS Code, KSyntaxHighlighting XML для Kate и Tree-sitter запросы для Zed IDE.
 * **Диагностика ошибок (Diagnostics)**: синтаксические и семантические ошибки с точными позициями в кодовых единицах UTF-16 (корректно поддерживаются кириллица и 4-байтовые эмодзи вроде `🦊`).
 * **Автодополнение (Autocomplete)**: ключевые слова языка, функции стандартной библиотеки и пользовательские идентификаторы в текущей области видимости.
 * **Подсказки при наведении (Hover)**: всплывающие окна с сигнатурами функций и типами переменных в Markdown.
@@ -353,7 +364,7 @@ FoxLang/
 * **Символы документа (Document Symbols)**: навигация по функциям и переменным файла.
 * **Безопасность**: `SemanticAnalyzer` и `foxlang-lsp` никогда не исполняют пользовательский код для его анализа.
 
-Подробные пошаговые инструкции по подключению см. в [docs/EDITORS.md](docs/EDITORS.md), [editors/vscode/README.md](editors/vscode/README.md) и [editors/kate/README.md](editors/kate/README.md).
+Подробные пошаговые инструкции по подключению см. в [docs/EDITORS.md](docs/EDITORS.md), [editors/vscode/README.md](editors/vscode/README.md), [editors/kate/README.md](editors/kate/README.md) и [editors/zed/README.md](editors/zed/README.md).
 
 ---
 
