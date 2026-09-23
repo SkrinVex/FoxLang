@@ -368,7 +368,10 @@ std::unique_ptr<Node> Parser::statement() {
 
     if (tokens[pos].type == TokenType::USING) {
         consume(TokenType::USING);
-        std::string libName = consume(TokenType::IDENTIFIER).value;
+        if (tokens[pos].type == TokenType::END || tokens[pos].type == TokenType::SEMICOLON) {
+            throw std::runtime_error("Module Error: Expected module name after 'using'");
+        }
+        std::string libName = tokens[pos++].value;
         if (pos < tokens.size() && tokens[pos].type == TokenType::DOT) {
             consume(TokenType::DOT);
             if (pos < tokens.size() && tokens[pos].type == TokenType::IDENTIFIER) {
