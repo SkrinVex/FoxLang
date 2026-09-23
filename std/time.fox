@@ -1,0 +1,8 @@
+// FoxLang 5.2 time helpers
+void sleep_ms(int milliseconds) {
+    wait(milliseconds);
+}
+
+string unix_time_ms() {
+    return time_ms();
+}
