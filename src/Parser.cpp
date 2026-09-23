@@ -3,6 +3,10 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
+#include <set>
+#include <cstdlib>
+#include <vector>
 
 std::string getDirectory(const std::string& filepath) {
     size_t found = filepath.find_last_of("/\\");
