@@ -602,6 +602,7 @@ std::unique_ptr<Node> Parser::statement() {
         consume(TokenType::SEMICOLON);
         SourcePosition endPos = tokens[pos - 1].range.end;
         auto node = std::make_unique<IncludeNode>(file, currentFile);
+        imports.push_back({file, false});
         node->range = {startPos, endPos};
         return node;
     }
@@ -621,6 +622,7 @@ std::unique_ptr<Node> Parser::statement() {
         consume(TokenType::SEMICOLON);
         SourcePosition endPos = tokens[pos - 1].range.end;
         auto node = std::make_unique<UsingNode>(libName, currentFile);
+        imports.push_back({libName, true});
         node->range = {startPos, endPos};
         return node;
     }

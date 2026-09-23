@@ -5,6 +5,7 @@
 #include "foxlang/Token.h"
 #include "foxlang/AST.h"
 #include "foxlang/SourceLocation.h"
+#include "foxlang/SourceProvider.h"
 
 namespace foxlang {
 
@@ -32,6 +33,7 @@ public:
 
     void setCollectDiagnostics(bool enable) { collectDiagnostics = enable; }
     const std::vector<Diagnostic>& getDiagnostics() const { return diagnostics; }
+    const std::vector<ModuleImport>& getImports() const { return imports; }
 
     // Context & compatibility properties
     Context globalContext;
@@ -44,6 +46,7 @@ private:
     size_t pos = 0;
     bool collectDiagnostics = false;
     std::vector<Diagnostic> diagnostics;
+    std::vector<ModuleImport> imports;
 
     void synchronize();
 };
