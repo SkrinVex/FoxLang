@@ -1,0 +1,69 @@
+{
+  "name": "foxlang",
+  "displayName": "FoxLang",
+  "description": "Официальная поддержка языка FoxLang для VS Code: подсветка синтаксиса, LSP (диагностика, автодополнение, наведение, переход к определению)",
+  "version": "5.4.7",
+  "publisher": "foxlang",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "foxlang",
+    "fox",
+    "language server",
+    "lsp"
+  ],
+  "activationEvents": [
+    "onLanguage:fox"
+  ],
+  "main": "./client/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "fox",
+        "aliases": [
+          "FoxLang",
+          "fox"
+        ],
+        "extensions": [
+          ".fox"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fox",
+        "scopeName": "source.fox",
+        "path": "./syntaxes/foxlang.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "FoxLang",
+      "properties": {
+        "foxlang.lsp.serverPath": {
+          "type": "string",
+          "default": "foxlang-lsp",
+          "description": "Путь к исполняемому файлу foxlang-lsp (по умолчанию ищется в PATH)."
+        },
+        "foxlang.lsp.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Уровень трассировки сообщений между VS Code и foxlang-lsp."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  }
+}

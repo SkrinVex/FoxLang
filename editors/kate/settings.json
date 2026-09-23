@@ -1,0 +1,10 @@
+{
+    "servers": {
+        "foxlang": {
+            "command": ["foxlang-lsp"],
+            "root": "",
+            "url": "https://github.com/SkrinVex/FoxLang",
+            "highlightingModeRegex": "^FoxLang$"
+        }
+    }
+}
