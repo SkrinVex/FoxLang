@@ -1,0 +1,46 @@
+// FoxLang regression: variables, compound assignments, scope, globals
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. Declarations and reassignments
+int v = 10;
+v = 20;
+assert_true(v == 20, "var reassignment");
+
+// 2. Compound assignments
+v += 10;
+assert_true(v == 30, "compound +=");
+v -= 5;
+assert_true(v == 25, "compound -=");
+v *= 2;
+assert_true(v == 50, "compound *=");
+v /= 5;
+assert_true(v == 10, "compound /=");
+
+// 3. Post increment
+v++;
+assert_true(v == 11, "post increment");
+
+// 4. Global variables
+global int g_counter = 100;
+
+void modify_global() {
+    g_counter += 50;
+}
+
+modify_global();
+assert_true(g_counter == 150, "global variable modification from function");
+
+// 5. Block scope
+int outer = 1;
+{
+    int inner = 2;
+    outer = outer + inner;
+}
+assert_true(outer == 3, "outer variable modified from inner block");
+
+print("VARIABLES_SCOPE_OK");

@@ -1,0 +1,23 @@
+// FoxLang regression: environment variables and secrets
+using env;
+
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. env() for existing variable
+string path_val = env("PATH");
+assert_true(size(path_val) > 0, "env(PATH) is not empty");
+
+// 2. env() for non-existent variable returns empty string
+string missing_val = env("NON_EXISTENT_VAR_XYZ_123");
+assert_true(missing_val == "", "env(non_existent) returns empty string");
+
+// 3. secret() for existing variable
+string secret_val = secret("PATH");
+assert_true(secret_val == path_val, "secret(PATH) equals env(PATH)");
+
+print("ENV_OK");

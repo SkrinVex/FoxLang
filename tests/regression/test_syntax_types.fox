@@ -1,0 +1,40 @@
+// FoxLang regression: syntax, types and conversions
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. Primitive types
+int i = 42;
+float f = 3.14;
+string s = "FoxLang";
+bool b1 = true;
+bool b2 = false;
+
+assert_true(i == 42, "int value");
+assert_true(f > 3.0 && f < 3.2, "float value");
+assert_true(s == "FoxLang", "string value");
+assert_true(b1 == true, "bool true");
+assert_true(b2 == false, "bool false");
+
+// 2. Type conversions
+float promoted = 10;
+assert_true(promoted == 10, "int to float promotion");
+
+int truncated = 9.99;
+assert_true(truncated == 9, "float to int truncation");
+
+// 3. String concatenation with numbers
+string concat = "Val: " + 123;
+assert_true(concat == "Val: 123", "string int concat");
+
+string fconcat = "Float: " + 2.5;
+assert_true(fconcat == "Float: 2.5", "string float concat");
+
+// 4. Void function
+void do_nothing() {}
+do_nothing();
+
+print("SYNTAX_TYPES_OK");

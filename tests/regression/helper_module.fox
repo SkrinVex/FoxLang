@@ -1,0 +1,6 @@
+// Helper module for test_modules.fox
+int helper_add(int a, int b) {
+    return a + b;
+}
+
+global int helper_load_count = 1;

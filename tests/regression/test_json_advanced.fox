@@ -1,0 +1,63 @@
+// FoxLang regression: advanced JSON parsing and escaping
+using json;
+
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. Telegram-style payload
+string tg_json = "{"
+    "\"update_id\": 10001,"
+    "\"message\": {"
+        "\"message_id\": 42,"
+        "\"from\": {"
+            "\"id\": 999,"
+            "\"is_bot\": false,"
+            "\"first_name\": \"Иван\","
+            "\"username\": \"ivan_fox\""
+        "},"
+        "\"chat\": {"
+            "\"id\": -100123456,"
+            "\"type\": \"supergroup\""
+        "},"
+        "\"text\": \"Привет, мир! 🦊\","
+        "\"date\": 1700000000"
+    "}"
+"}";
+
+assert_true(json_path(tg_json, "update_id") == "10001", "tg update_id");
+assert_true(json_path(tg_json, "message.message_id") == "42", "tg message.message_id");
+assert_true(json_path(tg_json, "message.chat.id") == "-100123456", "tg message.chat.id");
+assert_true(json_path(tg_json, "message.from.first_name") == "Иван", "tg message.from.first_name");
+assert_true(json_path(tg_json, "message.from.username") == "ivan_fox", "tg message.from.username");
+assert_true(json_path(tg_json, "message.text") == "Привет, мир! 🦊", "tg message.text");
+
+// 2. Escape sequences: quotes, backslashes, newlines
+string esc_json = "{\"str\": \"line1\\nline2\\twith \\\"quotes\\\" and \\\\backslash\\\\\"}";
+string decoded_str = json_path(esc_json, "str");
+assert_true(decoded_str == "line1\nline2\twith \"quotes\" and \\backslash\\", "json escape sequences");
+
+// 3. Unicode escape \uXXXX and Cyrillic
+string uni_json = "{\"greeting\": \"\\u041f\\u0440\\u0438\\u0432\\u0435\\u0442\"}";
+assert_true(json_path(uni_json, "greeting") == "Привет", "unicode cyrillic escape");
+
+// 4. UTF-16 surrogate pairs for emoji (e.g. \uD83E\uDD8A for 🦊)
+string emoji_json = "{\"emoji\": \"\\uD83E\\uDD8A\"}";
+assert_true(json_path(emoji_json, "emoji") == "🦊", "unicode emoji surrogate pair");
+
+// 5. JSON escaping helper
+string raw_text = "Hello \"World\"\nNew\tLine\\Backslash";
+string safe = json_safe(raw_text);
+assert_true(safe == "Hello \\\"World\\\"\\nNew\\tLine\\\\Backslash", "json_safe output");
+
+// 6. Deeply nested object
+string deep_json = "{\"a\":{\"b\":{\"c\":{\"d\":999}}}}";
+assert_true(json_path(deep_json, "a.b.c.d") == "999", "deeply nested path");
+
+// 7. Non-existent path returns empty string
+assert_true(json_path(deep_json, "a.b.nonexistent") == "", "missing path returns empty");
+
+print("JSON_ADVANCED_OK");

@@ -1,0 +1,49 @@
+// FoxLang regression: stdlib modules
+using math;
+using string;
+using time;
+using log;
+using env;
+using json;
+using terminal;
+
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. Math stdlib
+assert_true(min_int(3, 9) == 3, "min_int");
+assert_true(max_int(3, 9) == 9, "max_int");
+assert_true(clamp01(1.5) == 1, "clamp01 high");
+assert_true(clamp01(-0.5) == 0, "clamp01 low");
+
+// 2. String stdlib
+assert_true(contains("FoxLang Programming", "Lang"), "contains true");
+assert_true(!contains("FoxLang Programming", "Python"), "contains false");
+assert_true(replace("hello world", "world", "fox") == "hello fox", "replace");
+assert_true(to_int("12345") == 12345, "to_int");
+
+// 3. Time stdlib
+string t1 = unix_time_ms();
+sleep_ms(10);
+string t2 = unix_time_ms();
+assert_true(size(t1) > 0 && size(t2) > 0, "unix_time_ms returns non-empty timestamps");
+
+// 4. Log stdlib
+debug("debug message");
+info("info message");
+warn("warn message");
+error("error message");
+
+// 5. JSON stdlib
+string safe_str = json_safe("Line1\nLine2 \"quoted\"");
+assert_true(contains(safe_str, "\\n"), "json_safe newline");
+assert_true(contains(safe_str, "\\\""), "json_safe quote");
+
+// 6. Terminal stdlib (basic smoke test)
+reset_color();
+
+print("STDLIB_OK");

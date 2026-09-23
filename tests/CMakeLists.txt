@@ -1,0 +1,89 @@
+# Native unit tests
+add_executable(test_lexer unit/test_lexer.cpp)
+target_link_libraries(test_lexer PRIVATE foxlang_core)
+add_test(NAME unit_lexer COMMAND test_lexer)
+
+add_executable(test_parser unit/test_parser.cpp)
+target_link_libraries(test_parser PRIVATE foxlang_core)
+add_test(NAME unit_parser COMMAND test_parser)
+
+add_executable(test_interpreter unit/test_interpreter.cpp)
+target_link_libraries(test_interpreter PRIVATE foxlang_core)
+add_test(NAME unit_interpreter COMMAND test_interpreter)
+
+# Common environment for FoxLang script tests
+set(FOXLANG_TEST_ENV
+    "FOXLANG_HOME=${CMAKE_SOURCE_DIR}"
+    "FOXLANG_TEST_VALUE=works"
+    "FOXLANG_LOG_LEVEL=info"
+)
+
+# Core smoke tests from original repo
+set(SMOKE_TESTS
+    core_smoke
+    language_core
+    control_flow
+    stdlib_smoke
+    json_unicode
+    env_logging
+)
+
+foreach(T ${SMOKE_TESTS})
+    add_test(NAME smoke_${T} COMMAND foxlang ${CMAKE_CURRENT_SOURCE_DIR}/${T}.fox)
+    set_tests_properties(smoke_${T} PROPERTIES ENVIRONMENT "${FOXLANG_TEST_ENV}")
+endforeach()
+
+# Comprehensive regression tests
+set(REGRESSION_TESTS
+    test_syntax_types
+    test_expressions
+    test_variables_scope
+    test_control_flow
+    test_functions
+    test_arrays
+    test_modules
+    test_stdlib
+    test_json_advanced
+    test_files
+    test_env
+)
+
+foreach(T ${REGRESSION_TESTS})
+    add_test(NAME regression_${T} COMMAND foxlang ${CMAKE_CURRENT_SOURCE_DIR}/regression/${T}.fox)
+    set_tests_properties(regression_${T} PROPERTIES ENVIRONMENT "${FOXLANG_TEST_ENV}")
+endforeach()
+
+# CLI flags tests
+add_test(NAME cli_version COMMAND foxlang --version)
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "FoxLang 5.4.7")
+
+add_test(NAME cli_help COMMAND foxlang --help)
+set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "https://github.com/SkrinVex/FoxLang")
+
+# HTTP server/client local integration test (POSIX)
+if(NOT WIN32)
+    find_program(BASH_EXECUTABLE bash)
+    if(BASH_EXECUTABLE)
+        add_test(NAME integration_http_local
+            COMMAND ${BASH_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/regression/test_http_local.sh $<TARGET_FILE:foxlang>
+        )
+        set_tests_properties(integration_http_local PROPERTIES
+            ENVIRONMENT "${FOXLANG_TEST_ENV}"
+            TIMEOUT 20
+        )
+
+        add_test(NAME integration_logging_levels
+            COMMAND ${BASH_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/regression/test_logging_levels.sh $<TARGET_FILE:foxlang>
+        )
+        set_tests_properties(integration_logging_levels PROPERTIES
+            ENVIRONMENT "${FOXLANG_TEST_ENV}"
+        )
+
+        add_test(NAME integration_error_handling
+            COMMAND ${BASH_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/regression/test_error_handling.sh $<TARGET_FILE:foxlang>
+        )
+        set_tests_properties(integration_error_handling PROPERTIES
+            ENVIRONMENT "${FOXLANG_TEST_ENV}"
+        )
+    endif()
+endif()

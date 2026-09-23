@@ -1,0 +1,38 @@
+// FoxLang regression: file operations (write, append, read)
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+string test_filename = "temp_test_file.txt";
+
+// 1. Write file
+bool w_ok = write_file(test_filename, "First line\n");
+assert_true(w_ok == true, "write_file success");
+
+// 2. Read file
+string content1 = read_file(test_filename);
+assert_true(content1 == "First line\n", "read_file content");
+
+// 3. Append to file
+bool a_ok = append_file(test_filename, "Second line\n");
+assert_true(a_ok == true, "append_file success");
+
+string content2 = read_file(test_filename);
+assert_true(content2 == "First line\nSecond line\n", "read_file after append");
+
+// 4. Overwrite file
+write_file(test_filename, "Overwritten");
+string content3 = read_file(test_filename);
+assert_true(content3 == "Overwritten\n" || content3 == "Overwritten", "read_file after overwrite");
+
+// 5. Read non-existent file returns empty string
+string missing = read_file("non_existent_file_definitely_not_here.txt");
+assert_true(missing == "", "missing file returns empty string");
+
+// Cleanup
+write_file(test_filename, "");
+
+print("FILES_OK");

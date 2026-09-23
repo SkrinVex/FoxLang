@@ -1,14 +1,17 @@
-# FoxLang tests
+# Тестирование FoxLang
 
-CI builds the interpreter with warnings enabled and runs the standard-library smoke test.
+Тестовый набор FoxLang состоит из:
+1. **Native C++ unit-тестов** компонентов ядра (`test_lexer`, `test_parser`, `test_interpreter`);
+2. **Smoke-тестов** синтаксиса и стандартной библиотеки;
+3. **Регрессионных тестов языка** (`tests/regression/*.fox`);
+4. **Интеграционных тестов окружения и сети** (уровни логирования, обработка ошибок, локальный HTTP клиент/сервер).
 
-For local validation:
+## Запуск через CTest
 
 ```bash
-g++ -std=c++17 -Wall -Wextra -pedantic src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang
-export FOXLANG_HOME="$PWD"
-./foxlang --version
-./foxlang examples/stdlib_demo.fox
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
 ```
 
-The TCP example performs a real external connection and is intentionally not part of the deterministic CI smoke test.
+Все тесты завершаются с ненулевым статусом при обнаружении регрессий. Тестирование сетевых компонентов выполняется против локального тестового сервера без обращения во внешнюю сеть.

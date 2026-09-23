@@ -1,0 +1,57 @@
+// FoxLang regression: expressions, precedence, comparisons, booleans
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. Precedence
+int p1 = 2 + 3 * 4;
+assert_true(p1 == 14, "precedence * before +");
+
+int p2 = (2 + 3) * 4;
+assert_true(p2 == 20, "parentheses precedence");
+
+int p3 = 10 - 4 - 2;
+assert_true(p3 == 4, "left associativity of subtraction");
+
+int p4 = 17 % 5;
+assert_true(p4 == 2, "modulo");
+
+// 2. Unary operators
+int u1 = -5;
+assert_true(u1 == 0 - 5, "unary minus literal");
+
+int u2 = -u1;
+assert_true(u2 == 5, "unary minus variable");
+
+bool not_t = !true;
+assert_true(not_t == false, "unary not true");
+assert_true(!not_t == true, "unary not false");
+
+// 3. Comparisons
+assert_true(5 < 10, "int lt");
+assert_true(10 > 5, "int gt");
+assert_true(5 <= 5, "int lte equal");
+assert_true(4 <= 5, "int lte less");
+assert_true(5 >= 5, "int gte equal");
+assert_true(6 >= 5, "int gte greater");
+assert_true(5 == 5, "int eq");
+assert_true(5 != 6, "int neq");
+
+assert_true("apple" < "banana", "string lt");
+assert_true("fox" == "fox", "string eq");
+assert_true("fox" != "box", "string neq");
+
+// 4. Boolean logic
+assert_true(true && true, "and true true");
+assert_true(!(true && false), "and true false");
+assert_true(true || false, "or true false");
+assert_true(!(false || false), "or false false");
+
+// 5. Adjacent string literals
+string adj = "Fox" "Lang" " " "Rocks";
+assert_true(adj == "FoxLang Rocks", "adjacent string literals");
+
+print("EXPRESSIONS_OK");

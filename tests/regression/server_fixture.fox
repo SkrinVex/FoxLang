@@ -1,0 +1,24 @@
+using server;
+
+void handle_get() {
+    respond_status(200, "{\"route\":\"get_ok\",\"path\":\"" + path() + "\",\"method\":\"" + method() + "\"}");
+}
+
+void handle_post() {
+    string b = body();
+    respond_status(201, "{\"route\":\"post_ok\",\"received\":" + b + "}");
+}
+
+void handle_stop() {
+    respond("{\"stopped\":true}");
+    server_stop();
+}
+
+void main() {
+    get("/test/get", "handle_get");
+    post("/test/post", "handle_post");
+    get("/stop", "handle_stop");
+    listen(18095);
+}
+
+main();

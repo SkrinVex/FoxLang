@@ -1,0 +1,26 @@
+// FoxLang regression: include, using, relative imports, duplicate loading
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. Relative include
+include("helper_module.fox");
+assert_true(helper_add(10, 20) == 30, "function from included module");
+assert_true(helper_load_count == 1, "module loaded once");
+
+// Mutate global value; if re-imported, it would be reset back to 1
+helper_load_count = 99;
+
+// 2. Duplicate include should be ignored
+include("helper_module.fox");
+assert_true(helper_load_count == 99, "duplicate include does not re-execute module");
+
+// 3. Using standard library module
+using math;
+assert_true(min_int(5, 12) == 5, "math module min_int");
+assert_true(max_int(5, 12) == 12, "math module max_int");
+
+print("MODULES_OK");

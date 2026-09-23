@@ -1,0 +1,38 @@
+// FoxLang regression: functions, params, return, recursion, local scope
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. Basic function
+int add3(int a, int b, int c) {
+    return a + b + c;
+}
+assert_true(add3(10, 20, 30) == 60, "add3 function");
+
+// 2. String return function
+string greet(string name, string title) {
+    return "Hello " + title + " " + name;
+}
+assert_true(greet("Fox", "Dr.") == "Hello Dr. Fox", "greet function");
+
+// 3. Recursion
+int fib(int n) {
+    if (n <= 0) { return 0; }
+    if (n == 1) { return 1; }
+    return fib(n - 1) + fib(n - 2);
+}
+assert_true(fib(7) == 13, "fibonacci recursion");
+
+// 4. Local scope isolation
+int shadow = 100;
+void test_scope() {
+    int shadow = 200;
+    shadow = shadow + 1;
+}
+test_scope();
+assert_true(shadow == 100, "local variable shadow does not overwrite outer");
+
+print("FUNCTIONS_OK");

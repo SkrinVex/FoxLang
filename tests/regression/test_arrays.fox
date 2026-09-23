@@ -1,0 +1,34 @@
+// FoxLang regression: arrays creation, set, get, size
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. Array creation and size
+array nums 5;
+assert_true(size(nums) == 5, "array size");
+
+// 2. Set and get elements
+for (int i = 0; i < 5; i++) {
+    set(nums, i, i * 10);
+}
+
+for (int i = 0; i < 5; i++) {
+    assert_true(get(nums, i) == i * 10, "array get i=" + i);
+}
+
+// 3. String size
+string test_str = "FoxLang";
+assert_true(size(test_str) == 7, "string size");
+
+// 4. String split creating an array
+array parts 0;
+parts = str_split("a,b,c", ",");
+assert_true(size(parts) == 3, "str_split array size");
+assert_true(get(parts, 0) == "a", "str_split part 0");
+assert_true(get(parts, 1) == "b", "str_split part 1");
+assert_true(get(parts, 2) == "c", "str_split part 2");
+
+print("ARRAYS_OK");
