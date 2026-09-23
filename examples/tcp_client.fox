@@ -1,0 +1,19 @@
+using net;
+
+void main() {
+    string ip = resolve_host("example.com");
+    print("example.com -> " + ip);
+
+    int sock = connect_tcp("example.com", 80);
+    if (sock < 0) {
+        print("connect failed");
+        return;
+    }
+
+    send_tcp(sock, "GET / HTTP/1.0\r\nHost: example.com\r\nConnection: close\r\n\r\n");
+    string response = recv_tcp(sock, 4096);
+    print(response);
+    close_tcp(sock);
+}
+
+main();
