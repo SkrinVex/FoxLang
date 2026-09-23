@@ -427,52 +427,31 @@ struct FuncCallNode : Node {
             return {"string", value};
         }
         if (name == "json_get" && args.size() == 2) {
-            Value jsonVal = args[0]->eval(ctx);
-            Value keyVal = args[1]->eval(ctx);
-
-            std::string json = jsonVal.value;
-            std::string key = keyVal.value;
-
-            // Простой JSON парсер для Telegram API
-            if (key == "chat_id") {
-                size_t pos = json.find("\"chat\":{\"id\":");
-                if (pos != std::string::npos) {
-                    pos += 13; // длина "\"chat\":{\"id\":"
-                    size_t end = json.find(",", pos);
-                    if (end != std::string::npos) {
-                        return {"string", json.substr(pos, end - pos)};
-                    }
-                }
+            std::string json=args[0]->eval(ctx).value, path=args[1]->eval(ctx).value;
+            auto skip=[&](size_t& p){ while(p<json.size() && std::isspace((unsigned char)json[p])) p++; };
+            auto valueAt=[&](size_t p)->std::string {
+                skip(p); if(p>=json.size()) return "";
+                if(json[p]=='"') { p++; std::string out; bool esc=false; for(;p<json.size();p++){char ch=json[p]; if(esc){ if(ch=='n')out+='\n'; else if(ch=='r')out+='\r'; else if(ch=='t')out+='\t'; else out+=ch; esc=false;} else if(ch=='\\')esc=true; else if(ch=='"')break; else out+=ch;} return out; }
+                size_t e=p; while(e<json.size() && json[e]!=',' && json[e]!='}' && json[e]!=']' && !std::isspace((unsigned char)json[e])) e++; return json.substr(p,e-p);
+            };
+            size_t scopeStart=0, scopeEnd=json.size();
+            std::stringstream ps(path); std::string key;
+            while(std::getline(ps,key,'.')) {
+                std::string needle="\""+key+"\""; size_t k=json.find(needle,scopeStart);
+                if(k==std::string::npos || k>=scopeEnd) return {"string",""};
+                size_t colon=json.find(':',k+needle.size()); if(colon==std::string::npos || colon>=scopeEnd) return {"string",""};
+                size_t p=colon+1; skip(p);
+                if(ps.peek()!=EOF) {
+                    if(p>=json.size() || (json[p]!='{' && json[p]!='[')) return {"string",""};
+                    char open=json[p], close=open=='{'?'}':']'; int depth=0; bool str=false,esc=false; size_t e=p;
+                    for(;e<json.size();e++){char ch=json[e]; if(str){if(esc)esc=false;else if(ch=='\\')esc=true;else if(ch=='"')str=false;}else{if(ch=='"')str=true;else if(ch==open)depth++;else if(ch==close && --depth==0){e++;break;}}}
+                    scopeStart=p+1; scopeEnd=e;
+                } else return {"string",valueAt(p)};
             }
-            else if (key == "text") {
-                size_t pos = json.find("\"text\":\"");
-                if (pos != std::string::npos) {
-                    pos += 8; // длина "\"text\":\""
-                    size_t end = json.find("\"", pos);
-                    if (end != std::string::npos) {
-                        return {"string", json.substr(pos, end - pos)};
-                    }
-                }
-            }
-            else if (key == "update_id") {
-                // Ищем последний update_id в массиве
-                size_t lastPos = 0;
-                size_t pos = json.find("\"update_id\":");
-                while (pos != std::string::npos) {
-                    lastPos = pos;
-                    pos = json.find("\"update_id\":", pos + 1);
-                }
-
-                if (lastPos != 0) {
-                    lastPos += 12; // длина "\"update_id\":"
-                    size_t end = json.find(",", lastPos);
-                    if (end != std::string::npos) {
-                        return {"string", json.substr(lastPos, end - lastPos)};
-                    }
-                }
-            }
-
-            return {"string", ""};
+            return {"string",""};
+        }
+        if (name == "json_escape" && args.size() == 1) {
+            std::string s=args[0]->eval(ctx).value,out; for(char ch:s){if(ch=='"'||ch=='\\'){out+='\\';out+=ch;}else if(ch=='\n')out+="\\n";else if(ch=='\r')out+="\\r";else if(ch=='\t')out+="\\t";else out+=ch;} return {"string",out};
         }
         if (name == "str_contains" && args.size() == 2) {
             Value textVal = args[0]->eval(ctx);
