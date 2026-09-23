@@ -6,7 +6,7 @@
 #include "Lexer.h"
 #include "Parser.h"
 
-static constexpr const char* FOX_VERSION = "5.4.5";
+static constexpr const char* FOX_VERSION = "5.4.6";
 
 static void loadDotEnv(const std::string& scriptPath) {
     std::string dir = ".";
