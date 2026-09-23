@@ -1,4 +1,5 @@
 #include "LspServer.h"
+#include "foxlang/FoxLang.h"
 #include <iostream>
 
 namespace foxlang {
@@ -51,7 +52,7 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
 
         std::map<std::string, JsonValue> serverInfo;
         serverInfo["name"] = "foxlang-lsp";
-        serverInfo["version"] = "5.4.7";
+        serverInfo["version"] = foxlang::Interpreter::getVersion();
 
         std::map<std::string, JsonValue> res;
         res["capabilities"] = JsonValue(capabilities);

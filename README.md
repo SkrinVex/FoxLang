@@ -1,6 +1,6 @@
 # 🦊 FoxLang
 
-![Версия](https://img.shields.io/badge/version-5.4.7-orange)
+![Версия](https://img.shields.io/badge/version-5.5.0-orange)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
@@ -140,7 +140,7 @@ int main() {
 ```text
 FoxLang/
 ├── CMakeLists.txt              # Корневой файл сборки CMake
-├── VERSION                     # Текущая версия (5.4.7)
+├── VERSION                     # Текущая версия (5.5.0)
 ├── include/
 │   └── foxlang/                # Публичные C++ заголовочные файлы
 │       ├── FoxLang.h           # Публичный API: Interpreter, RunResult, Options
