@@ -1,0 +1,7 @@
+int a = round(2.6);
+int b = random(1, 3);
+if (a != 3) { print("FAIL round"); }
+if (b < 1 || b > 3) { print("FAIL random"); }
+string s = "fox";
+if (size(s) != 3) { print("FAIL size"); }
+print("CORE_SMOKE_OK");
