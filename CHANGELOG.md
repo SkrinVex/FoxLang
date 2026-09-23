@@ -1,3 +1,10 @@
+# FoxLang 5.4.4 — Changelog
+
+- Исправлен HTTP POST: JSON body теперь безопасно передаётся curl без разрушения кавычек shell.
+- POST получил таймауты, fail-with-body и подробное логирование ошибок curl/HTTP.
+
+---
+
 # FoxLang 5.4.3 — Changelog
 
 - Исправлен конфликт ключевого слова `get` с функцией `get()` из `std/server.fox`.
