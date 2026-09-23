@@ -1,0 +1,7 @@
+using env;
+using log;
+string value = env("FOXLANG_TEST_VALUE");
+if (value != "works") { print("FAIL env"); }
+info("visible-info");
+debug("hidden-debug");
+print("ENV_LOGGING_OK");
