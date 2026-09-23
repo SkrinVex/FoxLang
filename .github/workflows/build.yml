@@ -48,8 +48,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: mkdir -p dist && g++ -std=c++17 -O2 src/main.cpp src/Lexer.cpp src/Parser.cpp -o dist/foxlang
-      - run: tar -czf "FoxLang-${{ needs.version.outputs.version }}-linux-x86_64.tar.gz" -C dist foxlang
+      - name: Build Linux binary
+        run: g++ -std=c++17 -O2 src/main.cpp src/Lexer.cpp src/Parser.cpp -o foxlang.bin
+      - name: Build installable Linux package
+        shell: bash
+        run: |
+          PKG="FoxLang-${{ needs.version.outputs.version }}-linux-x86_64"
+          mkdir -p "$PKG"
+          cp foxlang.bin "$PKG/foxlang.bin"
+          cp VERSION "$PKG/VERSION"
+          cp packaging/linux/install.sh "$PKG/install.sh"
+          chmod +x "$PKG/install.sh" "$PKG/foxlang.bin"
+          cp -R std "$PKG/std"
+          tar -czf "$PKG.tar.gz" "$PKG"
       - uses: actions/upload-artifact@v4
         with:
           name: linux-release
