@@ -1,0 +1,23 @@
+// FoxLang 5.2 HTTP helpers.
+// HTTP currently uses the runtime HTTP client for HTTPS support.
+// Low-level TCP is available separately through std/net.fox.
+
+string get(string url) {
+    return httpget(url);
+}
+
+string post(string url, string body) {
+    return httppost(url, body, "application/json");
+}
+
+string post_as(string url, string body, string content_type) {
+    return httppost(url, body, content_type);
+}
+
+string put(string url, string body) {
+    return httpput(url, body, "application/json");
+}
+
+string del(string url) {
+    return httpdelete(url);
+}
