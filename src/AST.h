@@ -408,6 +408,15 @@ struct FuncCallNode : Node {
 
             return {"string", result};
         }
+        if (name == "log_debug" && args.size() == 1) { std::cerr << "[DEBUG] " << args[0]->eval(ctx).value << std::endl; return {"void", ""}; }
+        if (name == "log_info" && args.size() == 1) { std::cerr << "[INFO] " << args[0]->eval(ctx).value << std::endl; return {"void", ""}; }
+        if (name == "log_warn" && args.size() == 1) { std::cerr << "[WARN] " << args[0]->eval(ctx).value << std::endl; return {"void", ""}; }
+        if (name == "log_error" && args.size() == 1) { std::cerr << "[ERROR] " << args[0]->eval(ctx).value << std::endl; return {"void", ""}; }
+        if (name == "env_get" && args.size() == 1) {
+            std::string key = args[0]->eval(ctx).value;
+            const char* value = std::getenv(key.c_str());
+            return {"string", value ? value : ""};
+        }
         if (name == "json_get" && args.size() == 2) {
             Value jsonVal = args[0]->eval(ctx);
             Value keyVal = args[1]->eval(ctx);
