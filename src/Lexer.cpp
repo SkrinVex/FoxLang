@@ -67,9 +67,9 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "input") tokens.push_back({TokenType::INPUT, id, line});
             else if (id == "fox") tokens.push_back({TokenType::FOX, id, line});
             else if (id == "readfile") tokens.push_back({TokenType::READ_FILE, id, line});
-            else if (id == "jsonget") tokens.push_back({TokenType::JSON_GET, id, line});
-            else if (id == "strcontains") tokens.push_back({TokenType::STR_CONTAINS, id, line});
-            else if (id == "strtoint") tokens.push_back({TokenType::STR_TO_INT, id, line});
+
+
+
             else if (id == "int") tokens.push_back({TokenType::INT_KW, id, line});
             else if (id == "float") tokens.push_back({TokenType::FLOAT_KW, id, line});
             else if (id == "string") tokens.push_back({TokenType::STRING_KW, id, line});
@@ -90,7 +90,7 @@ std::vector<Token> Lexer::tokenize() {
             else if (id == "array") tokens.push_back({TokenType::ARRAY, id, line});
             else if (id == "set") tokens.push_back({TokenType::SET, id, line});
             else if (id == "get") tokens.push_back({TokenType::GET, id, line});
-            else if (id == "size") tokens.push_back({TokenType::SIZE, id, line});
+
             else if (id == "include") tokens.push_back({TokenType::INCLUDE, id, line});
             else if (id == "using") tokens.push_back({TokenType::USING, id, line});
             else if (id == "return") tokens.push_back({TokenType::RETURN, id, line});
