@@ -11,6 +11,16 @@
 #include <algorithm>
 #include <thread>
 #include <chrono>
+#include <cstdlib>
+#include <cstring>
+#include <unordered_set>
+#ifndef _WIN32
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#endif
 #ifdef _WIN32
 #include <conio.h>
 #else
@@ -189,12 +199,18 @@ struct FuncCallNode : Node {
 #ifdef _WIN32
             return {"bool", _kbhit() ? "true" : "false"};
 #else
-            int ch = getchar();
-            if (ch != EOF) {
-                ungetc(ch, stdin);
-                return {"bool", "true"};
-            }
-            return {"bool", "false"};
+            struct termios oldt, newt;
+            if (tcgetattr(STDIN_FILENO, &oldt) != 0) return {"bool", "false"};
+            newt = oldt;
+            newt.c_lflag &= ~(ICANON | ECHO);
+            tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+            timeval tv{0, 0};
+            fd_set fds;
+            FD_ZERO(&fds);
+            FD_SET(STDIN_FILENO, &fds);
+            int ready = select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+            return {"bool", ready > 0 ? "true" : "false"};
 #endif
         }
         if (name == "wait" && args.size() == 1) {
@@ -213,6 +229,101 @@ struct FuncCallNode : Node {
             std::uniform_int_distribution<> dis(min, max);
             return {"int", std::to_string(dis(gen))};
         }
+
+        if (name == "abs" && args.size() == 1) {
+            Value v = args[0]->eval(ctx);
+            double n = std::stod(v.value);
+            if (v.type == "int") return {"int", std::to_string(std::abs((int)n))};
+            return {"float", formatNumber(std::fabs(n))};
+        }
+        if ((name == "min" || name == "max") && args.size() == 2) {
+            Value a = args[0]->eval(ctx);
+            Value b = args[1]->eval(ctx);
+            double av = std::stod(a.value), bv = std::stod(b.value);
+            double out = name == "min" ? std::min(av, bv) : std::max(av, bv);
+            if (a.type == "int" && b.type == "int") return {"int", std::to_string((int)out)};
+            return {"float", formatNumber(out)};
+        }
+        if (name == "clamp" && args.size() == 3) {
+            double v = std::stod(args[0]->eval(ctx).value);
+            double lo = std::stod(args[1]->eval(ctx).value);
+            double hi = std::stod(args[2]->eval(ctx).value);
+            if (lo > hi) std::swap(lo, hi);
+            return {"float", formatNumber(std::max(lo, std::min(v, hi)))};
+        }
+        if (name == "time_ms" && args.size() == 0) {
+            auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            return {"string", std::to_string(now)};
+        }
+
+        // Low-level terminal runtime. Prefer std/terminal.fox in application code.
+        if (name == "term_clear" && args.size() == 0) { std::cout << "\033[2J\033[H" << std::flush; return {"void", ""}; }
+        if (name == "term_home" && args.size() == 0) { std::cout << "\033[H" << std::flush; return {"void", ""}; }
+        if (name == "term_write" && args.size() == 1) { std::cout << args[0]->eval(ctx).value << std::flush; return {"void", ""}; }
+        if (name == "term_goto" && args.size() == 2) {
+            int row = std::stoi(args[0]->eval(ctx).value), col = std::stoi(args[1]->eval(ctx).value);
+            std::cout << "\033[" << row << ";" << col << "H" << std::flush; return {"void", ""};
+        }
+        if (name == "term_hide_cursor" && args.size() == 0) { std::cout << "\033[?25l" << std::flush; return {"void", ""}; }
+        if (name == "term_show_cursor" && args.size() == 0) { std::cout << "\033[?25h" << std::flush; return {"void", ""}; }
+        if (name == "term_color" && args.size() == 1) { std::cout << "\033[" << args[0]->eval(ctx).value << "m" << std::flush; return {"void", ""}; }
+        if (name == "term_reset" && args.size() == 0) { std::cout << "\033[0m" << std::flush; return {"void", ""}; }
+
+#ifndef _WIN32
+        // POSIX TCP client primitives. Sockets are represented as integer handles.
+        if (name == "tcp_connect" && args.size() == 2) {
+            std::string host = args[0]->eval(ctx).value;
+            std::string port = args[1]->eval(ctx).value;
+            addrinfo hints{}; hints.ai_family = AF_UNSPEC; hints.ai_socktype = SOCK_STREAM;
+            addrinfo* res = nullptr;
+            if (getaddrinfo(host.c_str(), port.c_str(), &hints, &res) != 0) return {"int", "-1"};
+            int fd = -1;
+            for (addrinfo* p = res; p; p = p->ai_next) {
+                fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+                if (fd < 0) continue;
+                if (connect(fd, p->ai_addr, p->ai_addrlen) == 0) break;
+                close(fd); fd = -1;
+            }
+            freeaddrinfo(res);
+            return {"int", std::to_string(fd)};
+        }
+        if (name == "tcp_send" && args.size() == 2) {
+            int fd = std::stoi(args[0]->eval(ctx).value);
+            std::string data = args[1]->eval(ctx).value;
+            ssize_t sent = send(fd, data.data(), data.size(), 0);
+            return {"int", std::to_string(sent < 0 ? -1 : sent)};
+        }
+        if (name == "tcp_recv" && args.size() == 2) {
+            int fd = std::stoi(args[0]->eval(ctx).value);
+            int maxBytes = std::max(1, std::stoi(args[1]->eval(ctx).value));
+            std::string out(maxBytes, '\0');
+            ssize_t n = recv(fd, out.data(), out.size(), 0);
+            if (n <= 0) return {"string", ""};
+            out.resize((size_t)n);
+            return {"string", out};
+        }
+        if (name == "tcp_close" && args.size() == 1) {
+            int fd = std::stoi(args[0]->eval(ctx).value);
+            return {"bool", close(fd) == 0 ? "true" : "false"};
+        }
+        if (name == "dns_lookup" && args.size() == 1) {
+            std::string host = args[0]->eval(ctx).value;
+            addrinfo hints{}; hints.ai_family = AF_UNSPEC;
+            addrinfo* res = nullptr;
+            if (getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0) return {"string", ""};
+            char buf[INET6_ADDRSTRLEN] = {0};
+            std::string out;
+            for (addrinfo* p = res; p && out.empty(); p = p->ai_next) {
+                void* addr = p->ai_family == AF_INET
+                    ? (void*)&((sockaddr_in*)p->ai_addr)->sin_addr
+                    : (void*)&((sockaddr_in6*)p->ai_addr)->sin6_addr;
+                if (inet_ntop(p->ai_family, addr, buf, sizeof(buf))) out = buf;
+            }
+            freeaddrinfo(res);
+            return {"string", out};
+        }
+#endif
         if (name == "fox" && args.size() == 0) {
             std::cout << "FoxLang" << std::endl;
             return {"void", ""};
