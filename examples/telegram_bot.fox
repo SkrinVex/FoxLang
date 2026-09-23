@@ -1,0 +1,20 @@
+using http;
+using time;
+using log;
+using env;
+
+string token = env("TELEGRAM_BOT_TOKEN");
+if (token == "") {
+    error("Не задан TELEGRAM_BOT_TOKEN");
+} else {
+    string api = "https://api.telegram.org/bot" + token + "/";
+    info("Проверяю Telegram Bot API...");
+    string me = http_fetch(api + "getMe");
+    if (me == "") {
+        error("Telegram API не ответил. Подробности HTTP должны быть выше.");
+    } else {
+        info("Telegram API отвечает:");
+        print(me);
+        warn("Полноценный polling требует нового структурного JSON API; json_get пока совместим со старым кодом.");
+    }
+}
