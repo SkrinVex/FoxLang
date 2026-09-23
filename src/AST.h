@@ -531,7 +531,13 @@ struct FuncCallNode : Node {
             while (fgets(buffer, sizeof(buffer), pipe) != nullptr) result += buffer;
             int status = pclose(pipe);
             if (status != 0) {
-                std::cerr << "[HTTP ERROR] GET " << urlVal.value << " (curl exit code " << (WIFEXITED(status) ? WEXITSTATUS(status) : status) << ")\n"
+                std::cerr << "[HTTP ERROR] GET " << urlVal.value << " (curl exit code " <<
+#ifdef _WIN32
+                          status
+#else
+                          (WIFEXITED(status) ? WEXITSTATUS(status) : status)
+#endif
+                          << ")\n"
                           << result << std::endl;
                 return {"string", ""};
             }
