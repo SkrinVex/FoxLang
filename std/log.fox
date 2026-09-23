@@ -1,0 +1,5 @@
+// FoxLang logging standard library.
+void debug(string message) { log_debug(message); }
+void info(string message) { log_info(message); }
+void warn(string message) { log_warn(message); }
+void error(string message) { log_error(message); }
