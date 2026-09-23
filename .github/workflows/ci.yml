@@ -34,13 +34,18 @@ jobs:
         shell: bash
         run: |
           BIN=./build/foxlang
+          LSP_BIN=./build/foxlang-lsp
           if [ "$RUNNER_OS" = "Windows" ]; then
             if [ -f "./build/Release/foxlang.exe" ]; then
               BIN=./build/Release/foxlang.exe
+              LSP_BIN=./build/Release/foxlang-lsp.exe
             else
               BIN=./build/foxlang.exe
+              LSP_BIN=./build/foxlang-lsp.exe
             fi
           fi
           test "$($BIN --version)" = "FoxLang $(tr -d '[:space:]' < VERSION)"
           $BIN --help | grep -q "github.com/SkrinVex/FoxLang"
           $BIN --help | grep -q "DOCUMENTATION.md"
+          test "$($LSP_BIN --version)" = "foxlang-lsp $(tr -d '[:space:]' < VERSION)"
+          $LSP_BIN --help | grep -q "Language Server"

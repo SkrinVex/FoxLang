@@ -45,7 +45,8 @@
 - Терминальный/TUI API (ANSI-цвета, позиционирование курсора, очистка).
 - Сетевой клиент (DNS, TCP-сокеты, HTTP GET/POST/PUT/DELETE).
 - HTTP/webhook-сервер на POSIX (`get`, `post`, `body`, `method`, `path`, `respond`, `listen`, `server_stop`).
-- Независимая C++17 библиотека ядра для встраивания в приложения, тесты и будущий LSP-сервер.
+- Независимая C++17 библиотека ядра (`foxlang_core`) для встраивания в приложения и тесты.
+- Полнофункциональный языковой сервер `foxlang-lsp` (LSP 3.17) и готовые плагины для VS Code и Kate.
 
 ---
 
@@ -143,9 +144,11 @@ FoxLang/
 ├── include/
 │   └── foxlang/                # Публичные C++ заголовочные файлы
 │       ├── FoxLang.h           # Публичный API: Interpreter, RunResult, Options
+│       ├── SourceLocation.h    # Позиции (UTF-8/UTF-16), диапазоны и модель Diagnostic
+│       ├── SemanticAnalyzer.h  # Статический семантический анализ, области видимости
 │       ├── Context.h           # Контекст переменных, функций и массивов
-│       ├── AST.h               # Чистые узлы абстрактного синтаксического дерева
-│       ├── Lexer.h             # Лексический анализатор
+│       ├── AST.h               # Чистые узлы AST с диапазонами SourceRange
+│       ├── Lexer.h             # Лексический анализатор с отслеживанием UTF-16
 │       ├── Parser.h            # Синтаксический анализатор (формирует AST)
 │       ├── Runtime.h           # Встроенные функции, JSON, логирование, .env
 │       ├── Platform.h          # Изоляция платформозависимого кода (POSIX/Windows)
@@ -157,9 +160,28 @@ FoxLang/
 │   │   ├── Runtime.cpp
 │   │   ├── Lexer.cpp
 │   │   ├── Parser.cpp
+│   │   ├── SemanticAnalyzer.cpp
 │   │   └── Interpreter.cpp
-│   └── cli/                    # Тонкий исполняемый файл CLI
+│   ├── cli/                    # Тонкий исполняемый файл CLI (foxlang)
+│   │   └── main.cpp
+│   └── lsp/                    # Языковой сервер Language Server Protocol (foxlang-lsp)
+│       ├── Json.h / Json.cpp
+│       ├── Transport.h / Transport.cpp
+│       ├── Protocol.h
+│       ├── DocumentManager.h / DocumentManager.cpp
+│       ├── LspServer.h / LspServer.cpp
 │       └── main.cpp
+├── editors/                    # Интеграции для редакторов кода
+│   ├── vscode/                 # Расширение Visual Studio Code
+│   │   ├── package.json
+│   │   ├── language-configuration.json
+│   │   ├── syntaxes/foxlang.tmLanguage.json
+│   │   └── client/extension.js
+│   └── kate/                   # Поддержка KDE Kate
+│       ├── foxlang.xml         # Подсветка синтаксиса KSyntaxHighlighting
+│       └── settings.json       # Конфигурация LSP Client
+├── docs/
+│   └── EDITORS.md              # Подробное руководство по настройке редакторов
 ├── std/                        # Стандартная библиотека FoxLang
 │   ├── env.fox
 │   ├── http.fox
@@ -173,10 +195,13 @@ FoxLang/
 │   └── time.fox
 ├── tests/                      # Набор тестов (CTest)
 │   ├── CMakeLists.txt
-│   ├── unit/                   # Native C++ unit-тесты (Lexer, Parser, API)
+│   ├── unit/                   # Native C++ unit-тесты
 │   │   ├── test_lexer.cpp
 │   │   ├── test_parser.cpp
-│   │   └── test_interpreter.cpp
+│   │   ├── test_interpreter.cpp
+│   │   ├── test_positions.cpp
+│   │   ├── test_semantic_analyzer.cpp
+│   │   └── test_lsp_protocol.cpp
 │   └── regression/             # Регрессионные тесты языка и окружения (*.fox, *.sh)
 ├── examples/                   # Примеры программ и Telegram webhook-бот
 ├── packaging/                  # Скрипты развёртывания и упаковки
@@ -186,12 +211,20 @@ FoxLang/
 
 ---
 
-## Подготовка к LSP и Semantic Analyzer
+## Поддержка редакторов (VS Code, Kate) и Language Server (`foxlang-lsp`)
 
-Архитектура FoxLang подготовлена для добавления полноценного Language Server Protocol (LSP) сервера:
-1. **Чистое построение AST**: `Parser::parseProgram()` строит узлы AST без немедленного выполнения инструкций.
-2. **Точные позиции токенов**: `Token` содержит номер строки `line` и колонки `column`.
-3. **Будущий Semantic Analyzer**: планируется модуль анализатора, который будет обходить AST после парсера, проверять типы, видимость переменных и сигнатуры функций, выдавая диагностики в LSP сервер без запуска самого кода.
+В FoxLang входит полнофункциональный языковой сервер **`foxlang-lsp`** по протоколу LSP 3.17, работающий через стандартные потоки ввода-вывода (JSON-RPC stdio).
+
+### Возможности:
+* **Подсветка синтаксиса**: файлы подсветки TextMate для VS Code и KSyntaxHighlighting XML для Kate.
+* **Диагностика ошибок (Diagnostics)**: синтаксические и семантические ошибки с точными позициями в кодовых единицах UTF-16 (корректно поддерживаются кириллица и 4-байтовые эмодзи вроде `🦊`).
+* **Автодополнение (Autocomplete)**: ключевые слова языка, функции стандартной библиотеки и пользовательские идентификаторы в текущей области видимости.
+* **Подсказки при наведении (Hover)**: всплывающие окна с сигнатурами функций и типами переменных в Markdown.
+* **Переход к определению (Go to Definition)**: быстрый переход по `F12` к месту объявления переменной или функции.
+* **Символы документа (Document Symbols)**: навигация по функциям и переменным файла.
+* **Безопасность**: `SemanticAnalyzer` и `foxlang-lsp` никогда не исполняют пользовательский код для его анализа.
+
+Подробные пошаговые инструкции по подключению см. в [docs/EDITORS.md](docs/EDITORS.md), [editors/vscode/README.md](editors/vscode/README.md) и [editors/kate/README.md](editors/kate/README.md).
 
 ---
 
