@@ -19,7 +19,7 @@ impl zed::Extension for FoxLangExtension {
         Ok(Command {
             command: path,
             args: vec!["--stdio".to_string()],
-            env: worktree.shell_env(),
+            env: Default::default(),
         })
     }
 }
