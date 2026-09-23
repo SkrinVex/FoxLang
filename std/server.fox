@@ -1,0 +1,9 @@
+// Реальный HTTP/webhook сервер FoxLang (Linux/POSIX).
+void get(string path, string handler) { route_get(path, handler); }
+void post(string path, string handler) { route_post(path, handler); }
+string body() { return request_body(); }
+string method() { return request_method(); }
+string path() { return request_path(); }
+void respond(string data) { send_response(data); }
+void respond_status(int status, string data) { send_response(status, data); }
+void listen(int port) { server_start(port); }
