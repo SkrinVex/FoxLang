@@ -1150,3 +1150,31 @@ VS Code        Kate
 3. **Разрешения сети**: использование сетевых сокетов и HTTP-сервера требует объявления `<uses-permission android:name="android.permission.INTERNET" />`.
 4. **Стандартная библиотека**: пути к модулям (`std/`) на Android должны конфигурироваться через `options.foxHome` во внутреннее хранилище приложения (`context.filesDir`).
 
+---
+
+## 20. Запуск в Docker и публикация контейнеров
+
+FoxLang поддерживает исполнение в легковесных изолированных контейнерах Docker на базе Alpine Linux.
+
+Официальный контейнерный образ с интерпретатором `foxlang`, сервером `foxlang-lsp` и стандартной библиотекой:
+```bash
+ghcr.io/skrinvex/foxlang:latest
+```
+
+### Запуск файла скрипта:
+```bash
+docker run --rm -v $(pwd):/app ghcr.io/skrinvex/foxlang:latest script.fox
+```
+
+### Развёртывание бота / HTTP-сервера:
+```bash
+docker run -d --name foxbot -p 8080:8080 \
+  -e TELEGRAM_BOT_TOKEN="my_secret_token" \
+  -v $(pwd):/app \
+  ghcr.io/skrinvex/foxlang:latest bot.fox
+```
+
+### Автоматическая сборка в CI:
+Каждый push в ветку `master` и теги версий `v*` автоматически собирают и публикуют Docker-образ в GitHub Container Registry (`ghcr.io/skrinvex/foxlang`) через рабочий процесс `.github/workflows/docker.yml`.
+
+

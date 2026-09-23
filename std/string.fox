@@ -10,3 +10,7 @@ string replace(string text, string from, string to) {
 int to_int(string text) {
     return str_to_int(text);
 }
+
+int strtoint(string text) {
+    return str_to_int(text);
+}

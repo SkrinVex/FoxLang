@@ -1,0 +1,10 @@
+build/
+build-*/
+.git/
+.vscode/
+dist/
+dist-*/
+*.vsix
+__pycache__/
+*.o
+*.a

@@ -108,6 +108,87 @@ foxlang -h
 
 ---
 
+## 🐳 Использование в Docker
+
+FoxLang поставляется в виде легковесного контейнера на базе Alpine Linux с предустановленным интерпретатором `foxlang`, языковым сервером `foxlang-lsp` и модулями стандартной библиотеки в `/usr/local/share/foxlang/std`.
+
+Образы автоматически собираются и публикуются в **GitHub Container Registry (GHCR)** при каждом коммите и релизе:
+```bash
+ghcr.io/skrinvex/foxlang:latest
+```
+
+### Быстрый запуск и проверка версии
+
+```bash
+docker run --rm ghcr.io/skrinvex/foxlang:latest --version
+```
+
+### Запуск локального скрипта через Volume
+
+Смонтируйте текущую директорию с исходным кодом в контейнер:
+
+```bash
+docker run --rm -v $(pwd):/app ghcr.io/skrinvex/foxlang:latest script.fox
+```
+
+### Запуск веб-сервера / Telegram-бота в фоне
+
+Для запуска сетевых приложений пробросьте порт и передайте переменные окружения / секреты:
+
+```bash
+docker run -d \
+  --name foxbot \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e TELEGRAM_BOT_TOKEN="123456:ABC-DEF..." \
+  -e PORT="8080" \
+  -v $(pwd):/app \
+  ghcr.io/skrinvex/foxlang:latest \
+  bot.fox
+```
+
+Просмотр логов:
+```bash
+docker logs -f foxbot
+```
+
+### Использование с Docker Compose
+
+Пример `docker-compose.yml` для развёртывания сервиса:
+
+```yaml
+version: '3.8'
+
+services:
+  foxbot:
+    image: ghcr.io/skrinvex/foxlang:latest
+    container_name: foxbot
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - PORT=8080
+    volumes:
+      - .:/app
+    command: ["bot.fox"]
+```
+
+Запуск:
+```bash
+docker compose up -d
+```
+
+### Локальная сборка образа
+
+Вы можете собрать образ локально из исходников:
+
+```bash
+docker build -t foxlang:latest .
+```
+
+---
+
 ## 💻 Поддержка редакторов и IDE (VS Code и Kate)
 
 Для языка FoxLang доступен автономный языковой сервер `foxlang-lsp` (Language Server Protocol 3.17) и готовые конфигурации для популярных редакторов:
