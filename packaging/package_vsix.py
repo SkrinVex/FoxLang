@@ -15,7 +15,7 @@ def build_vsix(source_dir, output_vsix, version):
     pkg_version = pkg.get('version', version)
     pkg_id = pkg.get('name', 'foxlang-language')
     pkg_publisher = pkg.get('publisher', 'SkrinVex')
-    display_name = pkg.get('displayName', 'FoxLang')
+    display_name = pkg.get('displayName', 'FoxLang Programming Language')
     description = pkg.get('description', 'FoxLang Language Support')
 
     content_types = '''<?xml version="1.0" encoding="utf-8"?>
