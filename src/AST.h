@@ -154,6 +154,27 @@ struct ReturnNode : Node {
     }
 };
 
+static std::string shellQuote(const std::string& value) {
+#ifdef _WIN32
+    std::string out = "\"";
+    for (char ch : value) {
+        if (ch == '\"') out += "\\\"";
+        else if (ch == '\\') out += "\\\\";
+        else out += ch;
+    }
+    out += "\"";
+    return out;
+#else
+    std::string out = "'";
+    for (char ch : value) {
+        if (ch == '\'') out += "'\\''";
+        else out += ch;
+    }
+    out += "'";
+    return out;
+#endif
+}
+
 struct FuncCallNode : Node {
     std::string name;
     std::vector<std::unique_ptr<Node>> args;
@@ -548,16 +569,29 @@ struct FuncCallNode : Node {
             Value dataVal = args[1]->eval(ctx);
             std::string contentType = args.size() > 2 ? args[2]->eval(ctx).value : "application/json";
 
-            std::string cmd = "curl -s -X POST -H \"Content-Type: " + contentType + "\" -d \"" + dataVal.value + "\" \"" + urlVal.value + "\"";
+            std::string cmd = "curl -sS --fail-with-body --connect-timeout 10 --max-time 35 -X POST -H " +
+                              shellQuote("Content-Type: " + contentType) + " --data-binary " +
+                              shellQuote(dataVal.value) + " " + shellQuote(urlVal.value) + " 2>&1";
             FILE* pipe = popen(cmd.c_str(), "r");
-            if (!pipe) return {"string", ""};
+            if (!pipe) {
+                std::cerr << "[HTTP ERROR] Не удалось запустить curl" << std::endl;
+                return {"string", ""};
+            }
 
             std::string result;
-            char buffer[128];
-            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-                result += buffer;
+            char buffer[256];
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) result += buffer;
+            int status = pclose(pipe);
+            if (status != 0) {
+                std::cerr << "[HTTP ERROR] POST " << urlVal.value << " (curl exit code " <<
+#ifdef _WIN32
+                          status
+#else
+                          (WIFEXITED(status) ? WEXITSTATUS(status) : status)
+#endif
+                          << ")\n" << result << std::endl;
+                return {"string", ""};
             }
-            pclose(pipe);
             return {"string", result};
         }
         if (name == "httpput" && args.size() >= 2) {
