@@ -1,6 +1,6 @@
 # 🦊 FoxLang
 
-![Версия](https://img.shields.io/badge/version-5.2.1-orange)
+![Версия](https://img.shields.io/badge/version-5.4.7-orange)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
@@ -78,7 +78,7 @@ foxlang hello.fox
 
 ## Стандартная библиотека
 
-FoxLang 5.2 использует каталог `std/`. Модуль подключается так:
+FoxLang использует каталог `std/`. Модуль подключается так:
 
 ```cpp
 using math;
@@ -134,7 +134,13 @@ string body = http_fetch("https://example.com");
 print(body);
 ```
 
-Старые `server_start` и `route_*` сохранены ради совместимости, но это не полноценный production HTTP-сервер.
+### HTTP/webhook-сервер
+
+На Linux/POSIX FoxLang содержит встроенный HTTP-сервер для webhook-приложений. Подключи `using server;`, зарегистрируй `get(...)` / `post(...)` и вызови `listen(port)`. Для публичного HTTPS рекомендуется reverse proxy или Cloudflare Tunnel.
+
+Для конфигурации и секретов доступен `using env;`: FoxLang автоматически читает `.env` рядом со скриптом (системные переменные окружения имеют приоритет). `secret("NAME")` завершает программу с ошибкой, если обязательного секрета нет.
+
+Логирование через `using log;` управляется `FOXLANG_LOG_LEVEL=debug|info|warn|error|off`. По умолчанию используется `info`.
 
 ## Терминальный API
 
@@ -169,7 +175,7 @@ FoxLang/
 
 ## Автоматические релизы
 
-При каждом push в `master` GitHub Actions сверяет `VERSION` с `foxlang --version`.
+Release workflow запускается при изменении файла `VERSION` и сверяет его с `foxlang --version`.
 
 Если тег для этой версии ещё не существует, CI:
 
