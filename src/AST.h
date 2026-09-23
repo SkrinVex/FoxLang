@@ -522,16 +522,22 @@ struct FuncCallNode : Node {
         }
         if (name == "httpget" && args.size() == 1) {
             Value urlVal = args[0]->eval(ctx);
-            std::string cmd = "curl -s \"" + urlVal.value + "\"";
+            std::string cmd = "curl -sS --fail-with-body --connect-timeout 10 --max-time 35 \"" + urlVal.value + "\" 2>&1";
             FILE* pipe = popen(cmd.c_str(), "r");
-            if (!pipe) return {"string", ""};
+            if (!pipe) {
+                std::cerr << "[HTTP ERROR] Не удалось запустить curl" << std::endl;
+                return {"string", ""};
+            }
 
             std::string result;
-            char buffer[128];
-            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-                result += buffer;
+            char buffer[256];
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) result += buffer;
+            int status = pclose(pipe);
+            if (status != 0) {
+                std::cerr << "[HTTP ERROR] GET " << urlVal.value << " (curl status " << status << ")\n"
+                          << result << std::endl;
+                return {"string", ""};
             }
-            pclose(pipe);
             return {"string", result};
         }
         if (name == "httppost" && args.size() >= 2) {
