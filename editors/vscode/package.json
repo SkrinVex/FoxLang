@@ -1,9 +1,18 @@
 {
   "name": "foxlang",
   "displayName": "FoxLang",
-  "description": "Официальная поддержка языка FoxLang для VS Code: подсветка синтаксиса, LSP (диагностика, автодополнение, наведение, переход к определению)",
+  "description": "Официальная поддержка языка FoxLang для VS Code: подсветка синтаксиса, LSP (диагностика, автодополнение, наведение, переход к определению, signature help)",
   "version": "5.5.3",
   "publisher": "foxlang",
+  "license": "MIT",
+  "homepage": "https://github.com/SkrinVex/FoxLang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SkrinVex/FoxLang.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SkrinVex/FoxLang/issues"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },
