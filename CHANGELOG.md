@@ -1,3 +1,12 @@
+# FoxLang 5.4.1 — Changelog
+
+- JSON helper теперь понимает вложенные пути вроде `message.chat.id` и `message.from.username`.
+- Добавлено безопасное экранирование JSON-строк.
+- Telegram webhook example стал полноценным ботом: /start, /help, /ping, /about, /id и echo.
+- Добавлено подробное логирование входящих update и ответов Telegram API.
+
+---
+
 # FoxLang 5.4.0 — Changelog
 
 - Заглушки HTTP-сервера заменены реальным Linux/POSIX HTTP/webhook runtime.
