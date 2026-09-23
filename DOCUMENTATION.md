@@ -1,4 +1,4 @@
-# 📚 Документация FoxLang v5.2.1
+# 📚 Документация FoxLang v5.4.7
 
 ## Оглавление
 1. [Основы синтаксиса](#1-основы-синтаксиса)
@@ -328,7 +328,7 @@ FoxLang поддерживает импорт внешних модулей.
 ### Работа со строками и JSON
 | Функция | Описание | Пример |
 | --- | --- | --- |
-| `json_get(json_string, key)` | Извлекает значение по ключу из JSON строки. Поддерживает ключи: "chat_id", "text", "update_id". | `string chat_id = json_get(response, "chat_id");` |
+| `json_get(json_string, path)` | Извлекает значение по вложенному пути (`message.chat.id`) и декодирует JSON escapes/Unicode `\\uXXXX`. | `string chat_id = json_get(update, "message.chat.id");` |
 | `str_contains(text, substring)` | Проверяет, содержит ли строка подстроку. Возвращает `true` или `false`. | `bool found = str_contains("Hello World", "World");` |
 | `str_replace(text, old, new)` | Заменяет все вхождения подстроки на новую строку. | `string res = str_replace("a b a", "a", "c");` |
 | `str_split(text, delim)` | Разбивает строку по разделителю и возвращает массив. | `array words = str_split("a,b,c", ",");` |
@@ -984,3 +984,62 @@ TELEGRAM_BOT_TOKEN=replace_me
 ```
 
 `env("NAME")` возвращает пустую строку для отсутствующего значения, а `secret("NAME")` завершает программу с понятной ошибкой. Настоящий `.env` нельзя коммитить в Git.
+
+
+---
+
+## 11. Конфигурация, .env и секреты
+
+Перед запуском скрипта FoxLang автоматически загружает `.env` рядом со скриптом, а затем при необходимости `.env` текущего каталога. Уже заданные системные переменные имеют приоритет.
+
+```dotenv
+TELEGRAM_BOT_TOKEN=replace_me
+FOXLANG_LOG_LEVEL=info
+```
+
+`using env;` предоставляет `env("NAME")` для необязательных значений и `secret("NAME")` для обязательных секретов. Файлы `.env` исключены из Git; `.env.example` можно хранить как шаблон.
+
+## 12. Логирование
+
+`using log;` предоставляет `debug()`, `info()`, `warn()` и `error()`.
+
+`FOXLANG_LOG_LEVEL` задаёт минимальный уровень: `debug`, `info`, `warn`, `error`, `off`. Значение по умолчанию — `info`. Для обратной совместимости `FOXLANG_LOG=false` (также `0`, `off`, `no`) полностью отключает std/log.
+
+## 13. HTTP/webhook-сервер
+
+В Linux/POSIX модуль `server` предоставляет настоящий TCP/HTTP runtime: `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`, `listen`.
+
+```cpp
+using server;
+
+void webhook() {
+    string payload = body();
+    respond_status(200, "{\"ok\":true}");
+}
+
+void main() {
+    get("/health", "webhook");
+    post("/telegram", "webhook");
+    listen(8080);
+}
+
+main();
+```
+
+Сервер слушает HTTP. Для публичных webhook в интернете поставь перед ним HTTPS reverse proxy либо tunnel.
+
+## 14. JSON
+
+`using json;` предоставляет `json_path(document, path)` и `json_safe(text)`. Вложенные пути записываются через точку, например `message.chat.id` или `message.from.username`. JSON-строки декодируют стандартные escape-последовательности и Unicode `\\uXXXX`, включая surrogate pairs.
+
+## 15. CLI и ссылки
+
+```bash
+foxlang program.fox
+foxlang --version
+foxlang --help
+```
+
+Репозиторий: https://github.com/SkrinVex/FoxLang
+
+Документация: https://github.com/SkrinVex/FoxLang/blob/master/DOCUMENTATION.md
