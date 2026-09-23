@@ -1,0 +1,12 @@
+using math;
+using string;
+using time;
+
+void main() {
+    print("FoxLang stdlib demo");
+    print("max = " + max_int(7, 42));
+    print("contains = " + contains("foxlang", "fox"));
+    print("unix ms = " + unix_time_ms());
+}
+
+main();
