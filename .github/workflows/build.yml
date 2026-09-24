@@ -1,6 +1,9 @@
 name: Build and Auto Release FoxLang
 
 on:
+  # Started by hand as well: a failed release build is otherwise a dead end, because
+  # only a change to VERSION starts this workflow and fixing the code does not change it.
+  workflow_dispatch:
   push:
     branches: [master]
     paths:
