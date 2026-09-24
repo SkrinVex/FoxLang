@@ -55,10 +55,19 @@ struct Window::Native {
                 SetCapture(handle); self->owner.keyEvent(1, true); return 0;
             case WM_LBUTTONUP:
                 self->owner.mouseEvent(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
-                ReleaseCapture(); self->owner.keyEvent(1, false); return 0;
-            case WM_RBUTTONDOWN: self->owner.keyEvent(2, true); return 0;
-            case WM_RBUTTONUP: self->owner.keyEvent(2, false); return 0;
-            case WM_CAPTURECHANGED: self->owner.keyEvent(1, false); return 0;
+                self->owner.keyEvent(1, false);
+                if (!self->owner.keyDown("MOUSE_RIGHT")) ReleaseCapture();
+                return 0;
+            case WM_RBUTTONDOWN:
+                self->owner.mouseEvent(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+                SetCapture(handle); self->owner.keyEvent(2, true); return 0;
+            case WM_RBUTTONUP:
+                self->owner.mouseEvent(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+                self->owner.keyEvent(2, false);
+                if (!self->owner.keyDown("MOUSE_LEFT")) ReleaseCapture();
+                return 0;
+            case WM_CAPTURECHANGED:
+                self->owner.keyEvent(1, false); self->owner.keyEvent(2, false); return 0;
             case WM_ERASEBKGND: return 1;
             case WM_PAINT: {
                 PAINTSTRUCT ps{};

@@ -45,6 +45,7 @@ while (window_poll()) {
     if (key_pressed("SPACE")) { presses++; }
     if (key_down("SPACE")) { write_file("key.txt", "held"); }
     if (key_pressed("MOUSE_LEFT")) { write_file("mouse.txt", "" + mouse_x() + "," + mouse_y()); }
+    if (key_pressed("MOUSE_RIGHT")) { write_file("right.txt", "" + mouse_x() + "," + mouse_y()); }
     if (frames > 5) { write_file("ready.txt", "ready"); }
     present_window();
     frames++;
@@ -81,6 +82,10 @@ print("GRAPHICS_STANDALONE_OK");
         wait_for(lambda:(clean/'mouse.txt').exists(),process,'mouse')
         assert (clean/'mouse.txt').read_text()=='90,100'
         driver.mouse(90,100,False)
+        driver.mouse(110,120,True,button=2)
+        wait_for(lambda:(clean/'right.txt').exists(),process,'right mouse')
+        assert (clean/'right.txt').read_text()=='110,120'
+        driver.mouse(110,120,False,button=2)
         driver.close_window()
         stdout,stderr=process.communicate(timeout=15)
         assert process.returncode==0,(stdout,stderr)

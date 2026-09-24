@@ -80,10 +80,10 @@ class NativeWindow:
                              keycode=self.api.XKeysymToKeycode(self.display,symbol),same_screen=1)
             self._send(event, 1 if down else 2)
 
-    def mouse(self, x, y, down=None):
+    def mouse(self, x, y, down=None, button=1):
         if os.name == 'nt':
-            self.api.PostMessageW(self.handle, 0x200 if down is None else 0x201 if down else 0x202,
-                                 1 if down else 0, (y << 16) | x)
+            message = 0x200 if down is None else (0x201 if down else 0x202) if button == 1 else (0x204 if down else 0x205)
+            self.api.PostMessageW(self.handle, message, button if down else 0, (y << 16) | x)
         else:
             class MouseEvent(C.Structure):
                 _fields_ = [('type',C.c_int),('serial',C.c_ulong),('send_event',C.c_int),('display',C.c_void_p),
@@ -91,7 +91,7 @@ class NativeWindow:
                     ('x',C.c_int),('y',C.c_int),('x_root',C.c_int),('y_root',C.c_int),
                     ('state',C.c_uint),('button',C.c_uint),('same_screen',C.c_int)]
             event = MouseEvent(type=6 if down is None else 4 if down else 5, display=self.display,
-                window=self.handle, root=self.root, x=x, y=y, button=1 if down is not None else 0, same_screen=1)
+                window=self.handle, root=self.root, x=x, y=y, button=(1 if button == 1 else 3) if down is not None else 0, same_screen=1)
             self._send(event, 64 if down is None else 4 if down else 8)
 
     def _send(self, event, mask=0):
