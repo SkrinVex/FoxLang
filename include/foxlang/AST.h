@@ -11,6 +11,7 @@
 #include <atomic>
 #include <iostream>
 #include "foxlang/Context.h"
+#include "foxlang/Platform.h"
 #include "foxlang/Runtime.h"
 #include "foxlang/SourceLocation.h"
 
@@ -58,16 +59,27 @@ inline std::runtime_error located(const std::runtime_error& error, const SourceR
 }
 
 // Runaway recursion used to kill the process with a stack overflow instead of an error.
+// What runs out is the native stack, not a number of calls, and one call costs a
+// different amount of it per platform and per compiler: counting frames was wrong on
+// Windows, where a thread gets 1 MB rather than the 8 MB Linux gives. Measure the stack.
 struct CallDepth {
-    static constexpr int limit = 2000;
-    static inline int depth = 0;
+    static inline thread_local int depth = 0;
+    static inline thread_local const char* origin = nullptr;
+    static inline thread_local size_t budget = 0;
     explicit CallDepth(const std::string& name) {
-        if (depth >= limit)
-            throw std::runtime_error("Runtime Error: call depth limit of " + std::to_string(limit) +
-                                     " exceeded in '" + name + "' (recursion without a base case?)");
+        char probe = 0;
+        if (depth == 0) {
+            origin = &probe;
+            budget = platform::stackBudget();
+        } else {
+            std::ptrdiff_t used = origin - &probe; // A stack growing upwards never trips this.
+            if (used > 0 && static_cast<size_t>(used) > budget)
+                throw std::runtime_error("Runtime Error: call depth limit reached in '" + name + "' after " +
+                                         std::to_string(depth) + " nested calls (recursion without a base case?)");
+        }
         ++depth;
     }
-    ~CallDepth() { --depth; }
+    ~CallDepth() { if (--depth == 0) origin = nullptr; }
     CallDepth(const CallDepth&) = delete;
     CallDepth& operator=(const CallDepth&) = delete;
 };

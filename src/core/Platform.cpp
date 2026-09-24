@@ -11,10 +11,34 @@
     #include <unistd.h>
     #include <fcntl.h>
     #include <sys/select.h>
+    #include <pthread.h>
 #endif
 
 namespace foxlang {
 namespace platform {
+
+// How much stack this thread actually has decides how deep a program may recurse:
+// Windows reserves 1 MB per thread by default where Linux gives 8, and one FoxLang
+// call costs a different number of kilobytes per compiler. Three fifths leaves room
+// for the unwinding and for the error report itself.
+size_t stackBudget() {
+    size_t size = 0;
+#ifdef _WIN32
+    ULONG_PTR low = 0, high = 0;
+    GetCurrentThreadStackLimits(&low, &high);
+    if (high > low) size = static_cast<size_t>(high - low);
+#else
+    pthread_attr_t attributes;
+    if (pthread_getattr_np(pthread_self(), &attributes) == 0) {
+        void* address = nullptr;
+        size_t reported = 0;
+        if (pthread_attr_getstack(&attributes, &address, &reported) == 0) size = reported;
+        pthread_attr_destroy(&attributes);
+    }
+#endif
+    if (size < (1u << 20)) size = 1u << 20; // A stack we cannot measure is assumed small.
+    return size / 5 * 3;
+}
 
 std::string getch() {
 #ifdef _WIN32

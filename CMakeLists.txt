@@ -29,6 +29,16 @@ else()
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wall> $<$<COMPILE_LANGUAGE:CXX>:-Wextra> $<$<COMPILE_LANGUAGE:CXX>:-pedantic>)
 endif()
 
+# A Windows thread reserves 1 MB of stack by default where Linux gives 8, so the same
+# program could recurse eight times less deeply there. Reserve the same 8 MB.
+if(WIN32)
+    if(MSVC)
+        add_link_options(/STACK:8388608)
+    else()
+        add_link_options(-Wl,--stack,8388608)
+    endif()
+endif()
+
 # Reusable FoxLang core library
 add_library(foxlang_core STATIC
     src/core/Context.cpp
