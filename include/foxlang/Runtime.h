@@ -16,6 +16,16 @@ std::string formatNumber(double val);
 // the place that asked for it, instead of letting std::stoi/std::stod escape.
 // Probes parse without building any message; the *what* overloads below describe
 // the failure and are only reached when a value really is wrong.
+// Recursion guard state. Kept in one translation unit rather than as inline
+// thread_local data in a header, which compilers disagree about.
+struct StackGuard {
+    int depth = 0;
+    int limit = 0;
+    const char* origin = nullptr;
+    size_t budget = 0;
+};
+StackGuard& stackGuard();
+
 bool tryNumber(const Value& value, double& out);
 bool tryInt(const Value& value, long long& out);
 

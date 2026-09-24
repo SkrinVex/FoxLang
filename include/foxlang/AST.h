@@ -63,23 +63,30 @@ inline std::runtime_error located(const std::runtime_error& error, const SourceR
 // different amount of it per platform and per compiler: counting frames was wrong on
 // Windows, where a thread gets 1 MB rather than the 8 MB Linux gives. Measure the stack.
 struct CallDepth {
-    static inline thread_local int depth = 0;
-    static inline thread_local const char* origin = nullptr;
-    static inline thread_local size_t budget = 0;
+    // Two brakes, because a stack cannot be measured the same way everywhere: the
+    // distance actually travelled down the stack, and a frame count derived from the
+    // same budget assuming a generous four kilobytes per call. Whichever trips first.
+    static constexpr size_t frameCost = 4096;
     explicit CallDepth(const std::string& name) {
         char probe = 0;
-        if (depth == 0) {
-            origin = &probe;
-            budget = platform::stackBudget();
+        runtime::StackGuard& guard = runtime::stackGuard();
+        if (guard.depth == 0) {
+            guard.origin = &probe;
+            guard.budget = platform::stackBudget();
+            guard.limit = static_cast<int>(guard.budget / frameCost);
         } else {
-            std::ptrdiff_t used = origin - &probe; // A stack growing upwards never trips this.
-            if (used > 0 && static_cast<size_t>(used) > budget)
+            std::ptrdiff_t used = guard.origin - &probe; // A stack growing upwards never trips this.
+            bool spent = (used > 0 && static_cast<size_t>(used) > guard.budget) || guard.depth >= guard.limit;
+            if (spent)
                 throw std::runtime_error("Runtime Error: call depth limit reached in '" + name + "' after " +
-                                         std::to_string(depth) + " nested calls (recursion without a base case?)");
+                                         std::to_string(guard.depth) + " nested calls (recursion without a base case?)");
         }
-        ++depth;
+        ++guard.depth;
     }
-    ~CallDepth() { if (--depth == 0) origin = nullptr; }
+    ~CallDepth() {
+        runtime::StackGuard& guard = runtime::stackGuard();
+        if (--guard.depth == 0) guard.origin = nullptr;
+    }
     CallDepth(const CallDepth&) = delete;
     CallDepth& operator=(const CallDepth&) = delete;
 };

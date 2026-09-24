@@ -11,6 +11,9 @@
     } while (0)
 
 int main() {
+    // CTest hides this output unless the test fails, and then it says which case a
+    // crash stopped at on a platform this project cannot run locally.
+    auto step = [](const char* what) { std::cout << "-> " << what << std::endl; };
     foxlang::Interpreter interpreter;
 
     // 1. Basic execution and variable retrieval
@@ -162,6 +165,7 @@ int main() {
 
     // 11. Float arithmetic keeps full double precision between operations
     {
+        step("float precision");
         foxlang::Interpreter interp;
         auto res = interp.runSource("float third = 1.0 / 3.0; float back = third * 3.0; float sum = 0.1 + 0.2;");
         TEST_ASSERT(res.success);
@@ -172,6 +176,7 @@ int main() {
 
     // 12. int stays inside its range instead of wrapping or leaking std::stoi
     {
+        step("int range");
         foxlang::Interpreter interp;
         auto tooBig = interp.runSource("int big = 3000000000;");
         TEST_ASSERT(!tooBig.success);
@@ -184,6 +189,7 @@ int main() {
 
     // 13. Runtime errors name the line they happened on
     {
+        step("error lines");
         foxlang::Interpreter interp;
         auto res = interp.runSource("int ok = 1;\nint bad = 10 / 0;");
         TEST_ASSERT(!res.success);
@@ -192,6 +198,7 @@ int main() {
 
     // 14. Runaway recursion is an error, not a stack overflow
     {
+        step("recursion guard");
         foxlang::Interpreter interp;
         auto res = interp.runSource("int forever(int n) { return forever(n + 1); } int r = forever(0);");
         TEST_ASSERT(!res.success);
@@ -200,6 +207,7 @@ int main() {
 
     // 15. Functions see globals, never the caller's locals
     {
+        step("lexical scope");
         foxlang::Interpreter interp;
         const char* code = R"(
             global int shared = 7;
@@ -219,6 +227,7 @@ int main() {
 
     // 16. Array buffers are released with their scope and on re-declaration
     {
+        step("array lifetime");
         foxlang::Interpreter interp;
         auto res = interp.runSource(R"(
             void churn() { array tmp 16; set(tmp, 0, 1); }
@@ -235,6 +244,7 @@ int main() {
 
     // 17. A block is a scope of its own, and the program top level is not
     {
+        step("block scope");
         foxlang::Interpreter interp;
         auto leak = interp.runSource("int i = 0; while (i < 1) { int inner = 5; i++; } int seen = inner;");
         TEST_ASSERT(!leak.success);
@@ -252,6 +262,7 @@ int main() {
 
     // 18. && and || stop before evaluating the right side
     {
+        step("short circuit");
         foxlang::Interpreter interp;
         auto res = interp.runSource(
             "int zero = 0; bool guarded = zero != 0 && 10 / zero > 1; bool other = zero == 0 || 10 / zero > 1;");
@@ -262,6 +273,7 @@ int main() {
 
     // 19. A number carries its binary form but still prints the text it always did
     {
+        step("number text");
         foxlang::Interpreter interp;
         auto res = interp.runSource(
             "int n = 21 * 2; string label = \"n = \" + n;"
@@ -273,6 +285,16 @@ int main() {
         TEST_ASSERT(interp.getGlobal("shown").value == "0.25");
         TEST_ASSERT(interp.getGlobal("precise").value == "0.6666666666666666");
         TEST_ASSERT(interp.getGlobal("same").value == "true");
+    }
+
+    // 20. The recursion guard is only as good as the stack size it is told about
+    {
+        step("stack budget");
+        size_t budget = foxlang::platform::stackBudget();
+        if (budget < (256u << 10) || budget > (48u << 20)) {
+            std::cerr << "FAIL: stack budget " << budget << " bytes is not believable" << std::endl;
+            return 1;
+        }
     }
 
     std::cout << "TEST_INTERPRETER_OK" << std::endl;

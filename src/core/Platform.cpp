@@ -36,7 +36,8 @@ size_t stackBudget() {
         pthread_attr_destroy(&attributes);
     }
 #endif
-    if (size < (1u << 20)) size = 1u << 20; // A stack we cannot measure is assumed small.
+    if (size < (1u << 20)) size = 1u << 20;   // A stack we cannot measure is assumed small,
+    if (size > (64u << 20)) size = 64u << 20; // and one reported as huge is not believed.
     return size / 5 * 3;
 }
 

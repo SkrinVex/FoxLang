@@ -35,6 +35,11 @@ std::string formatNumber(double val) {
     return buffer;
 }
 
+StackGuard& stackGuard() {
+    static thread_local StackGuard state;
+    return state;
+}
+
 bool tryNumber(const Value& value, double& out) {
     if (value.value.isInteger()) { out = static_cast<double>(value.value.integerValue()); return true; }
     if (value.value.isReal()) { out = value.value.realValue(); return true; }
