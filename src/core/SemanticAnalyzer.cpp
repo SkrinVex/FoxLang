@@ -150,6 +150,8 @@ void SemanticAnalyzer::addBuiltins() {
 
     addFn("server_start", "string", {{"int", "port"}},
         "Низкоуровневый запуск встроенного HTTP-сервера на порту.");
+    addFn("server_start_tls", "void", {{"int", "port"}, {"string", "certificate"}, {"string", "private_key"}},
+        "Запуск HTTPS-сервера. PEM-сертификат и приватный ключ загружаются при запуске.");
 
     addFn("server_stop", "string", {},
         "Остановка запущенного встроенного HTTP-сервера.");
@@ -196,6 +198,8 @@ void SemanticAnalyzer::loadModuleSymbols(const std::string& moduleName, SourceRa
     };
 
     if (moduleName == "server") {
+        addFn("listen_tls", "void", {{"int", "port"}, {"string", "certificate"}, {"string", "private_key"}},
+            "Запустить HTTPS/webhook сервер с TLS 1.2 или новее. Сертификат и ключ — пути к PEM-файлам во время запуска.");
         addFn("listen", "void", {{"int", "port"}},
             "Запустить HTTP/webhook сервер на указанном порту (0.0.0.0).\n"
             "Блокирует текущий поток до вызова `server_stop()`.\n\n"

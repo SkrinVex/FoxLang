@@ -11,6 +11,11 @@ add_executable(test_interpreter unit/test_interpreter.cpp)
 target_link_libraries(test_interpreter PRIVATE foxlang_core)
 add_test(NAME unit_interpreter COMMAND test_interpreter)
 
+add_executable(test_certificates unit/test_certificates.cpp)
+target_include_directories(test_certificates PRIVATE ${CMAKE_BINARY_DIR}/generated)
+target_link_libraries(test_certificates PRIVATE mbedx509)
+add_test(NAME unit_certificates COMMAND test_certificates)
+
 add_executable(test_positions unit/test_positions.cpp)
 target_link_libraries(test_positions PRIVATE foxlang_core)
 add_test(NAME unit_positions COMMAND test_positions)
@@ -48,6 +53,10 @@ endforeach()
 add_test(NAME standalone_https
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_tls.py $<TARGET_FILE:foxlang>)
 set_tests_properties(standalone_https PROPERTIES TIMEOUT 90 LABELS standalone)
+
+add_test(NAME standalone_https_server
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_https_server.py $<TARGET_FILE:foxlang>)
+set_tests_properties(standalone_https_server PROPERTIES TIMEOUT 90 LABELS standalone)
 
 # Common environment for FoxLang script tests
 set(FOXLANG_TEST_ENV

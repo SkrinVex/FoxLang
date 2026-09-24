@@ -14,6 +14,15 @@
     } while (0)
 
 int main() {
+    // HTTPS API is known to editor diagnostics and analysis never opens a listener.
+    {
+        foxlang::Lexer lexer("using server; listen_tls(8443, \"chain.pem\", \"key.pem\");");
+        foxlang::Parser parser(lexer.tokenize());
+        auto program = parser.parseProgram();
+        foxlang::SemanticAnalyzer analyzer;
+        analyzer.analyze(program.get());
+        TEST_ASSERT(analyzer.getDiagnostics().empty());
+    }
     // 1. Static analysis does NOT execute code (no divide-by-zero, no infinite loop)
     {
         std::string src = "int x = 10 / 0;\nwhile (true) { int y = 1; }\n";

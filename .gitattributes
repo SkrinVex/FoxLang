@@ -1,0 +1,2 @@
+# Preserve the reviewed Mozilla snapshot checksum on Windows checkouts.
+/resources/ca/mozilla.pem text eol=lf

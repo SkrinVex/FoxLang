@@ -4,6 +4,7 @@
 #include <memory>
 #include <stdexcept>
 #include "NetworkLicenses.h"
+#include "EmbeddedCertificates.h"
 
 namespace foxlang::platform {
 namespace {
@@ -55,14 +56,23 @@ std::string httpRequest(const std::string& method, const std::string& url,
     auto ca = getEnvVar("FOXLANG_CA_BUNDLE");
 #ifndef _WIN32
     if (ca.empty()) ca = getEnvVar("SSL_CERT_FILE");
-    if (ca.empty()) {
+#endif
+    if (ca.empty() || ca == "embedded") {
+        curl_blob trust{const_cast<unsigned char*>(bundledCaCertificates), sizeof(bundledCaCertificates) - 1, CURL_BLOB_NOCOPY};
+        option(CURLOPT_CAINFO_BLOB, &trust);
+    } else if (ca == "system") {
+#ifndef _WIN32
+        ca.clear();
         for (const auto* candidate : {"/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/cert.pem"}) {
             std::error_code ec;
             if (std::filesystem::is_regular_file(candidate, ec)) { ca = candidate; break; }
         }
-    }
+        if (ca.empty()) throw std::runtime_error("HTTP Error: system CA store not found");
+        option(CURLOPT_CAINFO, ca.c_str());
 #endif
-    if (!ca.empty()) option(CURLOPT_CAINFO, ca.c_str());
+    } else {
+        option(CURLOPT_CAINFO, ca.c_str());
+    }
     std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> headers(nullptr, curl_slist_free_all);
     if (method == "POST" || method == "PUT") {
         auto header = "Content-Type: " + contentType;

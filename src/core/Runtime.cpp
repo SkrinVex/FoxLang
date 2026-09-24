@@ -339,7 +339,7 @@ bool isBuiltin(const std::string& name) {
         "env_get", "env_required", "env_default", "json_get", "json_escape",
         "str_contains", "str_replace", "str_split", "str_to_int",
         "route_get", "route_post", "request_body", "request_method", "request_path",
-        "send_response", "server_start", "server_stop", "get"
+        "send_response", "server_start", "server_start_tls", "server_stop", "get"
     };
     return builtins.count(name) > 0;
 }
@@ -659,6 +659,14 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     if (name == "server_start" && args.size() == 1) {
         int port = std::stoi(args[0].value);
         platform::runHttpServer(port, *ctx.getRoot(), nullptr);
+        return {"void", ""};
+    }
+    if (name == "server_start_tls" && args.size() == 3) {
+        if (args[0].type != "int" || args[1].type != "string" || args[2].type != "string")
+            throw std::runtime_error("HTTPS Server Error: expected port, certificate path and private key path");
+        if (args[1].value.empty() || args[2].value.empty())
+            throw std::runtime_error("HTTPS Server Error: certificate and private key paths are required");
+        platform::runHttpServer(std::stoi(args[0].value), *ctx.getRoot(), nullptr, args[1].value, args[2].value);
         return {"void", ""};
     }
     if (name == "get" && args.size() == 2) {

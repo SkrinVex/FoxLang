@@ -5,6 +5,13 @@ if(NOT FOXLANG_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
     message(FATAL_ERROR "VERSION must contain a major.minor.patch version")
 endif()
 project(FoxLang VERSION ${FOXLANG_VERSION} LANGUAGES C CXX)
+option(FOXLANG_STATIC_LINUX "Link Linux executables statically (use a musl toolchain for portability)" OFF)
+if(FOXLANG_STATIC_LINUX)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "FOXLANG_STATIC_LINUX requires a Linux toolchain")
+    endif()
+    add_link_options(-static)
+endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
 
 # Standalone programs must not need a separately installed MSVC runtime.
@@ -28,6 +35,7 @@ add_library(foxlang_core STATIC
     src/core/Platform.cpp
     src/core/Network.cpp
     src/core/HttpClient.cpp
+    src/core/TlsServer.cpp
     src/core/Runtime.cpp
     src/core/SourceProvider.cpp
     src/core/Lexer.cpp

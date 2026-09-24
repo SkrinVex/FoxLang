@@ -2,44 +2,19 @@
 import http.server
 import os
 from pathlib import Path
-import shutil
 import ssl
-import subprocess
 import sys
 import tempfile
 import threading
 from test_standalone import Scenario
 
 
-def openssl():
-    found = shutil.which("openssl")
-    if found:
-        return found
-    for folder in ("ProgramFiles", "ProgramW6432"):
-        candidate = Path(os.environ.get(folder, "")) / "Git/usr/bin/openssl.exe"
-        if candidate.is_file():
-            return str(candidate)
-    raise RuntimeError("HTTPS tests require the openssl test utility (not needed by FoxLang)")
+from certificates import create_certificates
 
 
 with tempfile.TemporaryDirectory(prefix="fox-https-test-") as temporary:
     s = Scenario(Path(sys.argv[1]).resolve(), temporary)
-    certificates = Path(temporary) / "certificates"
-    certificates.mkdir()
-    tool = openssl()
-
-    def generate(*args):
-        result = subprocess.run([tool, *args], cwd=certificates, capture_output=True, timeout=30)
-        assert result.returncode == 0, result.stderr.decode(errors="replace")
-
-    generate("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
-             "-subj", "/CN=FoxLang temporary test CA", "-keyout", "ca.key", "-out", "ca.pem",
-             "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign")
-    generate("req", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=localhost",
-             "-keyout", "server.key", "-out", "server.csr")
-    (certificates / "extensions.txt").write_text("subjectAltName=DNS:localhost\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n")
-    generate("x509", "-req", "-in", "server.csr", "-CA", "ca.pem", "-CAkey", "ca.key",
-             "-CAcreateserial", "-days", "2", "-extfile", "extensions.txt", "-out", "server.pem")
+    certificates = create_certificates(Path(temporary) / "certificates")
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
@@ -67,6 +42,11 @@ with tempfile.TemporaryDirectory(prefix="fox-https-test-") as temporary:
             env.pop("SSL_CERT_FILE", None)
             untrusted = s.run("\n", env=env)
             assert "HTTP ERROR" in untrusted.stderr, "untrusted certificate was accepted"
+            # Bundled Mozilla roots deliberately do not trust private/local test CAs.
+            env["FOXLANG_CA_BUNDLE"] = "embedded"
+            env["SSL_CERT_FILE"] = str(certificates / "absent-ca.pem")
+            embedded = s.run("\n", env=env)
+            assert "HTTP ERROR" in embedded.stderr and "CA cert" not in embedded.stderr
             env["FOXLANG_CA_BUNDLE"] = str(certificates / "ca.pem")
             s.run("HTTPS Привет 🦊\n", env=env)
             env["FOX_TEST_URL"] = f"https://127.0.0.1:{server.server_port}/"

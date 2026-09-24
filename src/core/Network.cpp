@@ -1,9 +1,11 @@
 #include "foxlang/Platform.h"
 #include "foxlang/AST.h"
+#include "TlsServer.h"
 #include <algorithm>
 #include <charconv>
 #include <climits>
 #include <cctype>
+#include <chrono>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -63,11 +65,11 @@ struct Registry {
 };
 Registry& registry() { static Registry sockets; return sockets; }
 
-void timeouts(NativeSocket fd) {
+void timeouts(NativeSocket fd, int milliseconds = 5000) {
 #ifdef _WIN32
-    DWORD timeout = 5000;
+    DWORD timeout = static_cast<DWORD>(milliseconds);
 #else
-    timeval timeout{5, 0};
+    timeval timeout{milliseconds / 1000, (milliseconds % 1000) * 1000};
 #endif
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
@@ -88,6 +90,60 @@ bool sendAll(NativeSocket fd, const std::string& bytes) {
     }
     return true;
 }
+
+class Connection {
+    NativeSocket fd;
+    std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    std::unique_ptr<TlsSession> tls;
+    bool withinDeadline() {
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count();
+        if (remaining <= 0) return false;
+        timeouts(fd, static_cast<int>(std::min<decltype(remaining)>(remaining, 5000)));
+        return true;
+    }
+    static int receive(void* opaque, unsigned char* bytes, std::size_t size) {
+        auto& connection = *static_cast<Connection*>(opaque);
+        for (;;) {
+            if (!connection.withinDeadline()) return -1;
+            auto n = recv(connection.fd, reinterpret_cast<char*>(bytes), static_cast<int>(std::min<std::size_t>(size, INT_MAX)), 0);
+            if (n < 0 && interrupted()) continue;
+            return static_cast<int>(n);
+        }
+    }
+    static int send(void* opaque, const unsigned char* bytes, std::size_t size) {
+        auto& connection = *static_cast<Connection*>(opaque);
+        for (;;) {
+            if (!connection.withinDeadline()) return -1;
+#ifdef MSG_NOSIGNAL
+            constexpr int flags = MSG_NOSIGNAL;
+#else
+            constexpr int flags = 0;
+#endif
+            auto n = ::send(connection.fd, reinterpret_cast<const char*>(bytes), static_cast<int>(std::min<std::size_t>(size, INT_MAX)), flags);
+            if (n < 0 && interrupted()) continue;
+            return static_cast<int>(n);
+        }
+    }
+public:
+    Connection(NativeSocket socket, TlsServer* server) : fd(socket) {
+        if (server) tls = std::make_unique<TlsSession>(*server, TlsIo{this, &receive, &send});
+    }
+    bool handshake() { return !tls || tls->handshake(); }
+    int read(char* bytes, std::size_t size) {
+        auto* buffer = reinterpret_cast<unsigned char*>(bytes);
+        return tls ? tls->read(buffer, size) : receive(this, buffer, size);
+    }
+    bool write(const std::string& bytes) {
+        std::size_t offset = 0;
+        while (offset < bytes.size()) {
+            const auto* buffer = reinterpret_cast<const unsigned char*>(bytes.data() + offset);
+            int n = tls ? tls->write(buffer, bytes.size() - offset) : send(this, buffer, bytes.size() - offset);
+            if (n <= 0) return false;
+            offset += static_cast<std::size_t>(n);
+        }
+        return true;
+    }
+};
 
 int readable(NativeSocket fd) {
 #ifndef _WIN32
@@ -115,15 +171,14 @@ struct Request {
     int error = 0;
 };
 
-Request readRequest(NativeSocket fd) {
+Request readRequest(Connection& connection) {
     constexpr std::size_t maxHeaders = 64 * 1024, maxBody = 1024 * 1024;
     Request request;
     std::string bytes;
     char buffer[4096];
     std::size_t headerEnd = std::string::npos, length = 0;
     while (true) {
-        auto n = recv(fd, buffer, sizeof(buffer), 0);
-        if (n < 0 && interrupted()) continue;
+        auto n = connection.read(buffer, sizeof(buffer));
         if (n <= 0) { request.error = 400; return request; }
         bytes.append(buffer, static_cast<std::size_t>(n));
         if (headerEnd == std::string::npos) {
@@ -167,9 +222,9 @@ Request readRequest(NativeSocket fd) {
     return request;
 }
 
-void respond(NativeSocket fd, int status, const std::string& response) {
+void respond(Connection& connection, int status, const std::string& response) {
     std::string reason = status == 200 ? "OK" : status == 201 ? "Created" : "Error";
-    sendAll(fd, "HTTP/1.1 " + std::to_string(status) + " " + reason +
+    connection.write("HTTP/1.1 " + std::to_string(status) + " " + reason +
         "\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: " +
         std::to_string(response.size()) + "\r\nConnection: close\r\n\r\n" + response);
 }
@@ -248,9 +303,12 @@ std::string dnsLookup(const std::string& host) {
 
 bool isHttpServerSupported() { return true; }
 
-void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shouldStop) {
+void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shouldStop,
+                   const std::string& certificate, const std::string& privateKey) {
     if (port < 1 || port > 65535) throw std::runtime_error("HTTP Server Error: port must be 1..65535");
     initialize();
+    std::unique_ptr<TlsServer> tls;
+    if (!certificate.empty() || !privateKey.empty()) tls = std::make_unique<TlsServer>(certificate, privateKey);
     Socket server(::socket(AF_INET, SOCK_STREAM, 0));
     if (server.fd == invalidSocket) throw std::runtime_error("HTTP Server Error: socket() failed");
     int yes = 1;
@@ -265,7 +323,7 @@ void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shou
     address.sin_port = htons(static_cast<unsigned short>(port));
     if (bind(server.fd, reinterpret_cast<sockaddr*>(&address), sizeof(address))) throw std::runtime_error("HTTP Server Error: bind() failed on port " + std::to_string(port));
     if (listen(server.fd, 32)) throw std::runtime_error("HTTP Server Error: listen() failed");
-    std::cerr << "[HTTP] Listening on 0.0.0.0:" << port << std::endl;
+    std::cerr << (tls ? "[HTTPS] Listening on 0.0.0.0:" : "[HTTP] Listening on 0.0.0.0:") << port << std::endl;
     auto stopped = [&] {
         auto flag = rootCtx.variables.find("__server_stop_requested");
         return (shouldStop && shouldStop()) || (flag != rootCtx.variables.end() && flag->second.value == "true");
@@ -277,9 +335,10 @@ void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shou
         if (!ready) continue;
         Socket client(accept(server.fd, nullptr, nullptr));
         if (client.fd == invalidSocket) continue;
-        timeouts(client.fd);
-        auto request = readRequest(client.fd);
-        if (request.error) { respond(client.fd, request.error, "{\"error\":\"Invalid request\"}"); continue; }
+        Connection connection(client.fd, tls.get());
+        if (!connection.handshake()) continue;
+        auto request = readRequest(connection);
+        if (request.error) { respond(connection, request.error, "{\"error\":\"Invalid request\"}"); continue; }
         rootCtx.variables["__http_method"] = {"string", request.method};
         rootCtx.variables["__http_path"] = {"string", request.path};
         rootCtx.variables["__http_body"] = {"string", request.body};
@@ -311,7 +370,7 @@ void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shou
                 }
             } else { status = 500; response = "{\"error\":\"Handler not found\"}"; }
         }
-        respond(client.fd, status, response);
+        respond(connection, status, response);
     }
 }
 } // namespace foxlang::platform

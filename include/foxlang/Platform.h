@@ -30,7 +30,8 @@ std::string dnsLookup(const std::string& host);
 
 // HTTP Server
 bool isHttpServerSupported();
-void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shouldStop);
+void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shouldStop,
+                   const std::string& certificate = "", const std::string& privateKey = "");
 
 } // namespace platform
 } // namespace foxlang

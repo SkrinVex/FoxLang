@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
                   << "  FOXLANG_HOME            FoxLang installation/std library path\n"
                   << "  FOXLANG_LOG_LEVEL       debug | info | warn | error | off\n"
                   << "  FOXLANG_LOG             Legacy master log switch\n\n"
-                  << "  FOXLANG_CA_BUNDLE       PEM CA file for HTTPS (default: OS trust store)\n\n"
+                  << "  FOXLANG_CA_BUNDLE       PEM CA file | embedded (default) | system\n\n"
                   << "Standalone: .env/resources are not bundled; HTTP(S) and TCP are built in.\n\n"
                   << "Repository & documentation:\n"
                   << "  https://github.com/SkrinVex/FoxLang\n"
