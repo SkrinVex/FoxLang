@@ -6,6 +6,19 @@ on:
     branches: [master]
 
 jobs:
+  portable-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: docker/setup-buildx-action@v3
+      - name: Build static musl binaries and run CTest inside Alpine
+        run: docker buildx build --target portable --output type=local,dest=build-portable .
+      - name: Verify no shared libraries and run standalone tests on Ubuntu
+        run: python3 tests/standalone/test_portable_linux.py build-portable/foxlang
+
   desktop:
     strategy:
       fail-fast: false

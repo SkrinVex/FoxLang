@@ -1,5 +1,14 @@
 # FoxLang 5.6.0 — Changelog
 
+- Встроенный HTTPS-сервер `listen_tls(port, certificate, private_key)` на Linux и
+  Windows, без обязательного reverse proxy. PEM credentials читаются при запуске;
+  отсутствующий/неверный ключ не приводит к переключению на незашифрованный HTTP.
+- Публичный набор CA Mozilla встроен и проверяется по закреплённому SHA-256.
+  Системный пакет CA больше не обязателен; доступны явные `embedded`, `system`
+  и пользовательский PEM через `FOXLANG_CA_BUNDLE`.
+- Переносимый Linux-пакет собирается статически на musl. CI проверяет отсутствие
+  ELF interpreter/shared libraries и запуск Alpine-сборки на Ubuntu.
+
 - `foxlang build file.fox [-o|--output app]` создаёт один standalone executable
   со встроенным runtime, stdlib и рекурсивными локальными модулями для Linux x86_64
   и Windows x86_64. Компилятор при упаковке и установленный FoxLang у получателя

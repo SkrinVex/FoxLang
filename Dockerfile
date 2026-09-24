@@ -1,5 +1,5 @@
 # Multi-stage build for FoxLang
-FROM alpine:3.19 AS builder
+FROM alpine:3.24.2 AS builder
 
 RUN apk add --no-cache \
     build-base \
@@ -14,17 +14,17 @@ RUN apk add --no-cache \
 WORKDIR /usr/src/foxlang
 COPY . .
 
-RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release \
+RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DFOXLANG_STATIC_LINUX=ON \
     && cmake --build build --config Release -j$(nproc) \
     && ctest --test-dir build --output-on-failure
 
-# Final runtime image
-FROM alpine:3.19
+# Export static Linux binaries, without the build tree or compiler.
+FROM scratch AS portable
+COPY --from=builder /usr/src/foxlang/build/foxlang /foxlang
+COPY --from=builder /usr/src/foxlang/build/foxlang-lsp /foxlang-lsp
 
-RUN apk add --no-cache \
-    libstdc++ \
-    ca-certificates \
-    bash
+# Final runtime image
+FROM alpine:3.24.2
 
 # Copy binaries and standard library
 COPY --from=builder /usr/src/foxlang/build/foxlang /usr/local/bin/foxlang

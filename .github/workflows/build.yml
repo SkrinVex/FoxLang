@@ -52,13 +52,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
       - name: Build Linux binary and run tests
         run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --config Release
-          ctest --test-dir build -C Release --output-on-failure
-          cp build/foxlang foxlang.bin
-          cp build/foxlang-lsp foxlang-lsp.bin
+          docker buildx build --target portable --output type=local,dest=build-portable .
+          python3 tests/standalone/test_portable_linux.py build-portable/foxlang
+          cp build-portable/foxlang foxlang.bin
+          cp build-portable/foxlang-lsp foxlang-lsp.bin
       - name: Build installable Linux package and editor assets
         shell: bash
         run: |

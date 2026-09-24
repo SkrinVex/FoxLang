@@ -79,10 +79,14 @@ FoxLang runtime получателю не нужны. Сам `foxlang build` т�
 Файлы для `read_file()` по-прежнему предоставляются отдельно.
 
 HTTP(S)-клиент встроен: отдельные `curl` и DLL сетевой библиотеки не нужны.
-HTTP-сервер и TCP/DNS реализованы на Linux и Windows. HTTPS проверяет сертификат
-и имя сервера через доверенные сертификаты ОС; свой PEM-файл можно указать
-переменной `FOXLANG_CA_BUNDLE` при запуске. На Linux сохраняется зависимость от совместимых
-системных libc/libm и загрузчика; перенос между glibc и musl не гарантируется.
+HTTP/HTTPS-сервер и TCP/DNS реализованы на Linux и Windows. Публичные CA Mozilla
+встроены: отдельная установка CA-сертификатов не требуется. HTTPS проверяет цепочку
+сертификатов и имя сервера. `FOXLANG_CA_BUNDLE` позволяет выбрать свой PEM-файл,
+`system` — доверенное хранилище ОС, `embedded` — встроенное.
+
+Linux-пакет собирается статически на musl, чтобы исключить зависимость от версии
+glibc/musl у получателя. Обычная локальная CMake-сборка может сохранять зависимости
+от libc/libm. Linux и Windows по-прежнему получают разные executable для своей ОС.
 
 Подробности: [standalone и ограничения](docs/STANDALONE.md),
 [полная документация языка](DOCUMENTATION.md).
@@ -146,13 +150,40 @@ ctest --test-dir build -C Release --output-on-failure
 Все тесты (native unit-тесты Lexer, Parser, Interpreter API, регрессионные тесты языка, локальные тесты HTTP сервера/клиента) запускаются в едином цикле CTest и завершаются с ненулевым статусом при обнаружении регрессий.
 
 Стандартная библиотека встраивается во время конфигурации CMake. HTTP(S) использует
-статический libcurl 8.22.0, TLS — Mbed TLS 3.6.7 на Linux и Schannel на Windows.
+статический libcurl 8.22.0. HTTPS-сервер на обеих ОС использует Mbed TLS 3.6.7;
+клиент использует Mbed TLS на Linux и Schannel на Windows.
 CMake загружает исходники с проверкой SHA-256; повторная сборка использует кэш.
-Для сборки без сети задайте `FETCHCONTENT_SOURCE_DIR_CURL` и (на Linux)
+Для сборки без сети задайте `FETCHCONTENT_SOURCE_DIR_CURL` и
 `FETCHCONTENT_SOURCE_DIR_MBEDTLS`, указывающие на распакованные исходники этих версий.
 Для тестов дополнительно нужны Python 3 и утилита `openssl`; старый Linux shell-тест
 использует `curl` как тестовый клиент. Готовые CLI и standalone эти утилиты не запускают.
 Лицензии библиотек встроены: `foxlang --foxlang-licenses` или `./app --foxlang-licenses`.
+
+### Переносимая Linux-сборка
+
+```bash
+docker buildx build --target portable --output type=local,dest=build-portable .
+./build-portable/foxlang build hello.fox -o hello
+```
+
+Этот вариант статически включает musl и библиотеки C++, HTTP и TLS. CI проверяет
+сборку в Alpine и запуск тех же бинарников на Ubuntu. Флаг CMake
+`-DFOXLANG_STATIC_LINUX=ON` предназначен для musl toolchain. Один executable не
+заменяет ядро ОС и не обеспечивает запуск Linux ELF на Windows.
+
+### HTTPS-сервер
+
+```cpp
+using server;
+using env;
+void health() { respond("ready"); }
+get("/health", "health");
+listen_tls(8443, secret("TLS_CERT_FILE"), secret("TLS_KEY_FILE"));
+```
+
+TLS встроен; reverse proxy необязателен. Укажите пути к PEM-сертификату с цепочкой
+и приватному ключу во время запуска. Ключ и сертификат автоматически не упаковываются.
+Обычный `listen(8080)` сохраняет HTTP. Подробнее: [HTTPS и trust store](DOCUMENTATION.md#https-сервер-и-доверенные-ca).
 
 ---
 

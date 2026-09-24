@@ -42,5 +42,16 @@ HTTP GET/POST/PUT/DELETE с Unicode и shell-символами, HTTPS с дов
 Content-Length. Эти сценарии входят в Linux и Windows CI.
 Hello-тест выводит размер executable в байтах.
 
+`standalone_https_server` проверяет HTTPS/webhook без reverse proxy: внешние
+runtime credentials, отказ при отсутствующем/несовпадающем ключе, неверном
+сертификате и имени хоста, отказ от plaintext, большие Unicode-сообщения через
+несколько TLS records, HTTP 500 и остановку. Ключи генерируются временно и не
+попадают в bundle. `unit_certificates` разбирает все 121 встроенный CA snapshot.
+
+`portable-linux` собирает статический runtime в Alpine, выполняет там весь CTest,
+проверяет отсутствие ELF interpreter/shared libraries и запускает standalone-набор
+на Ubuntu. Локально: `python3 tests/standalone/test_portable_linux.py build-portable/foxlang`
+после экспорта Docker target `portable` (команда приведена в README).
+
 `packaging_versions` сверяет VERSION с метаданными редакторов и документацией,
 создаёт VSIX, проверяет версии в обоих манифестах и отказы при несовпадении версий.

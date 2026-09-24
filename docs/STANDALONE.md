@@ -140,10 +140,12 @@ entry identity also prevents a cyclic import from re-importing the main program.
   configuration/data files separately. Source bundling is not resource bundling.
 - HTTP(S) uses statically linked libcurl 8.22.0, without subprocesses or an
   external `curl`. Linux statically includes Mbed TLS 3.6.7; Windows uses Schannel.
-  Certificate chain and hostname verification are enabled. Linux reads the OS CA
-  bundle (`ca-certificates`); Windows uses the OS certificate store. A runtime
-  `FOXLANG_CA_BUNDLE` may select a PEM CA file on either OS; Linux also honors
-  `SSL_CERT_FILE`. CA files are not automatically bundled. No Internet requests
+  Certificate chain and hostname verification are enabled. A pinned Mozilla
+  public CA snapshot is embedded, so no OS CA package is required by default.
+  `FOXLANG_CA_BUNDLE` selects a replacement PEM file, `embedded`, or `system`
+  (explicit OS trust). Linux also honors `SSL_CERT_FILE` when FOXLANG_CA_BUNDLE is
+  unset. Local CA files are not automatically bundled. See [CA provenance and
+  update procedure](../resources/ca/README.md). No Internet requests
   are made by the tests. Schannel checks revocation when available (best effort
   for offline/private CAs); certificate and hostname validation remain mandatory.
   HTTP replies are limited to 16 MiB, connection timeout
@@ -151,18 +153,27 @@ entry identity also prevents a cyclic import from re-importing the main program.
 - HTTP server and TCP/DNS use POSIX sockets on Linux and Winsock on Windows.
   The HTTP server handles one connection at a time, HTTP/1.0–1.1, up to 64 KiB
   headers and 1 MiB bodies with Content-Length. Chunked requests are unsupported;
-  server HTTPS requires a TLS reverse proxy. Handler exceptions return HTTP 500.
-  Socket receive/send timeouts are five seconds. DNS resolution uses OS facilities.
+  `listen_tls(port, certificate, private_key)` adds built-in TLS 1.2+ via static
+  Mbed TLS on either OS. No reverse proxy is required. Certificate chains and
+  unencrypted PEM keys are loaded from runtime paths, never discovered by the
+  packager. Invalid/mismatched credentials fail before listening, and handshake
+  failures close only the affected connection, without downgrading to plaintext.
+  Certificate renewal/rotation requires a restart; mTLS/ACME are not implemented.
+  Handler exceptions return HTTP 500. Socket receive/send timeouts are five
+  seconds, with a ten-second I/O deadline per HTTP(S) connection. DNS uses OS facilities.
 - `--foxlang-licenses` prints embedded dependency licenses in both the CLI and
   standalone apps. This reserved argument takes precedence over executing a bundle.
 - Terminal APIs still require the relevant console/TTY and ANSI support.
 - MSVC uses `/MT` (static CRT); MinGW statically links compiler support libraries.
   Normal OS DLLs are still required. MinGW builds using UCRT target Windows with
   that system component (normally Windows 10 or later).
-- Linux/GCC statically links libstdc++/libgcc; libc, libm and the ELF loader remain
-  system dependencies. Use a compatible target libc/version and architecture.
-  Build FoxLang on the oldest intended target OS; glibc/musl are not interchangeable.
-  Other toolchains can retain additional system libraries: inspect their binaries.
+- Official Linux packages and Docker's `portable` target statically include musl,
+  libm, C++ support, HTTP and TLS, without an ELF interpreter or shared libraries.
+  CI builds in Alpine and executes the same binaries on Ubuntu. They still require
+  Linux x86_64 and compatible kernel system calls; they are not Windows binaries.
+  Normal local Linux/GCC CMake builds include libstdc++/libgcc statically but retain
+  system libc/libm. Use `FOXLANG_STATIC_LINUX=ON` with a musl toolchain or the Docker
+  target for portable distribution; static glibc is not the supported portable profile.
 - `/proc` must be mounted on Linux. Native packaging only; no cross-target flag.
 
 ## Verification
@@ -176,7 +187,7 @@ ctest --test-dir build -C Release -L standalone --output-on-failure
 
 Building FoxLang itself requires CMake 3.18+, C and C++17 compilers. CMake fetches
 pinned, SHA-256-verified dependency archives (see `cmake/Networking.cmake`). For
-offline builds, set `FETCHCONTENT_SOURCE_DIR_CURL` and, on Linux,
+offline builds, set `FETCHCONTENT_SOURCE_DIR_CURL` and
 `FETCHCONTENT_SOURCE_DIR_MBEDTLS` to extracted source directories of these versions.
 Packaging programs with an already built CLI never downloads or compiles anything.
 
@@ -195,6 +206,21 @@ HTTPS tests generate ephemeral certificates, accept a trusted CA and reject an
 untrusted CA and a mismatched hostname. Server tests reject malformed lengths and
 verify that handler failures return HTTP 500. Version tests check editor metadata
 and generated VSIX manifests against VERSION.
+
+The HTTPS server fixture supplies runtime credentials outside the isolated
+recipient directory and checks that neither private keys nor local certificates
+were embedded. It covers TLS verification, failed handshakes, plaintext rejection,
+large multi-record Unicode payloads, missing/mismatched keys, handlers and shutdown.
+The CA unit test parses all 121 roots from the pinned snapshot, without OS trust.
+
+Portable Linux verification additionally runs the complete CTest suite in Alpine,
+checks ELF program headers for absence of PT_INTERP/PT_DYNAMIC, and executes all
+standalone Python scenarios against the exported binary on the glibc CI host:
+
+```bash
+docker buildx build --target portable --output type=local,dest=build-portable .
+python3 tests/standalone/test_portable_linux.py build-portable/foxlang
+```
 
 The C++ format test also checks malformed payloads and native/PE stub structures,
 including every truncation position in a sample payload. The hello integration
