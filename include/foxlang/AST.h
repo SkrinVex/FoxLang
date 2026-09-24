@@ -187,6 +187,8 @@ struct VarDeclNode : Node {
     VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e, SourceRange nr = {})
         : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr) {}
     Value eval(Context& ctx) override {
+        if (ctx.variables.count(name))
+            throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
         Value val = expr->eval(ctx);
         if (type != val.type) {
             if (type == "float" && val.type == "int") {
@@ -419,12 +421,20 @@ struct ArrayGetNode : Node {
 
 struct BlockNode : Node {
     std::vector<std::unique_ptr<Node>> stmts;
+    // The program and an imported module are the global scope itself, not a block inside it.
+    bool scoped = true;
     Value eval(Context& ctx) override {
+        Context inner;
+        if (scoped) {
+            inner.parent = &ctx;
+            inner.interpreter = ctx.interpreter;
+        }
+        Context& scope = scoped ? inner : ctx;
         for (auto& stmt : stmts) {
             if (!stmt) continue;
             // return/break/continue travel as their own types and pass through untouched.
             try {
-                stmt->eval(ctx);
+                stmt->eval(scope);
             } catch (const std::runtime_error& error) {
                 throw located(error, stmt->range);
             }
@@ -471,16 +481,19 @@ struct ForNode : Node {
     ForNode(std::unique_ptr<Node> i, std::unique_ptr<Node> c, std::unique_ptr<Node> s, std::unique_ptr<Node> b)
         : init(std::move(i)), condition(std::move(c)), step(std::move(s)), body(std::move(b)) {}
     Value eval(Context& ctx) override {
-        if (init) init->eval(ctx);
-        while (!condition || conditionTruth(condition->eval(ctx), "for")) {
+        Context loop;
+        loop.parent = &ctx;
+        loop.interpreter = ctx.interpreter;
+        if (init) init->eval(loop);
+        while (!condition || conditionTruth(condition->eval(loop), "for")) {
             try {
-                if (body) body->eval(ctx);
+                if (body) body->eval(loop);
             } catch (const BreakException&) {
                 break;
             } catch (const ContinueException&) {
                 // continue: evaluate step and continue
             }
-            if (step) step->eval(ctx);
+            if (step) step->eval(loop);
         }
         return {"void", ""};
     }

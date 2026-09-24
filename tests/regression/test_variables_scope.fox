@@ -43,4 +43,33 @@ int outer = 1;
 }
 assert_true(outer == 3, "outer variable modified from inner block");
 
+// 6. A name may shadow an outer one, and each pass of a loop binds its own
+global int shadowed = 7;
+
+int read_shadowed() {
+    return shadowed;
+}
+
+int shadow_locally() {
+    int shadowed = 99;
+    return read_shadowed() + shadowed;
+}
+
+assert_true(shadow_locally() == 106, "local shadows the global for itself only");
+
+int rounds = 0;
+int sum = 0;
+while (rounds < 4) {
+    int per_pass = rounds * 2;
+    sum += per_pass;
+    rounds++;
+}
+assert_true(sum == 12, "loop body declares its own variable on every pass");
+
+for (int i = 0; i < 3; i++) {
+    int square = i * i;
+    sum += square;
+}
+assert_true(sum == 17, "for body and loop variable stay inside the loop");
+
 print("VARIABLES_SCOPE_OK");

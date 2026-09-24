@@ -65,6 +65,7 @@ void Parser::synchronize() {
 
 std::unique_ptr<BlockNode> Parser::parseProgram() {
     auto program = std::make_unique<BlockNode>();
+    program->scoped = false;
     SourcePosition startPos = peek().range.start;
     while (pos < tokens.size() && tokens[pos].type != TokenType::END) {
         auto stmt = statement();
@@ -81,6 +82,7 @@ std::unique_ptr<BlockNode> Parser::parseProgramWithDiagnostics(std::vector<Diagn
     collectDiagnostics = true;
     diagnostics.clear();
     auto program = std::make_unique<BlockNode>();
+    program->scoped = false;
     SourcePosition startPos = peek().range.start;
     while (pos < tokens.size() && tokens[pos].type != TokenType::END) {
         try {

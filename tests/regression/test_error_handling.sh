@@ -58,10 +58,15 @@ run_expect_fail "if (1) { print(\"yes\"); }" "condition must be bool" "non-bool 
 run_expect_fail "int reader() { return hidden; } int owner() { int hidden = 1; return reader(); } int x = owner();" "Variable 'hidden' not found" "callee cannot see caller locals"
 run_expect_fail "int z = 10 / 0;" "\[line 1\]" "runtime error carries its line"
 
-# 9. Break outside loop in global scope
+# 9. Block scope is a real scope
+run_expect_fail "int i = 0; while (i < 1) { int inner = 5; i++; } print(inner);" "Variable 'inner' not found" "block variable outside its block"
+run_expect_fail "for (int i = 0; i < 2; i++) { print(i); } print(i);" "Variable 'i' not found" "for variable outside its loop"
+run_expect_fail "int a = 1; int a = 2;" "already declared in this scope" "redeclaration in the same scope"
+
+# 10. Break outside loop in global scope
 run_expect_fail "break;" "break" "break outside loop in global scope"
 
-# 10. Non-existent file
+# 11. Non-existent file
 set +e
 out=$("$FOXLANG_BIN" "/path/to/definitely_not_existing_file_999.fox" 2>&1)
 status=$?

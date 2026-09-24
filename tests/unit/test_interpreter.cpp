@@ -233,7 +233,24 @@ int main() {
         TEST_ASSERT(interp.getContext().arrays.size() == 1);
     }
 
-    // 17. && and || stop before evaluating the right side
+    // 17. A block is a scope of its own, and the program top level is not
+    {
+        foxlang::Interpreter interp;
+        auto leak = interp.runSource("int i = 0; while (i < 1) { int inner = 5; i++; } int seen = inner;");
+        TEST_ASSERT(!leak.success);
+        TEST_ASSERT(leak.errorMessage.find("Variable 'inner' not found") != std::string::npos);
+
+        foxlang::Interpreter globals;
+        auto top = globals.runSource("int kept = 3; { int hidden = 4; kept = kept + hidden; }");
+        TEST_ASSERT(top.success);
+        TEST_ASSERT(globals.getGlobal("kept").value == "7");
+
+        auto twice = globals.runSource("int kept = 1;");
+        TEST_ASSERT(!twice.success);
+        TEST_ASSERT(twice.errorMessage.find("already declared in this scope") != std::string::npos);
+    }
+
+    // 18. && and || stop before evaluating the right side
     {
         foxlang::Interpreter interp;
         auto res = interp.runSource(
