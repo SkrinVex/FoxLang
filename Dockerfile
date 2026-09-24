@@ -19,7 +19,7 @@ COPY . .
 
 RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DFOXLANG_STATIC_LINUX=ON \
     && cmake --build build --config Release -j$(nproc) \
-    && FOXLANG_REQUIRE_GRAPHICS_TESTS=1 xvfb-run -a ctest --test-dir build --output-on-failure
+    && FOXLANG_REQUIRE_GRAPHICS_TESTS=1 python3 tests/run_with_xvfb.py ctest --test-dir build --output-on-failure
 
 # Export static Linux binaries, without the build tree or compiler.
 FROM scratch AS portable

@@ -5,9 +5,14 @@ on:
   push:
     branches: [master]
 
+concurrency:
+  group: foxlang-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   portable-linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,6 +27,7 @@ jobs:
         run: xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/foxlang
 
   desktop:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
