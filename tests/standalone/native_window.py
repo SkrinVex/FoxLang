@@ -74,8 +74,14 @@ class NativeWindow:
     def send_key(self, name, down, shift=False, repeat=False):
         if os.name == 'nt':
             key = self.VIRTUAL_KEYS.get(name, ord(name[0].upper()))
-            # Bit 30 of lParam marks a key that was already down: an OS auto-repeat.
-            self.api.PostMessageW(self.handle, 0x100 if down else 0x101, key, (1 << 30) if repeat else 0)
+            # lParam as a real keyboard sends it: a repeat count of 1, bit 30 for a key that
+            # was already down (auto-repeat or release) and bit 31 for a release. Without
+            # them TranslateMessage treats a release as another press and types it twice.
+            if down:
+                flags = 1 | ((1 << 30) if repeat else 0)
+            else:
+                flags = 1 | (1 << 30) | (1 << 31)
+            self.api.PostMessageW(self.handle, 0x100 if down else 0x101, key, flags)
         else:
             class KeyEvent(C.Structure):
                 _fields_ = [('type',C.c_int),('serial',C.c_ulong),('send_event',C.c_int),('display',C.c_void_p),
