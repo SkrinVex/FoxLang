@@ -214,7 +214,7 @@ large multi-record Unicode payloads, missing/mismatched keys, handlers and shutd
 The CA unit test parses all 121 roots from the pinned snapshot, without OS trust.
 
 Portable Linux verification additionally runs the complete CTest suite in Alpine,
-checks ELF program headers for absence of PT_INTERP/PT_DYNAMIC, and executes all
+checks ELF headers/tables for absence of PT_INTERP/DT_NEEDED (static PIE is allowed), and executes all
 standalone Python scenarios against the exported binary on the glibc CI host:
 
 ```bash

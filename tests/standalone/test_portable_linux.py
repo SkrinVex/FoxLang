@@ -13,10 +13,19 @@ for name in (binary, binary.with_name("foxlang-lsp")):
     size, count = struct.unpack_from("<HH", data, 54)
     assert size >= 56 and offset + size * count <= len(data)
     for index in range(count):
-        kind = struct.unpack_from("<I", data, offset + index * size)[0]
+        header = offset + index * size
+        kind = struct.unpack_from("<I", data, header)[0]
         assert kind != 3, "portable binary must not require an ELF interpreter"
-        # A statically linked non-PIE executable has no dynamic dependencies/table.
-        assert kind != 2, "portable binary unexpectedly contains PT_DYNAMIC"
+        # Static PIE uses PT_DYNAMIC for self-relocations, but must not need DSOs.
+        if kind == 2:
+            start = struct.unpack_from("<Q", data, header + 8)[0]
+            length = struct.unpack_from("<Q", data, header + 32)[0]
+            assert length % 16 == 0 and start + length <= len(data)
+            for entry in range(start, start + length, 16):
+                tag, value = struct.unpack_from("<qQ", data, entry)
+                if tag == 0:
+                    break
+                assert tag != 1, "portable binary must not contain DT_NEEDED shared libraries"
     subprocess.run([str(name), "--version"], check=True, timeout=15)
 
 tests = Path(__file__).resolve().parent
