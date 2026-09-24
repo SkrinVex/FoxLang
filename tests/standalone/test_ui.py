@@ -34,6 +34,13 @@ while (window_poll()) {
     frame++;
     clear_window(rgb(250, 250, 250));
     wheel += mouse_wheel();
+    if (key_pressed("MOUSE_LEFT")) {
+        append_file("events.txt", "frame " + frame + " click " + mouse_x() + "," + mouse_y() + " dialog " + dialog + " typing " + ui_typing() + "\n");
+    }
+    string typed = text_input();
+    if (typed != "") {
+        append_file("events.txt", "frame " + frame + " text [" + typed + "] focus name " + ui_focused("name") + " other " + ui_focused("other") + "\n");
+    }
     if (ui_button("open", 20, 20, 100, 30, "Open")) {
         dialog = true;
         ui_focus("name");
@@ -111,6 +118,13 @@ with tempfile.TemporaryDirectory(prefix='fox-ui-') as directory:
     process = subprocess.Popen([str(binary), 'main.fox'], cwd=workdir, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, text=True, encoding='utf-8')
     driver = None
+    def report(error):
+        # CI logs need a login to read; GitHub turns ::error:: lines into public annotations.
+        events = (workdir / 'events.txt').read_text(encoding='utf-8') if (workdir / 'events.txt').exists() else ''
+        detail = f'{error} | events: {events}'
+        print(detail)
+        if os.environ.get('GITHUB_ACTIONS'):
+            print('::error title=ui_interaction::' + detail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
     try:
         wait_for(lambda: (workdir / 'ready.txt').exists(), process, 'ready')
         driver = NativeWindow(title)
@@ -180,6 +194,9 @@ with tempfile.TemporaryDirectory(prefix='fox-ui-') as directory:
         stdout, stderr = process.communicate(timeout=15)
         assert process.returncode == 0, (stdout, stderr)
         print('UI_INTERACTION_OK')
+    except AssertionError as error:
+        report(error)
+        raise
     finally:
         if driver:
             driver.dispose()

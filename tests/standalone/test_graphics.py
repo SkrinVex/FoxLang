@@ -92,6 +92,11 @@ print("GRAPHICS_STANDALONE_OK");
         assert stdout=='PRESSES=1\nGRAPHICS_STANDALONE_OK\n',stdout
         assert not stderr,stderr
         print(stdout,end='')
+    except AssertionError as error:
+        # CI logs need a login to read; GitHub turns ::error:: lines into public annotations.
+        if os.environ.get('GITHUB_ACTIONS'):
+            print('::error title=standalone_graphics::'+str(error).replace('%','%25').replace('\n','%0A'))
+        raise
     finally:
         if driver:driver.dispose()
         if process.poll() is None:process.kill();process.communicate()
