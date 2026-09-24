@@ -1,182 +1,232 @@
-# Standalone executables
+# Standalone приложения
 
-`foxlang build main.fox -o app` packages the native FoxLang executable, the entry
-source and its source dependencies into one file. Linux produces ELF64 x86_64;
-Windows produces PE32+ x86_64 (`app.exe`). Neither packaging nor running the result
-requires a compiler, CMake, a FoxLang installation or a separate FoxLang runtime.
-This is runtime bundling, not native AOT compilation.
+`foxlang build main.fox -o app` создаёт один исполняемый файл со встроенным
+FoxLang runtime, основной программой и её FoxLang-модулями. Получателю не нужны
+установленный FoxLang, исходники, компилятор, CMake или отдельный runtime.
+Для упаковки достаточно готового FoxLang CLI — компилятор тоже не требуется.
+Это упаковка со встроенным интерпретатором (runtime bundling), а не AOT-компиляция
+исходников непосредственно в машинный код.
 
-## Architecture
+## Быстрый старт
+
+```fox
+// hello.fox
+void main() {
+    print("Hello from FoxLang!");
+}
+
+main();
+```
+
+Обычный запуск исходника:
+
+```bash
+foxlang hello.fox
+```
+
+Создание самостоятельной программы:
+
+```bash
+foxlang build hello.fox -o hello
+```
+
+На Linux запустите `./hello`, на Windows — `hello.exe` (в PowerShell —
+`.\hello.exe`). Передайте этот файл пользователю той же ОС и архитектуры.
+`--output` равнозначен `-o`. Без этих параметров файл получает имя исходника
+без расширения и создаётся в текущем каталоге; на Windows добавляется `.exe`.
+Существующий выходной файл не перезаписывается.
+
+## Можно ли собрать Windows-программу на Linux?
+
+У команды `foxlang build` пока нет выбора целевой платформы. Linux-версия FoxLang
+создаёт ELF64 x86_64 для Linux, Windows-версия — PE32+ x86_64 (`.exe`) для Windows.
+Переименование Linux-файла в `.exe` не меняет его формат.
+
+Для получения `.exe` используйте Windows-версию FoxLang на Windows: например,
+в виртуальной машине или в задании GitHub Actions с `runs-on: windows-latest`.
+Там выполняется та же команда `foxlang build main.fox -o app`. Исходники проекта
+при этом можно разрабатывать на Linux.
+
+Кросс-сборка самого FoxLang через MinGW — отдельный этап: она создаёт Windows CLI.
+Чтобы упаковать программу этим CLI, его ещё нужно запустить в среде, способной
+выполнять Windows-программы. Обычный Linux CLI не выбирает Windows runtime
+автоматически. CI проверяет создание и запуск standalone отдельно на Linux и Windows.
+
+## Архитектура
 
 ```text
 foxlang_core (Lexer, Parser, Interpreter, Runtime, Platform)
-    + SourceProvider: filesystem + embedded standard library
-    + SourceProvider: immutable in-memory bundle
+    + SourceProvider: файловая система + встроенная стандартная библиотека
+    + SourceProvider: неизменяемый пакет исходников в памяти
                |
-      native foxlang executable
-        ├── empty descriptor: CLI, including build
-        └── populated descriptor: execute bundled entry with Interpreter
+      исполняемый файл foxlang
+        ├── пустой дескриптор: CLI, включая build
+        └── заполненный дескриптор: запуск встроенной программы через Interpreter
 ```
 
-The CLI itself is the prebuilt runtime stub. This avoids a second executable that
-installers must locate and version-match. The resulting application contains the
-same core and the packaging code, but always runs its embedded entry, including
-when passed `--help`, `--version`, or `build`. There is no second interpreter and
-no extraction to disk. Application arguments are not exposed by the current
-FoxLang language API.
+Сам CLI служит готовой основой для standalone runtime. Установщику не нужно искать
+второй исполняемый файл и проверять совпадение версий. Готовое приложение содержит
+то же ядро и код упаковки, но запускает встроенную программу, в том числе при
+передаче `--help`, `--version` или `build`. Второго интерпретатора нет, исходники
+не распаковываются на диск. Текущий API языка не предоставляет программе доступ
+к аргументам командной строки. Зарезервированный аргумент `--foxlang-licenses`
+выводит лицензии вместо запуска программы.
 
-The running image is located using `/proc/self/exe` on Linux and
-`GetModuleFileNameW` on Windows, independently of `argv[0]`, PATH, cwd and symlinks.
-The builder validates the executable section tables before modifying the reserved
-descriptor. See the [ELF ABI specification](https://refspecs.linuxfoundation.org/elf/gabi41.pdf)
-and [Microsoft PE specification](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)
-for the host formats. This implementation deliberately accepts only little-endian
-ELF64/AMD64 and PE32+/AMD64 executables with a `.foxbndl` section.
+Путь к запущенному файлу определяется через `/proc/self/exe` на Linux и
+`GetModuleFileNameW` на Windows, независимо от `argv[0]`, PATH, текущего каталога
+и символических ссылок. Перед изменением дескриптора проверяются таблицы секций.
+Форматы описаны в [спецификации ELF ABI](https://refspecs.linuxfoundation.org/elf/gabi41.pdf)
+и [спецификации Microsoft PE](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format).
+Поддерживаются только little-endian ELF64/AMD64 и PE32+/AMD64 с секцией `.foxbndl`.
 
-The build reads/parses dependencies without evaluating user code, serializes and
-checks the payload, writes into a uniquely created temporary directory beside the
-destination, re-reads and validates the file, then publishes it atomically without
-overwriting an existing destination. Temporary files are cleaned up with RAII.
-Linux publication uses a hard link within that filesystem; Windows uses
-`MoveFileW`. A filesystem without hard-link support cannot publish on Linux.
-An existing output must be removed or renamed explicitly before rebuilding.
+Сборщик читает и разбирает зависимости без выполнения пользовательского кода,
+сериализует и проверяет пакет, записывает файл в уникальный временный каталог
+рядом с местом назначения, повторно читает и проверяет результат. Затем файл
+публикуется атомарно, без перезаписи существующего. RAII обеспечивает очистку
+временных файлов. На Linux публикация использует жёсткую ссылку внутри той же
+файловой системы, на Windows — `MoveFileW`. Файловая система без поддержки
+жёстких ссылок не подходит для публикации на Linux. Перед повторной сборкой
+существующий выходной файл нужно явно удалить или переименовать.
 
-## Format version 1
+## Формат пакета, версия 1
 
-All integers are unsigned little-endian and are read byte by byte, without casting
-untrusted data to C++ structs. Names and sources are length-delimited byte strings
-(normally UTF-8). No marker search locates the payload.
+Все целые числа беззнаковые, в порядке little-endian. Чтение выполняется побайтово,
+без приведения недоверенных данных к структурам C++. Имена и исходники хранятся
+как строки байтов с указанной длиной, обычно в UTF-8. Пакет находится по смещению
+и размеру, без поиска текстовых маркеров.
 
-The `.foxbndl` section begins with this 40-byte descriptor:
+Секция `.foxbndl` начинается с 40-байтового дескриптора:
 
-| Offset | Bytes | Field |
+| Смещение | Байт | Поле |
 |---:|---:|---|
-| 0 | 8 | `FOXSTUB` followed by NUL |
-| 8 | 4 | descriptor version: 1 |
-| 12 | 4 | mode: 0 for CLI, 1 for bundled application |
-| 16 | 8 | absolute file offset of payload |
-| 24 | 8 | payload byte length |
-| 32 | 4 | IEEE CRC32 of entire payload |
-| 36 | 4 | reserved, must be zero |
+| 0 | 8 | `FOXSTUB` и завершающий NUL |
+| 8 | 4 | Версия дескриптора: 1 |
+| 12 | 4 | Режим: 0 — CLI, 1 — standalone приложение |
+| 16 | 8 | Абсолютное смещение содержимого пакета от начала файла |
+| 24 | 8 | Размер содержимого пакета в байтах |
+| 32 | 4 | IEEE CRC32 всего содержимого пакета |
+| 36 | 4 | Зарезервировано, должно быть равно нулю |
 
-For a CLI stub, offset, length and checksum must all be zero. For an application,
-the payload must start after all executable tables and file-backed sections, and
-end exactly at EOF. This descriptor remains present if a transfer truncates the
-payload, so the application fails with `Bundle Error` instead of becoming a CLI.
+У CLI смещение, размер и контрольная сумма равны нулю. У приложения пакет начинается
+после всех таблиц исполняемого файла и секций, занимающих место в файле, и заканчивается
+точно на границе EOF. Если при передаче конец файла обрезан, дескриптор остаётся:
+приложение завершается с `Bundle Error`, а не превращается обратно в CLI.
 
-Payload layout:
+Структура содержимого пакета:
 
 ```text
-8 bytes: "FOXBNDL\0"
-u32: version (1)
-u32: file count
-u32: import edge count
-string: entry source ID
-repeat file count:
-    string: source ID
-    string: source bytes
-repeat import edge count:
-    string: importing source ID
-    u32: kind (0 = include, 1 = using)
-    string: original requested module name
-    string: resolved target source ID
+8 байт: "FOXBNDL\0"
+u32: версия (1)
+u32: число файлов
+u32: число связей импорта
+string: ID основного исходника
+для каждого файла:
+    string: ID исходника
+    string: байты исходника
+для каждой связи импорта:
+    string: ID импортирующего исходника
+    u32: вид импорта (0 = include, 1 = using)
+    string: исходное запрошенное имя модуля
+    string: ID найденного исходника модуля
 ```
 
-Every string is `u32 byte_length` followed by exactly that many bytes. IDs such as
-`main.fox` and `module/1.fox` are opaque map keys, never paths for extraction.
-Canonical developer paths are not stored as IDs; paths explicitly written inside
-source literals remain source data.
+Каждая строка — длина в байтах (`u32`) и ровно столько байтов содержимого.
+ID вроде `main.fox` и `module/1.fox` служат ключами таблицы, а не путями для распаковки.
+Абсолютные пути разработчика не сохраняются в ID. Пути, явно записанные в строковых
+литералах программы, остаются частью исходного кода.
 
-Limits: 64 MiB payload, 256 MiB original executable, 4096 source files, 65536 import
-edges, 4096 bytes per name. The reader rejects unsupported versions, invalid
-magic, overflow/out-of-range lengths, duplicate files/imports, invalid import
-kinds, missing entry/targets, invalid executable section tables, trailing bytes,
-and checksum mismatches before interpreting any source.
+Ограничения: 64 MiB на пакет, 256 MiB на исходный исполняемый файл, 4096 исходников,
+65536 связей импорта, 4096 байт на имя. До выполнения программы отклоняются
+неподдерживаемые версии, неверные сигнатуры, переполнения и выход размеров за границы,
+дубликаты файлов и импортов, неизвестные виды импорта, отсутствующий основной
+исходник или модуль, некорректные таблицы секций, лишние байты и неверная CRC32.
 
-CRC32 detects accidental corruption; it is not authentication. Embedded sources
-are readable, not encrypted. Do not store secrets directly in source code.
-PE files with an Authenticode certificate are rejected. Signing, stripping,
-compressing or otherwise rewriting an already bundled file is not supported.
-If desired, strip the CLI before using it as the stub, preserving `.foxbndl` and
-the section table. Signature-aware bundles can be added as a separate format.
+CRC32 обнаруживает случайное повреждение, но не подтверждает подлинность файла.
+Исходники доступны для чтения и не зашифрованы: не храните секреты прямо в коде.
+PE-файлы с сертификатом Authenticode отклоняются. Подпись, `strip`, сжатие и другие
+изменения уже упакованного файла не поддерживаются. При необходимости примените
+`strip` к CLI до упаковки, сохранив `.foxbndl` и таблицу секций. Поддержку подписанных
+пакетов можно добавить отдельно в будущем.
 
-## Module resolution
+## Поиск и упаковка модулей
 
-The small official `std/*.fox` library is embedded in `foxlang_core` by CMake.
-No user program is turned into generated C++ and no project directory is scanned
-for arbitrary files. CMake tracks changes to the standard library sources.
+Вся небольшая официальная библиотека `std/*.fox` встраивается в `foxlang_core`
+при сборке CMake. Пользовательская программа не превращается в генерируемый C++,
+каталог проекта не сканируется в поисках произвольных файлов. CMake отслеживает
+изменения исходников стандартной библиотеки.
 
-For ordinary CLI execution and packaging, `using name;` resolves `std/name.fox`
-then `name.fox`. For each candidate the existing filesystem resolver searches the
-importing file's directory, cwd, `FOXLANG_HOME` and `FOXLANG_HOME/std`. Embedded
-stdlib is the final fallback. `include("std/json.fox")` also supports that fallback.
-A found module's parse/runtime errors propagate instead of being hidden by a
-fallback to another file.
+При обычном запуске через CLI и при упаковке `using name;` ищет сначала
+`std/name.fox`, затем `name.fox`. Для каждого варианта проверяются каталог
+импортирующего файла, текущий каталог, `FOXLANG_HOME` и `FOXLANG_HOME/std`.
+Если файл не найден, используется встроенная stdlib, в том числе для
+`include("std/json.fox")`. Ошибки разбора или выполнения найденного модуля
+не скрываются переходом к другой копии файла.
 
-The existing parser records all `using` and literal `include` statements,
-including statements nested inside functions/branches. Packaging traverses that
-graph iteratively, with canonical source identities and a visited map. Cycles
-terminate and repeated imports share one source entry. All dependencies must
-exist at build time, even imports in unreachable code. Missing imports identify
-the request and importing file. Dynamic include expressions are not part of the
-current language syntax.
+Общий парсер фиксирует все `using` и `include` с буквальным именем модуля,
+в том числе внутри функций и условных веток. Сборщик обходит граф итеративно,
+используя канонические идентификаторы исходников и таблицу посещённых модулей.
+Циклы не приводят к бесконечной упаковке, повторные импорты используют одну запись.
+Все зависимости должны существовать при сборке, даже импорты в недостижимом коде.
+Ошибка отсутствующего модуля указывает запрошенное имя и импортирующий файл.
+Вычисляемые выражения в `include` не входят в текущий синтаксис языка.
 
-The runtime uses the stored import edges, exclusively. There is no disk fallback,
-including if `FOXLANG_HOME` or the recipient's cwd contains similarly named files.
-`include`/`using` preserve the existing declaration-only import behavior:
-functions, variable initializers and nested imports are loaded; other top-level
-statements in a module are skipped. The entry program runs normally. A canonical
-entry identity also prevents a cyclic import from re-importing the main program.
+При запуске используются только сохранённые связи импорта. Поиска на диске нет,
+даже если в `FOXLANG_HOME` или рабочем каталоге получателя лежат одноимённые файлы.
+Сохраняется обычное поведение `include`/`using`: загружаются функции, инициализаторы
+переменных и вложенные импорты; остальные инструкции верхнего уровня в модуле
+пропускаются. Основная программа выполняется как обычно. Канонический ID основного
+исходника предотвращает его повторный импорт через цикл.
 
-## Resources, secrets and operating systems
+## Ресурсы, секреты и операционные системы
 
-- `.env`, build-time environment values and arbitrary project files are never
-  discovered or embedded automatically. Only parsed source dependencies are read.
-- Standalone programs read the process environment at execution time. Automatic
-  `.env` loading is disabled; regular CLI source execution keeps its existing
-  `.env` behavior. `env`, `secret`, `env_default` and logging use runtime values.
-- `read_file`, `write_file` and `append_file` still access the real filesystem,
-  with relative paths resolved from the recipient's working directory. Supply
-  configuration/data files separately. Source bundling is not resource bundling.
-- HTTP(S) uses statically linked libcurl 8.22.0, without subprocesses or an
-  external `curl`. Linux statically includes Mbed TLS 3.6.7; Windows uses Schannel.
-  Certificate chain and hostname verification are enabled. A pinned Mozilla
-  public CA snapshot is embedded, so no OS CA package is required by default.
-  `FOXLANG_CA_BUNDLE` selects a replacement PEM file, `embedded`, or `system`
-  (explicit OS trust). Linux also honors `SSL_CERT_FILE` when FOXLANG_CA_BUNDLE is
-  unset. Local CA files are not automatically bundled. See [CA provenance and
-  update procedure](../resources/ca/README.md). No Internet requests
-  are made by the tests. Schannel checks revocation when available (best effort
-  for offline/private CAs); certificate and hostname validation remain mandatory.
-  HTTP replies are limited to 16 MiB, connection timeout
-  is 10 seconds and the overall request timeout is 35 seconds.
-- HTTP server and TCP/DNS use POSIX sockets on Linux and Winsock on Windows.
-  The HTTP server handles one connection at a time, HTTP/1.0–1.1, up to 64 KiB
-  headers and 1 MiB bodies with Content-Length. Chunked requests are unsupported;
-  `listen_tls(port, certificate, private_key)` adds built-in TLS 1.2+ via static
-  Mbed TLS on either OS. No reverse proxy is required. Certificate chains and
-  unencrypted PEM keys are loaded from runtime paths, never discovered by the
-  packager. Invalid/mismatched credentials fail before listening, and handshake
-  failures close only the affected connection, without downgrading to plaintext.
-  Certificate renewal/rotation requires a restart; mTLS/ACME are not implemented.
-  Handler exceptions return HTTP 500. Socket receive/send timeouts are five
-  seconds, with a ten-second I/O deadline per HTTP(S) connection. DNS uses OS facilities.
-- `--foxlang-licenses` prints embedded dependency licenses in both the CLI and
-  standalone apps. This reserved argument takes precedence over executing a bundle.
-- Terminal APIs still require the relevant console/TTY and ANSI support.
-- MSVC uses `/MT` (static CRT); MinGW statically links compiler support libraries.
-  Normal OS DLLs are still required. MinGW builds using UCRT target Windows with
-  that system component (normally Windows 10 or later).
-- Official Linux packages and Docker's `portable` target statically include musl,
-  libm, C++ support, HTTP and TLS, without an ELF interpreter or shared libraries.
-  CI builds in Alpine and executes the same binaries on Ubuntu. They still require
-  Linux x86_64 and compatible kernel system calls; they are not Windows binaries.
-  Normal local Linux/GCC CMake builds include libstdc++/libgcc statically but retain
-  system libc/libm. Use `FOXLANG_STATIC_LINUX=ON` with a musl toolchain or the Docker
-  target for portable distribution; static glibc is not the supported portable profile.
-- `/proc` must be mounted on Linux. Native packaging only; no cross-target flag.
+- `.env`, значения окружения времени сборки и произвольные файлы проекта
+  **никогда не встраиваются автоматически**. Читаются зависимости, найденные парсером.
+- Standalone получает окружение процесса при запуске. Автозагрузка `.env` отключена;
+  обычный запуск исходника через CLI сохраняет прежнее поведение `.env`.
+  `env`, `secret`, `env_default` и логирование используют значения времени запуска.
+- `read_file`, `write_file` и `append_file` работают с реальной файловой системой.
+  Относительные пути отсчитываются от рабочего каталога процесса у получателя.
+  Конфигурацию и данные нужно передавать отдельно: упаковка исходников не включает ресурсы.
+- HTTP(S)-клиент использует статический libcurl 8.22.0, без дочерних процессов
+  и внешнего `curl`. Linux статически включает Mbed TLS 3.6.7, Windows использует
+  Schannel. Цепочка сертификатов и имя сервера проверяются. Встроен зафиксированный
+  набор публичных CA Mozilla: отдельный пакет CA ОС по умолчанию не требуется.
+  `FOXLANG_CA_BUNDLE` выбирает другой PEM-файл, `embedded` — встроенный набор,
+  `system` — хранилище ОС. Linux также учитывает `SSL_CERT_FILE`, если
+  `FOXLANG_CA_BUNDLE` не задана. Локальные CA автоматически не упаковываются.
+  См. [происхождение CA и порядок обновления](../resources/ca/README.md).
+  Тесты не обращаются в интернет. Schannel проверяет отзыв сертификата, когда
+  сведения доступны; их недоступность для автономных или частных CA допускается.
+  Проверка цепочки и имени остаётся обязательной. Ответ ограничен 16 MiB,
+  тайм-аут подключения — 10 секунд, всего запроса — 35 секунд.
+- HTTP-сервер и TCP/DNS используют POSIX sockets на Linux и Winsock на Windows.
+  Сервер обрабатывает по одному соединению: HTTP/1.0–1.1, до 64 KiB заголовков
+  и 1 MiB тела с `Content-Length`. Chunked-запросы не поддерживаются.
+  `listen_tls(port, certificate, private_key)` добавляет встроенный TLS 1.2+
+  через статический Mbed TLS на обеих ОС; обратный прокси не требуется.
+  Цепочка сертификатов и незашифрованный PEM-ключ загружаются из файлов при запуске,
+  сборщик их автоматически не ищет. Неверные или несовместимые сертификат и ключ
+  вызывают ошибку до открытия слушающего сокета. Ошибка TLS-рукопожатия закрывает
+  только это соединение, без перехода к незашифрованному обмену.
+  Обновление сертификата или ключа требует перезапуска; mTLS и ACME не реализованы.
+  Исключения обработчиков возвращают HTTP 500. Тайм-ауты чтения и записи — пять
+  секунд, срок ввода-вывода для HTTP(S)-соединения — десять секунд. DNS использует ОС.
+- `--foxlang-licenses` выводит встроенные лицензии зависимостей у CLI и приложений.
+  Этот аргумент обрабатывается вместо запуска программы.
+- Терминальные API требуют подходящей консоли/TTY и поддержки ANSI.
+- MSVC использует `/MT` (статический CRT), MinGW — статические библиотеки компилятора.
+  Стандартные DLL ОС нужны. Сборки MinGW с UCRT требуют Windows с этим компонентом,
+  обычно Windows 10 или новее.
+- Официальные Linux-пакеты и цель Docker `portable` статически включают musl,
+  libm, библиотеки C++, HTTP и TLS, без загрузчика ELF и разделяемых библиотек.
+  CI собирает их в Alpine и запускает те же файлы на Ubuntu. По-прежнему нужны
+  Linux x86_64 и совместимые системные вызовы ядра. Обычная локальная сборка
+  Linux/GCC через CMake включает libstdc++/libgcc статически, но сохраняет libc/libm.
+  Для переносимого распространения используйте `FOXLANG_STATIC_LINUX=ON` с musl
+  toolchain или цель Docker. Статическая glibc не является поддерживаемым вариантом.
+- На Linux должен быть смонтирован `/proc`. Параметра выбора другой платформы нет.
 
-## Verification
+## Проверки
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -185,50 +235,53 @@ ctest --test-dir build -C Release --output-on-failure
 ctest --test-dir build -C Release -L standalone --output-on-failure
 ```
 
-Building FoxLang itself requires CMake 3.18+, C and C++17 compilers. CMake fetches
-pinned, SHA-256-verified dependency archives (see `cmake/Networking.cmake`). For
-offline builds, set `FETCHCONTENT_SOURCE_DIR_CURL` and
-`FETCHCONTENT_SOURCE_DIR_MBEDTLS` to extracted source directories of these versions.
-Packaging programs with an already built CLI never downloads or compiles anything.
+Для сборки самого FoxLang нужны CMake 3.18+, компиляторы C и C++17. CMake загружает
+архивы зафиксированных версий зависимостей и проверяет SHA-256
+(см. `cmake/Networking.cmake`). Для сборки без сети задайте
+`FETCHCONTENT_SOURCE_DIR_CURL` и `FETCHCONTENT_SOURCE_DIR_MBEDTLS`, указав каталоги
+распакованных исходников этих версий. Упаковка готовым CLI ничего не скачивает
+и не компилирует.
 
-Python 3 and the `openssl` utility are required for tests only. On Windows the
-OpenSSL supplied with Git for Windows suffices. The older Linux shell integration
-test still uses curl as a test client. CI runs the portable network suite in both
-`desktop-linux` and `desktop-windows`. The integration
-tests copy only the CLI into a temporary developer directory (without stdlib),
-package source fixtures, copy only the resulting executable into a separate
-recipient directory, delete both sources and copied CLI, and execute there.
-PATH is empty in all standalone tests, including networking. Tests cover exact stdout, CLI
-failures, all stdlib imports, transitive/local/cyclic imports, JSON/Unicode,
-environment timing, secret/resource exclusion, runtime errors, corrupted images,
-local HTTP GET/POST/PUT/DELETE, TCP echo, DNS, and a Telegram-style Unicode webhook.
-HTTPS tests generate ephemeral certificates, accept a trusted CA and reject an
-untrusted CA and a mismatched hostname. Server tests reject malformed lengths and
-verify that handler failures return HTTP 500. Version tests check editor metadata
-and generated VSIX manifests against VERSION.
+Python 3 и утилита `openssl` нужны только для тестов. На Windows достаточно OpenSSL
+из Git for Windows. Старый интеграционный shell-тест Linux использует curl
+как тестовый клиент. CI запускает общие сетевые тесты в `desktop-linux` и
+`desktop-windows`. Интеграционные тесты копируют только CLI во временный каталог
+разработчика без stdlib, упаковывают исходники, переносят только готовый файл
+в отдельный каталог получателя, удаляют исходники и копию CLI, затем запускают
+приложение оттуда. Во всех standalone тестах, включая сетевые, PATH пуст.
 
-The HTTPS server fixture supplies runtime credentials outside the isolated
-recipient directory and checks that neither private keys nor local certificates
-were embedded. It covers TLS verification, failed handshakes, plaintext rejection,
-large multi-record Unicode payloads, missing/mismatched keys, handlers and shutdown.
-The CA unit test parses all 121 roots from the pinned snapshot, without OS trust.
+Проверяются точный stdout, ошибки CLI, импорты всей stdlib, транзитивные, локальные
+и циклические импорты, JSON/Unicode, окружение времени запуска, исключение секретов
+и ресурсов из пакета, ошибки runtime, повреждённые файлы, локальные HTTP
+GET/POST/PUT/DELETE, TCP echo, DNS и webhook с Unicode по образцу Telegram.
+HTTPS-тесты создают временные сертификаты, принимают доверенный CA, отклоняют
+недоверенный CA и несовпадающее имя сервера. Серверные тесты отклоняют некорректные
+длины и проверяют HTTP 500 при ошибках обработчиков. Версии метаданных редакторов
+и манифестов создаваемых VSIX сравниваются с VERSION.
 
-Portable Linux verification additionally runs the complete CTest suite in Alpine,
-checks ELF headers/tables for absence of PT_INTERP/DT_NEEDED (static PIE is allowed), and executes all
-standalone Python scenarios against the exported binary on the glibc CI host:
+Тест HTTPS-сервера предоставляет сертификат и ключ вне изолированного каталога
+получателя и проверяет, что они не встроены. Он охватывает TLS, неудачные
+рукопожатия, отклонение незашифрованных запросов, большие Unicode-сообщения
+из нескольких TLS-записей, отсутствующие и несовместимые ключи, обработчики
+и остановку сервера. Модульный тест разбирает все 121 корневой CA без хранилища ОС.
+
+Проверка переносимой Linux-сборки запускает полный CTest в Alpine, проверяет
+отсутствие PT_INTERP/DT_NEEDED в ELF (статический PIE допустим), затем выполняет
+все standalone сценарии Python для экспортированного файла на CI-хосте с glibc:
 
 ```bash
 docker buildx build --target portable --output type=local,dest=build-portable .
 python3 tests/standalone/test_portable_linux.py build-portable/foxlang
 ```
 
-The C++ format test also checks malformed payloads and native/PE stub structures,
-including every truncation position in a sample payload. The hello integration
-test prints the byte size of the generated executable (`ctest -V -R standalone_hello`).
+Тест формата на C++ также проверяет повреждённые пакеты и структуры исполняемых
+файлов текущей платформы и PE, включая обрезание тестового пакета в каждой позиции.
+Hello World выводит размер созданного файла в байтах (`ctest -V -R standalone_hello`).
 
-## Future native compiler
+## Будущий native-компилятор
 
-A genuine AOT pipeline would need semantic analysis and type checking suitable
-for compilation, a defined IR, native code generation, runtime ABI/linking,
-platform backends, debug information and conformance tests against the interpreter.
-Bundle serialization is deliberately independent of such a future backend.
+Для настоящего AOT-конвейера потребуются семантический анализ и проверка типов,
+подходящие для компиляции, промежуточное представление (IR), генерация машинного
+кода, ABI и линковка runtime, платформенные backend, отладочная информация и тесты
+соответствия поведению интерпретатора. Сериализация standalone пакета не зависит
+от такого будущего backend.

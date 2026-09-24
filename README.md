@@ -68,6 +68,8 @@ FoxLang runtime получателю не нужны. Сам `foxlang build` т�
 `foxlang build hello.fox` создаёт `hello` (Linux) или `hello.exe` (Windows)
 в текущем каталоге. Поддерживается `--output`; существующий выходной файл
 не перезаписывается. Linux создаёт Linux executable, Windows — Windows executable.
+Прямой сборки Windows `.exe` командой Linux FoxLang пока нет. Для Windows запускайте
+упаковку Windows-версией FoxLang, например в Windows VM или GitHub Actions.
 
 Это **упаковка со встроенным интерпретатором**, а не AOT-компиляция исходника
 непосредственно в машинный код. Стандартная библиотека встроена в FoxLang;
@@ -88,7 +90,7 @@ Linux-пакет собирается статически на musl, чтобы
 glibc/musl у получателя. Обычная локальная CMake-сборка может сохранять зависимости
 от libc/libm. Linux и Windows по-прежнему получают разные executable для своей ОС.
 
-Подробности: [standalone и ограничения](docs/STANDALONE.md),
+Подробности: [руководство по standalone на русском](docs/STANDALONE.md),
 [полная документация языка](DOCUMENTATION.md).
 
 ## Платформы и проверки

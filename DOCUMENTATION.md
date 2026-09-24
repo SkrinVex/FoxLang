@@ -1244,7 +1244,12 @@ Linux: `./app`. Windows: `app.exe` (в PowerShell — `.\app.exe`). Без `-o`
 Для упаковки и запуска не нужны CMake, C++ compiler или SDK. CMake и compiler
 нужны только для первоначальной сборки самого FoxLang из репозитория.
 Linux FoxLang создаёт Linux executable, Windows FoxLang — Windows executable.
-Cross-build командой `foxlang build` не поддерживается.
+Выбора целевой платформы у `foxlang build` пока нет: Linux CLI не создаёт Windows
+`.exe`. Если вы разрабатываете на Linux, выполняйте упаковку для Windows
+Windows-версией FoxLang в Windows VM или GitHub Actions (`windows-latest`).
+Кросс-сборка самого FoxLang через MinGW создаёт Windows CLI, который затем ещё
+нужно запустить для упаковки программы. Подробности — в
+[руководстве по standalone на русском](docs/STANDALONE.md).
 
 Это standalone packaging / runtime bundling, а не компиляция FoxLang в native
 machine code. Исходники хранятся внутри файла и могут быть извлечены: упаковка
