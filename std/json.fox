@@ -1,3 +1,12 @@
-// JSON helpers.
+//! Чтение JSON по точечным путям (`message.chat.id`, `items.0.name`) и безопасная
+//! сборка JSON-строк. Строки декодируются, включая `\uXXXX` и emoji.
+
 string json_path(string json, string path) { return json_get(json, path); }
 string json_safe(string text) { return json_escape(text); }
+int json_count_at(string json, string path) { return json_count(json, path); }
+string json_type_at(string json, string path) { return json_type(json, path); }
+
+/// Строка в кавычках, готовая для вставки в JSON: `json_quote("Лис \"1\"")` даёт `"Лис \"1\""`.
+string json_quote(string text) {
+    return "\"" + json_escape(text) + "\"";
+}

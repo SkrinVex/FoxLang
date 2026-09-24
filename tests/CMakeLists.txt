@@ -97,6 +97,8 @@ set(REGRESSION_TESTS
     test_control_flow
     test_functions
     test_arrays
+    test_strings
+    test_math
     test_modules
     test_stdlib
     test_json_advanced
@@ -109,6 +111,10 @@ foreach(T ${REGRESSION_TESTS})
     add_test(NAME regression_${T} COMMAND foxlang ${CMAKE_CURRENT_SOURCE_DIR}/regression/${T}.fox)
     set_tests_properties(regression_${T} PROPERTIES ENVIRONMENT "${FOXLANG_TEST_ENV}")
 endforeach()
+
+# Arguments after the script path reach the program through os_args().
+add_test(NAME regression_test_os COMMAND foxlang ${CMAKE_CURRENT_SOURCE_DIR}/regression/test_os.fox first "второй аргумент")
+set_tests_properties(regression_test_os PROPERTIES ENVIRONMENT "${FOXLANG_TEST_ENV}")
 
 # CLI flags tests
 add_test(NAME cli_version COMMAND foxlang --version)
@@ -151,3 +157,19 @@ if(NOT WIN32)
         )
     endif()
 endif()
+
+# Examples and the standard library must stay valid FoxLang: checked without running.
+file(GLOB FOXLANG_CHECKED_SOURCES CONFIGURE_DEPENDS
+    ${CMAKE_SOURCE_DIR}/examples/*.fox
+    ${CMAKE_SOURCE_DIR}/std/*.fox)
+foreach(SOURCE ${FOXLANG_CHECKED_SOURCES})
+    get_filename_component(SOURCE_NAME ${SOURCE} NAME_WE)
+    get_filename_component(SOURCE_DIR ${SOURCE} DIRECTORY)
+    get_filename_component(SOURCE_GROUP ${SOURCE_DIR} NAME)
+    add_test(NAME check_${SOURCE_GROUP}_${SOURCE_NAME} COMMAND foxlang check ${SOURCE})
+    set_tests_properties(check_${SOURCE_GROUP}_${SOURCE_NAME} PROPERTIES PASS_REGULAR_EXPRESSION "no problems found")
+endforeach()
+
+# Every FoxLang code block in the documentation passes `foxlang check`, and every
+# builtin and std function is described in DOCUMENTATION.md.
+add_test(NAME docs_examples COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_docs.py $<TARGET_FILE:foxlang> ${CMAKE_SOURCE_DIR})

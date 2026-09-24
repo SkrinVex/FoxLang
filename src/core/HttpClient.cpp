@@ -24,12 +24,13 @@ std::size_t receive(char* bytes, std::size_t size, std::size_t count, void* opaq
 }
 }
 
-std::string httpRequest(const std::string& method, const std::string& url,
-                        const std::string& body, const std::string& contentType,
-                        bool failOnHttpError) {
+HttpResponse httpRequest(const std::string& method, const std::string& url,
+                         const std::string& body, const std::string& contentType) {
     static CurlRuntime runtime;
     if (url.find('\0') != std::string::npos || contentType.find_first_of("\r\n") != std::string::npos ||
-        contentType.find('\0') != std::string::npos) throw std::runtime_error("HTTP Error: invalid URL or Content-Type");
+        contentType.find('\0') != std::string::npos || method.empty() ||
+        method.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos)
+        throw std::runtime_error("HTTP Error: invalid method, URL or Content-Type");
     std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> request(curl_easy_init(), curl_easy_cleanup);
     if (!request) throw std::runtime_error("HTTP Error: cannot create request");
     auto option = [&](CURLoption key, auto value) {
@@ -51,7 +52,6 @@ std::string httpRequest(const std::string& method, const std::string& url,
     // verification and reject known revocations, without requiring an online CRL.
     option(CURLOPT_SSL_OPTIONS, static_cast<long>(CURLSSLOPT_REVOKE_BEST_EFFORT));
 #endif
-    option(CURLOPT_FAILONERROR, failOnHttpError ? 1L : 0L);
     option(CURLOPT_CUSTOMREQUEST, method.c_str());
     auto ca = getEnvVar("FOXLANG_CA_BUNDLE");
 #ifndef _WIN32
@@ -74,7 +74,7 @@ std::string httpRequest(const std::string& method, const std::string& url,
         option(CURLOPT_CAINFO, ca.c_str());
     }
     std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> headers(nullptr, curl_slist_free_all);
-    if (method == "POST" || method == "PUT") {
+    if (!body.empty() || method == "POST" || method == "PUT" || method == "PATCH") {
         auto header = "Content-Type: " + contentType;
         headers.reset(curl_slist_append(nullptr, header.c_str()));
         if (!headers) throw std::runtime_error("HTTP Error: cannot create headers");
@@ -87,7 +87,9 @@ std::string httpRequest(const std::string& method, const std::string& url,
         // Do not log the URL or body: webhook URLs often contain secret tokens.
         throw std::runtime_error("HTTP Error: " + method + ": " + curl_easy_strerror(result));
     }
-    return response;
+    long status = 0;
+    curl_easy_getinfo(request.get(), CURLINFO_RESPONSE_CODE, &status);
+    return {static_cast<int>(status), std::move(response)};
 }
 
 const char* thirdPartyLicenses() { return networkLicenses(); }

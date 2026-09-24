@@ -1,0 +1,29 @@
+// Игра «Угадай число»: ввод, проверка текста, случайные числа.
+void main() {
+    int secret = random(1, 100);
+    int attempts = 0;
+    print("Я загадал число от 1 до 100.");
+    while (true) {
+        string answer = input("Твой вариант: ");
+        if (answer == "") {
+            print("Ввод закончился. Число было " + secret + ".");
+            return;
+        }
+        if (!is_number(answer)) {
+            print("Нужно число.");
+            continue;
+        }
+        int guess = to_int(answer);
+        attempts++;
+        if (guess < secret) {
+            print("Больше!");
+        } else if (guess > secret) {
+            print("Меньше!");
+        } else {
+            print("Угадал за " + attempts + " попыток!");
+            return;
+        }
+    }
+}
+
+main();

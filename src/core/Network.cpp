@@ -166,8 +166,7 @@ std::string trim(std::string value) {
     return value.substr(first, value.find_last_not_of(" \t\r") - first + 1);
 }
 
-struct Request {
-    std::string method, path, body;
+struct Request : HttpRequest {
     int error = 0;
 };
 
@@ -204,6 +203,7 @@ Request readRequest(Connection& connection) {
                 auto key = line.substr(0, colon);
                 auto value = trim(line.substr(colon + 1));
                 std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                request.headers[key] = value;
                 if (key == "transfer-encoding") { request.error = 501; return request; }
                 if (key == "content-length") {
                     auto parsed = std::from_chars(value.data(), value.data() + value.size(), length);
@@ -217,15 +217,46 @@ Request readRequest(Connection& connection) {
         }
         if (bytes.size() >= headerEnd + 4 + length) break;
     }
-    request.path = request.path.substr(0, request.path.find('?'));
+    auto question = request.path.find('?');
+    if (question != std::string::npos) {
+        request.query = request.path.substr(question + 1);
+        request.path.erase(question);
+    }
     request.body = bytes.substr(headerEnd + 4, length);
     return request;
 }
 
-void respond(Connection& connection, int status, const std::string& response) {
-    std::string reason = status == 200 ? "OK" : status == 201 ? "Created" : "Error";
-    connection.write("HTTP/1.1 " + std::to_string(status) + " " + reason +
-        "\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: " +
+const char* reasonPhrase(int status) {
+    switch (status) {
+        case 200: return "OK";
+        case 201: return "Created";
+        case 202: return "Accepted";
+        case 204: return "No Content";
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+        case 304: return "Not Modified";
+        case 400: return "Bad Request";
+        case 401: return "Unauthorized";
+        case 403: return "Forbidden";
+        case 404: return "Not Found";
+        case 405: return "Method Not Allowed";
+        case 409: return "Conflict";
+        case 413: return "Payload Too Large";
+        case 422: return "Unprocessable Entity";
+        case 429: return "Too Many Requests";
+        case 431: return "Request Header Fields Too Large";
+        case 500: return "Internal Server Error";
+        case 501: return "Not Implemented";
+        case 503: return "Service Unavailable";
+        default: return status < 400 ? "OK" : "Error";
+    }
+}
+
+constexpr const char* jsonType = "application/json; charset=utf-8";
+
+void respond(Connection& connection, int status, const std::string& response, const std::string& contentType = jsonType) {
+    connection.write("HTTP/1.1 " + std::to_string(status) + " " + reasonPhrase(status) +
+        "\r\nContent-Type: " + contentType + "\r\nContent-Length: " +
         std::to_string(response.size()) + "\r\nConnection: close\r\n\r\n" + response);
 }
 }
@@ -301,7 +332,11 @@ std::string dnsLookup(const std::string& host) {
     return "";
 }
 
-bool isHttpServerSupported() { return true; }
+ServerState& serverState(Context& ctx) {
+    Context* root = ctx.getRoot();
+    if (!root->server) root->server = std::make_shared<ServerState>();
+    return *root->server;
+}
 
 void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shouldStop,
                    const std::string& certificate, const std::string& privateKey) {
@@ -324,10 +359,9 @@ void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shou
     if (bind(server.fd, reinterpret_cast<sockaddr*>(&address), sizeof(address))) throw std::runtime_error("HTTP Server Error: bind() failed on port " + std::to_string(port));
     if (listen(server.fd, 32)) throw std::runtime_error("HTTP Server Error: listen() failed");
     std::cerr << (tls ? "[HTTPS] Listening on 0.0.0.0:" : "[HTTP] Listening on 0.0.0.0:") << port << std::endl;
-    auto stopped = [&] {
-        auto flag = rootCtx.variables.find("__server_stop_requested");
-        return (shouldStop && shouldStop()) || (flag != rootCtx.variables.end() && flag->second.value == "true");
-    };
+    ServerState& state = serverState(rootCtx);
+    state.stopRequested = false;
+    auto stopped = [&] { return (shouldStop && shouldStop()) || state.stopRequested; };
     while (!stopped()) {
         int ready = readable(server.fd);
         if (ready < 0 && interrupted()) continue;
@@ -339,38 +373,31 @@ void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shou
         if (!connection.handshake()) continue;
         auto request = readRequest(connection);
         if (request.error) { respond(connection, request.error, "{\"error\":\"Invalid request\"}"); continue; }
-        rootCtx.variables["__http_method"] = {"string", request.method};
-        rootCtx.variables["__http_path"] = {"string", request.path};
-        rootCtx.variables["__http_body"] = {"string", request.body};
-        rootCtx.variables["__http_status"] = {"int", "200"};
-        rootCtx.variables["__http_response"] = {"string", ""};
+        state.request = request;
+        state.status = 200;
+        state.contentType = jsonType;
+        state.response.clear();
         int status = 404;
+        std::string contentType = jsonType;
         std::string response = "{\"error\":\"Not Found\"}";
-        auto route = rootCtx.variables.find("__route_" + request.method + "_" + request.path);
-        if (route != rootCtx.variables.end()) {
-            auto function = rootCtx.getFunc(route->second.value);
-            auto* definition = dynamic_cast<FuncDefNode*>(function.get());
+        auto route = state.routes.find(request.method + " " + request.path);
+        if (route != state.routes.end()) {
+            auto* definition = dynamic_cast<FuncDefNode*>(rootCtx.getFunc(route->second).get());
+            status = 500;
+            response = "{\"error\":\"Handler not found\"}";
             if (definition) {
-                Context scope;
-                scope.parent = &rootCtx;
-                scope.interpreter = rootCtx.interpreter;
-                bool failed = false;
-                try { definition->body->eval(scope); }
-                catch (const ReturnValue&) {}
-                catch (const std::exception& error) {
-                    failed = true;
+                try {
+                    definition->invoke({}, rootCtx);
+                    status = state.status;
+                    contentType = state.contentType;
+                    response = state.response;
+                } catch (const std::exception& error) {
                     std::cerr << "[HTTP ERROR] Handler exception: " << error.what() << std::endl;
+                    response = "{\"error\":\"Handler failed\"}";
                 }
-                if (failed) { status = 500; response = "{\"error\":\"Handler failed\"}"; }
-                else {
-                    try { status = std::stoi(rootCtx.variables["__http_status"].value); }
-                    catch (...) { status = 500; }
-                    if (status < 100 || status > 599) status = 500;
-                    response = rootCtx.variables["__http_response"].value;
-                }
-            } else { status = 500; response = "{\"error\":\"Handler not found\"}"; }
+            }
         }
-        respond(connection, status, response);
+        respond(connection, status, response, contentType);
     }
 }
 } // namespace foxlang::platform

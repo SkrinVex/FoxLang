@@ -1,34 +1,109 @@
-// FoxLang regression: arrays creation, set, get, size
+// FoxLang regression: arrays — declaration forms, indexing, growth, ownership, algorithms
+using arrays;
+using string;
+
 void assert_true(bool cond, string msg) {
     if (!cond) {
         print("FAIL: " + msg);
-        string f = env_required("__ASSERT_FAIL__");
+        exit(1);
     }
 }
 
-// 1. Array creation and size
+// 1. Declaration by size, by literal, empty
 array nums 5;
-assert_true(size(nums) == 5, "array size");
+assert_true(size(nums) == 5 && nums[4] == 0, "sized array is zero-filled");
+array primes = [2, 3, 5, 7];
+assert_true(size(primes) == 4 && primes[3] == 7, "array literal");
+array empty;
+assert_true(size(empty) == 0, "empty array");
+array mixed = [1, "два", 3.5, true];
+assert_true(type_of(mixed[1]) == "string" && type_of(mixed[2]) == "float" && mixed[3], "elements keep their types");
 
-// 2. Set and get elements
+// 2. get/set and index syntax are the same thing
 for (int i = 0; i < 5; i++) {
     set(nums, i, i * 10);
 }
-
 for (int i = 0; i < 5; i++) {
-    assert_true(get(nums, i) == i * 10, "array get i=" + i);
+    assert_true(get(nums, i) == i * 10 && nums[i] == i * 10, "get and index i=" + i);
 }
+nums[2] = 99;
+nums[1] += 5;
+nums[4] -= 1;
+nums[3] *= 2;
+nums[0] %= 7;
+assert_true(nums[2] == 99 && nums[1] == 15 && nums[4] == 39 && nums[3] == 60 && nums[0] == 0, "element assignment operators");
 
-// 3. String size
+// 3. Growth and shrinking
+push(empty, "a");
+push(empty, "b");
+insert(empty, 0, "start");
+assert_true(size(empty) == 3 && empty[0] == "start" && empty[2] == "b", "push and insert");
+assert_true(remove_at(empty, 1) == "a" && size(empty) == 2, "remove_at returns the element");
+assert_true(pop(empty) == "b" && size(empty) == 1, "pop returns the last element");
+resize(empty, 3);
+assert_true(size(empty) == 3 && empty[2] == 0, "resize grows with zeros");
+resize(empty, 1);
+assert_true(size(empty) == 1 && empty[0] == "start", "resize shrinks");
+
+// 4. Strings: bytes vs characters, split and join
 string test_str = "FoxLang";
 assert_true(size(test_str) == 7, "string size");
+array parts = str_split("a,b,c", ",");
+assert_true(size(parts) == 3 && parts[0] == "a" && parts[2] == "c", "str_split into a declared array");
+array letters = str_split("Лис🦊", "");
+assert_true(size(letters) == 4 && letters[3] == "🦊", "empty delimiter splits characters, not bytes");
+assert_true(str_join(parts, "+") == "a+b+c", "str_join");
 
-// 4. String split creating an array
-array parts 0;
-parts = str_split("a,b,c", ",");
-assert_true(size(parts) == 3, "str_split array size");
-assert_true(get(parts, 0) == "a", "str_split part 0");
-assert_true(get(parts, 1) == "b", "str_split part 1");
-assert_true(get(parts, 2) == "c", "str_split part 2");
+// 5. Arrays are passed by reference and assigned by copy
+void fill_first(array items, int value) {
+    items[0] = value;
+}
+fill_first(primes, 11);
+assert_true(primes[0] == 11, "a function changes the caller's array");
+array copy = [0];
+copy = primes;
+copy[1] = 100;
+assert_true(primes[1] == 3 && copy[1] == 100 && size(copy) == 4, "assignment copies elements");
+
+// 6. Functions return arrays that outlive the function's scope
+array squares(int count) {
+    array result;
+    for (int i = 0; i < count; i++) {
+        push(result, i * i);
+    }
+    return result;
+}
+array sq = squares(4);
+assert_true(size(sq) == 4 && sq[3] == 9, "returned array is usable");
+assert_true(size(squares(3)) == 3, "returned array used directly");
+
+// 7. Algorithms from using arrays
+array unsorted = [5, 1.5, -2, 10];
+sort(unsorted);
+assert_true(unsorted[0] == -2 && unsorted[1] == 1.5 && unsorted[3] == 10, "numeric sort");
+array names = ["Яна", "Анна", "Борис"];
+sort(names);
+assert_true(join(names, ",") == "Анна,Борис,Яна", "string sort");
+reverse(names);
+assert_true(names[0] == "Яна", "reverse");
+assert_true(find(names, "Борис") == 1 && find(names, "Олег") == -1, "find");
+assert_true(includes(primes, "5") && !includes(primes, "4"), "includes compares numbers with text");
+array part = slice([0, 1, 2, 3, 4], 1, 3);
+assert_true(size(part) == 2 && part[0] == 1 && part[1] == 2, "slice");
+array tail = slice([0, 1, 2, 3, 4], -2, 5);
+assert_true(size(tail) == 2 && tail[0] == 3, "slice with a negative start");
+array original = [1, 2];
+array cloned = copy_array(original);
+cloned[0] = 50;
+assert_true(original[0] == 1, "copy_array is independent");
+assert_true(sum([1, 2.5, 3]) == 6.5, "sum");
+assert_true(join(range(2, 5), " ") == "2 3 4", "range");
+assert_true(to_string([1, [2, 3], "x"]) == "[1, [2, 3], x]", "to_string of nested arrays");
+
+// 8. Temporaries created in a loop are freed with each iteration
+for (int i = 0; i < 2000; i++) {
+    array scratch = str_split("a b c", " ");
+    assert_true(size(scratch) == 3, "loop temporary");
+}
 
 print("ARRAYS_OK");

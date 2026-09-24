@@ -41,12 +41,9 @@ FOXLANG_LOG_LEVEL=off "$FOXLANG_BIN" "$LOG_SCRIPT" > "$OUT" 2>&1
 ! grep -q '\[WARN\]' "$OUT" || { echo "FAIL: log off leaked warn"; exit 1; }
 ! grep -q '\[ERROR\]' "$OUT" || { echo "FAIL: log off leaked error"; exit 1; }
 
-# 6. Legacy FOXLANG_LOG=false -> nothing
+# 6. FOXLANG_LOG_LEVEL is the only switch: the removed FOXLANG_LOG must not silence logs
 FOXLANG_LOG=false FOXLANG_LOG_LEVEL=debug "$FOXLANG_BIN" "$LOG_SCRIPT" > "$OUT" 2>&1
-! grep -q '\[DEBUG\]' "$OUT" || { echo "FAIL: FOXLANG_LOG=false leaked debug"; exit 1; }
-! grep -q '\[INFO\]' "$OUT" || { echo "FAIL: FOXLANG_LOG=false leaked info"; exit 1; }
-! grep -q '\[WARN\]' "$OUT" || { echo "FAIL: FOXLANG_LOG=false leaked warn"; exit 1; }
-! grep -q '\[ERROR\]' "$OUT" || { echo "FAIL: FOXLANG_LOG=false leaked error"; exit 1; }
+grep -q '\[DEBUG\]' "$OUT" || { echo "FAIL: FOXLANG_LOG still overrides FOXLANG_LOG_LEVEL"; exit 1; }
 
 echo "LOGGING_LEVELS_OK"
 exit 0

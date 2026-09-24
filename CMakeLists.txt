@@ -1,9 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 cmake_policy(SET CMP0091 NEW)
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" FOXLANG_VERSION LIMIT_COUNT 1)
-if(NOT FOXLANG_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
-    message(FATAL_ERROR "VERSION must contain a major.minor.patch version")
-endif()
+set(FOXLANG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+include(cmake/Version.cmake)
 project(FoxLang VERSION ${FOXLANG_VERSION} LANGUAGES C CXX)
 option(FOXLANG_STATIC_LINUX "Link Linux executables statically (use a musl toolchain for portability)" OFF)
 if(FOXLANG_STATIC_LINUX)
@@ -50,8 +48,15 @@ add_library(foxlang_core STATIC
     src/core/SourceProvider.cpp
     src/core/Lexer.cpp
     src/core/Parser.cpp
+    src/core/AST.cpp
     src/core/Interpreter.cpp
     src/core/SemanticAnalyzer.cpp
+    src/core/builtins/Registry.cpp
+    src/core/builtins/Core.cpp
+    src/core/builtins/Text.cpp
+    src/core/builtins/Collections.cpp
+    src/core/builtins/System.cpp
+    src/core/builtins/NetworkBuiltins.cpp
     src/graphics/Surface.cpp
     src/graphics/Window.cpp
     src/graphics/Builtins.cpp
@@ -76,6 +81,10 @@ target_include_directories(foxlang_bundle PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
 target_link_libraries(foxlang_bundle PUBLIC foxlang_core)
 add_executable(foxlang src/cli/main.cpp src/standalone/Stub.cpp)
 target_link_libraries(foxlang PRIVATE foxlang_bundle)
+if(WIN32)
+    # CommandLineToArgvW: program arguments as UTF-16, converted to UTF-8 for os_args().
+    target_link_libraries(foxlang PRIVATE shell32)
+endif()
 if(MINGW)
     target_link_options(foxlang PRIVATE -static -static-libgcc -static-libstdc++)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

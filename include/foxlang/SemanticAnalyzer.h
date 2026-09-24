@@ -2,9 +2,11 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <set>
 #include <unordered_map>
 #include "foxlang/AST.h"
 #include "foxlang/SourceLocation.h"
+#include "foxlang/SourceProvider.h"
 
 namespace foxlang {
 
@@ -98,9 +100,18 @@ struct SignatureHelpResult {
     bool found = false;
 };
 
+// Documentation of one std module, read from its source: `//!` lines describe the
+// module, `///` lines above a function describe the function.
+struct ModuleInfo {
+    std::string name;
+    std::string documentation;
+};
+const std::vector<ModuleInfo>& standardModules();
+
 class SemanticAnalyzer {
 public:
-    explicit SemanticAnalyzer(std::string currentFile = "", std::string foxHome = "");
+    explicit SemanticAnalyzer(std::string currentFile = "", std::string foxHome = "",
+                              std::shared_ptr<const SourceProvider> sources = nullptr);
     ~SemanticAnalyzer();
 
     // Analyze the AST without executing user code
@@ -119,6 +130,8 @@ public:
 private:
     std::string currentFile;
     std::string foxHome;
+    std::shared_ptr<const SourceProvider> sources;
+    std::set<std::string> loadedModules;
     std::vector<Diagnostic> diagnostics;
 
     std::unique_ptr<Scope> rootScope;
@@ -132,12 +145,15 @@ private:
     std::vector<DocumentSymbolInfo> documentSymbols;
 
     std::string currentFuncReturnType;
+    // Top-level variables of the file, visible inside function bodies wherever they are
+    // declared: a function body runs only when called, after the file's globals exist.
+    std::unordered_map<std::string, Symbol> fileGlobals;
 
     void visitNode(const Node* node);
     void visitBlock(const BlockNode* node);
+    void declareFunction(const FuncDefNode* node);
     void visitFuncDef(const FuncDefNode* node);
     void visitVarDecl(const VarDeclNode* node);
-    void visitGlobalVarDecl(const GlobalVarDeclNode* node);
     void visitVarAssign(const VarAssignNode* node);
     void visitFuncCall(const FuncCallNode* node);
     void visitVarAccess(const VarAccessNode* node);
@@ -150,12 +166,13 @@ private:
     void visitArrayDecl(const ArrayDeclNode* node);
     void visitUsing(const UsingNode* node);
     void visitInclude(const IncludeNode* node);
+    void checkVariable(const std::string& name, SourceRange range);
+    void addSymbol(Scope* scope, const Symbol& symbol, SourceRange nameRange, bool warnOnRedeclaration);
 
-    std::string inferExprType(const Node* node);
     void enterScope();
     void exitScope();
     void addBuiltins();
-    void loadModuleSymbols(const std::string& moduleName, SourceRange importRange);
+    void loadModuleSymbols(const ModuleImport& request, SourceRange importRange);
 };
 
 } // namespace foxlang

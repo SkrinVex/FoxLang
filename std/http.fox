@@ -1,22 +1,44 @@
-// FoxLang 5.2 HTTP helpers.
-// Names avoid language keywords such as get.
+//! HTTP(S)-клиент. Функции возвращают тело ответа при любом коде статуса;
+//! код последнего запроса возвращает `http_status()`, `0` означает, что ответа не было.
 
-string http_fetch(string url) {
-    return httpget(url);
+/// GET-запрос; возвращает тело ответа.
+///
+/// ```foxlang
+/// string page = http_get("https://example.com");
+/// if (http_status() != 200) { warn("HTTP " + http_status()); }
+/// ```
+string http_get(string url) { return http_request("GET", url, "", ""); }
+
+/// DELETE-запрос; возвращает тело ответа.
+string http_delete(string url) { return http_request("DELETE", url, "", ""); }
+
+/// POST-запрос с телом и типом содержимого.
+string http_post(string url, string body, string content_type) {
+    return http_request("POST", url, body, content_type);
 }
 
+/// PUT-запрос с телом и типом содержимого.
+string http_put(string url, string body, string content_type) {
+    return http_request("PUT", url, body, content_type);
+}
+
+/// PATCH-запрос с телом и типом содержимого.
+string http_patch(string url, string body, string content_type) {
+    return http_request("PATCH", url, body, content_type);
+}
+
+/// POST-запрос с `Content-Type: application/json`.
 string http_post_json(string url, string body) {
-    return httppost(url, body, "application/json");
+    return http_request("POST", url, body, "application/json");
 }
 
-string http_post_as(string url, string body, string content_type) {
-    return httppost(url, body, content_type);
-}
-
+/// PUT-запрос с `Content-Type: application/json`.
 string http_put_json(string url, string body) {
-    return httpput(url, body, "application/json");
+    return http_request("PUT", url, body, "application/json");
 }
 
-string http_remove(string url) {
-    return httpdelete(url);
+/// Был ли последний запрос успешным: статус от 200 до 299.
+bool http_ok() {
+    int status = http_status();
+    return status >= 200 && status < 300;
 }

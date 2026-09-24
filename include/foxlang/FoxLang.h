@@ -8,6 +8,7 @@
 #include "foxlang/Parser.h"
 #include "foxlang/Context.h"
 #include "foxlang/Runtime.h"
+#include "foxlang/Builtins.h"
 #include "foxlang/Platform.h"
 
 namespace foxlang {
@@ -21,8 +22,9 @@ struct RunResult {
 struct InterpreterOptions {
     std::string foxHome;
     bool loadDotEnv = true;
-    std::string workingDir = ".";
     std::shared_ptr<const SourceProvider> sources;
+    // Command-line arguments after the program name, returned by os_args().
+    std::vector<std::string> arguments;
 };
 
 class Interpreter {
@@ -45,6 +47,7 @@ public:
     Value getGlobal(const std::string& name) const;
 
     const std::set<std::string>& getLoadedModules() const;
+    const std::vector<std::string>& getArguments() const { return options.arguments; }
     void executeInclude(const std::string& path, const std::string& currentFile, bool importOnly);
     void executeUsing(const std::string& libName, const std::string& currentFile);
 
@@ -59,7 +62,3 @@ private:
 };
 
 } // namespace foxlang
-
-using foxlang::RunResult;
-using foxlang::InterpreterOptions;
-using foxlang::Interpreter;

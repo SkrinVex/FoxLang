@@ -1,0 +1,27 @@
+// FoxLang regression: command-line arguments and process information.
+// CTest runs this file as: foxlang test_os.fox first "второй аргумент"
+using os;
+
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+array list = args();
+assert_true(size(list) == 2, "two arguments reach the program");
+assert_true(list[0] == "first" && list[1] == "второй аргумент", "arguments keep spaces and Unicode");
+assert_true(arg_or(1, "x") == "второй аргумент" && arg_or(5, "запасной") == "запасной", "arg_or");
+string os_name = platform();
+assert_true(os_name == "linux" || os_name == "windows" || os_name == "macos" || os_name == "other", "platform");
+assert_true(cwd() != "", "cwd");
+
+using time;
+int started = uptime_ms();
+sleep_ms(20);
+assert_true(uptime_ms() - started >= 15, "uptime_ms measures elapsed time");
+assert_true(unix_time_ms() > 1700000000000.0, "unix_time_ms is milliseconds since 1970");
+assert_true(size(now_text()) == 19 && size(format_time("%Y")) == 4, "time formatting");
+
+print("OS_OK");

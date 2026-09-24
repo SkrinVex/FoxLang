@@ -1,6 +1,7 @@
 #include "Builtins.h"
 #include "Graphics.h"
 #include "foxlang/Runtime.h"
+#include "../core/builtins/Builtin.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -26,11 +27,6 @@ const std::vector<Signature>& signatures() {
         {"gfx_rgb", "rgb", "int", {{"int","red"},{"int","green"},{"int","blue"}}, "Создать цвет 0xRRGGBB. Каждый канал должен быть в диапазоне 0..255."}
     };
     return result;
-}
-bool isBuiltin(const std::string& name) {
-    if (name.compare(0, 4, "gfx_") != 0) return false;
-    const auto& list = signatures();
-    return std::any_of(list.begin(), list.end(), [&](const Signature& s) { return s.builtin == name; });
 }
 Value callBuiltin(const std::string& name, const std::vector<Value>& args, Context& context) {
     const auto& list = signatures();
@@ -79,3 +75,13 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     return {"void", ""};
 }
 } // namespace foxlang::graphics
+
+namespace foxlang::runtime {
+void addGraphicsBuiltins(std::vector<Builtin>& out) {
+    for (const auto& signature : graphics::signatures()) {
+        BuiltinSpec spec{signature.builtin, signature.result, signature.params, signature.params.size(),
+                         false, "graphics", signature.documentation};
+        out.push_back({std::move(spec), [](Call& c) { return graphics::callBuiltin(c.spec.name, c.args, c.ctx); }});
+    }
+}
+} // namespace foxlang::runtime

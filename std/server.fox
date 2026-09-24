@@ -1,10 +1,46 @@
-// HTTP/webhook сервер FoxLang (Linux и Windows).
-void get(string path, string handler) { route_get(path, handler); }
-void post(string path, string handler) { route_post(path, handler); }
+//! HTTP/HTTPS/webhook-сервер для Linux и Windows. Маршруты регистрируются до `listen`;
+//! обработчик — обычная функция без параметров, указанная по имени.
+
+/// Обработчик GET-запросов к пути `path`.
+///
+/// ```foxlang
+/// get("/health", "health");
+/// ```
+void get(string path, string handler) { server_route("GET", path, handler); }
+
+/// Обработчик POST-запросов к пути `path`.
+void post(string path, string handler) { server_route("POST", path, handler); }
+
+/// Обработчик PUT-запросов к пути `path`.
+void put(string path, string handler) { server_route("PUT", path, handler); }
+
+/// Обработчик DELETE-запросов к пути `path`.
+void delete(string path, string handler) { server_route("DELETE", path, handler); }
+
+/// Обработчик запросов произвольного метода (`PATCH`, `OPTIONS` и т. д.).
+void route(string method, string path, string handler) { server_route(method, path, handler); }
+
 string body() { return request_body(); }
 string method() { return request_method(); }
 string path() { return request_path(); }
-void respond(string data) { send_response(data); }
-void respond_status(int status, string data) { send_response(status, data); }
-void listen(int port) { server_start(port); }
-void listen_tls(int port, string certificate, string private_key) { server_start_tls(port, certificate, private_key); }
+string query() { return request_query(); }
+string header(string name) { return request_header(name); }
+
+/// Ответ с кодом 200 и JSON-телом.
+void respond(string data) { server_respond(200, data); }
+
+/// Ответ с заданным кодом статуса и JSON-телом.
+void respond_status(int status, string data) { server_respond(status, data); }
+
+/// Ответ с заданным кодом, телом и `Content-Type`.
+///
+/// ```foxlang
+/// respond_as(200, "<h1>Привет</h1>", "text/html; charset=utf-8");
+/// ```
+void respond_as(int status, string data, string content_type) { server_respond(status, data, content_type); }
+
+void listen(int port) { server_listen(port); }
+void listen_tls(int port, string certificate, string private_key) { server_listen_tls(port, certificate, private_key); }
+
+/// Останавливает сервер после ответа на текущий запрос.
+void stop_server() { server_stop(); }

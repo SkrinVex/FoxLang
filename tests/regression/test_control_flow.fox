@@ -2,7 +2,7 @@
 void assert_true(bool cond, string msg) {
     if (!cond) {
         print("FAIL: " + msg);
-        string f = env_required("__ASSERT_FAIL__");
+        exit(1);
     }
 }
 
@@ -67,5 +67,66 @@ switch (switch_val) {
         switch_res = 999;
 }
 assert_true(switch_res == 999, "switch default case");
+
+// 5. Fall-through: without break the next branches run, default included
+string trail = "";
+switch (2) {
+    case 1:
+        trail += "1";
+    case 2:
+        trail += "2";
+    case 3:
+        trail += "3";
+    default:
+        trail += "d";
+}
+assert_true(trail == "23d", "switch falls through into later branches");
+
+// 6. Switch on strings; 1 and 1.0 are the same case
+string kind = "";
+switch ("лис") {
+    case "волк":
+        kind = "wolf";
+        break;
+    case "лис":
+        kind = "fox";
+        break;
+}
+assert_true(kind == "fox", "switch on strings");
+switch (1.0) {
+    case 1:
+        kind = "one";
+        break;
+}
+assert_true(kind == "one", "numeric cases compare by value");
+
+// 7. for with an empty condition, a compound condition and any step statement
+int spins = 0;
+for (;;) {
+    spins++;
+    if (spins == 3) { break; }
+}
+assert_true(spins == 3, "for (;;) loops until break");
+int pairs = 0;
+for (int i = 0; i < 10 && pairs < 3; i += 2) {
+    pairs++;
+}
+assert_true(pairs == 3, "for condition with &&");
+int down = 0;
+for (int i = 5; i > 0; i--) {
+    down += i;
+}
+assert_true(down == 15, "for with i--");
+
+// 8. continue inside switch continues the loop
+int odd = 0;
+for (int i = 0; i < 6; i++) {
+    switch (i % 2) {
+        case 0:
+            continue;
+    }
+    odd++;
+}
+assert_true(odd == 3, "continue inside switch");
 
 print("CONTROL_FLOW_OK");

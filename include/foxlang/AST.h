@@ -3,13 +3,7 @@
 #include <memory>
 #include <vector>
 #include <utility>
-#include <cmath>
-#include <cstdlib>
 #include <stdexcept>
-#include <thread>
-#include <chrono>
-#include <atomic>
-#include <iostream>
 #include "foxlang/Context.h"
 #include "foxlang/Platform.h"
 #include "foxlang/Runtime.h"
@@ -100,19 +94,16 @@ struct FuncDefNode : Node {
     FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b, SourceRange nr = {})
         : returnType(std::move(rt)), name(std::move(n)), params(std::move(p)), body(std::move(b)), nameRange(nr) {}
 
-    Value eval(Context& ctx) override {
-        ctx.getRoot()->defineFunc(name, std::make_shared<FuncDefNode>(returnType, name, params, body));
-        return {"void", ""};
-    }
+    Value eval(Context& ctx) override;
+    // Runs the body in a fresh scope below the globals and converts the result to
+    // the declared return type. Used by calls and by the HTTP server for handlers.
+    Value invoke(std::vector<Value> args, Context& caller) const;
 };
 
 struct ReturnNode : Node {
     std::unique_ptr<Node> expr;
-    ReturnNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
-    Value eval(Context& ctx) override {
-        Value result = expr ? expr->eval(ctx) : Value{"void", ""};
-        throw ReturnValue{result};
-    }
+    explicit ReturnNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
+    Value eval(Context& ctx) override;
 };
 
 struct FuncCallNode : Node {
@@ -123,78 +114,38 @@ struct FuncCallNode : Node {
     FuncCallNode(std::string n, std::vector<std::unique_ptr<Node>> a, SourceRange nr = {})
         : name(std::move(n)), args(std::move(a)), nameRange(nr) {}
 
-    Value eval(Context& ctx) override {
-        std::vector<Value> argValues;
-        argValues.reserve(args.size());
-        for (auto& arg : args) argValues.push_back(arg->eval(ctx));
+    Value eval(Context& ctx) override;
 
-        if (runtime::isBuiltin(name)) {
-            if (name == "get" && !argValues.empty() && argValues[0].type != "array" && ctx.getFunc("get")) {
-                // Fall through to user-defined get(path, handler)
-            } else {
-                return runtime::callBuiltin(name, argValues, ctx);
-            }
-        }
-
-        auto funcNodeBase = ctx.getFunc(name);
-        if (!funcNodeBase) {
-            throw std::runtime_error("Runtime Error: Function '" + name + "' not found!");
-        }
-
-        auto* funcDef = static_cast<FuncDefNode*>(funcNodeBase.get());
-        if (argValues.size() != funcDef->params.size()) {
-            throw std::runtime_error("Args count mismatch for '" + name + "'");
-        }
-
-        // Lexical scope: a function sees globals, never the caller's locals.
-        Context funcScope;
-        funcScope.parent = ctx.getRoot();
-        funcScope.interpreter = ctx.interpreter;
-
-        for (size_t i = 0; i < funcDef->params.size(); i++) {
-            funcScope.defineVar(funcDef->params[i].name, funcDef->params[i].type, argValues[i]);
-        }
-
-        CallDepth guard(name);
-        try {
-            funcDef->body->eval(funcScope);
-        } catch (const ReturnValue& ret) {
-            return ret.value;
-        } catch (const BreakException&) {
-            throw std::runtime_error("Runtime Error: 'break' outside of loop in function '" + name + "'");
-        } catch (const ContinueException&) {
-            throw std::runtime_error("Runtime Error: 'continue' outside of loop in function '" + name + "'");
-        }
-
-        return {"void", ""};
-    }
+private:
+    const runtime::Builtin* builtin = nullptr;
+    bool resolved = false;
 };
 
 struct NumberNode : Node {
     std::string val;
     bool isFloat;
-    NumberNode(std::string v) : val(std::move(v)) {
-        isFloat = (val.find('.') != std::string::npos);
-    }
-    Value eval(Context& /*ctx*/) override { return {isFloat ? "float" : "int", val}; }
+    explicit NumberNode(std::string v);
+    Value eval(Context& /*ctx*/) override { return literal; }
+private:
+    Value literal;
 };
 
 struct StringNode : Node {
     std::string val;
-    StringNode(std::string v) : val(std::move(v)) {}
+    explicit StringNode(std::string v) : val(std::move(v)) {}
     Value eval(Context& /*ctx*/) override { return {"string", val}; }
 };
 
 struct BoolNode : Node {
     bool val;
-    BoolNode(bool v) : val(v) {}
+    explicit BoolNode(bool v) : val(v) {}
     Value eval(Context& /*ctx*/) override { return {"bool", val ? "true" : "false"}; }
 };
 
 struct VarAccessNode : Node {
     std::string name;
     SourceRange nameRange;
-    VarAccessNode(std::string n, SourceRange nr = {}) : name(std::move(n)), nameRange(nr) {}
+    explicit VarAccessNode(std::string n, SourceRange nr = {}) : name(std::move(n)), nameRange(nr) {}
     Value eval(Context& ctx) override { return ctx.getVar(name); }
 };
 
@@ -202,57 +153,10 @@ struct VarDeclNode : Node {
     std::string type, name;
     std::unique_ptr<Node> expr;
     SourceRange nameRange;
-    VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e, SourceRange nr = {})
-        : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr) {}
-    Value eval(Context& ctx) override {
-        if (ctx.variables.count(name))
-            throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
-        Value val = expr->eval(ctx);
-        if (type != val.type) {
-            if (type == "float" && val.type == "int") {
-                val.type = "float";
-            } else if (type == "int" && val.type == "float") {
-                val.type = "int";
-                narrowToInt(val, "variable", name);
-            } else if (type == "string") {
-                val.type = "string";
-            } else {
-                throw std::runtime_error("Type Error: Cannot initialize variable '" + name + "' of type '" + type + "' with value of type '" + val.type + "'");
-            }
-        }
-        // An int literal outside the int range used to be stored verbatim and only failed later.
-        if (type == "int") narrowToInt(val, "variable", name);
-        ctx.defineVar(name, type, val);
-        return {"void", ""};
-    }
-};
-
-struct GlobalVarDeclNode : Node {
-    std::string type, name;
-    std::unique_ptr<Node> expr;
-    SourceRange nameRange;
-    GlobalVarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e, SourceRange nr = {})
-        : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr) {}
-    Value eval(Context& ctx) override {
-        Context* root = ctx.getRoot();
-        Value val = expr->eval(ctx);
-        if (type != val.type) {
-            if (type == "float" && val.type == "int") {
-                val.type = "float";
-            } else if (type == "int" && val.type == "float") {
-                val.type = "int";
-                narrowToInt(val, "global variable", name);
-            } else if (type == "string") {
-                val.type = "string";
-            } else {
-                throw std::runtime_error("Type Error: Cannot initialize global variable '" + name + "' of type '" + type + "' with value of type '" + val.type + "'");
-            }
-        }
-        // An int literal outside the int range used to be stored verbatim and only failed later.
-        if (type == "int") narrowToInt(val, "global variable", name);
-        root->defineVar(name, type, val);
-        return {"void", ""};
-    }
+    bool global = false;
+    VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e, SourceRange nr = {}, bool isGlobal = false)
+        : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr), global(isGlobal) {}
+    Value eval(Context& ctx) override;
 };
 
 struct VarAssignNode : Node {
@@ -272,193 +176,75 @@ struct BinOpNode : Node {
     std::unique_ptr<Node> left, right;
     BinOpNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r)
         : op(std::move(o)), left(std::move(l)), right(std::move(r)) {}
-
-    Value eval(Context& ctx) override {
-        // Short-circuit before the right side runs: `x != 0 && 10 / x > 1` must not divide by zero.
-        if (op == "&&" || op == "||") {
-            bool l = truth(left->eval(ctx), "left");
-            if (l == (op == "||")) return {"bool", l ? "true" : "false"};
-            return {"bool", truth(right->eval(ctx), "right") ? "true" : "false"};
-        }
-
-        Value lval = left->eval(ctx);
-        Value rval = right->eval(ctx);
-
-        if (op == "+" || op == "+=") {
-            if (lval.type == "string" || rval.type == "string") {
-                return {"string", lval.value + rval.value};
-            }
-            if (lval.type == "float" || rval.type == "float") {
-                return {"float", runtime::realResult(number(lval, "left") + number(rval, "right"))};
-            }
-            return {"int", runtime::intResult(integer(lval, "left") + integer(rval, "right"), op)};
-        }
-
-        if (op == "-" || op == "-=" || op == "*" || op == "*=" || op == "/" || op == "/=" || op == "%") {
-            if (lval.type == "float" || rval.type == "float") {
-                double l = number(lval, "left"), r = number(rval, "right");
-                if (r == 0.0 && (op == "/" || op == "/=" || op == "%")) {
-                    throw std::runtime_error("Runtime Error: Division by zero");
-                }
-                double result = (op == "-" || op == "-=") ? l - r :
-                                (op == "*" || op == "*=") ? l * r :
-                                (op == "/" || op == "/=") ? l / r : std::fmod(l, r);
-                return {"float", runtime::realResult(result)};
-            }
-            long long l = integer(lval, "left"), r = integer(rval, "right");
-            if ((op == "/" || op == "/=" || op == "%") && r == 0) {
-                throw std::runtime_error("Runtime Error: Division by zero");
-            }
-            long long result = (op == "-" || op == "-=") ? l - r :
-                               (op == "*" || op == "*=") ? l * r :
-                               (op == "/" || op == "/=") ? l / r : l % r;
-            return {"int", runtime::intResult(result, op)};
-        }
-
-        if (op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=") {
-            bool result;
-            if (lval.type == "string" && rval.type == "string") {
-                result = (op == "==") ? lval.value == rval.value :
-                         (op == "!=") ? lval.value != rval.value :
-                         (op == "<") ? lval.value < rval.value :
-                         (op == "<=") ? lval.value <= rval.value :
-                         (op == ">=") ? lval.value >= rval.value :
-                         lval.value > rval.value;
-            } else if (lval.type == "bool" && rval.type == "bool") {
-                bool l = truth(lval, "left"), r = truth(rval, "right");
-                result = (op == "==") ? l == r :
-                         (op == "!=") ? l != r :
-                         (op == "<") ? l < r :
-                         (op == "<=") ? l <= r :
-                         (op == ">=") ? l >= r :
-                         l > r;
-            } else {
-                double l = number(lval, "left"), r = number(rval, "right");
-                result = (op == "==") ? l == r :
-                         (op == "!=") ? l != r :
-                         (op == "<") ? l < r :
-                         (op == "<=") ? l <= r :
-                         (op == ">=") ? l >= r :
-                         l > r;
-            }
-            return {"bool", result ? "true" : "false"};
-        }
-
-        return {"void", ""};
-    }
+    Value eval(Context& ctx) override;
 
 private:
     std::string describe(const char* side) const { return std::string(side) + " operand of '" + op + "'"; }
-    // Operands are parsed without building any message; only the failing path describes itself.
-    double number(const Value& value, const char* side) const {
-        double result = 0;
-        if (runtime::tryNumber(value, result)) return result;
-        return runtime::toNumber(value, describe(side));
-    }
-    long long integer(const Value& value, const char* side) const {
-        long long result = 0;
-        if (runtime::tryInt(value, result)) return result;
-        return runtime::toInt(value, describe(side));
-    }
-    bool truth(const Value& value, const char* side) const {
-        if (value.type != "bool") throw std::runtime_error("Type Error: " + describe(side) + " must be bool, got '" + value.type + "'");
-        return value.value == "true";
-    }
+    double number(const Value& value, const char* side) const;
+    long long integer(const Value& value, const char* side) const;
+    bool truth(const Value& value, const char* side) const;
 };
 
+// Unary minus and logical not.
 struct UnaryOpNode : Node {
     std::string op;
     std::unique_ptr<Node> operand;
     UnaryOpNode(std::string o, std::unique_ptr<Node> n) : op(std::move(o)), operand(std::move(n)) {}
-    Value eval(Context& ctx) override {
-        Value val = operand->eval(ctx);
-        if (op == "!") {
-            bool b = (val.value == "true");
-            return {"bool", b ? "false" : "true"};
-        }
-        return val;
-    }
+    Value eval(Context& ctx) override;
 };
 
+// Postfix i++ and i--: returns the old value, stores the new one.
 struct PostIncNode : Node {
     std::string name;
-    PostIncNode(std::string n) : name(std::move(n)) {}
-    Value eval(Context& ctx) override {
-        Value current = ctx.getVar(name);
-        long long val = intArg(current, "variable", name);
-        ctx.setVar(name, {"int", runtime::intResult(val + 1, "++")});
-        return {"int", Text::integer(val)};
-    }
+    int delta;
+    explicit PostIncNode(std::string n, int d = 1) : name(std::move(n)), delta(d) {}
+    Value eval(Context& ctx) override;
 };
 
+// array name size;   array name = expression;   array name;
 struct ArrayDeclNode : Node {
     std::string name;
     std::unique_ptr<Node> sizeNode;
-    ArrayDeclNode(std::string n, std::unique_ptr<Node> s) : name(std::move(n)), sizeNode(std::move(s)) {}
-    Value eval(Context& ctx) override {
-        int sz = static_cast<int>(intArg(sizeNode->eval(ctx), "size of array", name));
-        if (sz < 0) throw std::runtime_error("Runtime Error: Array size cannot be negative");
-        ctx.declareArray(name, static_cast<size_t>(sz));
-        return {"void", ""};
-    }
+    std::unique_ptr<Node> initializer;
+    SourceRange nameRange;
+    bool global = false;
+    ArrayDeclNode(std::string n, std::unique_ptr<Node> s, std::unique_ptr<Node> init = nullptr, SourceRange nr = {})
+        : name(std::move(n)), sizeNode(std::move(s)), initializer(std::move(init)), nameRange(nr) {}
+    Value eval(Context& ctx) override;
 };
 
+// [a, b, c] creates a temporary array owned by the scope that evaluates it.
+struct ArrayLiteralNode : Node {
+    std::vector<std::unique_ptr<Node>> elements;
+    Value eval(Context& ctx) override;
+};
+
+// name[index] = value;  (also +=, -=, *=, /=, %=)
 struct ArraySetNode : Node {
     std::string name;
     std::unique_ptr<Node> index, value;
-    ArraySetNode(std::string n, std::unique_ptr<Node> i, std::unique_ptr<Node> v)
-        : name(std::move(n)), index(std::move(i)), value(std::move(v)) {}
-    Value eval(Context& ctx) override {
-        Value arrVal = ctx.getVar(name);
-        if (arrVal.type != "array") throw std::runtime_error("Runtime Error: '" + name + "' is not an array");
-        int idx = static_cast<int>(intArg(index->eval(ctx), "index of array", name));
-        auto& arr = ctx.getRoot()->arrays[arrVal.value];
-        if (idx < 0 || static_cast<size_t>(idx) >= arr.size()) {
-            throw std::runtime_error("Runtime Error: Array index out of bounds: " + std::to_string(idx));
-        }
-        arr[idx] = value->eval(ctx);
-        return {"void", ""};
-    }
+    std::string op;
+    SourceRange nameRange;
+    ArraySetNode(std::string n, std::unique_ptr<Node> i, std::unique_ptr<Node> v, std::string o = "=", SourceRange nr = {})
+        : name(std::move(n)), index(std::move(i)), value(std::move(v)), op(std::move(o)), nameRange(nr) {}
+    Value eval(Context& ctx) override;
 };
 
+// name[index]
 struct ArrayGetNode : Node {
     std::string name;
     std::unique_ptr<Node> index;
-    ArrayGetNode(std::string n, std::unique_ptr<Node> i) : name(std::move(n)), index(std::move(i)) {}
-    Value eval(Context& ctx) override {
-        Value arrVal = ctx.getVar(name);
-        if (arrVal.type != "array") throw std::runtime_error("Runtime Error: '" + name + "' is not an array");
-        int idx = static_cast<int>(intArg(index->eval(ctx), "index of array", name));
-        auto& arr = ctx.getRoot()->arrays[arrVal.value];
-        if (idx < 0 || static_cast<size_t>(idx) >= arr.size()) {
-            throw std::runtime_error("Runtime Error: Array index out of bounds: " + std::to_string(idx));
-        }
-        return arr[idx];
-    }
+    SourceRange nameRange;
+    ArrayGetNode(std::string n, std::unique_ptr<Node> i, SourceRange nr = {})
+        : name(std::move(n)), index(std::move(i)), nameRange(nr) {}
+    Value eval(Context& ctx) override;
 };
 
 struct BlockNode : Node {
     std::vector<std::unique_ptr<Node>> stmts;
     // The program and an imported module are the global scope itself, not a block inside it.
     bool scoped = true;
-    Value eval(Context& ctx) override {
-        Context inner;
-        if (scoped) {
-            inner.parent = &ctx;
-            inner.interpreter = ctx.interpreter;
-        }
-        Context& scope = scoped ? inner : ctx;
-        runtime::StackGuard& guard = runtime::stackGuard();
-        for (auto& stmt : stmts) {
-            if (!stmt) continue;
-            // Remembering the line costs one store. Catching here to rethrow with the
-            // line attached cost an exception per nested block, and an error leaving a
-            // deep recursion had to pass through every one of them.
-            if (stmt->range.start.line > 0) guard.line = stmt->range.start.line;
-            stmt->eval(scope);
-        }
-        return {"void", ""};
-    }
+    Value eval(Context& ctx) override;
 };
 
 struct IfNode : Node {
@@ -466,8 +252,7 @@ struct IfNode : Node {
     IfNode(std::unique_ptr<Node> c, std::unique_ptr<Node> t, std::unique_ptr<Node> e = nullptr)
         : condition(std::move(c)), thenB(std::move(t)), elseB(std::move(e)) {}
     Value eval(Context& ctx) override {
-        bool cond = conditionTruth(condition->eval(ctx), "if");
-        if (cond) {
+        if (conditionTruth(condition->eval(ctx), "if")) {
             if (thenB) thenB->eval(ctx);
         } else if (elseB) {
             elseB->eval(ctx);
@@ -509,7 +294,7 @@ struct ForNode : Node {
             } catch (const BreakException&) {
                 break;
             } catch (const ContinueException&) {
-                // continue: evaluate step and continue
+                // continue still runs the step
             }
             if (step) step->eval(loop);
         }
@@ -518,25 +303,11 @@ struct ForNode : Node {
 };
 
 struct BreakNode : Node {
-    Value eval(Context& /*ctx*/) override {
-        throw BreakException{};
-    }
+    Value eval(Context& /*ctx*/) override { throw BreakException{}; }
 };
 
 struct ContinueNode : Node {
-    Value eval(Context& /*ctx*/) override {
-        throw ContinueException{};
-    }
-};
-
-struct WaitNode : Node {
-    std::unique_ptr<Node> timeExpr;
-    WaitNode(std::unique_ptr<Node> t) : timeExpr(std::move(t)) {}
-    Value eval(Context& ctx) override {
-        int milliseconds = static_cast<int>(intArg(timeExpr->eval(ctx), "wait() milliseconds"));
-        std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
-        return {"void", ""};
-    }
+    Value eval(Context& /*ctx*/) override { throw ContinueException{}; }
 };
 
 struct SwitchNode : Node {
@@ -544,60 +315,11 @@ struct SwitchNode : Node {
     std::vector<std::pair<std::unique_ptr<Node>, std::unique_ptr<Node>>> cases;
     std::unique_ptr<Node> defaultCase;
 
-    SwitchNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
-
-    Value eval(Context& ctx) override {
-        Value switchValue = expr->eval(ctx);
-        bool executed = false;
-        bool fallthrough = false;
-
-        for (auto& caseItem : cases) {
-            if (!executed && !fallthrough) {
-                Value caseValue = caseItem.first->eval(ctx);
-                if (switchValue.value == caseValue.value) {
-                    executed = true;
-                    fallthrough = true;
-                }
-            }
-
-            if (fallthrough) {
-                try {
-                    caseItem.second->eval(ctx);
-                } catch (const BreakException&) {
-                    fallthrough = false;
-                    break;
-                }
-            }
-        }
-
-        if (!executed && defaultCase) {
-            defaultCase->eval(ctx);
-        }
-
-        return {"void", ""};
-    }
+    explicit SwitchNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
+    Value eval(Context& ctx) override;
 };
 
-struct InputNode : Node {
-    Value eval(Context& /*ctx*/) override {
-        std::string input;
-        std::getline(std::cin, input);
-        return {"string", input};
-    }
-};
-
-struct ReadFileNode : Node {
-    std::unique_ptr<Node> filename;
-    ReadFileNode(std::unique_ptr<Node> fn) : filename(std::move(fn)) {}
-
-    Value eval(Context& ctx) override {
-        Value fnVal = filename->eval(ctx);
-        std::vector<Value> args{fnVal};
-        return runtime::callBuiltin("read_file", args, ctx);
-    }
-};
-
-// Forward declaration of interpreter execution hook
+// Forward declaration of interpreter execution hooks
 void executeIncludeHook(const std::string& path, Context& ctx, const std::string& currentFile, bool importOnly);
 void executeUsingHook(const std::string& libName, Context& ctx, const std::string& currentFile);
 
@@ -624,34 +346,3 @@ struct IncludeNode : Node {
 };
 
 } // namespace foxlang
-
-// Compatibility aliases
-using foxlang::Node;
-using foxlang::FuncDefNode;
-using foxlang::ReturnNode;
-using foxlang::FuncCallNode;
-using foxlang::NumberNode;
-using foxlang::StringNode;
-using foxlang::BoolNode;
-using foxlang::VarAccessNode;
-using foxlang::VarDeclNode;
-using foxlang::GlobalVarDeclNode;
-using foxlang::VarAssignNode;
-using foxlang::BinOpNode;
-using foxlang::UnaryOpNode;
-using foxlang::PostIncNode;
-using foxlang::ArrayDeclNode;
-using foxlang::ArraySetNode;
-using foxlang::ArrayGetNode;
-using foxlang::BlockNode;
-using foxlang::IfNode;
-using foxlang::WhileNode;
-using foxlang::ForNode;
-using foxlang::BreakNode;
-using foxlang::ContinueNode;
-using foxlang::WaitNode;
-using foxlang::SwitchNode;
-using foxlang::InputNode;
-using foxlang::ReadFileNode;
-using foxlang::UsingNode;
-using foxlang::IncludeNode;

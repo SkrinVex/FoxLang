@@ -34,8 +34,8 @@ std::ostream& operator<<(std::ostream& out, const Text& text) { return out << te
 
 Context::~Context() { releaseArrays(); }
 
-// A loop body is not a scope in FoxLang, so re-declaring an array in one used to
-// strand the previous buffer in the root context until the program ended.
+// Re-declaring an array in the same scope frees the previous buffer at once
+// instead of stranding it until the scope ends.
 std::string Context::declareArray(const std::string& name, size_t size) {
     static std::atomic<unsigned long long> counter{0};
     Context* root = getRoot();
@@ -48,7 +48,7 @@ std::string Context::declareArray(const std::string& name, size_t size) {
         }
     }
     std::string id = "__arr_" + std::to_string(counter++);
-    root->arrays[id] = std::vector<Value>(size, {"int", "0"});
+    root->arrays[id] = std::vector<Value>(size, {"int", Text::integer(0)});
     ownedArrays.push_back(id);
     defineVar(name, "array", {"array", id});
     return id;
@@ -61,24 +61,42 @@ void Context::releaseArrays() {
     ownedArrays.clear();
 }
 
-bool Context::exists(const std::string& name) const {
-    if (variables.count(name) || arrays.count(name)) return true;
-    if (parent) return parent->exists(name);
-    return false;
-}
-
 Value Context::getVar(const std::string& name) const {
-    auto it = variables.find(name);
-    if (it != variables.end()) return it->second;
-    if (parent) return parent->getVar(name);
+    for (const Context* scope = this; scope; scope = scope->parent) {
+        auto it = scope->variables.find(name);
+        if (it != scope->variables.end()) return it->second;
+    }
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
 }
 
-std::vector<Value>& Context::getArray(const std::string& name) {
-    auto it = arrays.find(name);
-    if (it != arrays.end()) return it->second;
-    if (parent) return parent->getArray(name);
-    throw std::runtime_error("Runtime Error: Array '" + name + "' not found!");
+std::string Context::newArray(std::vector<Value> items) {
+    static std::atomic<unsigned long long> counter{0};
+    std::string id = "__tmp_" + std::to_string(counter++);
+    getRoot()->arrays[id] = std::move(items);
+    ownedArrays.push_back(id);
+    return id;
+}
+
+std::vector<Value>& Context::arrayOf(const Value& value, const std::string& what) {
+    if (value.type != "array")
+        throw std::runtime_error("Type Error: " + what + " must be an array, got '" + value.type + "'");
+    auto& arrays = getRoot()->arrays;
+    auto found = arrays.find(value.value.str());
+    if (found == arrays.end())
+        throw std::runtime_error("Runtime Error: " + what + " refers to an array that no longer exists");
+    return found->second;
+}
+
+std::vector<Value> Context::takeArray(const Value& value, const std::string& what) {
+    std::vector<Value>& items = arrayOf(value, what);
+    const std::string& id = value.value.str();
+    bool temporary = id.rfind("__tmp_", 0) == 0 || id.rfind("__ret_", 0) == 0;
+    auto owned = std::find(ownedArrays.begin(), ownedArrays.end(), id);
+    if (!temporary || owned == ownedArrays.end()) return items;
+    std::vector<Value> moved = std::move(items);
+    getRoot()->arrays.erase(id);
+    ownedArrays.erase(owned);
+    return moved;
 }
 
 Context* Context::getRoot() {
@@ -109,27 +127,22 @@ void Context::defineVar(const std::string& name, const std::string& type, const 
 }
 
 void Context::setVar(const std::string& name, Value val) {
-    auto it = variables.find(name);
-    if (it != variables.end()) {
-        if (it->second.type != val.type) {
-            if (it->second.type == "float" && val.type == "int") {
-                val.type = "float";
-            } else if (it->second.type == "int" && val.type == "float") {
-                val.type = "int";
-                narrowToInt(val, "variable", name);
-            } else {
-                throw std::runtime_error("Type Error: Cannot assign value of type '" + val.type + "' to variable '" + name + "' of type '" + it->second.type + "'");
-            }
+    for (Context* scope = this; scope; scope = scope->parent) {
+        auto it = scope->variables.find(name);
+        if (it == scope->variables.end()) continue;
+        Value& target = it->second;
+        if (target.type == "array") {
+            // Assignment copies the elements into the variable's own buffer, so the
+            // variable never points at a temporary that its creator frees later.
+            std::vector<Value> items = takeArray(val, "value assigned to '" + name + "'");
+            arrayOf(target, "array '" + name + "'") = std::move(items);
+            return;
         }
-        if (it->second.type == "int") narrowToInt(val, "variable", name);
-        it->second.value = val.value;
+        runtime::coerce(target.type, val, "variable '" + name + "'");
+        target.value = val.value;
         return;
     }
-    if (parent) {
-        parent->setVar(name, val);
-        return;
-    }
-    throw std::runtime_error("Error: Variable '" + name + "' not defined!");
+    throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
 }
 
 } // namespace foxlang

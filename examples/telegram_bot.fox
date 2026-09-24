@@ -1,20 +1,48 @@
+// Telegram-бот на long polling, без публичного адреса и webhook.
+// TELEGRAM_BOT_TOKEN=... foxlang examples/telegram_bot.fox
 using http;
-using time;
-using log;
+using json;
 using env;
+using log;
 
-string token = env("TELEGRAM_BOT_TOKEN");
-if (token == "") {
-    error("Не задан TELEGRAM_BOT_TOKEN");
-} else {
-    string api = "https://api.telegram.org/bot" + token + "/";
-    info("Проверяю Telegram Bot API...");
-    string me = http_fetch(api + "getMe");
-    if (me == "") {
-        error("Telegram API не ответил. Подробности HTTP должны быть выше.");
-    } else {
-        info("Telegram API отвечает:");
-        print(me);
-        warn("Полноценный polling требует нового структурного JSON API; json_get пока совместим со старым кодом.");
+string api = "https://api.telegram.org/bot" + secret("TELEGRAM_BOT_TOKEN") + "/";
+
+void send_message(string chat_id, string text) {
+    http_post_json(api + "sendMessage", "{\"chat_id\":" + chat_id + ",\"text\":" + json_quote(text) + "}");
+    if (!http_ok()) {
+        warn("sendMessage: статус " + http_status());
     }
 }
+
+void reply(string chat_id, string name, string text) {
+    if (text == "/start") {
+        send_message(chat_id, "Привет, " + name + "! Я бот на FoxLang 🦊");
+    } else if (text == "/ping") {
+        send_message(chat_id, "pong");
+    } else if (text != "") {
+        send_message(chat_id, "Ты написал: " + text);
+    }
+}
+
+void main() {
+    string offset = "0";
+    info("Бот запущен, жду сообщения");
+    while (true) {
+        string updates = http_get(api + "getUpdates?timeout=25&offset=" + offset);
+        if (!http_ok()) {
+            warn("getUpdates: статус " + http_status() + ", повтор через 5 секунд");
+            wait(5000);
+            continue;
+        }
+        int count = json_count_at(updates, "result");
+        for (int i = 0; i < count; i++) {
+            string item = "result." + i;
+            offset = to_string(to_int(json_path(updates, item + ".update_id")) + 1);
+            reply(json_path(updates, item + ".message.chat.id"),
+                  json_path(updates, item + ".message.from.first_name"),
+                  json_path(updates, item + ".message.text"));
+        }
+    }
+}
+
+main();

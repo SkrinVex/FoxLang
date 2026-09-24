@@ -2,7 +2,7 @@
 void assert_true(bool cond, string msg) {
     if (!cond) {
         print("FAIL: " + msg);
-        string f = env_required("__ASSERT_FAIL__");
+        exit(1);
     }
 }
 
@@ -26,13 +26,43 @@ assert_true(content2 == "First line\nSecond line\n", "read_file after append");
 // 4. Overwrite file
 write_file(test_filename, "Overwritten");
 string content3 = read_file(test_filename);
-assert_true(content3 == "Overwritten\n" || content3 == "Overwritten", "read_file after overwrite");
+assert_true(content3 == "Overwritten", "read_file returns the file byte for byte");
 
 // 5. Read non-existent file returns empty string
 string missing = read_file("non_existent_file_definitely_not_here.txt");
 assert_true(missing == "", "missing file returns empty string");
 
-// Cleanup
-write_file(test_filename, "");
+// 6. Text without a trailing newline and Windows line ends are kept as written
+write_file(test_filename, "a\r\nб\r\n🦊");
+assert_true(read_file(test_filename) == "a\r\nб\r\n🦊", "read_file keeps CRLF and the missing final newline");
+
+// 7. fs module: existence, sizes, directories, listing, lines
+using fs;
+assert_true(exists(test_filename), "exists for a file");
+assert_true(!is_dir(test_filename), "a file is not a directory");
+assert_true(file_size(test_filename) == 11, "file_size counts bytes");
+assert_true(file_size("non_existent_file_definitely_not_here.txt") == -1, "file_size of a missing file");
+
+string dir = "temp_fs_test_dir/nested";
+assert_true(make_dir(dir), "make_dir creates parents");
+assert_true(is_dir(dir), "is_dir after make_dir");
+write_file(dir + "/b.txt", "B");
+write_file(dir + "/a.txt", "A");
+array names = list_dir(dir);
+assert_true(size(names) == 2 && names[0] == "a.txt" && names[1] == "b.txt", "list_dir is sorted");
+assert_true(size(list_dir("no_such_directory_here")) == 0, "list_dir of a missing directory");
+
+array lines = ["первая", "вторая", ""];
+assert_true(write_lines(dir + "/lines.txt", lines), "write_lines");
+assert_true(read_file(dir + "/lines.txt") == "первая\nвторая\n\n", "write_lines content");
+array back = read_lines(dir + "/lines.txt");
+assert_true(size(back) == 3 && back[1] == "вторая" && back[2] == "", "read_lines round trip");
+
+// remove_path deletes files and only empty directories
+assert_true(!remove_path("temp_fs_test_dir"), "remove_path refuses a non-empty directory");
+assert_true(remove_path(dir + "/a.txt") && remove_path(dir + "/b.txt") && remove_path(dir + "/lines.txt"), "remove files");
+assert_true(remove_path(dir) && remove_path("temp_fs_test_dir"), "remove empty directories");
+assert_true(!exists("temp_fs_test_dir"), "directory is gone");
+assert_true(remove_path(test_filename) && !exists(test_filename), "remove the test file");
 
 print("FILES_OK");

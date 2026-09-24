@@ -3,7 +3,9 @@ set -euo pipefail
 
 FOXLANG_BIN="${1:-./foxlang}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEMP_ERR_FOX="/tmp/fox_malformed.fox"
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+TEMP_ERR_FOX="$WORK_DIR/malformed.fox"
 
 run_expect_fail() {
     local code="$1"
@@ -66,7 +68,39 @@ run_expect_fail "int a = 1; int a = 2;" "already declared in this scope" "redecl
 # 10. Break outside loop in global scope
 run_expect_fail "break;" "break" "break outside loop in global scope"
 
-# 11. Non-existent file
+# 11. Calls are checked against the declared signatures
+run_expect_fail "str_upper(5);" "argument 'text' of str_upper() must be string" "builtin argument type"
+run_expect_fail "print(size());" "size() expects 1 arguments" "builtin argument count"
+run_expect_fail "void f(int x) {} f(\"abc\");" "parameter 'x' of 'f'" "parameter type"
+run_expect_fail "void f(int x) {} f(1, 2);" "expects 1 arguments, got 2" "parameter count"
+run_expect_fail "int f() { } int y = f();" "ended without a value" "missing return value"
+run_expect_fail "return 1;" "'return' outside of a function" "return at top level"
+run_expect_fail "void f() { break; } f();" "'break' outside of loop in function 'f'" "break outside loop in a function"
+
+# 12. Values that cannot be used
+run_expect_fail "print(pop([]));" "pop() from an empty array" "pop from an empty array"
+run_expect_fail "int n = to_int(\"12abc\");" "cannot convert '12abc'" "to_int of invalid text"
+run_expect_fail "print([1] + 1);" "cannot be applied to an array" "arithmetic on an array"
+run_expect_fail "bool b = !5;" "operand of '!' must be bool" "logical not of a number"
+run_expect_fail "print(sqrt(-1));" "sqrt() of a negative number" "sqrt of a negative number"
+
+# 13. Syntax checks
+run_expect_fail "switch (1) { default: print(1); default: print(2); }" "Syntax Error" "two defaults"
+run_expect_fail "int a = 5 # 3;" "Syntax Error: Unknown character" "unknown character"
+run_expect_fail "void f(void x) {}" "expected a parameter type" "void parameter"
+
+# 14. exit() ends the program with its code and prints nothing else
+echo 'print("before"); exit(3); print("after");' > "$TEMP_ERR_FOX"
+set +e
+out=$("$FOXLANG_BIN" "$TEMP_ERR_FOX" 2>&1)
+status=$?
+set -e
+if [[ "$status" -ne 3 || "$out" != "before" ]]; then
+    echo "FAIL: exit(3) returned $status with output: $out"
+    exit 1
+fi
+
+# 15. Non-existent file
 set +e
 out=$("$FOXLANG_BIN" "/path/to/definitely_not_existing_file_999.fox" 2>&1)
 status=$?
@@ -80,6 +114,5 @@ if ! echo "$out" | grep -q "could not open file"; then
     exit 1
 fi
 
-rm -f "$TEMP_ERR_FOX"
 echo "ERROR_HANDLING_OK"
 exit 0

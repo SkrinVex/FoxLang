@@ -1,4 +1,4 @@
-"""Keep distributed editor packages and runtime release metadata in sync."""
+"""Keep distributed editor packages and runtime release metadata in sync with VERSION."""
 import importlib.util
 import json
 from pathlib import Path
@@ -22,8 +22,15 @@ for name in ("editors/zed/Cargo.toml", "editors/zed/extension.toml"):
     assert re.search(r'^version = "([^"]+)"', text, re.M)[1] == version, name
 lock = (root / "editors/zed/Cargo.lock").read_text()
 assert re.search(r'name = "foxlang"\nversion = "([^"]+)"', lock)[1] == version
-assert f"version-{version}-orange" in (root / "README.md").read_text(encoding="utf-8")
-assert f"FoxLang v{version}" in (root / "DOCUMENTATION.md").read_text(encoding="utf-8").splitlines()[0]
+
+# VERSION is the single source: documentation, examples and the standard library must
+# not repeat the number, or the next release would leave a stale copy behind.
+prose = [root / "README.md", root / "DOCUMENTATION.md", *(root / "docs").glob("*.md"),
+         *(root / "editors").glob("*/README.md"), root / "tests/README.md",
+         *(root / "examples").glob("*.fox"), *(root / "std").glob("*.fox")]
+for path in prose:
+    assert not re.search(r"(?<![\d.])" + re.escape(version) + r"(?![\d.])", path.read_text(encoding="utf-8")), \
+        f"{path.relative_to(root)} repeats the version {version}; refer to VERSION or `foxlang --version` instead"
 
 spec = importlib.util.spec_from_file_location("package_vsix", root / "packaging/package_vsix.py")
 packager = importlib.util.module_from_spec(spec)

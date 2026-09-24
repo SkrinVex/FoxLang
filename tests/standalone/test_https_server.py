@@ -24,7 +24,7 @@ void webhook() { respond_status(201, json_path(body(), "message.text")); }
 void failure() { int invalid = 1 / 0; }
 void stop() { respond("stopped"); server_stop(); }
 get("/health", "health"); get("/failure", "failure"); post("/telegram", "webhook"); get("/stop", "stop");
-listen_tls(str_to_int(secret("FOX_TEST_PORT")), env("FOX_TEST_CERT"), env("FOX_TEST_KEY"));
+listen_tls(to_int(secret("FOX_TEST_PORT")), env("FOX_TEST_CERT"), env("FOX_TEST_KEY"));
 ''')
     s.build()
     data = s.app.read_bytes()

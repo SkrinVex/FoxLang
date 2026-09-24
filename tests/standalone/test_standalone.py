@@ -27,7 +27,6 @@ class Scenario:
         shutil.copy2(binary, self.cli)
         self.env = dict(os.environ)
         self.env.update(FOXLANG_HOME=str(self.root / "absent-stdlib"), FOXLANG_LOG_LEVEL="info")
-        self.env.pop("FOXLANG_LOG", None)
         # Compiler, CMake, FoxLang, curl and repository modules cannot be found via PATH.
         self.env["PATH"] = ""
         self.app = None
@@ -111,12 +110,12 @@ def cli(s):
 
 def modules(s):
     s.source("main.fox", '''using json; using log; using env; using math; using string; using time;
-using terminal; using http; using net; using server; using graphics;
+using terminal; using http; using net; using server; using graphics; using arrays; using fs; using os;
 include("sub/first.fox"); include("sub/../sub/first.fox"); using local;
 void deferred() { include("late.fox"); }
 deferred();
 print(local_value() + nested() + late_value());
-print(min_int(7, 2)); print(contains("FoxLang", "Lang"));
+print(min(7, 2)); print(contains("FoxLang", "Lang")); print(join(range(1, 4), "-"));
 info("bundled logging");
 ''')
     s.source("sub/first.fox", 'include("../main.fox"); include("deeper/second.fox");')
@@ -128,7 +127,7 @@ info("bundled logging");
     assert result.returncode == 0, result.stderr
     s.build()
     s.isolate()
-    bundled = s.run("local nested late\n2\ntrue\n")
+    bundled = s.run("local nested late\n2\ntrue\n1-2-3\n")
     assert bundled.stdout == result.stdout
     assert "bundled logging" in bundled.stderr
 
@@ -172,7 +171,8 @@ write_file("executed.txt", "runtime only");
     (s.receiver / "config.json").write_text("external resource", encoding="utf-8")
     # Runtime .env is deliberately not auto-loaded by standalone programs either.
     (s.receiver / ".env").write_text(f"FOX_DOTENV_SECRET={marker}\n", encoding="utf-8")
-    s.run("runtime-two\n\nexternal resource\n\n", env=runtime_env)
+    # read_file returns the file byte for byte; print adds the only newline.
+    s.run("runtime-two\n\nexternal resource\n", env=runtime_env)
 
 
 def errors(s):
@@ -222,8 +222,13 @@ void webhook() {
     respond_status(201, "Привет, " + json_path(update, "message.from.first_name") + " " + json_path(update, "message.chat.id"));
     server_stop();
 }
+void update_item() {
+    respond_as(200, method() + " " + query() + " " + header("X-Fox") + " " + body(), "text/plain; charset=utf-8");
+}
+void remove_item() { respond_status(204, ""); }
 get("/health", "health"); get("/failure", "failure"); post("/telegram", "webhook");
-listen(str_to_int(secret("FOX_TEST_PORT")));
+put("/items", "update_item"); delete("/items", "remove_item");
+listen(to_int(secret("FOX_TEST_PORT")));
 ''')
     s.build()
     s.isolate()
@@ -249,6 +254,24 @@ listen(str_to_int(secret("FOX_TEST_PORT")));
         conn.request("GET", "/failure")
         response = conn.getresponse()
         assert response.status == 500 and b"Handler failed" in response.read()
+        conn.close()
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("PUT", "/items?id=7", body="Лис".encode(), headers={"x-fox": "hello"})
+        response = conn.getresponse()
+        assert response.status == 200 and response.getheader("Content-Type") == "text/plain; charset=utf-8"
+        assert response.read().decode() == "PUT id=7 hello Лис"
+        conn.close()
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("DELETE", "/items")
+        response = conn.getresponse()
+        assert response.status == 204 and response.reason == "No Content"
+        response.read()
+        conn.close()
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("PATCH", "/items")
+        response = conn.getresponse()
+        assert response.status == 404
+        response.read()
         conn.close()
         for header, expected in [(b"Content-Length: -1", 400),
                                  (b"Content-Length: 9999999999", 413),
@@ -276,6 +299,13 @@ def http_client(s):
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             body = b'{"ok":true}'
+            if self.path == "/missing":
+                body = b'{"error":"gone"}'
+                self.send_response(404)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             self.send_response(200)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -303,16 +333,18 @@ def http_client(s):
             literal = json.dumps(payload, ensure_ascii=False)
             s.source("main.fox", f'''using http; using json; using env;
 string url = env("FOX_TEST_URL");
-print(json_path(http_fetch(url), "ok"));
+print(json_path(http_get(url), "ok"), http_status(), http_ok());
 print(http_post_json(url, {literal}));
 print(http_put_json(url, {literal}));
-print(json_path(http_remove(url), "ok"));
+print(json_path(http_delete(url), "ok"));
+print(json_path(http_get(url + "missing"), "error"), http_status(), http_ok());
+print(http_get("http://127.0.0.1:1/") == "", http_status());
 ''')
             s.build()
             s.isolate()
             env = dict(s.env, FOX_TEST_URL=f"http://127.0.0.1:{server.server_port}/", NO_PROXY="127.0.0.1")
             assert env["PATH"] == ""
-            s.run(f"true\n{payload}\n{payload}\ntrue\n", env=env)
+            s.run(f"true 200 true\n{payload}\n{payload}\ntrue\ngone 404 false\ntrue 0\n", env=env)
         finally:
             server.shutdown()
             thread.join(timeout=5)
@@ -339,7 +371,7 @@ def tcp(s):
 
         s.source("main.fox", '''using net; using env;
 print(resolve_host("127.0.0.1")); print(resolve_host("localhost") != "");
-int socket = connect_tcp("127.0.0.1", str_to_int(env("FOX_TEST_PORT")));
+int socket = connect_tcp("127.0.0.1", to_int(env("FOX_TEST_PORT")));
 string payload = "Привет 🦊";
 int count = 0;
 while (count < 10) { payload += payload; count++; }

@@ -1,0 +1,26 @@
+// HTTP-клиент: запрос, код статуса и разбор JSON-массива.
+// foxlang examples/http_client.fox [URL]
+using http;
+using json;
+using log;
+using os;
+
+void main() {
+    string url = arg_or(0, "https://api.github.com/repos/SkrinVex/FoxLang/releases");
+    string answer = http_get(url);
+    if (!http_ok()) {
+        error("Запрос не удался, статус " + http_status());
+        exit(1);
+    }
+    if (json_type_at(answer, "") != "array") {
+        print(answer);
+        return;
+    }
+    int count = json_count_at(answer, "");
+    print("Выпусков: " + count);
+    for (int i = 0; i < count && i < 5; i++) {
+        print("- " + json_path(answer, i + ".name") + " (" + json_path(answer, i + ".published_at") + ")");
+    }
+}
+
+main();

@@ -298,6 +298,96 @@ int main() {
         }
     }
 
+    // 21. exit(code) ends the program with that code and no error message
+    {
+        step("exit");
+        foxlang::Interpreter interp;
+        auto res = interp.runSource("int before = 1; exit(4); int after = 2;");
+        TEST_ASSERT(!res.success && res.exitCode == 4 && res.errorMessage.empty());
+        TEST_ASSERT(interp.getGlobal("before").value == "1");
+        auto zero = interp.runSource("exit();");
+        TEST_ASSERT(zero.success && zero.exitCode == 0);
+    }
+
+    // 22. Embedders pass command-line arguments through the options
+    {
+        step("arguments");
+        foxlang::InterpreterOptions options;
+        options.arguments = {"alpha", "бета"};
+        foxlang::Interpreter interp(options);
+        auto res = interp.runSource("array list = os_args(); int count = size(list); string second = list[1];");
+        TEST_ASSERT(res.success);
+        TEST_ASSERT(interp.getGlobal("count").value == "2");
+        TEST_ASSERT(interp.getGlobal("second").value == "бета");
+    }
+
+    // 23. return outside a function is an error, not a crash
+    {
+        step("top-level return");
+        foxlang::Interpreter interp;
+        auto res = interp.runSource("return 1;");
+        TEST_ASSERT(!res.success && res.errorMessage.find("outside of a function") != std::string::npos);
+    }
+
+    // 24. Temporary arrays die with the scope that made them
+    {
+        step("array ownership");
+        foxlang::Interpreter interp;
+        auto res = interp.runSource(
+            "array make(int n) { array r; for (int i = 0; i < n; i++) { push(r, i); } return r; }"
+            "for (int i = 0; i < 500; i++) { array parts = str_split(\"a,b\", \",\"); array made = make(3); int n = size(make(2)); }");
+        TEST_ASSERT(res.success);
+        TEST_ASSERT(interp.getContext().arrays.empty());
+        auto kept = interp.runSource("array keep = make(3);");
+        TEST_ASSERT(kept.success && interp.getContext().arrays.size() == 1);
+    }
+
+    // 25. Parameters and results convert to their declared types
+    {
+        step("typed calls");
+        foxlang::Interpreter interp;
+        auto res = interp.runSource(
+            "float half(int v) { return v / 2; } string tag(string s) { return \"<\" + s + \">\"; }"
+            "float h = half(7); string t = tag(5); string kind = type_of(half(7));");
+        TEST_ASSERT(res.success);
+        TEST_ASSERT(interp.getGlobal("h").value == "3");
+        TEST_ASSERT(interp.getGlobal("t").value == "<5>");
+        TEST_ASSERT(interp.getGlobal("kind").value == "float");
+        auto bad = interp.runSource("void want(int n) {} want(\"abc\");");
+        TEST_ASSERT(!bad.success && bad.errorMessage.find("parameter 'n' of 'want'") != std::string::npos);
+        auto missing = interp.runSource("int nothing() { } int x = nothing();");
+        TEST_ASSERT(!missing.success && missing.errorMessage.find("ended without a value") != std::string::npos);
+    }
+
+    // 26. A builtin and a FoxLang function may share a name; the arguments decide
+    {
+        step("builtin overloads");
+        foxlang::Interpreter interp;
+        auto res = interp.runSource(
+            "string routed = \"\"; void get(string path, string handler) { routed = path + \"->\" + handler; }"
+            "array items = [10, 20]; int second = get(items, 1); get(\"/health\", \"health\");");
+        TEST_ASSERT(res.success);
+        TEST_ASSERT(interp.getGlobal("second").value == "20");
+        TEST_ASSERT(interp.getGlobal("routed").value == "/health->health");
+    }
+
+    // 27. Every builtin in the catalog can be found and describes itself
+    {
+        step("builtin catalog");
+        const auto& catalog = foxlang::builtinCatalog();
+        TEST_ASSERT(catalog.size() > 100);
+        for (const auto& spec : catalog) {
+            TEST_ASSERT(foxlang::runtime::isBuiltin(spec.name));
+            TEST_ASSERT(!spec.documentation.empty());
+            TEST_ASSERT(spec.required <= spec.params.size());
+            TEST_ASSERT(spec.signature().rfind(spec.name + "(", 0) == 0);
+        }
+        TEST_ASSERT(foxlang::findBuiltinSpec("input")->signature() == "input([string prompt]) -> string");
+        TEST_ASSERT(foxlang::findBuiltinSpec("print")->signature() == "print(any values...) -> void");
+        for (const char* removed : {"httpget", "httppost", "fox", "readfile", "str_to_int", "route_get", "send_response"})
+            TEST_ASSERT(!foxlang::runtime::isBuiltin(removed));
+    }
+
     std::cout << "TEST_INTERPRETER_OK" << std::endl;
     return 0;
 }

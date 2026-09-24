@@ -4,90 +4,149 @@
 
 namespace foxlang {
 
+namespace {
+struct Keyword { const char* text; TokenType type; };
+constexpr Keyword keywords[] = {
+    {"int", TokenType::INT_KW}, {"float", TokenType::FLOAT_KW}, {"string", TokenType::STRING_KW},
+    {"bool", TokenType::BOOL_KW}, {"void", TokenType::VOID_KW}, {"array", TokenType::ARRAY},
+    {"true", TokenType::TRUE_KW}, {"false", TokenType::FALSE_KW},
+    {"if", TokenType::IF}, {"else", TokenType::ELSE}, {"while", TokenType::WHILE}, {"for", TokenType::FOR},
+    {"switch", TokenType::SWITCH}, {"case", TokenType::CASE}, {"default", TokenType::DEFAULT},
+    {"break", TokenType::BREAK}, {"continue", TokenType::CONTINUE}, {"return", TokenType::RETURN},
+    {"global", TokenType::GLOBAL}, {"include", TokenType::INCLUDE}, {"using", TokenType::USING},
+};
+}
+
+const char* const* keywordList() {
+    static const char* const list[] = {
+        "if", "else", "while", "for", "switch", "case", "default", "break", "continue", "return",
+        "using", "include", "global", "int", "float", "string", "bool", "void", "true", "false", "array", nullptr};
+    return list;
+}
+
 const char* tokenTypeName(TokenType type) {
     switch (type) {
-        case TokenType::NUMBER: return "NUMBER";
-        case TokenType::STRING_LITERAL: return "STRING_LITERAL";
-        case TokenType::PLUS: return "PLUS";
-        case TokenType::MINUS: return "MINUS";
-        case TokenType::STAR: return "STAR";
-        case TokenType::SLASH: return "SLASH";
-        case TokenType::MOD: return "MOD";
-        case TokenType::INC: return "INC";
-        case TokenType::LPAREN: return "LPAREN";
-        case TokenType::RPAREN: return "RPAREN";
-        case TokenType::LBRACE: return "LBRACE";
-        case TokenType::RBRACE: return "RBRACE";
-        case TokenType::LBRACKET: return "LBRACKET";
-        case TokenType::RBRACKET: return "RBRACKET";
-        case TokenType::SEMICOLON: return "SEMICOLON";
-        case TokenType::COMMA: return "COMMA";
-        case TokenType::ASSIGN: return "ASSIGN";
-        case TokenType::DOT: return "DOT";
-        case TokenType::COLON: return "COLON";
-        case TokenType::EQ: return "EQ";
-        case TokenType::NEQ: return "NEQ";
-        case TokenType::LT: return "LT";
-        case TokenType::GT: return "GT";
-        case TokenType::LTE: return "LTE";
-        case TokenType::GTE: return "GTE";
-        case TokenType::AND: return "AND";
-        case TokenType::OR: return "OR";
-        case TokenType::NOT: return "NOT";
-        case TokenType::PLUS_ASSIGN: return "PLUS_ASSIGN";
-        case TokenType::MINUS_ASSIGN: return "MINUS_ASSIGN";
-        case TokenType::STAR_ASSIGN: return "STAR_ASSIGN";
-        case TokenType::SLASH_ASSIGN: return "SLASH_ASSIGN";
-        case TokenType::PRINT: return "PRINT";
-        case TokenType::INPUT: return "INPUT";
-        case TokenType::ROUND: return "ROUND";
-        case TokenType::RANDOM: return "RANDOM";
-        case TokenType::FOX: return "FOX";
-        case TokenType::READ_FILE: return "READ_FILE";
-        case TokenType::JSON_GET: return "JSON_GET";
-        case TokenType::STR_CONTAINS: return "STR_CONTAINS";
-        case TokenType::STR_TO_INT: return "STR_TO_INT";
-        case TokenType::INT_KW: return "INT_KW";
-        case TokenType::FLOAT_KW: return "FLOAT_KW";
-        case TokenType::STRING_KW: return "STRING_KW";
-        case TokenType::BOOL_KW: return "BOOL_KW";
-        case TokenType::VOID_KW: return "VOID_KW";
-        case TokenType::TRUE_KW: return "TRUE_KW";
-        case TokenType::FALSE_KW: return "FALSE_KW";
-        case TokenType::WHILE: return "WHILE";
-        case TokenType::FOR: return "FOR";
-        case TokenType::IF: return "IF";
-        case TokenType::ELSE: return "ELSE";
-        case TokenType::SWITCH: return "SWITCH";
-        case TokenType::CASE: return "CASE";
-        case TokenType::DEFAULT: return "DEFAULT";
-        case TokenType::ARRAY: return "ARRAY";
-        case TokenType::SET: return "SET";
-        case TokenType::GET: return "GET";
-        case TokenType::SIZE: return "SIZE";
-        case TokenType::INCLUDE: return "INCLUDE";
-        case TokenType::USING: return "USING";
-        case TokenType::RETURN: return "RETURN";
-        case TokenType::GLOBAL: return "GLOBAL";
-        case TokenType::BREAK: return "BREAK";
-        case TokenType::CONTINUE: return "CONTINUE";
-        case TokenType::WAIT: return "WAIT";
-        case TokenType::HTTP_GET: return "HTTP_GET";
-        case TokenType::HTTP_POST: return "HTTP_POST";
-        case TokenType::HTTP_PUT: return "HTTP_PUT";
-        case TokenType::HTTP_DELETE: return "HTTP_DELETE";
-        case TokenType::SERVER_START: return "SERVER_START";
-        case TokenType::SERVER_STOP: return "SERVER_STOP";
-        case TokenType::ROUTE_GET: return "ROUTE_GET";
-        case TokenType::ROUTE_POST: return "ROUTE_POST";
-        case TokenType::SEND_RESPONSE: return "SEND_RESPONSE";
-        case TokenType::GETCH: return "GETCH";
-        case TokenType::KBHIT: return "KBHIT";
-        case TokenType::IDENTIFIER: return "IDENTIFIER";
-        case TokenType::END: return "END";
-        case TokenType::ERROR: return "ERROR";
-        default: return "UNKNOWN";
+        case TokenType::NUMBER: return "number";
+        case TokenType::STRING_LITERAL: return "string literal";
+        case TokenType::PLUS: return "'+'";
+        case TokenType::MINUS: return "'-'";
+        case TokenType::STAR: return "'*'";
+        case TokenType::SLASH: return "'/'";
+        case TokenType::MOD: return "'%'";
+        case TokenType::INC: return "'++'";
+        case TokenType::DEC: return "'--'";
+        case TokenType::LPAREN: return "'('";
+        case TokenType::RPAREN: return "')'";
+        case TokenType::LBRACE: return "'{'";
+        case TokenType::RBRACE: return "'}'";
+        case TokenType::LBRACKET: return "'['";
+        case TokenType::RBRACKET: return "']'";
+        case TokenType::SEMICOLON: return "';'";
+        case TokenType::COMMA: return "','";
+        case TokenType::ASSIGN: return "'='";
+        case TokenType::DOT: return "'.'";
+        case TokenType::COLON: return "':'";
+        case TokenType::EQ: return "'=='";
+        case TokenType::NEQ: return "'!='";
+        case TokenType::LT: return "'<'";
+        case TokenType::GT: return "'>'";
+        case TokenType::LTE: return "'<='";
+        case TokenType::GTE: return "'>='";
+        case TokenType::AND: return "'&&'";
+        case TokenType::OR: return "'||'";
+        case TokenType::NOT: return "'!'";
+        case TokenType::PLUS_ASSIGN: return "'+='";
+        case TokenType::MINUS_ASSIGN: return "'-='";
+        case TokenType::STAR_ASSIGN: return "'*='";
+        case TokenType::SLASH_ASSIGN: return "'/='";
+        case TokenType::MOD_ASSIGN: return "'%='";
+        case TokenType::INT_KW: return "'int'";
+        case TokenType::FLOAT_KW: return "'float'";
+        case TokenType::STRING_KW: return "'string'";
+        case TokenType::BOOL_KW: return "'bool'";
+        case TokenType::VOID_KW: return "'void'";
+        case TokenType::ARRAY: return "'array'";
+        case TokenType::TRUE_KW: return "'true'";
+        case TokenType::FALSE_KW: return "'false'";
+        case TokenType::WHILE: return "'while'";
+        case TokenType::FOR: return "'for'";
+        case TokenType::IF: return "'if'";
+        case TokenType::ELSE: return "'else'";
+        case TokenType::SWITCH: return "'switch'";
+        case TokenType::CASE: return "'case'";
+        case TokenType::DEFAULT: return "'default'";
+        case TokenType::INCLUDE: return "'include'";
+        case TokenType::USING: return "'using'";
+        case TokenType::RETURN: return "'return'";
+        case TokenType::GLOBAL: return "'global'";
+        case TokenType::BREAK: return "'break'";
+        case TokenType::CONTINUE: return "'continue'";
+        case TokenType::IDENTIFIER: return "identifier";
+        case TokenType::END: return "end of file";
+        case TokenType::ERROR: return "invalid character";
     }
+    return "token";
+}
+
+namespace {
+void appendUtf8(std::string& out, unsigned cp) {
+    if (cp < 0x80) {
+        out += static_cast<char>(cp);
+    } else if (cp < 0x800) {
+        out += static_cast<char>(0xC0 | (cp >> 6));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        out += static_cast<char>(0xE0 | (cp >> 12));
+        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else {
+        out += static_cast<char>(0xF0 | (cp >> 18));
+        out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+    }
+}
+}
+
+// \uXXXX (exactly four hex digits) or \u{X...} (one to six); the 'u' is already consumed.
+std::string Lexer::unicodeEscape(SourcePosition literalStart) {
+    bool braced = pos < source.size() && source[pos] == '{';
+    if (braced) advanceChar();
+    unsigned cp = 0;
+    int digits = 0;
+    while (pos < source.size() && std::isxdigit(static_cast<unsigned char>(source[pos])) && digits < (braced ? 6 : 4)) {
+        char ch = source[pos];
+        cp = cp * 16 + static_cast<unsigned>(std::isdigit(static_cast<unsigned char>(ch)) ? ch - '0' : (std::tolower(ch) - 'a' + 10));
+        ++digits;
+        advanceChar();
+    }
+    bool closed = !braced || (pos < source.size() && source[pos] == '}');
+    if (braced && closed) advanceChar();
+    // A UTF-16 surrogate pair written as two escapes, as JSON and Java write emoji.
+    if (!braced && digits == 4 && cp >= 0xD800 && cp <= 0xDBFF && pos + 5 < source.size() &&
+        source[pos] == '\\' && source[pos + 1] == 'u') {
+        unsigned low = 0;
+        bool hex = true;
+        for (size_t i = 2; i < 6; ++i) {
+            char ch = source[pos + i];
+            if (!std::isxdigit(static_cast<unsigned char>(ch))) { hex = false; break; }
+            low = low * 16 + static_cast<unsigned>(std::isdigit(static_cast<unsigned char>(ch)) ? ch - '0' : (std::tolower(ch) - 'a' + 10));
+        }
+        if (hex && low >= 0xDC00 && low <= 0xDFFF) {
+            for (int i = 0; i < 6; ++i) advanceChar();
+            cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
+        }
+    }
+    bool valid = closed && digits > 0 && (braced || digits == 4) && cp <= 0x10FFFF && (cp < 0xD800 || cp > 0xDFFF);
+    if (!valid) {
+        std::string msg = "Invalid \\u escape in string literal";
+        if (!collectDiagnostics) throw std::runtime_error("Syntax Error: " + msg + " at line " + std::to_string(literalStart.line));
+        diagnostics.push_back({DiagnosticSeverity::Error, msg, {literalStart, currentPosition()}});
+        return "";
+    }
+    std::string out;
+    appendUtf8(out, cp);
+    return out;
 }
 
 Lexer::Lexer(std::string src, bool collectDiags)
@@ -178,10 +237,16 @@ std::vector<Token> Lexer::tokenize() {
                 if (source[pos] == '\\' && pos + 1 < source.length()) {
                     advanceChar(); // consume backslash
                     char escaped = source[pos];
+                    if (escaped == 'u') {
+                        advanceChar();
+                        str += unicodeEscape(startPos);
+                        continue;
+                    }
                     switch (escaped) {
                         case 'n': str += '\n'; break;
                         case 't': str += '\t'; break;
                         case 'r': str += '\r'; break;
+                        case '0': str += '\0'; break;
                         case '\\': str += '\\'; break;
                         case '"': str += '"'; break;
                         default: str += escaped; break;
@@ -214,55 +279,9 @@ std::vector<Token> Lexer::tokenize() {
             SourceRange range{startPos, endPos};
 
             TokenType type = TokenType::IDENTIFIER;
-            if (id.find('_') != std::string::npos) {
-                // Builtins with underscore
-                if (id == "read_file") type = TokenType::READ_FILE;
-                else if (id == "json_get") type = TokenType::JSON_GET;
-                else if (id == "str_contains") type = TokenType::STR_CONTAINS;
-                else if (id == "str_to_int") type = TokenType::STR_TO_INT;
-                else if (id == "server_start") type = TokenType::SERVER_START;
-                else if (id == "server_stop") type = TokenType::SERVER_STOP;
-                else if (id == "route_get") type = TokenType::ROUTE_GET;
-                else if (id == "route_post") type = TokenType::ROUTE_POST;
-                else if (id == "send_response") type = TokenType::SEND_RESPONSE;
-                else type = TokenType::IDENTIFIER;
+            for (const auto& keyword : keywords) {
+                if (id == keyword.text) { type = keyword.type; break; }
             }
-            else if (id == "print") type = TokenType::PRINT;
-            else if (id == "input") type = TokenType::INPUT;
-            else if (id == "round") type = TokenType::ROUND;
-            else if (id == "random") type = TokenType::RANDOM;
-            else if (id == "fox") type = TokenType::FOX;
-            else if (id == "readfile") type = TokenType::READ_FILE;
-            else if (id == "int") type = TokenType::INT_KW;
-            else if (id == "float") type = TokenType::FLOAT_KW;
-            else if (id == "string") type = TokenType::STRING_KW;
-            else if (id == "bool") type = TokenType::BOOL_KW;
-            else if (id == "void") type = TokenType::VOID_KW;
-            else if (id == "true") type = TokenType::TRUE_KW;
-            else if (id == "false") type = TokenType::FALSE_KW;
-            else if (id == "while") type = TokenType::WHILE;
-            else if (id == "for") type = TokenType::FOR;
-            else if (id == "if") type = TokenType::IF;
-            else if (id == "else") type = TokenType::ELSE;
-            else if (id == "switch") type = TokenType::SWITCH;
-            else if (id == "case") type = TokenType::CASE;
-            else if (id == "default") type = TokenType::DEFAULT;
-            else if (id == "break") type = TokenType::BREAK;
-            else if (id == "continue") type = TokenType::CONTINUE;
-            else if (id == "wait") type = TokenType::WAIT;
-            else if (id == "array") type = TokenType::ARRAY;
-            else if (id == "set") type = TokenType::SET;
-            else if (id == "include") type = TokenType::INCLUDE;
-            else if (id == "using") type = TokenType::USING;
-            else if (id == "return") type = TokenType::RETURN;
-            else if (id == "global") type = TokenType::GLOBAL;
-            else if (id == "httpget") type = TokenType::HTTP_GET;
-            else if (id == "httppost") type = TokenType::HTTP_POST;
-            else if (id == "httpput") type = TokenType::HTTP_PUT;
-            else if (id == "httpdelete") type = TokenType::HTTP_DELETE;
-            else if (id == "getch") type = TokenType::GETCH;
-            else if (id == "kbhit") type = TokenType::KBHIT;
-            else type = TokenType::IDENTIFIER;
 
             tokens.push_back({type, id, startPos.line, startPos.column, range});
         } 
@@ -296,6 +315,16 @@ std::vector<Token> Lexer::tokenize() {
             if (current == '+' && pos + 1 < source.length() && source[pos + 1] == '=') {
                 advanceChar(); advanceChar();
                 tokens.push_back({TokenType::PLUS_ASSIGN, "+=", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
+            }
+            if (current == '-' && pos + 1 < source.length() && source[pos + 1] == '-') {
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::DEC, "--", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
+            }
+            if (current == '%' && pos + 1 < source.length() && source[pos + 1] == '=') {
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::MOD_ASSIGN, "%=", startPos.line, startPos.column, {startPos, currentPosition()}});
                 continue;
             }
             if (current == '-' && pos + 1 < source.length() && source[pos + 1] == '=') {
@@ -355,7 +384,7 @@ std::vector<Token> Lexer::tokenize() {
                         tokens.push_back({TokenType::ERROR, singleVal, startPos.line, startPos.column, {startPos, badEnd}});
                         continue;
                     } else {
-                        throw std::runtime_error(std::string("Runtime Error: Unknown character '") + current + "' at line " + std::to_string(startPos.line));
+                        throw std::runtime_error(std::string("Syntax Error: Unknown character '") + current + "' at line " + std::to_string(startPos.line));
                     }
             }
             advanceChar();

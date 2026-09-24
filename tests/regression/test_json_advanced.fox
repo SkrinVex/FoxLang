@@ -4,7 +4,7 @@ using json;
 void assert_true(bool cond, string msg) {
     if (!cond) {
         print("FAIL: " + msg);
-        string f = env_required("__ASSERT_FAIL__");
+        exit(1);
     }
 }
 
@@ -59,5 +59,33 @@ assert_true(json_path(deep_json, "a.b.c.d") == "999", "deeply nested path");
 
 // 7. Non-existent path returns empty string
 assert_true(json_path(deep_json, "a.b.nonexistent") == "", "missing path returns empty");
+
+// 8. Arrays: indexes in the path, counts and types
+string list_json = "{\"items\": [{\"name\": \"a\"}, {\"name\": \"б🦊\", \"tags\": [1, 2, 3]}], \"empty\": [], \"none\": null, \"ok\": true}";
+assert_true(json_path(list_json, "items.1.name") == "б🦊", "array index in a path");
+assert_true(json_path(list_json, "items[1].tags[2]") == "3", "bracket indexes");
+assert_true(json_path(list_json, "items.5.name") == "", "index past the end");
+assert_true(json_count_at(list_json, "items") == 2 && json_count_at(list_json, "items.1.tags") == 3, "json_count of arrays");
+assert_true(json_count_at(list_json, "") == 4 && json_count_at(list_json, "empty") == 0, "json_count of objects and empty arrays");
+assert_true(json_count_at(list_json, "ok") == -1 && json_count_at(list_json, "missing") == -1, "json_count of scalars and missing paths");
+assert_true(json_type_at(list_json, "items") == "array" && json_type_at(list_json, "items.0") == "object", "json_type containers");
+assert_true(json_type_at(list_json, "ok") == "bool" && json_type_at(list_json, "none") == "null", "json_type literals");
+assert_true(json_type_at(list_json, "items.0.name") == "string" && json_type_at(list_json, "items.1.tags.0") == "number", "json_type values");
+assert_true(json_type_at(list_json, "nope") == "", "json_type of a missing path");
+assert_true(json_path(list_json, "items.1.tags") == "[1, 2, 3]", "containers come back as JSON text");
+
+// 9. Iterating an array
+int total = 0;
+for (int i = 0; i < json_count_at(list_json, "items.1.tags"); i++) {
+    total += to_int(json_path(list_json, "items.1.tags." + i));
+}
+assert_true(total == 6, "loop over a JSON array");
+
+// 10. Building JSON safely
+assert_true(json_quote("Лис \"1\"\n") == "\"Лис \\\"1\\\"\\n\"", "json_quote");
+assert_true(json_safe("\u0001") == "\\u0001", "control characters are escaped");
+
+// 11. Malformed documents never crash, they simply have no value
+assert_true(json_path("{\"a\": ", "a") == "" && json_path("not json", "a") == "" && json_count_at("[1, 2", "") == -1, "malformed input");
 
 print("JSON_ADVANCED_OK");

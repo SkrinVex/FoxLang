@@ -24,6 +24,7 @@ private:
 
     void advanceChar();
     SourcePosition currentPosition() const;
+    std::string unicodeEscape(SourcePosition literalStart);
 };
 
 } // namespace foxlang

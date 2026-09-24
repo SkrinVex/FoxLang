@@ -1,0 +1,51 @@
+// Частотный словарь текста: foxlang examples/word_count.fox файл.txt [сколько]
+using fs;
+using os;
+using string;
+using arrays;
+
+void main() {
+    string file = arg_or(0, "");
+    if (file == "" || !exists(file)) {
+        print("Использование: foxlang word_count.fox <файл> [сколько слов показать]");
+        exit(2);
+    }
+    int top = to_int(arg_or(1, "10"));
+
+    string text = lower(read_file(file));
+    for (int i = 0; i < 12; i++) {
+        text = replace(text, substring(".,;:!?()\"«»\n", i, 1), " ");
+    }
+
+    array words;
+    array counts;
+    array all = split(text, " ");
+    for (int i = 0; i < size(all); i++) {
+        string word = trim(all[i]);
+        if (word == "") {
+            continue;
+        }
+        int at = find(words, word);
+        if (at < 0) {
+            push(words, word);
+            push(counts, 1);
+        } else {
+            counts[at] += 1;
+        }
+    }
+
+    // Выбираем самые частые слова, не сортируя пары вручную.
+    for (int shown = 0; shown < top && size(words) > 0; shown++) {
+        int best = 0;
+        for (int i = 1; i < size(counts); i++) {
+            if (counts[i] > counts[best]) {
+                best = i;
+            }
+        }
+        print(pad_left(to_string(counts[best]), 5, " ") + "  " + words[best]);
+        remove_at(words, best);
+        remove_at(counts, best);
+    }
+}
+
+main();

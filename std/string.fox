@@ -1,20 +1,38 @@
-// FoxLang 5.2 string helpers
-bool contains(string text, string needle) {
-    return str_contains(text, needle);
+//! Работа со строками. Позиции и длины считаются в символах, поэтому кириллица
+//! и emoji ведут себя так же, как латиница.
+
+bool contains(string text, string needle) { return str_contains(text, needle); }
+string replace(string text, string from, string to) { return str_replace(text, from, to); }
+int length(string text) { return str_length(text); }
+array split(string text, string delimiter) { return str_split(text, delimiter); }
+string join(array items, string separator) { return str_join(items, separator); }
+string upper(string text) { return str_upper(text); }
+string lower(string text) { return str_lower(text); }
+string trim(string text) { return str_trim(text); }
+bool starts_with(string text, string prefix) { return str_starts_with(text, prefix); }
+bool ends_with(string text, string suffix) { return str_ends_with(text, suffix); }
+int index_of(string text, string needle) { return str_index_of(text, needle); }
+string substring(string text, int start, int count) { return str_substring(text, start, count); }
+string repeat(string text, int count) { return str_repeat(text, count); }
+
+/// Дополняет строку символами `fill` слева до ширины `width` (в символах).
+///
+/// ```foxlang
+/// print(pad_left("7", 3, "0")); // 007
+/// ```
+string pad_left(string text, int width, string fill) {
+    int missing = width - str_length(text);
+    if (missing <= 0 || fill == "") {
+        return text;
+    }
+    return str_substring(str_repeat(fill, missing), 0, missing) + text;
 }
 
-string replace(string text, string from, string to) {
-    return str_replace(text, from, to);
-}
-
-int to_int(string text) {
-    return str_to_int(text);
-}
-
-int strtoint(string text) {
-    return str_to_int(text);
-}
-
-int length(string text) {
-    return str_length(text);
+/// Дополняет строку символами `fill` справа до ширины `width` (в символах).
+string pad_right(string text, int width, string fill) {
+    int missing = width - str_length(text);
+    if (missing <= 0 || fill == "") {
+        return text;
+    }
+    return text + str_substring(str_repeat(fill, missing), 0, missing);
 }

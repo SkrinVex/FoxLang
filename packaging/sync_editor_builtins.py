@@ -8,14 +8,25 @@ from pathlib import Path
 import re
 
 
-def function_names(root):
-    runtime = (root / "src/core/Runtime.cpp").read_text(encoding="utf-8")
-    catalog = runtime.split("static const std::unordered_set<std::string> builtins = {", 1)[1].split("};", 1)[0]
-    names = set(re.findall(r'"([a-z_]+)"', catalog)) | {"readfile", "set"}
+def builtin_names(root):
+    """Builtins as registered in the catalog: add({"name", ...}) and the graphics table."""
+    names = set()
+    for source in sorted((root / "src/core/builtins").glob("*.cpp")):
+        names.update(re.findall(r'add\(\{"([a-z_0-9]+)"', source.read_text(encoding="utf-8")))
     graphics = (root / "src/graphics/Builtins.cpp").read_text(encoding="utf-8")
     names.update(re.findall(r'\{"(gfx_[a-z_]+)"', graphics))
+    return names
+
+
+def module_exports(module):
+    """(result, name, parameters) of every function a std module defines."""
+    return re.findall(r"^(void|bool|int|float|string|array)\s+(\w+)\(([^)]*)\)", module.read_text(encoding="utf-8"), re.M)
+
+
+def function_names(root):
+    names = builtin_names(root)
     for module in (root / "std").glob("*.fox"):
-        names.update(re.findall(r"^(?:void|bool|int|float|string)\s+(\w+)\(", module.read_text(encoding="utf-8"), re.M))
+        names.update(name for _, name, _ in module_exports(module))
     return sorted(names)
 
 

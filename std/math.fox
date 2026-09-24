@@ -1,20 +1,52 @@
-// FoxLang 5.2 math helpers
+//! Математические константы и помощники поверх встроенных `sqrt`, `pow`, `sin`, `cos` и других.
+
+/// Число π.
+float PI = 3.141592653589793;
+
+/// Основание натурального логарифма e.
+float E = 2.718281828459045;
+
+/// Ограничивает число диапазоном от 0 до 1.
 float clamp01(float value) {
-    return clamp(value, 0, 1);
+    return clamp(value, 0.0, 1.0);
 }
 
-int min_int(int a, int b) {
-    return min(a, b);
-}
-
-int max_int(int a, int b) {
-    return max(a, b);
-}
-
+/// Длина вектора (x, y): корень из суммы квадратов.
+///
+/// ```foxlang
+/// float distance = hypot(bx - px, by - py);
+/// ```
 float hypot(float x, float y) {
     return sqrt(x * x + y * y);
 }
 
+/// Переводит градусы в радианы, которых ждут `sin` и `cos`.
 float radians(float degrees) {
-    return degrees * 0.017453292519943295;
+    return degrees * PI / 180.0;
+}
+
+/// Переводит радианы в градусы.
+float degrees(float radians) {
+    return radians * 180.0 / PI;
+}
+
+/// Линейная интерполяция: `a` при `t = 0`, `b` при `t = 1`.
+float lerp(float a, float b, float t) {
+    return a + (b - a) * t;
+}
+
+/// Знак числа: `-1`, `0` или `1`.
+int sign(float value) {
+    if (value > 0) {
+        return 1;
+    }
+    if (value < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+/// Чётно ли целое число.
+bool is_even(int value) {
+    return value % 2 == 0;
 }

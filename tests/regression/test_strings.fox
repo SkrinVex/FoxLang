@@ -1,0 +1,55 @@
+// FoxLang regression: string builtins and the string module, Unicode aware
+using string;
+
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+// 1. Length in characters vs bytes
+assert_true(length("Лисий отскок") == 12 && size("Лисий отскок") == 23, "length counts characters, size bytes");
+assert_true(length("🦊") == 1 && size("🦊") == 4, "emoji is one character");
+
+// 2. Search
+assert_true(contains("FoxLang Programming", "Lang") && !contains("FoxLang", "Python"), "contains");
+assert_true(starts_with("FoxLang", "Fox") && !starts_with("Fox", "FoxLang"), "starts_with");
+assert_true(ends_with("файл.fox", ".fox") && !ends_with("fox", "файл.fox"), "ends_with");
+assert_true(index_of("Привет, мир", "мир") == 8 && index_of("abc", "z") == -1, "index_of counts characters");
+assert_true(index_of("abc", "") == 0, "empty needle is found at the start");
+
+// 3. Substrings
+assert_true(substring("Привет, мир", 8, 3) == "мир", "substring in characters");
+assert_true(substring("abc", 1, 100) == "bc" && substring("abc", 5, 1) == "", "substring clamps to the text");
+assert_true(str_substring("Лиса", 2) == "са", "str_substring without length");
+
+// 4. Transformations
+assert_true(upper("Лиса fox Ёж") == "ЛИСА FOX ЁЖ", "upper handles Cyrillic and Ё");
+assert_true(lower("ЛИСА FOX ЁЖ") == "лиса fox ёж", "lower handles Cyrillic and Ё");
+assert_true(trim("  \t текст \n") == "текст" && trim("   ") == "", "trim");
+assert_true(replace("a-b-c", "-", "+") == "a+b+c" && replace("abc", "", "x") == "abc", "replace");
+assert_true(replace("aaa", "a", "aa") == "aaaaaa", "replace does not rescan inserted text");
+assert_true(repeat("ab", 3) == "ababab" && repeat("x", 0) == "", "repeat");
+assert_true(pad_left("7", 3, "0") == "007" && pad_right("ab", 5, ".") == "ab...", "padding");
+assert_true(pad_left("длинно", 3, "0") == "длинно", "padding never cuts");
+assert_true(pad_left("1", 4, "ab") == "aba1", "multi-character fill is trimmed to width");
+
+// 5. Split and join
+array words = split("мир лис код", " ");
+assert_true(size(words) == 3 && words[1] == "лис", "split");
+assert_true(join(words, ", ") == "мир, лис, код", "join");
+array edges = split(",a,", ",");
+assert_true(size(edges) == 3 && edges[0] == "" && edges[2] == "", "split keeps empty edges");
+
+// 6. Numbers in text
+assert_true(is_number("42") && is_number(" -3.5 ") && !is_number("4x") && !is_number(""), "is_number");
+assert_true(to_int("12345") == 12345 && to_int("7.9") == 7 && to_int(" -3 ") == -3, "to_int from text");
+assert_true(to_float("2.5") == 2.5, "to_float from text");
+assert_true(to_string(5) + to_string(true) == "5true", "to_string");
+
+// 7. Concatenation converts numbers and bools
+string label = "n=" + 5 + ", f=" + 0.5 + ", b=" + false;
+assert_true(label == "n=5, f=0.5, b=false", "concatenation");
+
+print("STRINGS_OK");

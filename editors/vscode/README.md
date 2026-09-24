@@ -15,37 +15,39 @@
   * Ключевые слова: `if`, `else`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `return`, `using`, `include`, `global`.
   * Типы: `int`, `float`, `string`, `bool`, `void`, `array`.
   * Константы: `true`, `false`, числа, строки с экранированием.
-  * Встроенные функции и функции стандартной библиотеки: `print`, `fox`, `input`, `round`, `random`, `json_get`, `http_get`, `server_start`, `listen` и др.
+  * Встроенные функции и функции стандартной библиотеки (`print`, `input`, `push`, `str_split`, `http_request`, `listen` и др.). Список генерируется из каталога встроенных функций и `std/*.fox` командой `python3 packaging/sync_editor_builtins.py`.
+  * Escape-последовательности в строках, включая `\u041b` и `\u{1F98A}`.
 * **Интеграция с Language Server (`foxlang-lsp`)**:
   * **Диагностика ошибок в реальном времени**: лексические, синтаксические и семантические ошибки с точным указанием строки и столбца (UTF-16 code units для корректной поддержки кириллицы и эмодзи).
   * **Автодополнение (Autocomplete)**: ключевые слова, функции stdlib и пользовательские переменные/функции в текущей области видимости.
   * **Информация при наведении (Hover)**: сигнатуры функций и типы переменных в блоках Markdown.
+  * **Подсказки параметров (Signature Help)**: активный аргумент при вводе `(` и `,`, включая необязательные параметры встроенных функций.
   * **Переход к определению (Go to Definition)**: `F12` или `Ctrl+Click` для перехода к месту объявления.
   * **Символы документа (Document Symbols)**: навигация по структуре файла (`Ctrl+Shift+O`).
 
 ## Установка и запуск
 
-### Способ 1. Установка из репозитория (в 1 команду)
-1. Скопируйте каталог расширения в директорию расширений VS Code:
-   ```bash
-   mkdir -p ~/.vscode/extensions
-   cp -r editors/vscode ~/.vscode/extensions/foxlang
-   ```
-2. Установите зависимости клиента LSP:
-   ```bash
-   cd ~/.vscode/extensions/foxlang && npm install
-   ```
-3. Перезапустите VS Code или выполните команду `Developer: Reload Window` (`Ctrl+Shift+P`).
+Расширение не требует `npm install`: клиент LSP написан без внешних зависимостей.
+Отдельно нужен исполняемый файл `foxlang-lsp` — из пакета выпуска или из сборки проекта.
 
-### Способ 2. Загрузка готового архива из релиза
-Готовый архив расширения доступен на странице релизов:
-👉 **[foxlang-vscode.zip](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip)**
-
-Распакуйте его в `~/.vscode/extensions/foxlang`:
+### Способ 1. Пакет VSIX из выпуска
+Скачайте [`foxlang.vsix`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.vsix) и установите:
 ```bash
-mkdir -p ~/.vscode/extensions/foxlang
-curl -L -o /tmp/foxlang-vscode.zip https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip
-unzip /tmp/foxlang-vscode.zip -d ~/.vscode/extensions/
+code --install-extension foxlang.vsix
+```
+
+### Способ 2. Каталог из репозитория
+```bash
+mkdir -p ~/.vscode/extensions
+cp -r editors/vscode ~/.vscode/extensions/SkrinVex.foxlang-language
+```
+Затем перезапустите VS Code или выполните `Developer: Reload Window` (`Ctrl+Shift+P`).
+
+### Способ 3. Архив из выпуска
+[`foxlang-vscode.zip`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip) содержит тот же каталог:
+```bash
+curl -L -o foxlang-vscode.zip https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip
+unzip foxlang-vscode.zip -d ~/.vscode/extensions/
 ```
 
 ### Настройка пути к `foxlang-lsp`

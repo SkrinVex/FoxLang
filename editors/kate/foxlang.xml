@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE language SYSTEM "language.dtd">
-<language name="FoxLang" version="4" kateversion="5.0" section="Sources"
+<language name="FoxLang" version="5" kateversion="5.0" section="Sources"
           extensions="*.fox" mimetype="text/x-foxlang" author="SkrinVex" license="MIT">
   <highlighting>
     <list name="controlflow">
@@ -14,7 +14,6 @@
       <item>break</item>
       <item>continue</item>
       <item>return</item>
-      <item>wait</item>
     </list>
     <list name="directives">
       <item>using</item>
@@ -37,32 +36,61 @@
     </list>
     <list name="builtins">
       <item>abs</item>
+      <item>acos</item>
       <item>append_file</item>
+      <item>arg_or</item>
+      <item>args</item>
+      <item>array_copy</item>
+      <item>array_index_of</item>
+      <item>array_reverse</item>
+      <item>array_slice</item>
+      <item>array_sort</item>
+      <item>asin</item>
+      <item>atan</item>
+      <item>atan2</item>
       <item>body</item>
       <item>ceil</item>
       <item>clamp</item>
       <item>clamp01</item>
       <item>clear</item>
       <item>clear_window</item>
+      <item>clock_ms</item>
       <item>close_tcp</item>
       <item>close_window</item>
       <item>color</item>
       <item>connect_tcp</item>
       <item>contains</item>
+      <item>copy_array</item>
       <item>cos</item>
+      <item>cwd</item>
       <item>debug</item>
+      <item>degrees</item>
+      <item>delete</item>
       <item>dns_lookup</item>
       <item>draw_circle</item>
       <item>draw_rect</item>
       <item>draw_text</item>
+      <item>ends_with</item>
       <item>env</item>
       <item>env_default</item>
       <item>env_get</item>
       <item>env_required</item>
+      <item>env_set</item>
       <item>error</item>
+      <item>exists</item>
+      <item>exit</item>
+      <item>exp</item>
+      <item>file_size</item>
+      <item>find</item>
       <item>floor</item>
-      <item>fox</item>
+      <item>format_time</item>
       <item>frame_delta</item>
+      <item>fs_exists</item>
+      <item>fs_is_dir</item>
+      <item>fs_list</item>
+      <item>fs_make_dir</item>
+      <item>fs_remove</item>
+      <item>fs_size</item>
       <item>get</item>
       <item>getch</item>
       <item>gfx_circle</item>
@@ -81,83 +109,138 @@
       <item>gfx_rgb</item>
       <item>gfx_text</item>
       <item>goto_xy</item>
+      <item>header</item>
       <item>hide_cursor</item>
       <item>home</item>
-      <item>http_fetch</item>
+      <item>http_delete</item>
       <item>http_get</item>
-      <item>http_post_as</item>
+      <item>http_ok</item>
+      <item>http_patch</item>
+      <item>http_post</item>
       <item>http_post_json</item>
+      <item>http_put</item>
       <item>http_put_json</item>
-      <item>http_remove</item>
-      <item>httpdelete</item>
-      <item>httpget</item>
-      <item>httppost</item>
-      <item>httpput</item>
+      <item>http_request</item>
+      <item>http_status</item>
       <item>hypot</item>
+      <item>includes</item>
+      <item>index_of</item>
       <item>info</item>
       <item>input</item>
+      <item>insert</item>
+      <item>is_dir</item>
+      <item>is_even</item>
+      <item>is_number</item>
+      <item>join</item>
+      <item>json_count</item>
+      <item>json_count_at</item>
       <item>json_escape</item>
       <item>json_get</item>
       <item>json_path</item>
+      <item>json_quote</item>
       <item>json_safe</item>
+      <item>json_type</item>
+      <item>json_type_at</item>
       <item>kbhit</item>
       <item>key_down</item>
       <item>key_pressed</item>
       <item>length</item>
+      <item>lerp</item>
+      <item>list_dir</item>
       <item>listen</item>
       <item>listen_tls</item>
+      <item>log</item>
+      <item>log10</item>
       <item>log_debug</item>
       <item>log_error</item>
       <item>log_info</item>
       <item>log_warn</item>
+      <item>lower</item>
+      <item>make_dir</item>
       <item>max</item>
-      <item>max_int</item>
       <item>method</item>
       <item>min</item>
-      <item>min_int</item>
       <item>mouse_x</item>
       <item>mouse_y</item>
+      <item>now_text</item>
       <item>open_window</item>
+      <item>os_args</item>
+      <item>os_cwd</item>
+      <item>os_platform</item>
+      <item>pad_left</item>
+      <item>pad_right</item>
       <item>path</item>
+      <item>platform</item>
+      <item>pop</item>
       <item>post</item>
       <item>pow</item>
       <item>present_window</item>
       <item>print</item>
+      <item>push</item>
+      <item>put</item>
+      <item>query</item>
       <item>radians</item>
       <item>random</item>
+      <item>random_float</item>
+      <item>range</item>
       <item>read_file</item>
-      <item>readfile</item>
+      <item>read_lines</item>
       <item>recv_tcp</item>
+      <item>remove_at</item>
+      <item>remove_path</item>
+      <item>repeat</item>
       <item>replace</item>
       <item>request_body</item>
+      <item>request_header</item>
       <item>request_method</item>
       <item>request_path</item>
+      <item>request_query</item>
       <item>reset_color</item>
+      <item>resize</item>
       <item>resolve_host</item>
       <item>respond</item>
+      <item>respond_as</item>
       <item>respond_status</item>
+      <item>reverse</item>
       <item>rgb</item>
       <item>round</item>
-      <item>route_get</item>
-      <item>route_post</item>
+      <item>route</item>
       <item>secret</item>
-      <item>send_response</item>
       <item>send_tcp</item>
-      <item>server_start</item>
-      <item>server_start_tls</item>
+      <item>server_listen</item>
+      <item>server_listen_tls</item>
+      <item>server_respond</item>
+      <item>server_route</item>
       <item>server_stop</item>
       <item>set</item>
+      <item>set_env</item>
       <item>show_cursor</item>
+      <item>sign</item>
       <item>sin</item>
       <item>size</item>
       <item>sleep_ms</item>
+      <item>slice</item>
+      <item>sort</item>
+      <item>split</item>
       <item>sqrt</item>
+      <item>starts_with</item>
+      <item>stop_server</item>
       <item>str_contains</item>
+      <item>str_ends_with</item>
+      <item>str_index_of</item>
+      <item>str_join</item>
       <item>str_length</item>
+      <item>str_lower</item>
+      <item>str_repeat</item>
       <item>str_replace</item>
       <item>str_split</item>
-      <item>str_to_int</item>
-      <item>strtoint</item>
+      <item>str_starts_with</item>
+      <item>str_substring</item>
+      <item>str_trim</item>
+      <item>str_upper</item>
+      <item>substring</item>
+      <item>sum</item>
+      <item>tan</item>
       <item>tcp_close</item>
       <item>tcp_connect</item>
       <item>tcp_recv</item>
@@ -170,15 +253,23 @@
       <item>term_reset</item>
       <item>term_show_cursor</item>
       <item>term_write</item>
-      <item>time_ms</item>
+      <item>time_format</item>
+      <item>time_now_ms</item>
+      <item>to_float</item>
       <item>to_int</item>
+      <item>to_string</item>
+      <item>trim</item>
+      <item>type_of</item>
       <item>unix_time_ms</item>
+      <item>upper</item>
+      <item>uptime_ms</item>
       <item>wait</item>
       <item>warn</item>
       <item>window_focused</item>
       <item>window_poll</item>
       <item>write</item>
       <item>write_file</item>
+      <item>write_lines</item>
     </list>
 
     <contexts>
@@ -234,11 +325,11 @@
 
       <context name="StringEscape" attribute="Char" lineEndContext="#pop">
         <Detect2Chars char="\" char1="u" attribute="Char" context="UnicodeEscape"/>
-        <AnyChar String="&quot;\/bfnrt" attribute="Char" context="#pop"/>
+        <AnyChar String="&quot;\/bfnrt0" attribute="Char" context="#pop"/>
       </context>
 
       <context name="UnicodeEscape" attribute="Char" lineEndContext="#pop" fallthrough="true" fallthroughContext="#pop">
-        <RegExpr String="[0-9a-fA-F]{4}" attribute="Char" context="#pop#pop"/>
+        <RegExpr String="[0-9a-fA-F]{4}|\{[0-9a-fA-F]{1,6}\}" attribute="Char" context="#pop#pop"/>
       </context>
     </contexts>
 

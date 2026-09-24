@@ -1,0 +1,83 @@
+// REST API заметок в памяти: GET, POST, PUT, DELETE, query-строка и заголовки.
+//   curl localhost:8080/notes
+//   curl -X POST localhost:8080/notes -d '{"text":"купить молоко"}'
+//   curl -X PUT 'localhost:8080/notes?id=0' -d '{"text":"купить кефир"}'
+//   curl -X DELETE 'localhost:8080/notes?id=0'
+using server;
+using json;
+using string;
+using env;
+using log;
+
+array notes;
+
+string notes_json() {
+    array items;
+    for (int i = 0; i < size(notes); i++) {
+        push(items, "{\"id\":" + i + ",\"text\":" + json_quote(notes[i]) + "}");
+    }
+    return "[" + join(items, ",") + "]";
+}
+
+// Номер заметки из ?id=N или -1, если его нет или он неверный.
+int requested_id() {
+    string text = replace(query(), "id=", "");
+    if (!is_number(text)) {
+        return -1;
+    }
+    int id = to_int(text);
+    if (id < 0 || id >= size(notes)) {
+        return -1;
+    }
+    return id;
+}
+
+void list_notes() {
+    respond(notes_json());
+}
+
+void create_note() {
+    string text = json_path(body(), "text");
+    if (trim(text) == "") {
+        respond_status(400, "{\"error\":\"нужно поле text\"}");
+        return;
+    }
+    push(notes, text);
+    info("новая заметка от " + header("User-Agent"));
+    respond_status(201, notes_json());
+}
+
+void update_note() {
+    int id = requested_id();
+    if (id < 0) {
+        respond_status(404, "{\"error\":\"нет такой заметки\"}");
+        return;
+    }
+    notes[id] = json_path(body(), "text");
+    respond(notes_json());
+}
+
+void delete_note() {
+    int id = requested_id();
+    if (id < 0) {
+        respond_status(404, "{\"error\":\"нет такой заметки\"}");
+        return;
+    }
+    remove_at(notes, id);
+    respond_status(204, "");
+}
+
+void home() {
+    respond_as(200, "<h1>FoxLang REST 🦊</h1><p>Заметок: " + size(notes) + "</p>", "text/html; charset=utf-8");
+}
+
+void main() {
+    get("/", "home");
+    get("/notes", "list_notes");
+    post("/notes", "create_note");
+    put("/notes", "update_note");
+    delete("/notes", "delete_note");
+    listen(to_int(env_default("PORT", "8080")));
+}
+
+main();

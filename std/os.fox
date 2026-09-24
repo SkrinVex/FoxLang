@@ -1,0 +1,19 @@
+//! Сведения о процессе: аргументы командной строки, операционная система, рабочий каталог.
+//! Завершение с кодом возврата — встроенная `exit(code)`.
+
+array args() { return os_args(); }
+string platform() { return os_platform(); }
+string cwd() { return os_cwd(); }
+
+/// Аргумент командной строки по номеру (с нуля) или `fallback`, если его нет.
+///
+/// ```foxlang
+/// string name = arg_or(0, "мир");
+/// ```
+string arg_or(int index, string fallback) {
+    array list = os_args();
+    if (index < 0 || index >= size(list)) {
+        return fallback;
+    }
+    return list[index];
+}

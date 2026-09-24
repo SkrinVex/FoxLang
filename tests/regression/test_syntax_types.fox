@@ -2,7 +2,7 @@
 void assert_true(bool cond, string msg) {
     if (!cond) {
         print("FAIL: " + msg);
-        string f = env_required("__ASSERT_FAIL__");
+        exit(1);
     }
 }
 
@@ -36,5 +36,34 @@ assert_true(fconcat == "Float: 2.5", "string float concat");
 // 4. Void function
 void do_nothing() {}
 do_nothing();
+
+// 5. Any scalar can be stored in a string; float and int convert both ways
+string text = 5;
+text = true;
+assert_true(text == "true", "bool stored in a string");
+int from_float = 7.9;
+from_float = -7.9;
+assert_true(from_float == -7, "float to int truncates toward zero");
+
+// 6. Parameters and return values are converted to their declared types
+float half(int value) {
+    return value / 2;
+}
+assert_true(half(7) == 3 && type_of(half(7)) == "float", "int result stored as float");
+string describe(string value) {
+    return "<" + value + ">";
+}
+assert_true(describe(42) == "<42>", "int argument for a string parameter");
+int truncate(float value) {
+    return value;
+}
+assert_true(truncate(2.9) == 2, "float return value narrowed to int");
+
+// 7. Literals
+assert_true(-2147483648 == -2147483647 - 1, "smallest int literal");
+assert_true("a" "b" "c" == "abc", "adjacent string literals join");
+assert_true("\u041b\u0438\u0441" == "Лис" && "\u{1F98A}" == "🦊" && "\uD83E\uDD8A" == "🦊", "unicode escapes");
+assert_true(size("\0") == 1, "NUL escape");
+assert_true(type_of(1.0) == "float" && type_of(1) == "int" && type_of("1") == "string" && type_of([1]) == "array", "type_of");
 
 print("SYNTAX_TYPES_OK");

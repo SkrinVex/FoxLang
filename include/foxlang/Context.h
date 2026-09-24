@@ -11,6 +11,7 @@ namespace foxlang {
 struct Node;
 class Interpreter;
 namespace graphics { class Window; }
+namespace platform { struct ServerState; }
 
 struct FuncParam {
     std::string type;
@@ -91,6 +92,12 @@ struct ReturnValue {
 struct BreakException {};
 struct ContinueException {};
 
+// exit(code) unwinds the whole program; it is deliberately not a std::exception,
+// so handlers that report runtime errors never swallow it.
+struct ExitRequest {
+    int code = 0;
+};
+
 struct Context {
     Context* parent = nullptr;
     Interpreter* interpreter = nullptr;
@@ -101,15 +108,14 @@ struct Context {
     // passed to a function. This scope owns the ones declared in it and frees them.
     std::vector<std::string> ownedArrays;
     std::shared_ptr<graphics::Window> graphics;
+    std::shared_ptr<platform::ServerState> server;
 
     Context() = default;
     ~Context();
     Context(const Context&) = delete;
     Context& operator=(const Context&) = delete;
 
-    bool exists(const std::string& name) const;
     Value getVar(const std::string& name) const;
-    std::vector<Value>& getArray(const std::string& name);
     Context* getRoot();
     const Context* getRoot() const;
 
@@ -120,15 +126,14 @@ struct Context {
     void setVar(const std::string& name, Value val);
 
     std::string declareArray(const std::string& name, size_t size);
+    // Stores a new array that this scope owns: a builtin's result, a literal or a
+    // value returned from a function. It is freed when the scope ends.
+    std::string newArray(std::vector<Value> items);
+    std::vector<Value>& arrayOf(const Value& value, const std::string& what);
+    // The elements of an array value: moved out when it is a temporary this scope
+    // owns (a literal, a builtin result, a returned array), copied otherwise.
+    std::vector<Value> takeArray(const Value& value, const std::string& what);
     void releaseArrays();
 };
 
 } // namespace foxlang
-
-// Compatibility aliases
-using foxlang::FuncParam;
-using foxlang::Value;
-using foxlang::ReturnValue;
-using foxlang::BreakException;
-using foxlang::ContinueException;
-using foxlang::Context;

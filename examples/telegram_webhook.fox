@@ -1,3 +1,5 @@
+// Telegram-бот на webhook: Telegram присылает обновления POST-запросом на /telegram.
+// TELEGRAM_BOT_TOKEN=... PORT=8080 foxlang examples/telegram_webhook.fox
 using server;
 using http;
 using env;
@@ -8,12 +10,12 @@ string token = secret("TELEGRAM_BOT_TOKEN");
 string api = "https://api.telegram.org/bot" + token + "/";
 
 void send_message(string chat_id, string message) {
-    string payload = "{\"chat_id\":\"" + json_safe(chat_id) + "\",\"text\":\"" + json_safe(message) + "\"}";
+    string payload = "{\"chat_id\":" + json_quote(chat_id) + ",\"text\":" + json_quote(message) + "}";
     string result = http_post_json(api + "sendMessage", payload);
-    if (result == "") {
-        error("Telegram sendMessage завершился ошибкой");
-    } else {
+    if (http_ok()) {
         debug("Telegram sendMessage: " + result);
+    } else {
+        error("Telegram sendMessage: статус " + http_status());
     }
 }
 
@@ -61,8 +63,9 @@ void main() {
     get("/health", "health");
     post("/telegram", "telegram_webhook");
     info("Маршруты: GET /health, POST /telegram");
-    info("Слушаю 0.0.0.0:8080");
-    listen(8080);
+    int port = to_int(env_default("PORT", "8080"));
+    info("Слушаю 0.0.0.0:" + port);
+    listen(port);
 }
 
 main();

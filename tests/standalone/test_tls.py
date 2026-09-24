@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix="fox-https-test-") as temporary:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            s.source("main.fox", 'using http; using env; print(http_fetch(env("FOX_TEST_URL")));')
+            s.source("main.fox", 'using http; using env; print(http_get(env("FOX_TEST_URL")));')
             s.build()
             s.isolate()
             env = dict(s.env, FOX_TEST_URL=f"https://localhost:{server.server_port}/", NO_PROXY="localhost,127.0.0.1")

@@ -1,0 +1,34 @@
+// Нативное окно: мяч отскакивает от стен, стрелки меняют скорость, Esc закрывает.
+using graphics;
+using math;
+
+void main() {
+    int width = 640;
+    int height = 400;
+    open_window(width, height, "FoxLang: мяч");
+    float x = 100.0;
+    float y = 100.0;
+    float dx = 180.0;
+    float dy = 140.0;
+    int radius = 20;
+    while (window_poll()) {
+        if (key_pressed("ESCAPE")) {
+            break;
+        }
+        if (key_down("RIGHT")) { dx += 10; }
+        if (key_down("LEFT")) { dx -= 10; }
+        float dt = frame_delta();
+        x += dx * dt;
+        y += dy * dt;
+        if (x < radius || x > width - radius) { dx = -dx; x = clamp(x, radius, width - radius); }
+        if (y < radius || y > height - radius) { dy = -dy; y = clamp(y, radius, height - radius); }
+
+        clear_window(rgb(20, 24, 36));
+        draw_circle(round(x), round(y), radius, rgb(255, 140, 0));
+        draw_text(12, 12, "Скорость " + round(hypot(dx, dy)), 2, rgb(240, 240, 240));
+        present_window();
+    }
+    close_window();
+}
+
+main();

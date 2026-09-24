@@ -2,65 +2,38 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
-#include <typeinfo>
 #include <filesystem>
 
 namespace foxlang {
 
-void executeIncludeHook(const std::string& path, Context& ctx, const std::string& currentFile, bool importOnly) {
-    if (ctx.interpreter) {
-        ctx.interpreter->executeInclude(path, currentFile, importOnly);
-    } else {
-        // Fallback standalone include execution
-        std::string fullPath = runtime::resolveFoxFile(path, currentFile, "");
-        std::ifstream file(fullPath);
-        if (!file.is_open()) {
-            throw std::runtime_error("Module Error: Cannot open file '" + fullPath + "'");
-        }
-        std::stringstream buffer;
-        buffer << file.rdbuf();
+namespace {
 
-        Lexer lexer(buffer.str());
-        Parser parser(lexer.tokenize(), fullPath);
-        auto program = parser.parseProgram();
+bool isDeclaration(const Node* stmt) {
+    return dynamic_cast<const FuncDefNode*>(stmt) || dynamic_cast<const VarDeclNode*>(stmt) ||
+           dynamic_cast<const ArrayDeclNode*>(stmt) || dynamic_cast<const UsingNode*>(stmt) ||
+           dynamic_cast<const IncludeNode*>(stmt);
+}
 
-        for (auto& stmt : program->stmts) {
-            if (!stmt) continue;
-            if (importOnly) {
-                if (dynamic_cast<FuncDefNode*>(stmt.get()) ||
-                    dynamic_cast<VarDeclNode*>(stmt.get()) ||
-                    dynamic_cast<GlobalVarDeclNode*>(stmt.get()) ||
-                    dynamic_cast<UsingNode*>(stmt.get()) ||
-                    dynamic_cast<IncludeNode*>(stmt.get())) {
-                    stmt->eval(ctx);
-                }
-            } else {
-                stmt->eval(ctx);
-            }
-        }
+// Imports bring in declarations; calls on a module's top level are its own demo code.
+void runModule(BlockNode& program, Context& ctx, bool importOnly) {
+    for (auto& stmt : program.stmts) {
+        if (stmt && (!importOnly || isDeclaration(stmt.get()))) stmt->eval(ctx);
     }
 }
 
+Interpreter& interpreterOf(Context& ctx) {
+    if (!ctx.interpreter) throw std::runtime_error("Module Error: imports need an Interpreter");
+    return *ctx.interpreter;
+}
+
+} // namespace
+
+void executeIncludeHook(const std::string& path, Context& ctx, const std::string& currentFile, bool importOnly) {
+    interpreterOf(ctx).executeInclude(path, currentFile, importOnly);
+}
+
 void executeUsingHook(const std::string& libName, Context& ctx, const std::string& currentFile) {
-    if (ctx.interpreter) {
-        ctx.interpreter->executeUsing(libName, currentFile);
-    } else {
-        std::string module = libName;
-        if (module.size() < 4 || module.substr(module.size() - 4) != ".fox") {
-            module += ".fox";
-        }
-        std::vector<std::string> candidates = {"std/" + module, module};
-        std::string lastError;
-        for (const auto& candidate : candidates) {
-            try {
-                executeIncludeHook(candidate, ctx, currentFile, true);
-                return;
-            } catch (const std::runtime_error& e) {
-                lastError = e.what();
-            }
-        }
-        throw std::runtime_error("Module Error: Module '" + libName + "' not found. " + lastError);
-    }
+    interpreterOf(ctx).executeUsing(libName, currentFile);
 }
 
 Interpreter::Interpreter() : Interpreter(InterpreterOptions{}) {}
@@ -84,6 +57,7 @@ const Context& Interpreter::getContext() const {
 
 void Interpreter::reset() {
     globalContext.graphics.reset();
+    globalContext.server.reset();
     globalContext.releaseArrays();
     globalContext.variables.clear();
     globalContext.functions.clear();
@@ -113,21 +87,7 @@ void Interpreter::executeModule(const std::string& fullPath, bool importOnly) {
     Parser parser(lexer.tokenize(), fullPath);
     auto program = parser.parseProgram();
     loadedModules.insert(fullPath);
-
-    for (auto& stmt : program->stmts) {
-        if (!stmt) continue;
-        if (importOnly) {
-            if (dynamic_cast<FuncDefNode*>(stmt.get()) ||
-                dynamic_cast<VarDeclNode*>(stmt.get()) ||
-                dynamic_cast<GlobalVarDeclNode*>(stmt.get()) ||
-                dynamic_cast<UsingNode*>(stmt.get()) ||
-                dynamic_cast<IncludeNode*>(stmt.get())) {
-                stmt->eval(globalContext);
-            }
-        } else {
-            stmt->eval(globalContext);
-        }
-    }
+    runModule(*program, globalContext, importOnly);
 }
 
 void Interpreter::executeUsing(const std::string& libName, const std::string& currentFile) {
@@ -167,6 +127,10 @@ RunResult Interpreter::runSource(const std::string& source, const std::string& s
         loadedModules.insert(scriptPath);
         program->eval(globalContext);
         return {true, 0, ""};
+    } catch (const ExitRequest& request) {
+        return {request.code == 0, request.code, ""};
+    } catch (const ReturnValue&) {
+        return {false, 1, withLine("Runtime Error: 'return' outside of a function")};
     } catch (const BreakException&) {
         return {false, 1, "Runtime Error: 'break' outside of loop in global scope"};
     } catch (const ContinueException&) {

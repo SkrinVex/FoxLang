@@ -1,0 +1,47 @@
+// Список дел в файле: foxlang examples/todo.fox add "купить хлеб" | list | done 1
+using arrays;
+using fs;
+using os;
+using string;
+
+string store = "todo.txt";
+
+void show(array items) {
+    if (size(items) == 0) {
+        print("Список пуст.");
+        return;
+    }
+    for (int i = 0; i < size(items); i++) {
+        print(pad_left(to_string(i + 1), 3, " ") + ". " + items[i]);
+    }
+}
+
+void main() {
+    array items = read_lines(store);
+    string command = arg_or(0, "list");
+    if (command == "add") {
+        string text = trim(join(slice(args(), 1, size(args())), " "));
+        if (text == "") {
+            print("Что добавить?");
+            exit(2);
+        }
+        push(items, text);
+        write_lines(store, items);
+        print("Добавлено: " + text);
+    } else if (command == "done") {
+        string number = arg_or(1, "");
+        if (!is_number(number) || to_int(number) < 1 || to_int(number) > size(items)) {
+            print("Укажи номер от 1 до " + size(items) + ".");
+            exit(2);
+        }
+        print("Готово: " + remove_at(items, to_int(number) - 1));
+        write_lines(store, items);
+    } else if (command == "list") {
+        show(items);
+    } else {
+        print("Команды: add <текст>, list, done <номер>");
+        exit(2);
+    }
+}
+
+main();

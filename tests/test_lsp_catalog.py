@@ -3,6 +3,7 @@
 No FoxLang code is executed: graphics, network and filesystem calls are analyzed
 in an empty directory without DISPLAY, stdlib files or a FoxLang installation.
 """
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -49,18 +50,18 @@ def signature(doc, prefix, name, argument, params=None, result=None):
 
 
 request("initialize", dict(capabilities={}))
-runtime = (root / "src/core/Runtime.cpp").read_text(encoding="utf-8")
-catalog = runtime.split("static const std::unordered_set<std::string> builtins = {", 1)[1].split("};", 1)[0]
-builtins = set(re.findall(r'"([a-z_]+)"', catalog)) | {"readfile", "set"}
-graphics = (root / "src/graphics/Builtins.cpp").read_text(encoding="utf-8")
-builtins.update(re.findall(r'\{"(gfx_[a-z_]+)"', graphics))
+spec = importlib.util.spec_from_file_location("sync_editor_builtins", root / "packaging/sync_editor_builtins.py")
+catalog = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(catalog)
+builtins = catalog.builtin_names(root)
+assert len(builtins) > 100, "builtin catalog was not found in src/core/builtins"
 modules = sorted((root / "std").glob("*.fox"))
 keywords = set("if else while for switch case default break continue return using include global int float string bool void true false array".split())
 base = document("builtins", "", valid=True)
 completion(base, builtins | keywords | {module.stem for module in modules}, {
     "write_file": "-> bool", "append_file": "-> bool", "str_split": "-> array",
-    "server_start": "-> void", "server_stop": "-> void", "route_get": "-> void",
-    "route_post": "-> void", "size": "-> int",
+    "server_route": "-> void", "server_stop": "-> void", "http_request": "-> string",
+    "print": "any values...", "input": "[string prompt]", "size": "-> int", "push": "-> void",
 })
 for name in sorted(builtins):
     code = name + "("
@@ -71,7 +72,7 @@ for name in sorted(builtins):
 
 export_count = 0
 for module in modules:
-    exports = re.findall(r"^(void|bool|int|float|string)\s+(\w+)\(([^)]*)\)", module.read_text(encoding="utf-8"), re.M)
+    exports = catalog.module_exports(module)
     assert exports, module
     module_doc = document(module.stem, f"using {module.stem};\n", valid=True)
     completion(module_doc, {name for _, name, _ in exports})
@@ -80,7 +81,8 @@ for module in modules:
         prefix = f"using {module.stem};\n{name}("
         doc = document(module.stem + "_" + name + "_incomplete", prefix)
         signature(doc, prefix, name, 0, params, result)
-        values = [json.dumps("Привет 🦊") if p.startswith("string ") else "1" for p in params]
+        values = [json.dumps("Привет 🦊") if p.startswith("string ") else "[1]" if p.startswith("array ") else "1"
+                  for p in params]
         code = f"using {module.stem};\n{name}({', '.join(values)});\n"
         doc = document(module.stem + "_" + name + "_hover", code, valid=True)
         ident = request("textDocument/hover", dict(textDocument=doc, position=dict(line=1, character=1)))

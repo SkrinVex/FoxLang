@@ -1,0 +1,39 @@
+//! Алгоритмы для массивов: сортировка, поиск, срезы, сумма. Элементы читаются как
+//! `items[i]`, размер меняют встроенные `push`, `pop`, `insert`, `remove_at` и `resize`.
+
+void sort(array items) { array_sort(items); }
+void reverse(array items) { array_reverse(items); }
+int find(array items, string value) { return array_index_of(items, value); }
+array copy_array(array items) { return array_copy(items); }
+array slice(array items, int start, int end) { return array_slice(items, start, end); }
+
+/// Есть ли в массиве элемент, равный `value`: числа сравниваются по величине, остальное по тексту.
+bool includes(array items, string value) {
+    return array_index_of(items, value) >= 0;
+}
+
+/// Сумма числовых элементов массива.
+///
+/// ```foxlang
+/// float total = sum([1, 2.5, 3]); // 6.5
+/// ```
+float sum(array items) {
+    float total = 0.0;
+    for (int i = 0; i < size(items); i++) {
+        total += items[i];
+    }
+    return total;
+}
+
+/// Новый массив из чисел от `start` до `end` (не включая) с шагом 1.
+///
+/// ```foxlang
+/// array digits = range(0, 10);
+/// ```
+array range(int start, int end) {
+    array result;
+    for (int i = start; i < end; i++) {
+        push(result, i);
+    }
+    return result;
+}

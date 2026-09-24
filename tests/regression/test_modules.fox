@@ -2,7 +2,7 @@
 void assert_true(bool cond, string msg) {
     if (!cond) {
         print("FAIL: " + msg);
-        string f = env_required("__ASSERT_FAIL__");
+        exit(1);
     }
 }
 
@@ -18,9 +18,15 @@ helper_load_count = 99;
 include("helper_module.fox");
 assert_true(helper_load_count == 99, "duplicate include does not re-execute module");
 
-// 3. Using standard library module
+// 3. Using standard library module: functions and module variables
 using math;
-assert_true(min_int(5, 12) == 5, "math module min_int");
-assert_true(max_int(5, 12) == 12, "math module max_int");
+assert_true(clamp01(1.5) == 1.0, "math module function");
+assert_true(PI > 3.14159 && PI < 3.1416, "math module constant");
+
+// 4. A repeated using loads the module once
+using fs;
+using fs;
+assert_true(is_dir("."), "fs module function");
+assert_true(size(read_lines("definitely_missing_file.txt")) == 0, "fs module helper written in FoxLang");
 
 print("MODULES_OK");

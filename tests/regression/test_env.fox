@@ -4,7 +4,7 @@ using env;
 void assert_true(bool cond, string msg) {
     if (!cond) {
         print("FAIL: " + msg);
-        string f = env_required("__ASSERT_FAIL__");
+        exit(1);
     }
 }
 
@@ -26,5 +26,10 @@ assert_true(def1 == path_val, "env_default with existing var");
 
 string def2 = env_default("NON_EXISTENT_VAR_XYZ_123", "fallback_8080");
 assert_true(def2 == "fallback_8080", "env_default with missing var");
+
+// 5. set_env() changes the environment of this process
+assert_true(set_env("FOXLANG_REGRESSION_VALUE", "лис 🦊"), "set_env succeeds");
+assert_true(env("FOXLANG_REGRESSION_VALUE") == "лис 🦊", "set_env is visible to env()");
+assert_true(!set_env("", "x"), "set_env rejects an empty name");
 
 print("ENV_OK");

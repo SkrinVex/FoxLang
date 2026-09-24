@@ -1,0 +1,36 @@
+//! Файловая система: проверка путей, каталоги, удаление, размеры и построчное чтение.
+//! Чтение и запись файла целиком — встроенные `read_file`, `write_file`, `append_file`.
+
+bool exists(string path) { return fs_exists(path); }
+bool is_dir(string path) { return fs_is_dir(path); }
+bool make_dir(string path) { return fs_make_dir(path); }
+bool remove_path(string path) { return fs_remove(path); }
+array list_dir(string path) { return fs_list(path); }
+int file_size(string path) { return fs_size(path); }
+
+/// Строки текстового файла без символов перевода строки. Для отсутствующего файла — пустой массив.
+///
+/// ```foxlang
+/// array rows = read_lines("data.csv");
+/// ```
+array read_lines(string path) {
+    array result;
+    string content = str_replace(read_file(path), "\r\n", "\n");
+    if (content == "") {
+        return result;
+    }
+    if (str_ends_with(content, "\n")) {
+        content = str_substring(content, 0, str_length(content) - 1);
+    }
+    result = str_split(content, "\n");
+    return result;
+}
+
+/// Записывает элементы массива в файл, по одному на строку. `true` при успехе.
+bool write_lines(string path, array lines) {
+    string content = str_join(lines, "\n");
+    if (size(lines) > 0) {
+        content += "\n";
+    }
+    return write_file(path, content);
+}

@@ -1,4 +1,6 @@
-// Нативная программная 2D-графика: Win32/GDI и X11/XWayland.
+//! Нативная 2D-графика Linux/Windows: окно, фигуры, текст, клавиатура и мышь.
+//! Подробности — в docs/GRAPHICS.md.
+
 void open_window(int width, int height, string title) { gfx_open(width, height, title); }
 bool window_poll() { return gfx_poll(); }
 void close_window() { gfx_close(); }

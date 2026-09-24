@@ -1,8 +1,13 @@
-// FoxLang 5.2 time helpers
-void sleep_ms(int milliseconds) {
-    wait(milliseconds);
-}
+//! Время и паузы: UNIX-время, монотонные часы для замеров и форматирование даты.
 
-string unix_time_ms() {
-    return time_ms();
+/// Приостанавливает программу на заданное число миллисекунд.
+void sleep_ms(int milliseconds) { wait(milliseconds); }
+
+float unix_time_ms() { return time_now_ms(); }
+int uptime_ms() { return clock_ms(); }
+string format_time(string pattern) { return time_format(pattern); }
+
+/// Текущие дата и время в виде `2026-09-24 15:04:05`.
+string now_text() {
+    return time_format("%Y-%m-%d %H:%M:%S");
 }

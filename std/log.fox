@@ -1,4 +1,6 @@
-// FoxLang logging standard library.
+//! Уровневое логирование в stderr. Порог задаёт `FOXLANG_LOG_LEVEL`:
+//! `debug`, `info` (по умолчанию), `warn`, `error` или `off`.
+
 void debug(string message) { log_debug(message); }
 void info(string message) { log_info(message); }
 void warn(string message) { log_warn(message); }

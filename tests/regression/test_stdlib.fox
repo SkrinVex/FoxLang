@@ -10,13 +10,18 @@ using terminal;
 void assert_true(bool cond, string msg) {
     if (!cond) {
         print("FAIL: " + msg);
-        string f = env_required("__ASSERT_FAIL__");
+        exit(1);
     }
 }
 
 // 1. Math stdlib
-assert_true(min_int(3, 9) == 3, "min_int");
-assert_true(max_int(3, 9) == 9, "max_int");
+using arrays;
+using fs;
+using os;
+using http;
+using net;
+using server;
+using graphics;
 assert_true(clamp01(1.5) == 1, "clamp01 high");
 assert_true(clamp01(-0.5) == 0, "clamp01 low");
 assert_true(sqrt(9.0) == 3.0, "sqrt");
@@ -34,16 +39,15 @@ assert_true(contains("FoxLang Programming", "Lang"), "contains true");
 assert_true(!contains("FoxLang Programming", "Python"), "contains false");
 assert_true(replace("hello world", "world", "fox") == "hello fox", "replace");
 assert_true(to_int("12345") == 12345, "to_int");
-assert_true(strtoint("12345") == 12345, "strtoint");
 assert_true(str_length("Лисий отскок") == 12, "str_length counts characters");
 assert_true(size("Лисий отскок") == 23, "size counts UTF-8 bytes");
 assert_true(length("Привет") == 6, "length wrapper counts characters");
 
 // 3. Time stdlib
-string t1 = unix_time_ms();
+float t1 = unix_time_ms();
 sleep_ms(10);
-string t2 = unix_time_ms();
-assert_true(size(t1) > 0 && size(t2) > 0, "unix_time_ms returns non-empty timestamps");
+float t2 = unix_time_ms();
+assert_true(t2 - t1 >= 5, "unix_time_ms advances with sleep_ms");
 
 // 4. Log stdlib
 debug("debug message");

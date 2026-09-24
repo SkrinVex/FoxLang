@@ -2,9 +2,17 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "foxlang/FoxLang.h"
 #include "foxlang/SemanticAnalyzer.h"
 #include "Image.h"
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <shellapi.h>
+#endif
 
 bool foxlangHasBundleDescriptor();
 
@@ -40,8 +48,31 @@ static int check(const std::string& path) {
 }
 
 static int report(const foxlang::RunResult& result) {
-    if (!result.success) std::cerr << "FoxLang: " << result.errorMessage << std::endl;
+    if (!result.errorMessage.empty()) std::cerr << "FoxLang: " << result.errorMessage << std::endl;
     return result.exitCode;
+}
+
+// Program arguments as UTF-8. Windows hands main() its ANSI code page, which cannot
+// hold Cyrillic, so the wide command line is converted instead.
+static std::vector<std::string> argumentsFrom(int argc, char* argv[], int first) {
+    std::vector<std::string> arguments;
+#ifdef _WIN32
+    int count = 0;
+    LPWSTR* wide = CommandLineToArgvW(GetCommandLineW(), &count);
+    if (wide && count == argc) {
+        for (int i = first; i < count; ++i) {
+            int size = WideCharToMultiByte(CP_UTF8, 0, wide[i], -1, nullptr, 0, nullptr, nullptr);
+            std::string text(size > 0 ? static_cast<size_t>(size - 1) : 0, '\0');
+            if (size > 1) WideCharToMultiByte(CP_UTF8, 0, wide[i], -1, text.data(), size, nullptr, nullptr);
+            arguments.push_back(std::move(text));
+        }
+        LocalFree(wide);
+        return arguments;
+    }
+    if (wide) LocalFree(wide);
+#endif
+    for (int i = first; i < argc; ++i) arguments.emplace_back(argv[i]);
+    return arguments;
 }
 
 int main(int argc, char* argv[]) {
@@ -58,6 +89,7 @@ int main(int argc, char* argv[]) {
         foxlang::InterpreterOptions options;
         options.sources = sources;
         options.loadDotEnv = false;
+        options.arguments = argumentsFrom(argc, argv, 1);
         foxlang::Interpreter interpreter(options);
         return report(interpreter.runSource(sources->read(sources->entry), sources->entry));
     }
@@ -72,18 +104,17 @@ int main(int argc, char* argv[]) {
     if (argc == 2 && (std::string(argv[1]) == "--help" || std::string(argv[1]) == "-h")) {
         std::cout << "FoxLang " << version << "\n\n"
                   << "Usage:\n"
-                  << "  foxlang <script.fox>    Run a FoxLang program\n"
-                  << "  foxlang check <script.fox>  Report problems without running the program\n"
+                  << "  foxlang <script.fox> [args...]  Run a FoxLang program; args reach os_args()\n"
+                  << "  foxlang check <script.fox>      Report problems without running the program\n"
                   << "  foxlang build <file.fox> [-o|--output app]\n"
-                  << "                         Bundle a standalone executable for this OS/architecture\n"
-                  << "                         Includes runtime and source modules; no compiler needed\n"
-                  << "  foxlang --version       Show version\n"
-                  << "  foxlang --help          Show this help\n\n"
-                  << "  foxlang --foxlang-licenses  Show embedded dependency licenses\n\n"
+                  << "                                  Bundle a standalone executable for this OS/architecture\n"
+                  << "                                  Includes runtime and source modules; no compiler needed\n"
+                  << "  foxlang --version               Show version\n"
+                  << "  foxlang --help                  Show this help\n"
+                  << "  foxlang --foxlang-licenses      Show embedded dependency licenses\n\n"
                   << "Environment:\n"
                   << "  FOXLANG_HOME            FoxLang installation/std library path\n"
                   << "  FOXLANG_LOG_LEVEL       debug | info | warn | error | off\n"
-                  << "  FOXLANG_LOG             Legacy master log switch\n\n"
                   << "  FOXLANG_CA_BUNDLE       PEM CA file | embedded (default) | system\n\n"
                   << "Standalone: .env/resources are not bundled; HTTP(S) and TCP are built in.\n\n"
                   << "Repository & documentation:\n"
@@ -93,7 +124,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (argc < 2) {
-        std::cout << "FoxLang " << version << "\nUsage: foxlang <script.fox>\n"
+        std::cout << "FoxLang " << version << "\nUsage: foxlang <script.fox> [args...]\n"
                   << "       foxlang --help\n"
                   << "       foxlang --version" << std::endl;
         return 1;
@@ -119,7 +150,9 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    foxlang::Interpreter interpreter;
+    foxlang::InterpreterOptions options;
+    options.arguments = argumentsFrom(argc, argv, 2);
+    foxlang::Interpreter interpreter(options);
     return report(interpreter.runFile(argv[1]));
     } catch (const std::exception& error) {
         std::cerr << "FoxLang: " << error.what() << std::endl;

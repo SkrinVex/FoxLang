@@ -86,7 +86,9 @@ jobs:
 
           tar -czf "$PKG.tar.gz" "$PKG"
 
-          # Standalone editor assets for direct download in GitHub Releases
+          # Standalone editor assets for direct download in GitHub Releases. The
+          # unversioned copy keeps releases/latest/download/foxlang.vsix stable.
+          cp "dist-editors/foxlang-${{ needs.version.outputs.version }}.vsix" dist-editors/foxlang.vsix
           cp editors/kate/foxlang.xml dist-editors/foxlang.xml
           (cd editors && zip -r ../dist-editors/foxlang-vscode.zip vscode)
       - uses: actions/upload-artifact@v4
@@ -98,7 +100,7 @@ jobs:
           name: editors-release
           path: |
             dist-editors/foxlang.xml
-            dist-editors/foxlang-*.vsix
+            dist-editors/foxlang*.vsix
             dist-editors/foxlang-vscode.zip
 
   build-windows:

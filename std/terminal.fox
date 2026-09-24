@@ -1,5 +1,4 @@
-// FoxLang 5.2 terminal standard library
-// Thin wrappers around portable runtime terminal primitives.
+//! Управление терминалом через ANSI-последовательности: очистка, курсор, цвета.
 
 void clear() { term_clear(); }
 void home() { term_home(); }

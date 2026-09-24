@@ -1,0 +1,6 @@
+// Первая программа: foxlang examples/hello.fox
+void main() {
+    print("Привет из FoxLang! 🦊");
+}
+
+main();

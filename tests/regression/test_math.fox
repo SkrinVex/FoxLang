@@ -1,0 +1,60 @@
+// FoxLang regression: math builtins and the math module
+using math;
+
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+bool near(float a, float b) {
+    return abs(a - b) < 0.000001;
+}
+
+// 1. Result types follow the arguments
+assert_true(type_of(abs(-3)) == "int" && abs(-3) == 3, "abs of int stays int");
+assert_true(type_of(abs(-2.5)) == "float" && abs(-2.5) == 2.5, "abs of float");
+assert_true(min(3, 9) == 3 && max(3, 9) == 9 && type_of(max(3, 9)) == "int", "min and max of ints");
+assert_true(type_of(min(3, 9.5)) == "float", "min with a float is float");
+assert_true(clamp(15, 0, 10) == 10 && clamp(-5, 0, 10) == 0 && type_of(clamp(1, 0, 10)) == "int", "clamp");
+assert_true(clamp(5, 10, 0) == 5, "clamp swaps reversed bounds");
+assert_true(round(2.5) == 3 && round(-2.5) == -3 && round(2.4) == 2, "round half away from zero");
+
+// 2. Functions
+assert_true(sqrt(9.0) == 3.0 && pow(2.0, 10.0) == 1024.0, "sqrt and pow");
+assert_true(floor(-2.5) == -3.0 && ceil(2.1) == 3.0, "floor and ceil");
+assert_true(sin(0.0) == 0.0 && cos(0.0) == 1.0 && tan(0.0) == 0.0, "trigonometry at zero");
+assert_true(near(atan2(1.0, 1.0), PI / 4), "atan2");
+assert_true(near(asin(1.0), PI / 2) && near(acos(1.0), 0.0) && near(atan(1.0), PI / 4), "inverse trigonometry");
+assert_true(near(exp(1.0), E) && near(log(E), 1.0) && log10(1000.0) == 3.0, "exp and logarithms");
+
+// 3. Random numbers stay in range
+for (int i = 0; i < 200; i++) {
+    int dice = random(1, 6);
+    assert_true(dice >= 1 && dice <= 6, "random in range");
+    float unit = random_float();
+    assert_true(unit >= 0.0 && unit < 1.0, "random_float in [0, 1)");
+}
+assert_true(random(4, 4) == 4, "random with equal bounds");
+
+// 4. Module helpers
+assert_true(clamp01(1.5) == 1.0 && clamp01(-0.5) == 0.0, "clamp01");
+assert_true(hypot(3.0, 4.0) == 5.0, "hypot");
+assert_true(near(radians(180.0), PI) && near(degrees(PI), 180.0), "angle conversion");
+assert_true(lerp(10.0, 20.0, 0.25) == 12.5, "lerp");
+assert_true(sign(-4.0) == -1 && sign(0.0) == 0 && sign(0.1) == 1, "sign");
+assert_true(is_even(4) && !is_even(-3), "is_even");
+
+// 5. Operators
+int i = 10;
+i--;
+i %= 4;
+assert_true(i == 1, "-- and %=");
+float f = 1.5;
+f++;
+assert_true(f == 2.5, "++ on a float");
+assert_true(-2147483648 < 0 && 7 % 3 == 1 && -7 / 2 == -3, "int edge cases");
+assert_true(5.5 % 2 == 1.5, "float remainder");
+
+print("MATH_OK");

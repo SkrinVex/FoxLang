@@ -1,23 +1,115 @@
 #include "foxlang/SemanticAnalyzer.h"
+#include "foxlang/Builtins.h"
 #include "foxlang/Lexer.h"
 #include "foxlang/Parser.h"
-#include "foxlang/Runtime.h"
-#include "../graphics/Builtins.h"
-#include <fstream>
-#include <sstream>
+#include "EmbeddedStdlib.h"
 #include <algorithm>
+#include <sstream>
 #include <unordered_set>
 
 namespace foxlang {
 
-SemanticAnalyzer::SemanticAnalyzer(std::string curFile, std::string home)
-    : currentFile(std::move(curFile)), foxHome(std::move(home)) {
+namespace {
+
+std::vector<std::string> lines(const std::string& text) {
+    std::vector<std::string> out;
+    std::stringstream stream(text);
+    std::string line;
+    while (std::getline(stream, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        out.push_back(line);
+    }
+    return out;
+}
+
+std::string trim(const std::string& text) {
+    auto first = text.find_first_not_of(" \t");
+    if (first == std::string::npos) return "";
+    return text.substr(first, text.find_last_not_of(" \t") - first + 1);
+}
+
+// Comment lines starting with marker, joined into one Markdown paragraph set.
+std::string commentBlock(const std::vector<std::string>& source, size_t first, size_t last, const std::string& marker) {
+    std::string out;
+    for (size_t i = first; i < last; ++i) {
+        std::string line = trim(source[i]);
+        if (line.compare(0, marker.size(), marker) != 0) continue;
+        line = line.substr(marker.size());
+        if (!line.empty() && line[0] == ' ') line.erase(0, 1);
+        if (!out.empty()) out += line.empty() ? "\n\n" : (out.back() == '\n' ? "" : "\n");
+        out += line;
+    }
+    return out;
+}
+
+std::string moduleDescription(const std::string& text) {
+    auto source = lines(text);
+    size_t end = 0;
+    while (end < source.size() && (trim(source[end]).rfind("//", 0) == 0 || trim(source[end]).empty())) ++end;
+    return commentBlock(source, 0, end, "//!");
+}
+
+// `///` lines directly above the line where a function starts.
+std::string functionComment(const std::vector<std::string>& source, int line) {
+    if (line < 2) return "";
+    size_t last = static_cast<size_t>(line - 1);
+    size_t first = last;
+    while (first > 0 && trim(source[first - 1]).rfind("///", 0) == 0) --first;
+    return commentBlock(source, first, last, "///");
+}
+
+// A std function that only forwards to a builtin shares the builtin's documentation.
+const BuiltinSpec* forwardedBuiltin(const FuncDefNode* fn) {
+    auto* body = dynamic_cast<const BlockNode*>(fn->body.get());
+    if (!body || body->stmts.size() != 1) return nullptr;
+    const Node* stmt = body->stmts[0].get();
+    if (auto* ret = dynamic_cast<const ReturnNode*>(stmt)) stmt = ret->expr.get();
+    auto* call = dynamic_cast<const FuncCallNode*>(stmt);
+    return call ? findBuiltinSpec(call->name) : nullptr;
+}
+
+std::string signatureOf(const std::string& name, const std::vector<FuncParam>& params, const std::string& result) {
+    std::string out = name + "(";
+    for (size_t i = 0; i < params.size(); ++i) {
+        if (i > 0) out += ", ";
+        out += params[i].type + " " + params[i].name;
+    }
+    return out + ") -> " + result;
+}
+
+// A builtin shows its optional [parameters] and repeating ones...; a FoxLang function has neither.
+std::string signatureOf(const Symbol& symbol) {
+    if (symbol.kind == SymbolKind::Builtin) {
+        if (const BuiltinSpec* spec = findBuiltinSpec(symbol.name)) return spec->signature();
+    }
+    return signatureOf(symbol.name, symbol.params, symbol.returnType);
+}
+
+} // namespace
+
+const std::vector<ModuleInfo>& standardModules() {
+    static const std::vector<ModuleInfo> modules = [] {
+        std::vector<ModuleInfo> out;
+        for (const auto& [path, text] : embeddedStdlib()) {
+            std::string name = path.substr(4, path.size() - 8); // "std/" + name + ".fox"
+            out.push_back({name, moduleDescription(text)});
+        }
+        return out;
+    }();
+    return modules;
+}
+
+SemanticAnalyzer::SemanticAnalyzer(std::string curFile, std::string home, std::shared_ptr<const SourceProvider> provider)
+    : currentFile(std::move(curFile)), foxHome(std::move(home)), sources(std::move(provider)) {
+    if (!sources) sources = filesystemSources(foxHome);
     rootScope = std::make_unique<Scope>();
     currentScope = rootScope.get();
     addBuiltins();
 }
 
-SemanticAnalyzer::~SemanticAnalyzer() = default;
+SemanticAnalyzer::~SemanticAnalyzer() {
+    while (currentScope && currentScope != rootScope.get()) exitScope();
+}
 
 void SemanticAnalyzer::enterScope() {
     auto newScope = std::make_unique<Scope>();
@@ -34,505 +126,75 @@ void SemanticAnalyzer::exitScope() {
 }
 
 void SemanticAnalyzer::addBuiltins() {
-    auto addFn = [this](std::string name, std::string ret, std::vector<FuncParam> params, std::string doc) {
+    for (const auto& spec : builtinCatalog()) {
         Symbol sym;
-        sym.name = name;
-        sym.type = ret;
+        sym.name = spec.name;
+        sym.type = spec.result;
         sym.kind = SymbolKind::Builtin;
-        sym.returnType = ret;
-        sym.params = std::move(params);
-        sym.documentation = std::move(doc);
-        rootScope->symbols[name] = sym;
-    };
-
-    for (const auto& signature : graphics::signatures())
-        addFn(signature.builtin, signature.result, signature.params, signature.documentation);
-
-    addFn("print", "void", {},
-        "Вывод значений в стандартный поток вывода с переводом строки.\n\n"
-        "**Параметры:**\n- `...args`: аргументы любого типа для печати\n\n"
-        "**Пример:**\n```foxlang\nprint(\"Привет, мир! 🦊\");\n```");
-
-    addFn("input", "string", {},
-        "Чтение строки из стандартного потока ввода пользователя.\n\n"
-        "**Возвращает:** `string` — введённая строка\n\n"
-        "**Пример:**\n```foxlang\nstring name = input();\n```");
-
-    addFn("fox", "void", {},
-        "Печать фирменного ASCII-баннера лисы FoxLang в консоль.\n\n"
-        "**Пример:**\n```foxlang\nfox();\n```");
-
-    addFn("round", "int", {{"float", "value"}},
-        "Округление числа с плавающей точкой до ближайшего целого.\n\n"
-        "**Параметры:**\n- `value`: дробное число `float`\n\n"
-        "**Возвращает:** `int`\n\n"
-        "**Пример:**\n```foxlang\nint r = round(3.6); // 4\n```");
-
-    addFn("random", "int", {{"int", "min"}, {"int", "max"}},
-        "Генерация псевдослучайного целого числа в диапазоне от `min` до `max` включительно.\n\n"
-        "**Параметры:**\n- `min`: минимальное значение диапазона\n- `max`: максимальное значение диапазона\n\n"
-        "**Возвращает:** `int`\n\n"
-        "**Пример:**\n```foxlang\nint dice = random(1, 6);\n```");
-
-    addFn("read_file", "string", {{"string", "path"}},
-        "Чтение всего содержимого файла в виде строки.\n\n"
-        "**Параметры:**\n- `path`: путь к файлу на диске\n\n"
-        "**Возвращает:** `string` (пустая строка, если файл не найден)\n\n"
-        "**Пример:**\n```foxlang\nstring content = read_file(\"config.json\");\n```");
-
-    addFn("readfile", "string", {{"string", "path"}},
-        "Псевдоним для `read_file`: чтение всего содержимого файла в виде строки.");
-
-    addFn("write_file", "bool", {{"string", "path"}, {"string", "data"}},
-        "Запись строковых данных в файл (перезапись содержимого файла).\n\n"
-        "**Параметры:**\n- `path`: путь к файлу\n- `data`: записываемый текст");
-
-    addFn("append_file", "bool", {{"string", "path"}, {"string", "data"}},
-        "Добавление строковых данных в конец файла.\n\n"
-        "**Параметры:**\n- `path`: путь к файлу\n- `data`: добавляемый текст");
-
-    addFn("json_get", "string", {{"string", "json"}, {"string", "key"}},
-        "Извлечение строкового значения из JSON-строки по ключу.\n\n"
-        "**Параметры:**\n- `json`: JSON-строка\n- `key`: имя ключа верхнего уровня");
-
-    addFn("json_escape", "string", {{"string", "str"}},
-        "Экранирование спецсимволов строки для безопасного включения в JSON.");
-
-    addFn("str_contains", "bool", {{"string", "str"}, {"string", "sub"}},
-        "Проверка вхождения подстроки `sub` в строку `str`.\n\n"
-        "**Возвращает:** `bool` (`true` если подстрока найдена)");
-
-    addFn("str_replace", "string", {{"string", "str"}, {"string", "from"}, {"string", "to"}},
-        "Замена всех вхождений подстроки `from` на `to` в строке `str`.");
-
-    addFn("str_split", "array", {{"string", "str"}, {"string", "delim"}},
-        "Разбиение строки по разделителю `delim`.");
-
-    addFn("str_to_int", "int", {{"string", "str"}},
-        "Преобразование строки в целое число `int`.\n\n"
-        "**Параметры:**\n- `str`: строка, содержащая десятичное число\n\n"
-        "**Возвращает:** `int`\n\n"
-        "**Пример:**\n```foxlang\nint val = str_to_int(\"42\");\n```");
-
-    addFn("env_get", "string", {{"string", "key"}},
-        "Чтение переменной окружения или файла конфигурации `.env`.\n\n"
-        "**Возвращает:** `string` (пустая строка, если переменная не установлена)");
-
-    addFn("env_required", "string", {{"string", "key"}},
-        "Чтение обязательной переменной окружения или секрета.\n"
-        "Если переменная не установлена, рантайм вызывает ошибку `Environment Error`.\n\n"
-        "**Пример:**\n```foxlang\nstring tok = env_required(\"API_KEY\");\n```");
-
-    addFn("env_default", "string", {{"string", "key"}, {"string", "fallback"}},
-        "Чтение переменной окружения с возвратом значения по умолчанию `fallback`.\n\n"
-        "**Параметры:**\n- `key`: имя переменной\n- `fallback`: значение по умолчанию\n\n"
-        "**Возвращает:** `string`\n\n"
-        "**Пример:**\n```foxlang\nstring port = env_default(\"PORT\", \"8080\");\n```");
-
-    addFn("getch", "string", {},
-        "Неблокирующее чтение одного символа с клавиатуры без вывода в консоль (эхо).\n\n"
-        "**Возвращает:** `string` — прочитанный символ");
-
-    addFn("kbhit", "bool", {},
-        "Проверка наличия нажатой клавиши в буфере ввода терминала.\n\n"
-        "**Возвращает:** `bool` (`true`, если клавиша была нажата)");
-
-    addFn("wait", "void", {{"int", "milliseconds"}},
-        "Приостановка выполнения текущей программы на указанное число миллисекунд.");
-
-    addFn("httpget", "string", {{"string", "url"}},
-        "Низкоуровневый исходящий HTTP GET-запрос по URL.");
-
-    addFn("httppost", "string", {{"string", "url"}, {"string", "data"}},
-        "Низкоуровневый исходящий HTTP POST-запрос по URL.");
-
-    addFn("httpput", "string", {{"string", "url"}, {"string", "data"}},
-        "Низкоуровневый исходящий HTTP PUT-запрос.");
-
-    addFn("httpdelete", "string", {{"string", "url"}},
-        "Низкоуровневый исходящий HTTP DELETE-запрос.");
-
-    addFn("server_start", "void", {{"int", "port"}},
-        "Низкоуровневый запуск встроенного HTTP-сервера на порту.");
-    addFn("server_start_tls", "void", {{"int", "port"}, {"string", "certificate"}, {"string", "private_key"}},
-        "Запуск HTTPS-сервера. PEM-сертификат и приватный ключ загружаются при запуске.");
-
-    addFn("server_stop", "void", {},
-        "Остановка запущенного встроенного HTTP-сервера.");
-
-    addFn("route_get", "void", {{"string", "path"}, {"string", "handler"}},
-        "Регистрация маршрута для входящих HTTP GET-запросов.");
-
-    addFn("route_post", "void", {{"string", "path"}, {"string", "handler"}},
-        "Регистрация маршрута для входящих HTTP POST-запросов.");
-
-    addFn("send_response", "void", {{"string", "data"}},
-        "Отправка тела ответа клиенту HTTP-сервера.");
-
-    addFn("array", "void", {{"identifier", "name"}, {"int", "size"}},
-        "Синтаксис объявления массива фиксированного размера: `array <имя> <размер>;`.");
-
-    addFn("set", "void", {{"array", "arr"}, {"int", "idx"}, {"any", "val"}},
-        "Установка значения элемента массива по индексу.\n\n"
-        "**Параметры:**\n- `arr`: массив\n- `idx`: индекс (начиная с 0)\n- `val`: записываемое значение\n\n"
-        "**Пример:**\n```foxlang\nset(numbers, 0, 100);\n```");
-
-    addFn("get", "any", {{"array", "arr"}, {"int", "idx"}},
-        "Получение элемента массива по индексу или регистрация HTTP GET маршрута при импорте `using server;`.\n\n"
-        "**Параметры:**\n- `arr`: массив\n- `idx`: индекс (начиная с 0)\n\n"
-        "**Пример:**\n```foxlang\nint val = get(numbers, 0);\n```");
-
-    addFn("size", "int", {{"any", "val"}},
-        "Получение количества элементов в массиве или длины строки в байтах UTF-8.\n\n"
-        "**Параметры:**\n- `val`: массив или строка\n\n"
-        "**Возвращает:** `int` — размер\n\n"
-        "**Пример:**\n```foxlang\nint n = size(my_arr);\n```");
-
-    addFn("abs", "number", {{"number", "value"}},
-        "Модуль числа. Сохраняет тип int или float аргумента.");
-    for (const std::string name : {"min", "max"})
-        addFn(name, "number", {{"number", "a"}, {"number", "b"}},
-            std::string(name == "min" ? "Минимум" : "Максимум") +
-            " двух чисел. Возвращает int для двух int, иначе float.");
-    addFn("clamp", "float", {{"number", "value"}, {"number", "min"}, {"number", "max"}},
-        "Ограничить число заданным диапазоном. Переставляет границы, если min > max.");
-    addFn("sqrt", "float", {{"number", "value"}},
-        "Квадратный корень числа. Отрицательный аргумент — ошибка выполнения.");
-    addFn("pow", "float", {{"number", "base"}, {"number", "exponent"}},
-        "Возведение в степень. Результат вне диапазона float — ошибка выполнения.");
-    addFn("sin", "float", {{"number", "radians"}}, "Синус угла, заданного в радианах.");
-    addFn("cos", "float", {{"number", "radians"}}, "Косинус угла, заданного в радианах.");
-    addFn("floor", "float", {{"number", "value"}}, "Округление вниз, к меньшему числу.");
-    addFn("ceil", "float", {{"number", "value"}}, "Округление вверх, к большему числу.");
-    addFn("str_length", "int", {{"string", "text"}},
-        "Число символов строки. size() для строки считает байты UTF-8, а не символы.");
-    addFn("time_ms", "string", {}, "UNIX-время в миллисекундах в виде строки.");
-    addFn("term_clear", "void", {}, "Очистить терминал и переместить курсор в начало ANSI-последовательностью.");
-    addFn("term_home", "void", {}, "Переместить курсор терминала в начало.");
-    addFn("term_write", "void", {{"string", "text"}}, "Вывести текст без перевода строки.");
-    addFn("term_goto", "void", {{"int", "row"}, {"int", "col"}}, "Переместить курсор терминала; координаты начинаются с 1.");
-    addFn("term_hide_cursor", "void", {}, "Скрыть курсор терминала.");
-    addFn("term_show_cursor", "void", {}, "Показать курсор терминала.");
-    addFn("term_color", "void", {{"int", "ansi_code"}}, "Установить ANSI-цвет текста терминала.");
-    addFn("term_reset", "void", {}, "Сбросить цвета и атрибуты терминала.");
-    addFn("tcp_connect", "int", {{"string", "host"}, {"int", "port"}}, "Открыть TCP-соединение. Возвращает дескриптор или -1 при ошибке.");
-    addFn("tcp_send", "int", {{"int", "socket"}, {"string", "data"}}, "Отправить данные в TCP-сокет; возвращает число байт или -1 при ошибке.");
-    addFn("tcp_recv", "string", {{"int", "socket"}, {"int", "max_bytes"}}, "Получить до max_bytes байт из TCP-сокета.");
-    addFn("tcp_close", "bool", {{"int", "socket"}}, "Закрыть TCP-сокет; true при успехе.");
-    addFn("dns_lookup", "string", {{"string", "host"}}, "Разрешить имя хоста в IPv4-адрес.");
-    addFn("http_get", "string", {{"string", "url"}}, "Исходящий HTTP/HTTPS GET-запрос; возвращает тело ответа.");
-    for (const auto* name : {"log_debug", "log_info", "log_warn", "log_error"})
-        addFn(name, "void", {{"string", "message"}}, "Записать сообщение соответствующего уровня; фильтр задаётся FOXLANG_LOG_LEVEL.");
-    addFn("request_body", "string", {}, "Тело текущего входящего HTTP/HTTPS-запроса.");
-    addFn("request_method", "string", {}, "Метод текущего входящего HTTP/HTTPS-запроса.");
-    addFn("request_path", "string", {}, "Путь текущего входящего HTTP/HTTPS-запроса.");
+        sym.returnType = spec.result;
+        sym.params = spec.params;
+        sym.documentation = spec.documentation;
+        if (!spec.module.empty())
+            sym.documentation += "\n\nФункция ядра; модуль `using " + spec.module + ";` даёт к ней обёртку с коротким именем.";
+        rootScope->symbols[spec.name] = sym;
+    }
 }
 
-void SemanticAnalyzer::loadModuleSymbols(const std::string& moduleName, SourceRange importRange) {
-    auto addFn = [this](std::string name, std::string ret, std::vector<FuncParam> params, std::string doc) {
-        Symbol sym;
-        sym.name = name;
-        sym.type = ret;
-        sym.kind = SymbolKind::Function;
-        sym.returnType = ret;
-        sym.params = std::move(params);
-        sym.documentation = std::move(doc);
-        rootScope->symbols[name] = sym;
-    };
+void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRange importRange) {
+    std::string identity;
+    std::string text;
+    try {
+        identity = sources->resolve(request, currentFile);
+        text = sources->read(identity);
+    } catch (const std::exception&) {
+        diagnostics.push_back({DiagnosticSeverity::Warning, "Module '" + request.name + "' not found", importRange});
+        return;
+    }
+    if (!loadedModules.insert(identity).second) return;
 
-    if (moduleName == "graphics") {
-        for (const auto& signature : graphics::signatures())
-            addFn(signature.name, signature.result, signature.params, signature.documentation);
-    } else if (moduleName == "server") {
-        addFn("listen_tls", "void", {{"int", "port"}, {"string", "certificate"}, {"string", "private_key"}},
-            "Запустить HTTPS/webhook сервер с TLS 1.2 или новее. Сертификат и ключ — пути к PEM-файлам во время запуска.");
-        addFn("listen", "void", {{"int", "port"}},
-            "Запустить HTTP/webhook сервер на указанном порту (0.0.0.0).\n"
-            "Блокирует текущий поток до вызова `server_stop()`.\n\n"
-            "**Параметры:**\n- `port`: номер TCP-порта (например, `8080`)\n\n"
-            "**Пример:**\n```foxlang\nlisten(8080);\n```");
+    Lexer lexer(text, true);
+    Parser parser(lexer.tokenize(), identity);
+    std::vector<Diagnostic> ignored;
+    auto program = parser.parseProgramWithDiagnostics(ignored);
+    auto source = lines(text);
+    std::string uri = identity.rfind("@", 0) == 0 ? "" : identity;
 
-        addFn("get", "void", {{"string", "path"}, {"string", "handler"}},
-            "Зарегистрировать обработчик входящих HTTP GET запросов по пути `path`.\n\n"
-            "**Параметры:**\n- `path`: URL-путь (например, `\"/health\"`)\n- `handler`: имя функции-обработчика\n\n"
-            "**Пример:**\n```foxlang\nget(\"/health\", \"health\");\n```");
-
-        addFn("post", "void", {{"string", "path"}, {"string", "handler"}},
-            "Зарегистрировать обработчик входящих HTTP POST запросов по пути `path`.\n\n"
-            "**Параметры:**\n- `path`: URL-путь (например, `\"/telegram\"`)\n- `handler`: имя функции-обработчика\n\n"
-            "**Пример:**\n```foxlang\npost(\"/telegram\", \"telegram_webhook\");\n```");
-
-        addFn("body", "string", {},
-            "Получить тело текущего входящего HTTP-запроса (JSON update, форма, текст).\n\n"
-            "**Возвращает:** `string`\n\n"
-            "**Пример:**\n```foxlang\nstring update = body();\n```");
-
-        addFn("method", "string", {},
-            "Получить метод входящего HTTP-запроса (`\"GET\"`, `\"POST\"`).\n\n"
-            "**Возвращает:** `string`");
-
-        addFn("path", "string", {},
-            "Получить запрошенный URL-путь (например, `\"/telegram\"`).\n\n"
-            "**Возвращает:** `string`");
-
-        addFn("respond", "void", {{"string", "data"}},
-            "Отправить клиенту HTTP-ответ с кодом 200 OK и телом `data`.\n\n"
-            "**Параметры:**\n- `data`: тело ответа (обычно JSON)\n\n"
-            "**Пример:**\n```foxlang\nrespond(\"{\\\"ok\\\":true}\");\n```");
-
-        addFn("respond_status", "void", {{"int", "status"}, {"string", "data"}},
-            "Отправить клиенту HTTP-ответ с заданным кодом статуса `status` и телом `data`.\n\n"
-            "**Параметры:**\n- `status`: код состояния HTTP (`200`, `400`, `404`, `500`)\n- `data`: тело ответа\n\n"
-            "**Пример:**\n```foxlang\nrespond_status(404, \"{\\\"error\\\":\\\"Not found\\\"}\");\n```");
-
-    } else if (moduleName == "http") {
-        addFn("http_fetch", "string", {{"string", "url"}},
-            "Выполнить исходящий HTTP GET-запрос по указанному URL.\n\n"
-            "**Параметры:**\n- `url`: целевой URL (`\"https://...\"`)\n\n"
-            "**Возвращает:** `string` — тело ответа\n\n"
-            "**Пример:**\n```foxlang\nstring html = http_fetch(\"https://example.com\");\n```");
-
-        addFn("http_post_json", "string", {{"string", "url"}, {"string", "body"}},
-            "Выполнить исходящий HTTP POST-запрос с `Content-Type: application/json`.\n\n"
-            "**Параметры:**\n- `url`: целевой URL API\n- `body`: тело запроса в формате JSON\n\n"
-            "**Возвращает:** `string` — ответ удалённого сервера\n\n"
-            "**Пример:**\n```foxlang\nstring res = http_post_json(api + \"sendMessage\", payload);\n```");
-
-        addFn("http_post_as", "string", {{"string", "url"}, {"string", "body"}, {"string", "content_type"}},
-            "Выполнить исходящий HTTP POST-запрос с произвольным заголовком `Content-Type`.\n\n"
-            "**Параметры:**\n- `url`: адрес назначения\n- `body`: данные тела запроса\n- `content_type`: MIME-тип контента\n\n"
-            "**Возвращает:** `string` — ответ сервера");
-
-        addFn("http_put_json", "string", {{"string", "url"}, {"string", "body"}},
-            "Выполнить исходящий HTTP PUT-запрос с `Content-Type: application/json`.\n\n"
-            "**Параметры:**\n- `url`: адрес назначения\n- `body`: тело запроса\n\n"
-            "**Возвращает:** `string`");
-
-        addFn("http_remove", "string", {{"string", "url"}},
-            "Выполнить исходящий HTTP DELETE-запрос по указанному URL.\n\n"
-            "**Параметры:**\n- `url`: адрес ресурса\n\n"
-            "**Возвращает:** `string`");
-
-    } else if (moduleName == "env") {
-        addFn("env", "string", {{"string", "name"}},
-            "Получить значение переменной окружения или настройки из файла `.env`.\n\n"
-            "**Параметры:**\n- `name`: имя переменной\n\n"
-            "**Возвращает:** `string` (пустая строка, если переменная не найдена)\n\n"
-            "**Пример:**\n```foxlang\nstring p = env(\"PORT\");\n```");
-
-        addFn("secret", "string", {{"string", "name"}},
-            "Получить обязательную переменную окружения или секрет из `.env`.\n"
-            "Если переменная не найдена, рантайм аварийно завершает программу с ошибкой.\n\n"
-            "**Параметры:**\n- `name`: имя секрета\n\n"
-            "**Возвращает:** `string`\n\n"
-            "**Пример:**\n```foxlang\nstring token = secret(\"TELEGRAM_BOT_TOKEN\");\n```");
-
-        addFn("env_default", "string", {{"string", "name"}, {"string", "fallback"}},
-            "Получить значение переменной окружения `name` или вернуть `fallback`, если переменная не задана.\n\n"
-            "**Параметры:**\n- `name`: имя переменной\n- `fallback`: значение по умолчанию\n\n"
-            "**Возвращает:** `string`\n\n"
-            "**Пример:**\n```foxlang\nstring port = env_default(\"PORT\", \"8080\");\n```");
-
-    } else if (moduleName == "log") {
-        addFn("debug", "void", {{"string", "message"}},
-            "Записать сообщение уровня `[DEBUG]` (серый цвет в консоли).\n\n"
-            "**Параметры:**\n- `message`: текст сообщения");
-
-        addFn("info", "void", {{"string", "message"}},
-            "Записать информационное сообщение `[INFO]`.\n\n"
-            "**Параметры:**\n- `message`: текст сообщения\n\n"
-            "**Пример:**\n```foxlang\ninfo(\"🦊 FoxBot запущен на порту \" + port);\n```");
-
-        addFn("warn", "void", {{"string", "message"}},
-            "Записать предупреждающее сообщение `[WARN]` (жёлтый цвет в консоли).\n\n"
-            "**Параметры:**\n- `message`: текст сообщения");
-
-        addFn("error", "void", {{"string", "message"}},
-            "Записать сообщение об ошибке `[ERROR]` (красный цвет в консоли).\n\n"
-            "**Параметры:**\n- `message`: текст сообщения");
-
-    } else if (moduleName == "json") {
-        addFn("json_path", "string", {{"string", "json"}, {"string", "path"}},
-            "Извлечь строковое значение из JSON по вложенному точечному пути.\n"
-            "Корректно декодирует суррогатные пары UTF-16 и Unicode эмодзи (🦊).\n\n"
-            "**Параметры:**\n- `json`: исходный текст в формате JSON\n- `path`: путь к полю (например, `\"message.chat.id\"`)\n\n"
-            "**Возвращает:** `string`\n\n"
-            "**Пример:**\n```foxlang\nstring chat_id = json_path(update, \"message.chat.id\");\n```");
-
-        addFn("json_safe", "string", {{"string", "text"}},
-            "Экранировать спецсимволы строки (кавычки `\"`, переносы `\\n`, табы) для безопасной вставки в JSON.\n\n"
-            "**Параметры:**\n- `text`: исходный текст\n\n"
-            "**Возвращает:** `string`\n\n"
-            "**Пример:**\n```foxlang\nstring payload = \"{\\\"text\\\":\\\"\" + json_safe(msg) + \"\\\"}\";\n```");
-
-    } else if (moduleName == "string") {
-        addFn("contains", "bool", {{"string", "text"}, {"string", "needle"}},
-            "Проверить, содержит ли строка `text` подстроку `needle`.\n\n"
-            "**Параметры:**\n- `text`: проверяемая строка\n- `needle`: искомая подстрока\n\n"
-            "**Возвращает:** `bool` (`true` или `false`)\n\n"
-            "**Пример:**\n```foxlang\nif (contains(msg, \"/start\")) { ... }\n```");
-
-        addFn("replace", "string", {{"string", "text"}, {"string", "from"}, {"string", "to"}},
-            "Заменить все вхождения подстроки `from` на `to` в строке `text`.\n\n"
-            "**Параметры:**\n- `text`: исходный текст\n- `from`: замещаемый фрагмент\n- `to`: новый фрагмент\n\n"
-            "**Возвращает:** `string`\n\n"
-            "**Пример:**\n```foxlang\nstring clean = replace(input, \"foo\", \"bar\");\n```");
-
-        addFn("to_int", "int", {{"string", "text"}},
-            "Преобразовать строковое представление числа в тип `int`.\n\n"
-            "**Параметры:**\n- `text`: строка с числом (например, `\"8080\"`)\n\n"
-            "**Возвращает:** `int`\n\n"
-            "**Пример:**\n```foxlang\nint port = to_int(port_string);\n```");
-
-        addFn("length", "int", {{"string", "text"}},
-            "Число символов строки. Встроенная `size(text)` считает байты UTF-8, "
-            "поэтому для кириллицы и эмодзи значения различаются.\n\n"
-            "**Параметры:**\n- `text`: строка\n\n"
-            "**Возвращает:** `int`\n\n"
-            "**Пример:**\n```foxlang\nint n = length(\"Лисий\"); // 5, а size() даст 10\n```");
-
-        addFn("strtoint", "int", {{"string", "text"}},
-            "Псевдоним для `to_int`: преобразовать строку в целое число `int`.\n\n"
-            "**Параметры:**\n- `text`: строка с числом\n\n"
-            "**Возвращает:** `int`\n\n"
-            "**Пример:**\n```foxlang\nint port = strtoint(port_string);\n```");
-
-    } else if (moduleName == "math") {
-        addFn("clamp01", "float", {{"float", "value"}},
-            "Ограничить дробное число диапазоном от 0.0 до 1.0 включительно.\n\n"
-            "**Параметры:**\n- `value`: исходное число `float`\n\n"
-            "**Возвращает:** `float`");
-
-        addFn("min_int", "int", {{"int", "a"}, {"int", "b"}},
-            "Вычислить минимальное из двух целых чисел.\n\n"
-            "**Параметры:**\n- `a`: первое число\n- `b`: второе число\n\n"
-            "**Возвращает:** `int`\n\n"
-            "**Пример:**\n```foxlang\nint m = min_int(10, 20); // 10\n```");
-
-        addFn("max_int", "int", {{"int", "a"}, {"int", "b"}},
-            "Вычислить максимальное из двух целых чисел.\n\n"
-            "**Параметры:**\n- `a`: первое число\n- `b`: второе число\n\n"
-            "**Возвращает:** `int`\n\n"
-            "**Пример:**\n```foxlang\nint m = max_int(10, 20); // 20\n```");
-
-        addFn("hypot", "float", {{"float", "x"}, {"float", "y"}},
-            "Длина вектора: корень из суммы квадратов катетов.\n\n"
-            "**Параметры:**\n- `x`: первая составляющая\n- `y`: вторая составляющая\n\n"
-            "**Возвращает:** `float`\n\n"
-            "**Пример:**\n```foxlang\nfloat distance = hypot(bx - px, by - py);\n```");
-
-        addFn("radians", "float", {{"float", "degrees"}},
-            "Перевести градусы в радианы, которых ждут `sin` и `cos`.\n\n"
-            "**Параметры:**\n- `degrees`: угол в градусах\n\n"
-            "**Возвращает:** `float`\n\n"
-            "**Пример:**\n```foxlang\nfloat x = cx + cos(radians(45.0)) * radius;\n```");
-
-    } else if (moduleName == "net") {
-        addFn("connect_tcp", "int", {{"string", "host"}, {"int", "port"}},
-            "Установить исходящее TCP-соединение с хостом по порту.\n\n"
-            "**Параметры:**\n- `host`: имя хоста или IP-адрес\n- `port`: TCP-порт\n\n"
-            "**Возвращает:** `int` — дескриптор сокета (или `-1` при ошибке соединения)");
-
-        addFn("send_tcp", "int", {{"int", "socket"}, {"string", "data"}},
-            "Отправить строковые данные в открытый TCP-сокет.\n\n"
-            "**Параметры:**\n- `socket`: дескриптор открытого сокета\n- `data`: отправляемые байты\n\n"
-            "**Возвращает:** `int` — число отправленных байт");
-
-        addFn("recv_tcp", "string", {{"int", "socket"}, {"int", "max_bytes"}},
-            "Прочитать до `max_bytes` байт из открытого TCP-сокета.\n\n"
-            "**Параметры:**\n- `socket`: дескриптор сокета\n- `max_bytes`: лимит байт для чтения\n\n"
-            "**Возвращает:** `string` — прочитанные данные");
-
-        addFn("close_tcp", "bool", {{"int", "socket"}},
-            "Закрыть дескриптор TCP-сокета.\n\n"
-            "**Параметры:**\n- `socket`: дескриптор сокета\n\n"
-            "**Возвращает:** `bool` (`true` при успешном закрытии)");
-
-        addFn("resolve_host", "string", {{"string", "host"}},
-            "Разрешить сетевое доменное имя в IPv4-адрес через DNS.\n\n"
-            "**Параметры:**\n- `host`: имя хоста (например, `\"api.telegram.org\"`)\n\n"
-            "**Возвращает:** `string` — IP-адрес");
-
-    } else if (moduleName == "terminal") {
-        addFn("clear", "void", {},
-            "Очистить экран терминала ANSI ESC-последовательностью.\n\n"
-            "**Пример:**\n```foxlang\nclear();\n```");
-
-        addFn("home", "void", {},
-            "Переместить курсор терминала в верхний левый угол (1, 1).");
-
-        addFn("write", "void", {{"string", "text"}},
-            "Вывести текст в терминал напрямую без добавления символа переноса строки.");
-
-        addFn("goto_xy", "void", {{"int", "row"}, {"int", "col"}},
-            "Переместить курсор терминала в указанную позицию (строка, колонка).\n\n"
-            "**Параметры:**\n- `row`: номер строки (начиная с 1)\n- `col`: номер колонки (начиная с 1)");
-
-        addFn("hide_cursor", "void", {},
-            "Скрыть курсор в окне терминала.");
-
-        addFn("show_cursor", "void", {},
-            "Показать курсор в окне терминала.");
-
-        addFn("color", "void", {{"int", "ansi_code"}},
-            "Установить ANSI-цвет для последующего вывода в терминал.\n\n"
-            "**Параметры:**\n- `ansi_code`: числовой ANSI-код (например, 31 - красный, 32 - зелёный)");
-
-        addFn("reset_color", "void", {},
-            "Сбросить цвета и текстовые атрибуты оформления терминала к стандартным.");
-
-    } else if (moduleName == "time") {
-        addFn("sleep_ms", "void", {{"int", "milliseconds"}},
-            "Приостановить выполнение программы на указанное число миллисекунд.\n\n"
-            "**Параметры:**\n- `milliseconds`: время задержки в миллисекундах\n\n"
-            "**Пример:**\n```foxlang\nsleep_ms(1000); // пауза 1 секунда\n```");
-
-        addFn("unix_time_ms", "string", {},
-            "Получить текущее UNIX-время в миллисекундах с 1 января 1970 года.\n\n"
-            "**Возвращает:** `string` — таймстемп в миллисекундах\n\n"
-            "**Пример:**\n```foxlang\nstring now = unix_time_ms();\n```");
-    } else {
-        // Attempt to resolve file on disk
-        std::string modPath = moduleName;
-        if (modPath.size() < 4 || modPath.substr(modPath.size() - 4) != ".fox") {
-            modPath += ".fox";
-        }
-        std::string fullPath;
-        try {
-            fullPath = runtime::resolveFoxFile("std/" + modPath, currentFile, foxHome);
-        } catch (...) {
-            try {
-                fullPath = runtime::resolveFoxFile(modPath, currentFile, foxHome);
-            } catch (...) {
-                diagnostics.push_back({DiagnosticSeverity::Warning, "Module '" + moduleName + "' not found", importRange});
-                return;
+    for (const auto& stmt : program->stmts) {
+        if (auto* fn = dynamic_cast<const FuncDefNode*>(stmt.get())) {
+            Symbol s;
+            s.name = fn->name;
+            s.type = fn->returnType;
+            s.kind = SymbolKind::Function;
+            s.returnType = fn->returnType;
+            s.params = fn->params;
+            s.declRange = fn->nameRange.start.line > 0 ? fn->nameRange : fn->range;
+            s.fileUri = uri;
+            s.documentation = functionComment(source, fn->range.start.line);
+            if (s.documentation.empty()) {
+                if (const BuiltinSpec* forwarded = forwardedBuiltin(fn)) s.documentation = forwarded->documentation;
             }
-        }
-
-        std::ifstream file(fullPath);
-        if (file.is_open()) {
-            std::stringstream buf;
-            buf << file.rdbuf();
-            try {
-                Lexer modLexer(buf.str(), true);
-                auto modTokens = modLexer.tokenize();
-                Parser modParser(std::move(modTokens), fullPath);
-                std::vector<Diagnostic> modDiags;
-                auto modProg = modParser.parseProgramWithDiagnostics(modDiags);
-                for (const auto& stmt : modProg->stmts) {
-                    if (auto* fn = dynamic_cast<const FuncDefNode*>(stmt.get())) {
-                        Symbol s;
-                        s.name = fn->name;
-                        s.type = fn->returnType;
-                        s.kind = SymbolKind::Function;
-                        s.returnType = fn->returnType;
-                        s.params = fn->params;
-                        s.declRange = fn->range;
-                        s.fileUri = fullPath;
-                        rootScope->symbols[fn->name] = s;
-                    }
-                }
-            } catch (...) {}
+            if (s.documentation.empty()) s.documentation = signatureOf(fn->name, fn->params, fn->returnType);
+            rootScope->symbols[fn->name] = s;
+        } else if (auto* var = dynamic_cast<const VarDeclNode*>(stmt.get())) {
+            Symbol s;
+            s.name = var->name;
+            s.type = var->type;
+            s.kind = SymbolKind::Variable;
+            s.declRange = var->nameRange;
+            s.fileUri = uri;
+            s.documentation = functionComment(source, var->range.start.line);
+            if (s.documentation.empty()) s.documentation = var->type + " " + var->name;
+            rootScope->symbols[var->name] = s;
+        } else if (auto* use = dynamic_cast<const UsingNode*>(stmt.get())) {
+            std::string saved = currentFile;
+            currentFile = identity;
+            loadModuleSymbols({use->libName, true}, importRange);
+            currentFile = saved;
+        } else if (auto* inc = dynamic_cast<const IncludeNode*>(stmt.get())) {
+            std::string saved = currentFile;
+            currentFile = identity;
+            loadModuleSymbols({inc->filename, false}, importRange);
+            currentFile = saved;
         }
     }
 }
@@ -542,7 +204,31 @@ void SemanticAnalyzer::analyze(const BlockNode* root) {
     symbolRefs.clear();
     documentSymbols.clear();
 
+    fileGlobals.clear();
     if (!root) return;
+    // Functions may call functions and read globals defined further down the file.
+    for (const auto& stmt : root->stmts) {
+        if (auto* fn = dynamic_cast<const FuncDefNode*>(stmt.get())) {
+            declareFunction(fn);
+            continue;
+        }
+        Symbol sym;
+        sym.kind = SymbolKind::Variable;
+        sym.fileUri = currentFile;
+        if (auto* var = dynamic_cast<const VarDeclNode*>(stmt.get())) {
+            sym.name = var->name;
+            sym.type = var->type;
+            sym.declRange = var->nameRange;
+        } else if (auto* arr = dynamic_cast<const ArrayDeclNode*>(stmt.get())) {
+            sym.name = arr->name;
+            sym.type = "array";
+            sym.declRange = arr->nameRange;
+        } else {
+            continue;
+        }
+        sym.documentation = sym.type + " " + sym.name;
+        fileGlobals.emplace(sym.name, sym);
+    }
     visitBlock(root);
 }
 
@@ -550,13 +236,13 @@ void SemanticAnalyzer::visitNode(const Node* node) {
     if (!node) return;
 
     if (auto* blk = dynamic_cast<const BlockNode*>(node)) {
+        enterScope();
         visitBlock(blk);
+        exitScope();
     } else if (auto* fn = dynamic_cast<const FuncDefNode*>(node)) {
         visitFuncDef(fn);
     } else if (auto* vd = dynamic_cast<const VarDeclNode*>(node)) {
         visitVarDecl(vd);
-    } else if (auto* gvd = dynamic_cast<const GlobalVarDeclNode*>(node)) {
-        visitGlobalVarDecl(gvd);
     } else if (auto* va = dynamic_cast<const VarAssignNode*>(node)) {
         visitVarAssign(va);
     } else if (auto* fc = dynamic_cast<const FuncCallNode*>(node)) {
@@ -575,12 +261,25 @@ void SemanticAnalyzer::visitNode(const Node* node) {
         visitSwitch(sw);
     } else if (auto* bop = dynamic_cast<const BinOpNode*>(node)) {
         visitBinOp(bop);
+    } else if (auto* un = dynamic_cast<const UnaryOpNode*>(node)) {
+        visitNode(un->operand.get());
+    } else if (auto* inc = dynamic_cast<const PostIncNode*>(node)) {
+        checkVariable(inc->name, inc->range);
     } else if (auto* arr = dynamic_cast<const ArrayDeclNode*>(node)) {
         visitArrayDecl(arr);
+    } else if (auto* lit = dynamic_cast<const ArrayLiteralNode*>(node)) {
+        for (const auto& element : lit->elements) visitNode(element.get());
+    } else if (auto* get = dynamic_cast<const ArrayGetNode*>(node)) {
+        visitNode(get->index.get());
+        checkVariable(get->name, get->nameRange.start.line > 0 ? get->nameRange : get->range);
+    } else if (auto* set = dynamic_cast<const ArraySetNode*>(node)) {
+        visitNode(set->index.get());
+        visitNode(set->value.get());
+        checkVariable(set->name, set->nameRange.start.line > 0 ? set->nameRange : set->range);
     } else if (auto* usg = dynamic_cast<const UsingNode*>(node)) {
         visitUsing(usg);
-    } else if (auto* inc = dynamic_cast<const IncludeNode*>(node)) {
-        visitInclude(inc);
+    } else if (auto* incl = dynamic_cast<const IncludeNode*>(node)) {
+        visitInclude(incl);
     }
 }
 
@@ -590,7 +289,7 @@ void SemanticAnalyzer::visitBlock(const BlockNode* node) {
     }
 }
 
-void SemanticAnalyzer::visitFuncDef(const FuncDefNode* node) {
+void SemanticAnalyzer::declareFunction(const FuncDefNode* node) {
     Symbol fnSym;
     fnSym.name = node->name;
     fnSym.type = node->returnType;
@@ -599,16 +298,18 @@ void SemanticAnalyzer::visitFuncDef(const FuncDefNode* node) {
     fnSym.params = node->params;
     fnSym.declRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
     fnSym.fileUri = currentFile;
-
     std::string sig = node->returnType + " " + node->name + "(";
     for (size_t i = 0; i < node->params.size(); i++) {
         if (i > 0) sig += ", ";
         sig += node->params[i].type + " " + node->params[i].name;
     }
-    sig += ")";
-    fnSym.documentation = sig;
-
+    fnSym.documentation = sig + ")";
     rootScope->symbols[node->name] = fnSym;
+}
+
+void SemanticAnalyzer::visitFuncDef(const FuncDefNode* node) {
+    declareFunction(node);
+    const Symbol& fnSym = rootScope->symbols[node->name];
     symbolRefs.push_back({fnSym.declRange, fnSym});
 
     DocumentSymbolInfo docSym;
@@ -629,217 +330,165 @@ void SemanticAnalyzer::visitFuncDef(const FuncDefNode* node) {
         paramSym.kind = SymbolKind::Parameter;
         paramSym.documentation = "parameter " + param.type + " " + param.name;
         paramSym.fileUri = currentFile;
-        paramSym.declRange = node->range; // Encompassed in function signature
+        paramSym.declRange = fnSym.declRange;
         currentScope->symbols[param.name] = paramSym;
     }
 
-    if (node->body) {
-        visitNode(node->body.get());
-    }
+    if (node->body) visitNode(node->body.get());
 
     currentFuncReturnType = oldReturn;
     exitScope();
 }
 
-void SemanticAnalyzer::visitVarDecl(const VarDeclNode* node) {
-    if (node->expr) {
-        visitNode(node->expr.get());
-    }
-
-    if (currentScope->findCurrent(node->name)) {
+void SemanticAnalyzer::addSymbol(Scope* scope, const Symbol& sym, SourceRange nameRange, bool warnOnRedeclaration) {
+    if (warnOnRedeclaration && scope->findCurrent(sym.name) && scope->findCurrent(sym.name)->kind != SymbolKind::Builtin) {
         diagnostics.push_back({DiagnosticSeverity::Warning,
-            "Redeclaration of variable '" + node->name + "' in the same scope",
-            node->nameRange.start.line > 0 ? node->nameRange : node->range});
+            "Redeclaration of variable '" + sym.name + "' in the same scope", nameRange});
     }
-
-    Symbol sym;
-    sym.name = node->name;
-    sym.type = node->type;
-    sym.kind = (currentScope == rootScope.get()) ? SymbolKind::Variable : SymbolKind::Variable;
-    sym.declRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
-    sym.documentation = node->type + " " + node->name;
-    sym.fileUri = currentFile;
-
-    currentScope->symbols[node->name] = sym;
-    symbolRefs.push_back({sym.declRange, sym});
-
-    if (currentScope == rootScope.get()) {
+    scope->symbols[sym.name] = sym;
+    symbolRefs.push_back({nameRange, sym});
+    if (scope == rootScope.get()) {
         DocumentSymbolInfo docSym;
-        docSym.name = node->name;
+        docSym.name = sym.name;
         docSym.kind = "Variable";
-        docSym.range = node->range;
-        docSym.selectionRange = sym.declRange;
+        docSym.range = nameRange;
+        docSym.selectionRange = nameRange;
         documentSymbols.push_back(docSym);
     }
 }
 
-void SemanticAnalyzer::visitGlobalVarDecl(const GlobalVarDeclNode* node) {
-    if (node->expr) {
-        visitNode(node->expr.get());
-    }
-
+void SemanticAnalyzer::visitVarDecl(const VarDeclNode* node) {
+    if (node->expr) visitNode(node->expr.get());
     Symbol sym;
     sym.name = node->name;
     sym.type = node->type;
     sym.kind = SymbolKind::Variable;
     sym.declRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
-    sym.documentation = "global " + node->type + " " + node->name;
+    sym.documentation = (node->global ? "global " : "") + node->type + " " + node->name;
     sym.fileUri = currentFile;
+    addSymbol(node->global ? rootScope.get() : currentScope, sym, sym.declRange, !node->global);
+}
 
-    rootScope->symbols[node->name] = sym;
-    symbolRefs.push_back({sym.declRange, sym});
-
-    DocumentSymbolInfo docSym;
-    docSym.name = node->name;
-    docSym.kind = "Variable";
-    docSym.range = node->range;
-    docSym.selectionRange = sym.declRange;
-    documentSymbols.push_back(docSym);
+void SemanticAnalyzer::checkVariable(const std::string& name, SourceRange range) {
+    Symbol* sym = currentScope->find(name);
+    if ((!sym || sym->kind == SymbolKind::Builtin || sym->kind == SymbolKind::Function) && !currentFuncReturnType.empty()) {
+        auto global = fileGlobals.find(name);
+        if (global != fileGlobals.end()) sym = &global->second;
+    }
+    if (!sym || sym->kind == SymbolKind::Builtin || sym->kind == SymbolKind::Function) {
+        diagnostics.push_back({DiagnosticSeverity::Error, "Undefined variable '" + name + "'", range});
+    } else {
+        symbolRefs.push_back({range, *sym});
+    }
 }
 
 void SemanticAnalyzer::visitVarAssign(const VarAssignNode* node) {
-    if (node->expr) {
-        visitNode(node->expr.get());
-    }
-
-    Symbol* sym = currentScope->find(node->name);
-    SourceRange targetRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
-    if (!sym) {
-        diagnostics.push_back({DiagnosticSeverity::Error, "Undefined variable '" + node->name + "'", targetRange});
-    } else {
-        symbolRefs.push_back({targetRange, *sym});
-    }
+    if (node->expr) visitNode(node->expr.get());
+    checkVariable(node->name, node->nameRange.start.line > 0 ? node->nameRange : node->range);
 }
 
 void SemanticAnalyzer::visitVarAccess(const VarAccessNode* node) {
-    Symbol* sym = currentScope->find(node->name);
-    SourceRange targetRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
-    if (!sym) {
-        diagnostics.push_back({DiagnosticSeverity::Error, "Undefined variable '" + node->name + "'", targetRange});
-    } else {
-        symbolRefs.push_back({targetRange, *sym});
-    }
+    checkVariable(node->name, node->nameRange.start.line > 0 ? node->nameRange : node->range);
 }
 
 void SemanticAnalyzer::visitFuncCall(const FuncCallNode* node) {
-    for (const auto& arg : node->args) {
-        visitNode(arg.get());
-    }
+    for (const auto& arg : node->args) visitNode(arg.get());
 
     Symbol* sym = currentScope->find(node->name);
     SourceRange targetRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
-
-    if (!sym) {
-        diagnostics.push_back({DiagnosticSeverity::Error, "Undefined function '" + node->name + "'", targetRange});
-        return;
+    const BuiltinSpec* builtin = findBuiltinSpec(node->name);
+    if (!sym || (sym->kind != SymbolKind::Function && sym->kind != SymbolKind::Builtin)) {
+        if (builtin) {
+            sym = &rootScope->symbols[node->name];
+        } else {
+            diagnostics.push_back({DiagnosticSeverity::Error, "Undefined function '" + node->name + "'", targetRange});
+            return;
+        }
     }
-
     symbolRefs.push_back({targetRange, *sym});
 
-    // Argument count check for non-varargs
-    if (sym->kind == SymbolKind::Function && !sym->params.empty()) {
-        if (node->args.size() != sym->params.size()) {
-            diagnostics.push_back({DiagnosticSeverity::Error,
-                "Function '" + node->name + "' expects " + std::to_string(sym->params.size()) +
-                " arguments, but got " + std::to_string(node->args.size()),
-                node->range});
-        }
+    // A builtin and a module function may share a name (get); either signature is fine.
+    size_t count = node->args.size();
+    bool fitsFunction = sym->kind == SymbolKind::Function && sym->params.size() == count;
+    bool fitsBuiltin = builtin && builtin->acceptsCount(count);
+    if (!fitsFunction && !fitsBuiltin) {
+        std::string expected = sym->kind == SymbolKind::Function ? std::to_string(sym->params.size())
+                             : builtin->variadic ? "at least " + std::to_string(builtin->required)
+                             : builtin->required == builtin->params.size() ? std::to_string(builtin->required)
+                             : std::to_string(builtin->required) + " to " + std::to_string(builtin->params.size());
+        diagnostics.push_back({DiagnosticSeverity::Error,
+            "Function '" + node->name + "' expects " + expected + " arguments, but got " + std::to_string(count),
+            node->range});
     }
 }
 
 void SemanticAnalyzer::visitReturn(const ReturnNode* node) {
-    if (node->expr) {
-        visitNode(node->expr.get());
-    }
-
+    if (node->expr) visitNode(node->expr.get());
     if (currentFuncReturnType == "void" && node->expr != nullptr) {
         diagnostics.push_back({DiagnosticSeverity::Error, "Void function should not return a value", node->range});
+    } else if (currentFuncReturnType.empty()) {
+        diagnostics.push_back({DiagnosticSeverity::Error, "'return' outside of a function", node->range});
+    } else if (currentFuncReturnType != "void" && node->expr == nullptr) {
+        diagnostics.push_back({DiagnosticSeverity::Error,
+            "Function returning " + currentFuncReturnType + " must return a value", node->range});
     }
 }
 
 void SemanticAnalyzer::visitIf(const IfNode* node) {
-    if (node->condition) visitNode(node->condition.get());
-    if (node->thenB) {
-        enterScope();
-        visitNode(node->thenB.get());
-        exitScope();
-    }
-    if (node->elseB) {
-        enterScope();
-        visitNode(node->elseB.get());
-        exitScope();
-    }
+    visitNode(node->condition.get());
+    visitNode(node->thenB.get());
+    visitNode(node->elseB.get());
 }
 
 void SemanticAnalyzer::visitWhile(const WhileNode* node) {
-    if (node->condition) visitNode(node->condition.get());
-    if (node->body) {
-        enterScope();
-        visitNode(node->body.get());
-        exitScope();
-    }
+    visitNode(node->condition.get());
+    visitNode(node->body.get());
 }
 
 void SemanticAnalyzer::visitFor(const ForNode* node) {
     enterScope();
-    if (node->init) visitNode(node->init.get());
-    if (node->condition) visitNode(node->condition.get());
-    if (node->step) visitNode(node->step.get());
-    if (node->body) visitNode(node->body.get());
+    visitNode(node->init.get());
+    visitNode(node->condition.get());
+    visitNode(node->step.get());
+    visitNode(node->body.get());
     exitScope();
 }
 
 void SemanticAnalyzer::visitSwitch(const SwitchNode* node) {
-    if (node->expr) visitNode(node->expr.get());
+    visitNode(node->expr.get());
     for (const auto& c : node->cases) {
-        enterScope();
-        if (c.first) visitNode(c.first.get());
-        if (c.second) visitNode(c.second.get());
-        exitScope();
+        visitNode(c.first.get());
+        visitNode(c.second.get());
     }
-    if (node->defaultCase) {
-        enterScope();
-        visitNode(node->defaultCase.get());
-        exitScope();
-    }
+    visitNode(node->defaultCase.get());
 }
 
 void SemanticAnalyzer::visitBinOp(const BinOpNode* node) {
-    if (node->left) visitNode(node->left.get());
-    if (node->right) visitNode(node->right.get());
+    visitNode(node->left.get());
+    visitNode(node->right.get());
 }
 
 void SemanticAnalyzer::visitArrayDecl(const ArrayDeclNode* node) {
-    if (node->sizeNode) visitNode(node->sizeNode.get());
+    visitNode(node->sizeNode.get());
+    visitNode(node->initializer.get());
     Symbol sym;
     sym.name = node->name;
     sym.type = "array";
     sym.kind = SymbolKind::Variable;
-    sym.declRange = node->range;
+    sym.declRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
     sym.documentation = "array " + node->name;
     sym.fileUri = currentFile;
-    currentScope->symbols[node->name] = sym;
-    symbolRefs.push_back({node->range, sym});
+    addSymbol(node->global ? rootScope.get() : currentScope, sym, sym.declRange, !node->global);
 }
 
 void SemanticAnalyzer::visitUsing(const UsingNode* node) {
-    loadModuleSymbols(node->libName, node->range);
-    DocumentSymbolInfo docSym;
-    docSym.name = "using " + node->libName;
-    docSym.kind = "Module";
-    docSym.range = node->range;
-    docSym.selectionRange = node->range;
-    documentSymbols.push_back(docSym);
+    loadModuleSymbols({node->libName, true}, node->range);
+    documentSymbols.push_back({"using " + node->libName, "Module", node->range, node->range, {}});
 }
 
 void SemanticAnalyzer::visitInclude(const IncludeNode* node) {
-    loadModuleSymbols(node->filename, node->range);
-    DocumentSymbolInfo docSym;
-    docSym.name = "include " + node->filename;
-    docSym.kind = "Module";
-    docSym.range = node->range;
-    docSym.selectionRange = node->range;
-    documentSymbols.push_back(docSym);
+    loadModuleSymbols({node->filename, false}, node->range);
+    documentSymbols.push_back({"include " + node->filename, "Module", node->range, node->range, {}});
 }
 
 const Symbol* SemanticAnalyzer::findFunction(const std::string& name) const {
@@ -904,19 +553,17 @@ SignatureHelpResult SemanticAnalyzer::getSignatureHelp(const std::string& code, 
     result.activeParameter = commaCount;
 
     SignatureInfo sig;
-    std::ostringstream sigLabel;
-    sigLabel << fnSym->name << "(";
-    for (size_t p = 0; p < fnSym->params.size(); p++) {
-        if (p > 0) sigLabel << ", ";
-        std::string pLabel = fnSym->params[p].type + " " + fnSym->params[p].name;
-        sigLabel << pLabel;
+    for (const auto& param : fnSym->params) {
         ParameterInfo paramInfo;
-        paramInfo.label = pLabel;
-        paramInfo.documentation = "Параметр `" + fnSym->params[p].name + "` (" + fnSym->params[p].type + ")";
+        paramInfo.label = param.type + " " + param.name;
+        paramInfo.documentation = "Параметр `" + param.name + "` (" + param.type + ")";
         sig.parameters.push_back(std::move(paramInfo));
     }
-    sigLabel << ") -> " << fnSym->returnType;
-    sig.label = sigLabel.str();
+    // Every further argument of a variadic builtin belongs to its last parameter.
+    const BuiltinSpec* spec = fnSym->kind == SymbolKind::Builtin ? findBuiltinSpec(fnSym->name) : nullptr;
+    if (spec && spec->variadic && !sig.parameters.empty())
+        result.activeParameter = std::min(commaCount, static_cast<int>(sig.parameters.size()) - 1);
+    sig.label = signatureOf(*fnSym);
     sig.documentation = fnSym->documentation;
 
     result.signatures.push_back(std::move(sig));
@@ -945,6 +592,8 @@ HoverInfo SemanticAnalyzer::getHover(int line, int col, const std::string& code)
             {"+", "Сложение чисел или объединение строк."}, {"-", "Вычитание или изменение знака числа."},
             {"*", "Умножение чисел."}, {"/", "Деление чисел."}, {"%", "Остаток от деления."},
             {"++", "Постфиксное увеличение переменной на единицу: i++."},
+            {"--", "Постфиксное уменьшение переменной на единицу: i--."},
+            {"%=", "Остаток от деления с присваиванием."},
             {"=", "Присваивание значения переменной."},
             {"+=", "Сложение с присваиванием."}, {"-=", "Вычитание с присваиванием."},
             {"*=", "Умножение с присваиванием."}, {"/=", "Деление с присваиванием."},
@@ -977,12 +626,7 @@ HoverInfo SemanticAnalyzer::getHover(int line, int col, const std::string& code)
     std::ostringstream ss;
     ss << "```foxlang\n";
     if (best->symbol.kind == SymbolKind::Function || best->symbol.kind == SymbolKind::Builtin) {
-        ss << "(function) " << best->symbol.name << "(";
-        for (size_t i = 0; i < best->symbol.params.size(); i++) {
-            if (i > 0) ss << ", ";
-            ss << best->symbol.params[i].type << " " << best->symbol.params[i].name;
-        }
-        ss << ") -> " << best->symbol.returnType;
+        ss << "(function) " << signatureOf(best->symbol);
     } else {
         ss << "(variable) " << best->symbol.type << " " << best->symbol.name;
     }
@@ -1016,7 +660,8 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
     std::unordered_set<std::string> seen;
 
     auto add = [&](std::string label, std::string kind, std::string detail, std::string doc) {
-        if (seen.insert(label).second) {
+        // A module and a function may share a name: `using log;` and log(x).
+        if (seen.insert(kind + ":" + label).second) {
             items.push_back({std::move(label), std::move(kind), std::move(detail), std::move(doc)});
         }
     };
@@ -1032,7 +677,7 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         {"else", "(keyword) else", "Ветка `else` для оператора ветвления `if`.\n\n```foxlang\nif (cond) {\n    ...\n} else {\n    ...\n}\n```"},
         {"while", "(keyword) while (cond) { ... }", "Цикл с предусловием `while`.\n\n```foxlang\nwhile (условие) {\n    // тело цикла\n}\n```"},
         {"for", "(keyword) for (init; cond; step) { ... }", "Цикл со счётчиком `for`.\n\n```foxlang\nfor (int i = 0; i < 10; i++) {\n    print(i);\n}\n```"},
-        {"switch", "(keyword) switch (val) { case ... }", "Оператор множественного выбора `switch / case / default`.\n\n```foxlang\nswitch (val) {\n    case 1: { ... break; }\n    default: { ... }\n}\n```"},
+        {"switch", "(keyword) switch (val) { case ... }", "Оператор множественного выбора `switch / case / default`. Без `break` выполнение переходит в следующую ветку.\n\n```foxlang\nswitch (day) {\n    case 1:\n        print(\"пн\");\n        break;\n    default:\n        print(\"другой\");\n}\n```"},
         {"case", "(keyword) case value:", "Ветка выбора `case` внутри оператора `switch`."},
         {"default", "(keyword) default:", "Ветка по умолчанию `default` внутри `switch`."},
         {"break", "(keyword) break;", "Прерывание выполнения текущего цикла или оператора `switch`."},
@@ -1048,32 +693,16 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         {"void", "(type) void", "Тип отсутствия возвращаемого значения функции."},
         {"true", "(keyword) true", "Логическая истина."},
         {"false", "(keyword) false", "Логическая ложь."},
-        {"array", "(keyword) array <name> <size>;", "Объявление массива фиксированного размера: `array имя размер;`."}
+        {"array", "(keyword) array <name> [size | = value];", "Массив: `array имя размер;`, `array имя = [1, 2, 3];` или пустой `array имя;`. "
+            "Элементы читаются и пишутся как `имя[i]`, размер меняют `push`, `pop` и `resize`. Тип `array` допустим у параметров и результата функции."}
     };
     for (const auto& kd : kwDocs) {
         add(kd.kw, "Keyword", kd.detail, kd.doc);
     }
 
-    // 2. Standard library modules
-    struct ModuleDoc {
-        const char* name;
-        const char* doc;
-    };
-    static const std::vector<ModuleDoc> stdModules = {
-        {"graphics", "Нативная 2D-графика Linux/Windows: окно, фигуры, текст, клавиатура и мышь (`open_window`, `draw_text`, `key_pressed`)."},
-        {"server", "Модуль HTTP/HTTPS/webhook сервера для Linux и Windows (`listen`, `listen_tls`, `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`)."},
-        {"http", "Модуль исходящих HTTP-клиентских запросов (`http_fetch`, `http_post_json`, `http_post_as`, `http_put_json`, `http_remove`)."},
-        {"env", "Модуль переменных окружения и секретов (`env`, `secret`, `env_default`). Автоматически читает `.env` файл."},
-        {"log", "Модуль уровневого логирования (`debug`, `info`, `warn`, `error`)."},
-        {"json", "Модуль работы с JSON (`json_path`, `json_safe`, поддержка UTF-16 surrogate pairs и emoji)."},
-        {"string", "Модуль строковых операций (`contains`, `replace`, `to_int`, `strtoint`)."},
-        {"math", "Модуль математики (`clamp01`, `min_int`, `max_int`)."},
-        {"net", "Модуль низкоуровневых сокетов и DNS (`connect_tcp`, `send_tcp`, `recv_tcp`, `close_tcp`, `resolve_host`)."},
-        {"terminal", "Модуль TUI и ANSI-графики (`clear`, `home`, `write`, `goto_xy`, `color`, `reset_color`)."},
-        {"time", "Модуль времени и задержки (`sleep_ms`, `unix_time_ms`)."}
-    };
-    for (const auto& md : stdModules) {
-        add(md.name, "Module", std::string("(module) using ") + md.name + ";", md.doc);
+    // 2. Standard library modules, described by their own `//!` comments
+    for (const auto& module : standardModules()) {
+        add(module.name, "Module", "(module) using " + module.name + ";", module.documentation);
     }
 
     // 3. All visible symbols from root scope and symbol refs
@@ -1087,14 +716,7 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         std::string kindStr = (sym.kind == SymbolKind::Function || sym.kind == SymbolKind::Builtin) ? "Function" : "Variable";
         std::string detail;
         if (sym.kind == SymbolKind::Function || sym.kind == SymbolKind::Builtin) {
-            std::ostringstream ss;
-            ss << "(function) " << sym.name << "(";
-            for (size_t i = 0; i < sym.params.size(); i++) {
-                if (i > 0) ss << ", ";
-                ss << sym.params[i].type << " " << sym.params[i].name;
-            }
-            ss << ") -> " << sym.returnType;
-            detail = ss.str();
+            detail = "(function) " + signatureOf(sym);
         } else {
             detail = "(variable) " + sym.type + " " + sym.name;
         }

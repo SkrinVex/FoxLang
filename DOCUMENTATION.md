@@ -1,110 +1,300 @@
-# 📚 Документация FoxLang v5.7.0
+# 📚 Документация FoxLang
+
+Справочник описывает язык в текущей версии. Номер версии показывает
+`foxlang --version`, изменения между версиями собраны в [CHANGELOG.md](CHANGELOG.md).
+Все примеры кода в этом файле автоматически проверяются командой `foxlang check`
+при каждой сборке, поэтому они соответствуют языку.
 
 ## Оглавление
-1. [Основы синтаксиса](#1-основы-синтаксиса)
-2. [Переменные и Типы](#2-переменные-и-типы)
-3. [Пользовательские функции](#3-пользовательские-функции)
-4. [Математика и Логика](#4-математика-и-логика)
-5. [Управляющие конструкции](#5-управляющие-конструкции)
-6. [Массивы](#6-массивы)
-7. [Модули и Импорт](#7-модули-и-импорт)
-8. [Встроенные функции](#8-встроенные-функции)
-9. [Сетевые возможности и HTTP](#9-сетевые-возможности-и-http)
-10. [Современный синтаксис](#10-современный-синтаксис)
-11. [Standalone приложения](#21-standalone-приложения-foxlang-build)
+
+1. [Быстрый старт](#1-быстрый-старт)
+2. [Синтаксис](#2-синтаксис)
+3. [Типы и преобразования](#3-типы-и-преобразования)
+4. [Переменные и области видимости](#4-переменные-и-области-видимости)
+5. [Операторы](#5-операторы)
+6. [Управляющие конструкции](#6-управляющие-конструкции)
+7. [Функции](#7-функции)
+8. [Массивы](#8-массивы)
+9. [Модули: using и include](#9-модули-using-и-include)
+10. [Встроенные функции](#10-встроенные-функции)
+11. [Стандартная библиотека](#11-стандартная-библиотека)
+12. [Ошибки и коды возврата](#12-ошибки-и-коды-возврата)
+13. [Командная строка](#13-командная-строка)
+14. [Окружение, .env и логирование](#14-окружение-env-и-логирование)
+15. [HTTP-клиент и доверенные CA](#15-http-клиент-и-доверенные-ca)
+16. [HTTP- и HTTPS-сервер](#16-http--и-https-сервер)
+17. [Standalone-приложения](#17-standalone-приложения)
+18. [Нативная графика](#18-нативная-графика)
+19. [Редакторы и языковой сервер](#19-редакторы-и-языковой-сервер)
+20. [Встраивание в C++](#20-встраивание-в-c)
+21. [Docker](#21-docker)
+22. [Сборка и тесты](#22-сборка-и-тесты)
 
 ---
 
-## 1. Основы синтаксиса
-FoxLang использует синтаксис, похожий на C++ и Java.
-* Каждая команда **обязана** заканчиваться точкой с запятой `;`.
-* Блоки кода выделяются фигурными скобками `{ ... }`.
-* Комментарии начинаются с `//` и идут до конца строки.
-* Поддерживаются идентификаторы с подчеркиваниями (`user_name`, `get_data`).
+## 1. Быстрый старт
 
 ```cpp
-// Это комментарий
-print("Hello"); // Команда
-string user_name = "john_doe"; // Современный синтаксис
+// hello.fox
+void main() {
+    string name = "мир";
+    print("Привет, " + name + "! 🦊");
+}
+
+main();
+```
+
+```bash
+foxlang hello.fox            # запустить
+foxlang check hello.fox      # проверить без запуска
+foxlang build hello.fox      # собрать самостоятельный исполняемый файл
+```
+
+Программа выполняется сверху вниз. Функция `main` не обязательна: это обычная
+функция, которую в примере вызывает последняя строка.
+
+---
+
+## 2. Синтаксис
+
+* Каждая инструкция заканчивается точкой с запятой `;`, блоки заключаются в `{ ... }`.
+* Комментарий начинается с `//` и идёт до конца строки. Блочных комментариев нет.
+* Идентификаторы состоят из латинских букв, цифр и `_` и не начинаются с цифры:
+  `user_name`, `score2`. Кириллица допустима в строках и комментариях, но не в именах.
+* Тело `if`, `while`, `for` и функции всегда пишется в фигурных скобках.
+* Числа: целые `42` и дробные `3.14` (цифра обязательна по обе стороны точки).
+  Шестнадцатеричной и экспоненциальной записи нет.
+* Строки пишутся в двойных кавычках. Соседние строковые литералы склеиваются,
+  поэтому длинный текст можно разбить на несколько строк исходника.
+
+Escape-последовательности в строках:
+
+| Запись | Значение |
+|---|---|
+| `\n`, `\t`, `\r` | перевод строки, табуляция, возврат каретки |
+| `\"`, `\\` | кавычка и обратная косая черта |
+| `\0` | нулевой символ |
+| `Л` | символ Unicode по четырём шестнадцатеричным цифрам |
+| `\u{1F98A}` | символ Unicode по 1–6 цифрам, например emoji |
+| `🦊` | суррогатная пара UTF-16, как в JSON, — один символ 🦊 |
+
+Любой другой символ после `\` означает сам себя.
+
+```cpp
+string fox = "\u{1F98A}";
+string same = "🦊";
+string text = "Первая строка\n"
+              "вторая строка";
+print(fox == same, text);
+```
+
+Ключевые слова: `if`, `else`, `while`, `for`, `switch`, `case`, `default`,
+`break`, `continue`, `return`, `global`, `using`, `include`, типы `int`, `float`,
+`string`, `bool`, `void`, `array` и литералы `true`, `false`. Встроенные функции
+(`print`, `size`, `read_file` и остальные) — обычные имена, а не ключевые слова.
+
+---
+
+## 3. Типы и преобразования
+
+| Тип | Значения |
+|---|---|
+| `int` | целое от `-2147483648` до `2147483647` |
+| `float` | число с плавающей точкой двойной точности (IEEE 754) |
+| `string` | текст UTF-8 |
+| `bool` | `true` или `false` |
+| `array` | массив значений любых типов, см. [раздел 8](#8-массивы) |
+| `void` | «нет значения»: только тип результата функции |
+
+`int` не переполняется молча: значение вне диапазона — в объявлении, при
+присваивании или в результате арифметики — это ошибка выполнения. `float` хранит
+значение без потерь и печатается кратчайшей записью, которая читается обратно в то
+же число, поэтому `0.1 + 0.2` печатается как `0.30000000000000004` — это свойство
+двоичной плавающей точки.
+
+**Правило преобразования.** Когда значение попадает в место с объявленным
+типом — переменную, параметр функции или результат функции, — работает одно и то
+же правило:
+
+| Место | Принимает |
+|---|---|
+| `int` | `int`; `float` с отбрасыванием дробной части (значение должно поместиться в `int`) |
+| `float` | `float` и `int` |
+| `string` | `string`; `int`, `float` и `bool` превращаются в свой текст |
+| `bool` | только `bool` |
+| `array` | только `array` |
+
+Всё остальное — ошибка `Type Error`. Строку в число явно превращают `to_int` и
+`to_float`, число в строку — `to_string` или сложение со строкой.
+
+```cpp
+int whole = 9.99;          // 9
+float wide = 10;           // 10
+string label = 42;         // "42"
+string state = true;       // "true"
+int port = to_int("8080");
+float ratio = to_float("0.75");
+print(whole, wide, label, state, port, ratio, type_of(ratio));
 ```
 
 ---
 
-## 2. Переменные и Типы
+## 4. Переменные и области видимости
 
-Язык поддерживает пять основных типов данных:
-
-* `int` — Целые числа.
-* `float` — Дробные числа с плавающей точкой.
-* `string` — Текст в двойных кавычках.
-* `bool` — Логический тип (`true` или `false`).
-* `void` — Тип для функций без возвращаемого значения.
-
-**Объявление:**
+Переменная объявляется с типом и обязательным начальным значением:
 
 ```cpp
 int health = 100;
 float gravity = 9.8;
-string player_name = "Player1";
+string player_name = "Лис";
 bool is_alive = true;
+health = health - 10;
 ```
 
-**Диапазон и точность:**
+Объявление без значения (`int x;`) не допускается; пустой массив объявляется как
+`array items;`.
 
-* `int` хранит целые от `-2147483648` до `2147483647`. Значение вне диапазона —
-  в объявлении, при присваивании или как результат арифметики — это ошибка
-  выполнения, а не молчаливое переполнение.
-* `float` — это double IEEE 754. Значение сохраняется без потери точности между
-  операциями, а печатается кратчайшей записью, которая читается обратно в то же
-  число. Поэтому `print(0.1 + 0.2)` выводит `0.30000000000000004`: так работает
-  двоичная плавающая точка, а не ошибка FoxLang.
+**Области видимости.** Каждый блок `{ ... }` — отдельная область: тело функции,
+ветка `if`, тело цикла. Переменная видна от объявления до конца своего блока. Тело
+цикла — новая область на каждом витке, поэтому объявление внутри цикла не
+конфликтует само с собой. Счётчик `for (int i = 0; ...)` принадлежит циклу.
 
-**Присваивание:**
+Во вложенной области имя можно объявить заново — оно затеняет внешнее до конца
+блока. Повторное объявление в **той же** области — ошибка.
 
 ```cpp
-health = 90;
-gravity = 1.62;
-player_name = "Player2";
-is_alive = false;
+int total = 10;
+{
+    int local = 5;
+    int total = 1;        // затеняет внешнюю total внутри блока
+    print(local + total); // 6
+}
+print(total);             // 10
+```
+
+**Функции и глобальные переменные.** Функция видит свои параметры, свои локальные
+переменные и переменные верхнего уровня программы. Локальные переменные вызывающей
+функции ей недоступны.
+
+`global` внутри функции объявляет переменную (или массив) на верхнем уровне
+программы, как если бы объявление стояло там:
+
+```cpp
+void setup() {
+    global int score = 0;
+    global array history;
+}
+
+setup();
+score += 5;
+push(history, score);
+print(score, history);
 ```
 
 ---
 
-## 3. Пользовательские функции
+## 5. Операторы
 
-FoxLang поддерживает полноценные пользовательские функции с параметрами и возвратом значений.
+| Приоритет | Операторы | Описание |
+|---|---|---|
+| 1 (высший) | `-x`, `!x`, `x++`, `x--`, `a[i]`, вызов `f()` | унарные, постфиксные, индекс |
+| 2 | `*`, `/`, `%` | умножение, деление, остаток |
+| 3 | `+`, `-` | сложение и склейка строк, вычитание |
+| 4 | `==`, `!=`, `<`, `>`, `<=`, `>=` | сравнение |
+| 5 | `&&` | логическое И |
+| 6 (низший) | `\|\|` | логическое ИЛИ |
 
-### Объявление функций
+Присваивания — отдельные инструкции: `=`, `+=`, `-=`, `*=`, `/=`, `%=`. Они же
+работают для элементов массива: `items[i] += 1;`.
+
+* **Арифметика.** Если хотя бы один операнд `float`, результат `float`, иначе `int`.
+  Деление двух `int` целочисленное с отбрасыванием дробной части: `7 / 2` даёт `3`,
+  `-7 / 2` даёт `-3`. Знак остатка совпадает со знаком делимого. Деление на ноль —
+  ошибка выполнения.
+* **`+` со строкой** превращает второй операнд в текст: `"n=" + 5 + ", ok=" + true`.
+* **Сравнение** строк идёт по байтам UTF-8, чисел — по значению (`1 == 1.0`),
+  `bool` — между собой. Строка, сравниваемая с числом, должна содержать число.
+  Массивы сравниваются только `==` и `!=`: это проверка, что это *тот же* массив.
+* **Логические операторы** принимают только `bool` и вычисляют правую часть лишь
+  при необходимости, поэтому такая проверка безопасна:
 
 ```cpp
-// Функция с возвращаемым значением
+int divisor = 0;
+int total = 10;
+if (divisor != 0 && total / divisor > 1) {
+    print("ok");
+}
+```
+
+* **`i++` и `i--`** увеличивают или уменьшают переменную `int` или `float` на 1 и
+  возвращают старое значение.
+
+---
+
+## 6. Управляющие конструкции
+
+Условие `if`, `while` и `for` обязано иметь тип `bool`: число вместо условия —
+ошибка типа, а не «ложь».
+
+```cpp
+int x = 10;
+if (x > 10) {
+    print("больше");
+} else if (x == 10) {
+    print("ровно десять");
+} else {
+    print("меньше");
+}
+
+int i = 0;
+while (i < 3) {
+    i++;
+}
+
+for (int k = 0; k < 10; k++) {
+    if (k == 2) {
+        continue;
+    }
+    if (k == 5) {
+        break;
+    }
+    print(k);
+}
+
+for (;;) {
+    break; // все три части for необязательны
+}
+```
+
+`switch` сравнивает значение с каждым `case`: числа по величине, строки по тексту.
+Без `break` выполнение переходит в следующую ветку, включая `default`, который
+должен идти последним. `continue` внутри `switch` продолжает окружающий цикл.
+
+```cpp
+string day = "сб";
+switch (day) {
+    case "сб":
+    case "вс":
+        print("выходной");
+        break;
+    default:
+        print("рабочий день");
+}
+```
+
+---
+
+## 7. Функции
+
+```cpp
 int add(int a, int b) {
     return a + b;
 }
 
-// Функция без возвращаемого значения
 void greet(string name) {
-    print("Hello, " + name + "!");
+    print("Привет, " + name + "!");
 }
 
-// Функция без параметров
-string get_version() {
-    return "FoxLang 5.7.0";
-}
-```
-
-### Вызов функций
-
-```cpp
-int result = add(5, 3);
-greet("Alice");
-string version = get_version();
-print("Version: " + version);
-```
-
-### Рекурсивные функции
-
-```cpp
 int factorial(int n) {
     if (n <= 1) {
         return 1;
@@ -112,1272 +302,851 @@ int factorial(int n) {
     return n * factorial(n - 1);
 }
 
-int fact5 = factorial(5); // 120
+greet("Алиса");
+print(add(2, 3), factorial(5));
 ```
 
-### Локальные переменные
+* Тип результата — `int`, `float`, `string`, `bool`, `array` или `void`. Параметры
+  имеют те же типы, кроме `void`.
+* Аргументы и возвращаемое значение приводятся к объявленным типам по
+  [правилу преобразования](#3-типы-и-преобразования): `float half(int v)` вернёт
+  `float`, даже если `return` получил `int`.
+* Функция с типом результата, отличным от `void`, обязана вернуть значение: выход из
+  неё без `return` — ошибка выполнения. `void`-функция не может вернуть значение.
+* Количество аргументов должно совпадать с числом параметров.
+* Функции определяются в момент выполнения своего объявления. Внутри тел функций
+  можно вызывать функции, объявленные ниже в файле; на верхнем уровне функцию нужно
+  объявить раньше строки, которая её вызывает.
+* Глубина вложенных вызовов ограничена стеком потока: бесконечная рекурсия
+  завершается ошибкой `call depth limit` с числом вызовов, а не аварийным падением.
+  При обычных 8 МБ стека это тысячи уровней.
+* `return` вне функции — ошибка.
 
-```cpp
-int calculate_area(int width, int height) {
-    int area = width * height; // Локальная переменная
-    return area;
-}
-```
-
-> **Важно:** Нельзя объявить переменную с именем, которое уже существует в текущей области видимости.
-> При присваивании дробного значения переменной типа `int`, оно будет автоматически преобразовано в целое (отброшена дробная часть).
-
-Функция видит свои параметры, свои локальные переменные и глобальные переменные
-программы. Локальные переменные вызывающей функции ей недоступны, даже если вызов
-произошёл изнутри неё: обращение к такому имени — ошибка «Variable not found».
-
-Глубина вложенных вызовов ограничена стеком потока, а не фиксированным числом:
-рекурсия без условия выхода завершается ошибкой `call depth limit`, а не аварийным
-падением процесса. Рантайм измеряет стоимость вызова на ходу, поэтому предел зависит
-от платформы и от сложности выражений; при обычных 8 МБ стека это тысячи вложенных
-вызовов. Сообщение об ошибке называет достигнутую глубину.
+**Функции и встроенные функции с одинаковым именем.** Если имя совпадает со
+встроенной функцией, вызывается встроенная, когда аргументы подходят под её
+сигнатуру, иначе — функция FoxLang. Так уживаются встроенная `get(items, index)` и
+`get(path, handler)` из модуля `server`.
 
 ---
 
-## 4. Математика и Логика
+## 8. Массивы
 
-Поддерживаются стандартные арифметические операции с учетом приоритета.
-
-### Арифметические операторы
-
-| Оператор | Описание | Пример |
-| --- | --- | --- |
-| `+` | Сложение / Конкатенация строк | `5 + 5` или `"A" + "B"` |
-| `-` | Вычитание | `10 - 2` |
-| `*` | Умножение | `2 * 2` |
-| `/` | Деление | `10 / 2` |
-| `%` | Остаток от деления | `10 % 3` (вернет 1) |
-| `++` | Инкремент (увеличение на 1) | `i++` (вернет старое значение, затем увеличит переменную) |
-| `+=`, `-=`, `*=`, `/=` | Присваивание с операцией | `x += 5` (увеличит x на 5) |
-
-### Операторы сравнения
-
-Операторы сравнения возвращают значение типа `bool` — `true` или `false`.
-
-| Оператор | Описание | Пример |
-| --- | --- | --- |
-| `==` | Равно | `x == 5` |
-| `!=` | Не равно | `x != 5` |
-| `<` | Меньше | `x < 10` |
-| `>` | Больше | `x > 0` |
-| `<=` | Меньше или равно | `x <= 10` |
-| `>=` | Больше или равно | `x >= 0` |
-
-### Логические операторы
-
-FoxLang поддерживает логические операторы для работы с boolean значениями:
-
-| Оператор | Описание | Пример |
-| --- | --- | --- |
-| `&&` | Логическое И (AND) | `(x > 0) && (x < 10)` |
-| `\|\|` | Логическое ИЛИ (OR) | `(x == 0) \|\| (x == 1)` |
-| `!` | Логическое НЕ (NOT) | `!(x == 0)` |
+Массив хранит значения любых типов и может менять размер.
 
 ```cpp
-bool is_valid = (age >= 18) && (age <= 65);
-bool is_weekend = (day == "Saturday") || (day == "Sunday");
-bool is_not_empty = size(name) > 0;
+array zeros 3;                 // три элемента, равные 0
+array primes = [2, 3, 5, 7];   // литерал
+array names;                   // пустой массив
+push(names, "Лис");
+push(names, "Волк");
+
+primes[0] = 11;                // запись по индексу (с нуля)
+primes[1] += 1;
+print(primes[0], size(primes), names);   // 11 4 [Лис, Волк]
+print(zeros);                  // [0, 0, 0]
 ```
 
-`&&` и `||` вычисляют правую часть только при необходимости: если левая часть уже
-определяет результат, правая не выполняется. Поэтому такая проверка безопасна:
+* Размер в `array имя размер;` может быть любым выражением `int`.
+* Чтение и запись вне границ `0..size-1` — ошибка выполнения.
+* `get(items, i)` и `set(items, i, value)` — то же, что `items[i]` и `items[i] = value;`.
+* Размер меняют `push`, `pop`, `insert`, `remove_at` и `resize`; алгоритмы —
+  модуль [`arrays`](#arrays).
+* `print` и `to_string` выводят массив как `[1, 2, 3]`.
+
+**Передача и копирование.** В функцию массив передаётся по ссылке: изменения
+внутри функции видны снаружи. Присваивание `a = b;` и объявление `array a = b;`
+копируют элементы, так что дальше массивы независимы. Функция может вернуть массив:
+вызывающий код получает свою копию.
 
 ```cpp
-if (divisor != 0 && total / divisor > 1) {
-    print("ok");
+void reset_first(array items) {
+    items[0] = 0;
 }
+
+array evens(int count) {
+    array result;
+    for (int i = 0; i < count; i++) {
+        push(result, i * 2);
+    }
+    return result;
+}
+
+array values = evens(4);
+reset_first(values);
+array copy = values;
+copy[1] = 100;
+print(values, copy);   // [0, 2, 4, 6] [0, 100, 4, 6]
 ```
 
-Операнды логических операторов и условие любой конструкции (`if`, `while`, `for`)
-обязаны быть типа `bool`. Число вместо условия — ошибка типа, а не «ложь».
+**Время жизни.** Массив живёт, пока жива область, где он создан: объявленный в
+функции освобождается при выходе из неё, временный массив внутри цикла — в конце
+витка. Элементом массива может быть другой массив, но такой элемент — ссылка на
+временный массив; для долговременного хранения используйте массивы скалярных
+значений.
 
 ---
 
-## 5. Управляющие конструкции
-
-### Условия (If / Else)
+## 9. Модули: using и include
 
 ```cpp
-int x = 10;
-if (x == 10) {
-    print("X is ten");
-} else {
-    print("X is not ten");
-}
+using string;   // модуль стандартной библиотеки
+using json;
+print(upper("fox"), json_quote("лис"));
 ```
 
-### Циклы (While)
+`include("путь/к/файлу.fox");` подключает свой файл по пути.
 
-Выполняет блок кода, пока условие истинно.
+Поиск модуля `using имя;`: сначала `std/имя.fox`, затем `имя.fox`. Каждый путь
+ищется относительно подключающего файла, текущего каталога, `FOXLANG_HOME` и
+`FOXLANG_HOME/std`. Если файлов нет, используется стандартная библиотека,
+встроенная в исполняемый файл. `include` ищет файл так же, но без префикса `std/`.
 
-```cpp
-int i = 0;
-while (i < 5) {
-    print("Loop iteration: " + i);
-    i++;
-}
-```
-
-### Циклы (For)
-
-Классический цикл `for`, состоящий из инициализации, условия и шага.
-
-```cpp
-for (int i = 0; i < 5; i++) {
-    print("For loop: " + i);
-}
-```
-
-### Switch/Case конструкции
-
-FoxLang поддерживает конструкции `switch/case` с поддержкой `break` и `default`:
-
-```cpp
-int day = 3;
-switch (day) {
-    case 1:
-        print("Понедельник");
-        break;
-    case 2:
-        print("Вторник");
-        break;
-    case 3:
-        print("Среда");
-        break;
-    default:
-        print("Другой день");
-        break;
-}
-```
-
-### Управление циклами
-
-- `break` — Прерывает выполнение цикла или switch
-- `continue` — Переходит к следующей итерации цикла
-
-```cpp
-for (int i = 0; i < 10; i++) {
-    if (i == 5) {
-        continue; // Пропустить 5
-    }
-    if (i == 8) {
-        break; // Выйти из цикла
-    }
-    print(i);
-}
-```
-
-### Области видимости (Scope)
-
-Блоки кода `{ ... }` создают новую область видимости. Переменные, объявленные внутри блока, недоступны снаружи.
-
-```cpp
-int global = 10;
-{
-    int local = 5;
-    print(global); // 10
-    print(local);  // 5
-}
-// print(local); // Ошибка! Переменная local не существует здесь.
-```
-
-Областью является каждый блок: тело функции, тело цикла, ветка `if`. Тело цикла —
-новая область на каждом витке, поэтому объявление внутри цикла корректно и не
-конфликтует само с собой. Переменная счётчика `for (int i = 0; ...)` принадлежит
-циклу и снаружи не видна.
-
-Имя можно объявить заново во вложенной области — тогда оно затеняет внешнее до
-конца блока. Повторное объявление в **той же** области — ошибка.
+* Подключение выполняет только объявления модуля: функции, переменные, массивы и
+  вложенные `using`/`include`. Остальные инструкции верхнего уровня модуля
+  (например, демонстрационный вызов `main();`) пропускаются.
+* Модуль загружается один раз за время работы программы, даже если подключён
+  несколько раз или по кругу.
+* Всё объявленное в модуле попадает в общее пространство имён программы. Функция,
+  объявленная позже с тем же именем, заменяет прежнюю; переменную с уже занятым
+  именем объявить нельзя.
 
 ---
 
-## 6. Массивы
+## 10. Встроенные функции
 
-Массивы в FoxLang поддерживают динамический размер и являются объектами первого класса (их можно передавать в функции).
+Встроенные функции доступны без `using`. В таблицах `[тип имя]` — необязательный
+параметр, `тип имя...` — любое число аргументов. `number` означает `int` или
+`float`, `any` — значение любого типа. Аргументы проверяются по сигнатуре: неверное
+число или тип аргумента — ошибка с именем параметра.
 
-1. **Создание:** `array имя размер;` (размер может быть переменной или выражением)
-   Память массива освобождается, когда завершается функция, в которой он объявлен,
-   или когда массив с тем же именем объявляется заново — например на каждом витке цикла.
-2. **Запись:** `set(имя, индекс, значение);`
-3. **Чтение:** `get(имя, индекс)`
-4. **Размер:** `size(имя)` — для массива это число элементов, для строки — число **байт** UTF-8. Символы строки считает `str_length(текст)`.
+Функции с префиксами (`str_`, `fs_`, `os_`, `json_` и т. п.) — основа модулей
+стандартной библиотеки, которые дают к ним короткие имена. Их можно вызывать и
+напрямую.
 
-```cpp
-int s = 3;
-array chest s;     // Массив на 3 элемента
-set(chest, 0, 55); // Записать 55 в индекс 0
-print(get(chest, 0)); // Выведет 55
-```
+### Ввод и вывод
 
----
-
-## 7. Модули и Импорт
-
-FoxLang поддерживает импорт внешних модулей.
-Используйте `include("путь/к/файлу.fox");`.
-
-**Особенности:**
-
-* `include` и `using` загружают объявления функций, переменных и вложенные импорты. Инициализаторы переменных выполняются при загрузке; обычные вызовы функций на верхнем уровне импортируемого файла пропускаются. Повторные и циклические импорты не загружают один модуль повторно.
-
----
-
-## 8. Встроенные функции
-
-### Ввод/Вывод
-| Функция | Описание | Пример |
-| --- | --- | --- |
-| `print(expr...)` | Выводит текст или результат выражения в консоль. Может принимать несколько аргументов. | `print("Hello", name);` |
-| `input()` | Ждет ввода строки от пользователя и возвращает её. | `string name = input();` |
-| `input(prompt)` | Выводит приглашение и ждет ввода строки. | `string name = input("Имя: ");` |
-
-### Математические функции
-| Функция | Описание | Пример |
-| --- | --- | --- |
-| `round(number)` | Округляет дробное число до ближайшего целого. | `int x = round(3.7); // 4` |
-| `random(min, max)` | Генерирует случайное число в диапазоне от min до max включительно. | `int dice = random(1, 6);` |
-| `sqrt(number)` | Квадратный корень. Отрицательный аргумент — ошибка выполнения. | `float d = sqrt(dx * dx + dy * dy);` |
-| `pow(base, exponent)` | Возведение в степень. | `float area = pow(radius, 2.0);` |
-| `sin(radians)`, `cos(radians)` | Синус и косинус угла в радианах. | `float x = cx + cos(angle) * r;` |
-| `floor(number)`, `ceil(number)` | Округление вниз и вверх. | `float f = floor(-2.5); // -3` |
-
-Модуль `std/math.fox` добавляет поверх них `hypot(x, y)` — длину вектора — и
-`radians(degrees)` для перевода градусов в радианы, которых ждут `sin` и `cos`.
-
-### Работа с файлами
-| Функция | Описание | Пример |
-| --- | --- | --- |
-| `read_file(filename)` | Читает всё содержимое файла в строку (игнорируя пустые строки и комментарии `#`). | `string config = read_file("config.txt");` |
-| `write_file(filename, content)` | Записывает строку в файл, перезаписывая его. Возвращает `true` при успехе. | `write_file("log.txt", "Started");` |
-| `append_file(filename, content)` | Добавляет строку в конец файла. Возвращает `true` при успехе. | `append_file("log.txt", "Error!");` |
-
-### HTTP запросы
-| Функция | Описание | Пример |
-| --- | --- | --- |
-| `httpget(url)` | Выполняет HTTP GET запрос и возвращает ответ сервера. | `string data = httpget("https://api.example.com");` |
-| `httppost(url, data)` | Выполняет HTTP POST запрос с данными. | `string response = httppost(url, "{\"key\":\"value\"}");` |
-| `httppost(url, data, content_type)` | HTTP POST с указанием типа контента. | `httppost(url, data, "application/json");` |
-| `httpput(url, data)` | Выполняет HTTP PUT запрос с данными. | `string response = httpput(url, data);` |
-| `httpput(url, data, content_type)` | HTTP PUT с указанием типа контента. | `httpput(url, data, "text/plain");` |
-| `httpdelete(url)` | Выполняет HTTP DELETE запрос. | `string response = httpdelete(url);` |
-
-### FastAPI-подобный веб-сервер
-| Функция | Описание | Пример |
-| --- | --- | --- |
-| `server_start(port)` | Запускает HTTP сервер на указанном порту. | `string result = server_start(8080);` |
-| `server_stop()` | Останавливает HTTP сервер. | `string result = server_stop();` |
-| `route_get(path, handler)` | Регистрирует GET маршрут с обработчиком. | `string result = route_get("/api", "handler");` |
-| `route_post(path, handler)` | Регистрирует POST маршрут с обработчиком. | `string result = route_post("/users", "create");` |
-| `send_response(data)` | Отправляет ответ клиенту (используется в обработчиках). | `send_response("{\"status\":\"ok\"}");` |
-
-### Работа со строками и JSON
-| Функция | Описание | Пример |
-| --- | --- | --- |
-| `json_get(json_string, path)` | Извлекает значение по вложенному пути (`message.chat.id`) и декодирует JSON escapes/Unicode `\\uXXXX`. | `string chat_id = json_get(update, "message.chat.id");` |
-| `str_contains(text, substring)` | Проверяет, содержит ли строка подстроку. Возвращает `true` или `false`. | `bool found = str_contains("Hello World", "World");` |
-| `str_replace(text, old, new)` | Заменяет все вхождения подстроки на новую строку. | `string res = str_replace("a b a", "a", "c");` |
-| `str_split(text, delim)` | Разбивает строку по разделителю и возвращает массив. | `array words = str_split("a,b,c", ",");` |
-| `size(string_or_array)` | Возвращает длину строки или размер массива. | `int len = size("Hello");` |
-| `str_to_int(string)` | Преобразует строку в целое число. При ошибке возвращает 0. | `int num = str_to_int("123");` |
-| `str_length(string)` | Число символов строки. Для текста не из латиницы это не то же, что `size(text)`: тот считает байты UTF-8. | `int n = str_length("Лисий"); // 5, а size() даст 10` |
-
-### Ввод с клавиатуры (низкоуровневый)
-| Функция | Описание | Пример |
-| --- | --- | --- |
-| `getch()` | Читает один символ с клавиатуры без нажатия Enter. | `string key = getch();` |
-| `kbhit()` | Проверяет, была ли нажата клавиша. Возвращает `true` или `false`. | `bool pressed = kbhit();` |
-
-### Системные функции
-| Функция | Описание | Пример |
-| --- | --- | --- |
-| `wait(milliseconds)` | Приостанавливает выполнение программы на указанное количество миллисекунд. | `wait(1000); // Пауза 1 секунда` |
-| `fox()` | Пасхалка: выводит название языка "FoxLang". | `fox();` |
-
----
-
-## 9. Сетевые возможности и HTTP
-
-FoxLang предоставляет мощные возможности для работы с сетью и HTTP запросами. Поддерживаются все основные HTTP методы и создание веб-серверов.
-
-### HTTP клиент - Отправка запросов
-
-#### GET запросы
-```cpp
-// Простой GET запрос
-string response = httpget("https://api.github.com/users/octocat");
-print("Response: " + response);
-
-// Получение JSON данных
-string user_data = httpget("https://jsonplaceholder.typicode.com/users/1");
-print("User: " + user_data);
-```
-
-#### POST запросы
-```cpp
-// POST с JSON данными
-string json_data = "{\"name\":\"John\",\"email\":\"john@example.com\"}";
-string response = httppost("https://jsonplaceholder.typicode.com/users", json_data, "application/json");
-print("Created: " + response);
-
-// POST без указания Content-Type (по умолчанию application/json)
-string simple_post = httppost("https://httpbin.org/post", "{\"test\":\"data\"}");
-print("POST result: " + simple_post);
-```
-
-#### PUT запросы (обновление данных)
-```cpp
-// Обновление существующего ресурса
-string update_data = "{\"name\":\"John Updated\",\"email\":\"john.new@example.com\"}";
-string updated = httpput("https://jsonplaceholder.typicode.com/users/1", update_data, "application/json");
-print("Updated: " + updated);
-```
-
-#### DELETE запросы (удаление данных)
-```cpp
-// Удаление ресурса
-string deleted = httpdelete("https://jsonplaceholder.typicode.com/users/1");
-print("Deleted: " + deleted);
-```
-
-### Работа с различными API
-
-#### Пример работы с REST API
-```cpp
-void work_with_api() {
-    string base_url = "https://jsonplaceholder.typicode.com";
-    
-    // Получить список пользователей
-    string users = httpget(base_url + "/users");
-    print("All users: " + users);
-    
-    // Получить конкретного пользователя
-    string user = httpget(base_url + "/users/1");
-    print("User 1: " + user);
-    
-    // Создать новый пост
-    string new_post = "{\"title\":\"My Post\",\"body\":\"Post content\",\"userId\":1}";
-    string created = httppost(base_url + "/posts", new_post, "application/json");
-    print("Created post: " + created);
-    
-    // Обновить пост
-    string updated_post = "{\"id\":1,\"title\":\"Updated Post\",\"body\":\"New content\",\"userId\":1}";
-    string updated = httpput(base_url + "/posts/1", updated_post, "application/json");
-    print("Updated post: " + updated);
-    
-    // Удалить пост
-    string deleted = httpdelete(base_url + "/posts/1");
-    print("Deleted post: " + deleted);
-}
-
-work_with_api();
-```
-
-### FastAPI-подобный веб-сервер
-
-FoxLang поддерживает создание веб-серверов через библиотеку `net.fox`:
-
-#### Быстрый старт сервера
-```cpp
-include("src/net.fox");
-
-// Обработчики маршрутов
-void api_home() {
-    json_response("{\"message\":\"Welcome to FoxLang API!\",\"version\":\"5.7.0\"}");
-}
-
-void api_users() {
-    json_response("{\"users\":[{\"id\":1,\"name\":\"Alice\"},{\"id\":2,\"name\":\"Bob\"}]}");
-}
-
-void create_user() {
-    json_response("{\"message\":\"User created\",\"id\":3,\"name\":\"Charlie\"}");
-}
-
-// Запуск сервера
-void main() {
-    // Старт сервера на порту 8080
-    start_server(8080);
-    
-    // Регистрация маршрутов
-    register_get("/", "api_home");
-    register_get("/users", "api_users");
-    register_post("/users", "create_user");
-    
-    print("🚀 Server running on http://localhost:8080");
-    print("Available endpoints:");
-    print("  GET  / - Welcome message");
-    print("  GET  /users - List users");
-    print("  POST /users - Create user");
-}
-
-main();
-```
-
-#### Встроенные серверные функции
-
-| Функция | Описание | Пример |
-|---------|----------|---------|
-| `server_start(port)` | Запускает HTTP сервер | `server_start(8080);` |
-| `server_stop()` | Останавливает сервер | `server_stop();` |
-| `route_get(path, handler)` | Регистрирует GET маршрут | `route_get("/api", "handler");` |
-| `route_post(path, handler)` | Регистрирует POST маршрут | `route_post("/users", "create");` |
-| `send_response(data)` | Отправляет ответ клиенту | `send_response("{\"status\":\"ok\"}");` |
-
-#### Библиотека net.fox - Высокоуровневые функции
-
-```cpp
-include("src/net.fox");
-
-// Удобные функции из библиотеки:
-start_server(8080);              // Запуск сервера
-register_get("/", "handler");    // Регистрация GET маршрута
-register_post("/api", "create"); // Регистрация POST маршрута
-json_response("{\"key\":\"value\"}"); // JSON ответ
-text_response("Hello World");    // Текстовый ответ
-```
-
-### Практические примеры
-
-#### HTTP клиент для тестирования API
-```cpp
-void test_external_apis() {
-    // Тест GitHub API
-    string github_user = httpget("https://api.github.com/users/octocat");
-    print("GitHub user: " + github_user);
-    
-    // Тест погодного API (пример)
-    string weather = httpget("https://api.openweathermap.org/data/2.5/weather?q=Moscow&appid=YOUR_KEY");
-    print("Weather: " + weather);
-    
-    // Отправка данных в webhook
-    string webhook_data = "{\"text\":\"Hello from FoxLang!\"}";
-    string webhook_response = httppost("https://hooks.slack.com/services/YOUR/WEBHOOK/URL", webhook_data);
-    print("Webhook sent: " + webhook_response);
-}
-```
-
-#### Простой API сервер с обработкой данных
-```cpp
-include("src/net.fox");
-
-global array users 10;
-global int user_count = 0;
-
-void get_users() {
-    string users_json = "{\"users\":[";
-    int i = 0;
-    while (i < user_count) {
-        if (i > 0) {
-            users_json = users_json + ",";
-        }
-        users_json = users_json + "{\"id\":" + i + ",\"name\":\"" + get(users, i) + "\"}";
-        i = i + 1;
-    }
-    users_json = users_json + "],\"total\":" + user_count + "}";
-    json_response(users_json);
-}
-
-void add_user() {
-    if (user_count < 10) {
-        set(users, user_count, "User" + user_count);
-        user_count = user_count + 1;
-        json_response("{\"message\":\"User added\",\"id\":" + (user_count - 1) + "}");
-    } else {
-        json_response("{\"error\":\"Maximum users reached\"}");
-    }
-}
-
-void main() {
-    start_server(3000);
-    register_get("/users", "get_users");
-    register_post("/users", "add_user");
-    print("API server ready on http://localhost:3000");
-}
-
-main();
-```
-
-### Обработка ошибок и проверки
-
-```cpp
-void safe_http_request(string url) {
-    string response = httpget(url);
-    
-    if (response == "") {
-        print("❌ Request failed: " + url);
-        return;
-    }
-    
-    // Проверка на успешный ответ (простая проверка)
-    if (str_contains(response, "error") || str_contains(response, "Error")) {
-        print("⚠️ API returned error: " + response);
-        return;
-    }
-    
-    print("✅ Success: " + response);
-}
-
-// Использование
-safe_http_request("https://api.github.com/users/nonexistent");
-safe_http_request("https://api.github.com/users/octocat");
-```
-
-### Краткий справочник HTTP функций
-
-#### 📋 Все встроенные HTTP функции
-| Функция | Описание | Пример |
-|---------|----------|---------|
-| `httpget(url)` | GET запрос | `httpget("https://api.com/users")` |
-| `httppost(url, data)` | POST запрос | `httppost(url, "{\"key\":\"value\"}")` |
-| `httppost(url, data, type)` | POST с Content-Type | `httppost(url, data, "application/json")` |
-| `httpput(url, data)` | PUT запрос | `httpput(url, "{\"updated\":true}")` |
-| `httpput(url, data, type)` | PUT с Content-Type | `httpput(url, data, "text/plain")` |
-| `httpdelete(url)` | DELETE запрос | `httpdelete("https://api.com/item/1")` |
-
-#### 🚀 Серверные функции (встроенные)
-| Функция | Описание | Пример |
-|---------|----------|---------|
-| `server_start(port)` | Запуск сервера | `server_start(8080)` |
-| `server_stop()` | Остановка сервера | `server_stop()` |
-| `route_get(path, handler)` | GET маршрут | `route_get("/api", "handler")` |
-| `route_post(path, handler)` | POST маршрут | `route_post("/users", "create")` |
-| `send_response(data)` | Отправка ответа | `send_response("{\"ok\":true}")` |
-
-#### 📚 Библиотека net.fox (высокоуровневые функции)
-| Функция | Описание | Пример |
-|---------|----------|---------|
-| `start_server(port)` | Удобный запуск сервера | `start_server(8080)` |
-| `register_get(path, handler)` | Регистрация GET | `register_get("/", "home")` |
-| `register_post(path, handler)` | Регистрация POST | `register_post("/api", "create")` |
-| `json_response(json)` | JSON ответ | `json_response("{\"status\":\"ok\"}")` |
-| `text_response(text)` | Текстовый ответ | `text_response("Hello World")` |
-
-#### ⚡ Быстрые примеры
-
-**HTTP клиент:**
-```cpp
-// GET
-string user = httpget("https://api.github.com/users/octocat");
-
-// POST
-string data = "{\"name\":\"John\"}";
-string created = httppost("https://api.com/users", data, "application/json");
-
-// PUT
-string updated = httpput("https://api.com/users/1", "{\"name\":\"Jane\"}");
-
-// DELETE
-string deleted = httpdelete("https://api.com/users/1");
-```
-
-**Веб-сервер:**
-```cpp
-include("src/net.fox");
-
-void api_home() {
-    json_response("{\"message\":\"Hello FoxLang API!\"}");
-}
-
-void main() {
-    start_server(8080);
-    register_get("/", "api_home");
-    print("🚀 Server: http://localhost:8080");
-}
-
-main();
-```
-
-#### 🧪 Компиляция и запуск
-```bash
-# Сборка runtime через CMake
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
-
-# Запуск HTTP клиента
-./build/foxlang examples/http_demo.fox
-
-# Запуск веб-сервера
-./build/foxlang examples/fastapi_demo.fox
-```
-
-### Расширенные примеры использования
-
-#### Webhook отправка
-```cpp
-void send_notification(string message) {
-    string webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL";
-    string payload = "{\"text\":\"" + message + "\"}";
-    string response = httppost(webhook_url, payload);
-    
-    if (response != "") {
-        print("✅ Notification sent");
-    } else {
-        print("❌ Failed to send notification");
-    }
-}
-
-send_notification("Hello from FoxLang!");
-```
-
-#### Полный REST API сервер с данными
-```cpp
-include("src/net.fox");
-
-global array users 10;
-global int user_count = 0;
-
-void get_users() {
-    string users_json = "{\"users\":[";
-    int i = 0;
-    while (i < user_count) {
-        if (i > 0) {
-            users_json = users_json + ",";
-        }
-        users_json = users_json + "{\"id\":" + i + ",\"name\":\"" + get(users, i) + "\"}";
-        i = i + 1;
-    }
-    users_json = users_json + "],\"total\":" + user_count + "}";
-    json_response(users_json);
-}
-
-void add_user() {
-    if (user_count < 10) {
-        set(users, user_count, "User" + user_count);
-        user_count = user_count + 1;
-        json_response("{\"message\":\"User added\",\"id\":" + (user_count - 1) + "}");
-    } else {
-        json_response("{\"error\":\"Maximum users reached\"}");
-    }
-}
-
-void main() {
-    start_server(3000);
-    register_get("/users", "get_users");
-    register_post("/users", "add_user");
-    print("API server ready on http://localhost:3000");
-}
-
-main();
-```
-
-#### Тестирование множественных API
-```cpp
-void test_multiple_apis() {
-    print("🧪 Testing multiple APIs:");
-    
-    // GitHub API
-    string github = httpget("https://api.github.com/users/octocat");
-    print("GitHub API: " + github);
-    
-    // JSONPlaceholder API
-    string posts = httpget("https://jsonplaceholder.typicode.com/posts/1");
-    print("JSONPlaceholder: " + posts);
-    
-    // HTTPBin для тестирования POST
-    string test_post = httppost("https://httpbin.org/post", "{\"test\":\"data\"}");
-    print("HTTPBin POST: " + test_post);
-    
-    // Создание нового поста
-    string new_post = "{\"title\":\"FoxLang Test\",\"body\":\"API testing\"}";
-    string created = httppost("https://jsonplaceholder.typicode.com/posts", new_post);
-    print("Created post: " + created);
-}
-
-test_multiple_apis();
-```
-
-#### Простой счетчик API
-```cpp
-include("src/net.fox");
-
-global int counter = 0;
-
-void get_counter() {
-    json_response("{\"counter\":" + counter + ",\"message\":\"Current value\"}");
-}
-
-void increment_counter() {
-    counter = counter + 1;
-    json_response("{\"counter\":" + counter + ",\"message\":\"Incremented\"}");
-}
-
-void decrement_counter() {
-    counter = counter - 1;
-    json_response("{\"counter\":" + counter + ",\"message\":\"Decremented\"}");
-}
-
-void reset_counter() {
-    counter = 0;
-    json_response("{\"counter\":0,\"message\":\"Reset to zero\"}");
-}
-
-void main() {
-    start_server(4000);
-    
-    register_get("/counter", "get_counter");
-    register_post("/counter/increment", "increment_counter");
-    register_post("/counter/decrement", "decrement_counter");
-    register_post("/counter/reset", "reset_counter");
-    
-    print("🔢 Counter API running on http://localhost:4000");
-    print("Available endpoints:");
-    print("  GET  /counter - Get current value");
-    print("  POST /counter/increment - Add 1");
-    print("  POST /counter/decrement - Subtract 1");
-    print("  POST /counter/reset - Reset to 0");
-}
-
-main();
-```
-
-### Технические особенности
-
-#### Content-Type заголовки
-- По умолчанию POST/PUT используют `application/json`
-- Можно указать свой: `httppost(url, data, "text/plain")`
-- Поддерживаются: `application/json`, `text/plain`, `application/x-www-form-urlencoded`
-
-#### Обработка ответов
-- Все функции возвращают `string` с телом ответа
-- Пустая строка `""` означает ошибку соединения
-- HTTP коды ошибок (404, 500) возвращают тело ответа сервера
-
-#### Сервер
-- Использует простую реализацию HTTP сервера
-- Поддерживает GET и POST методы
-- JSON ответы автоматически получают правильный Content-Type
-- `listen` / `server_start` блокирует выполнение до остановки сервера; сетевой runtime реализован для Linux и Windows
-
----
-
-## 10. Современный синтаксис
-
-FoxLang поддерживает современные соглашения по именованию и синтаксису:
-
-### Идентификаторы с подчеркиваниями
-
-В отличие от старых версий, FoxLang теперь полностью поддерживает идентификаторы с подчеркиваниями:
-
-```cpp
-// Переменные
-string user_name = "john_doe";
-int max_health = 100;
-bool is_game_over = false;
-
-// Функции
-void calculate_damage(int base_damage, float multiplier) {
-    // ...
-}
-
-int get_player_score() {
-    return player_score;
-}
-```
-
-### Глобальные переменные
-
-FoxLang поддерживает объявление глобальных переменных с ключевым словом `global`:
-
-```cpp
-global int game_score = 0;
-global string player_name = "Unknown";
-
-void update_score(int points) {
-    game_score = game_score + points;
-}
-
-void main() {
-    print("Score: " + game_score);
-    update_score(100);
-    print("New score: " + game_score);
-}
-```
-
-### Примеры современного кода
-
-```cpp
-// Современная функция с подчеркиваниями
-bool check_user_permissions(string user_role, int required_level) {
-    if (user_role == "admin") {
-        return true;
-    }
-    
-    int user_level = get_user_level(user_role);
-    return user_level >= required_level;
-}
-
-// Работа с массивами
-void sort_user_scores(array scores, int count) {
-    for (int i = 0; i < count - 1; i++) {
-        for (int j = 0; j < count - i - 1; j++) {
-            if (get(scores, j) > get(scores, j + 1)) {
-                int temp = get(scores, j);
-                set(scores, j, get(scores, j + 1));
-                set(scores, j + 1, temp);
-            }
-        }
-    }
-}
-```
-
----
-
-
----
-
-## 11. Стандартная библиотека FoxLang 5.2
-
-### Поиск и подключение модулей
-
-`include("path.fox")` по-прежнему поддерживается. Начиная с FoxLang 5.2 конструкция `using module;` используется для подключения модулей стандартной библиотеки.
-
-Порядок поиска:
-
-Сначала проверяется `std/module.fox`, затем `module.fox`. Каждый вариант ищется
-относительно импортирующего файла, текущего каталога, `FOXLANG_HOME` и
-`FOXLANG_HOME/std`. Если файлов нет, используется встроенная стандартная библиотека.
-Ошибка выполнения найденного модуля не приводит к поиску другого файла.
-
-Уже загруженный модуль повторно не выполняется в рамках одного процесса интерпретатора.
-
-### Стандартные модули
-
-| Модуль | Назначение |
+| Функция | Описание |
 |---|---|
-| `terminal` | очистка терминала, перемещение курсора, ANSI-цвета и вывод без переноса строки |
-| `graphics` | нативное окно, фигуры, текст, клавиатура и мышь; [описание API](docs/GRAPHICS.md) |
-| `net` | DNS и TCP-клиентские соединения на Linux и Windows |
-| `http` | удобные обёртки для GET/POST/PUT/DELETE |
-| `math` | `clamp`, `min`, `max` и математические помощники |
-| `string` | поиск, замена и преобразование строк |
-| `time` | задержки и время в миллисекундах |
+| `print(any values...) -> void` | печатает значения через пробел и переводит строку |
+| `input([string prompt]) -> string` | читает строку; в конце ввода — пустая строка |
+| `getch() -> string` | одна клавиша из терминала без Enter и эха |
+| `kbhit() -> bool` | есть ли нажатая клавиша в буфере терминала |
+| `wait(int milliseconds) -> void` | пауза |
+| `exit([int code]) -> void` | завершает программу с кодом возврата (по умолчанию 0) |
 
-### TCP API
+### Массивы
+
+| Функция | Описание |
+|---|---|
+| `size(any value) -> int` | число элементов массива или длина строки в **байтах** |
+| `get(array items, int index) -> any` | элемент по индексу |
+| `set(array items, int index, any value) -> void` | запись элемента |
+| `push(array items, any value) -> void` | добавить в конец |
+| `pop(array items) -> any` | удалить и вернуть последний элемент |
+| `insert(array items, int index, any value) -> void` | вставить перед `index` (`index == size` — в конец) |
+| `remove_at(array items, int index) -> any` | удалить элемент и вернуть его |
+| `resize(array items, int size) -> void` | изменить размер; новые элементы равны 0 |
+| `array_sort(array items) -> void` | сортировка на месте: все числа или все строки |
+| `array_reverse(array items) -> void` | обратный порядок на месте |
+| `array_index_of(array items, any value) -> int` | индекс первого равного элемента или -1 |
+| `array_copy(array items) -> array` | независимая копия |
+| `array_slice(array items, int start, [int end]) -> array` | срез; отрицательные индексы — с конца |
+
+`array_index_of` сравнивает числа по величине, остальное — по тексту, поэтому число
+`5` находится и по строке `"5"`.
+
+### Типы и преобразования
+
+| Функция | Описание |
+|---|---|
+| `type_of(any value) -> string` | `int`, `float`, `string`, `bool` или `array` |
+| `to_int(any value) -> int` | число из `float` (дробная часть отбрасывается), строки или `bool` |
+| `to_float(any value) -> float` | дробное число из числа, строки или `bool` |
+| `to_string(any value) -> string` | текст значения; массив — `[1, 2]` |
+| `is_number(string text) -> bool` | содержит ли строка число целиком |
+
+`to_int` и `to_float` для строки, которая не является числом, — ошибка выполнения;
+заранее проверяйте её через `is_number`.
+
+```cpp
+string answer = "42";
+if (is_number(answer)) {
+    int n = to_int(answer);
+    print(n + 1);
+}
+```
+
+### Математика
+
+| Функция | Описание |
+|---|---|
+| `abs(number value) -> number` | модуль; тип как у аргумента |
+| `min(number a, number b) -> number`, `max(number a, number b) -> number` | `int`, если оба аргумента `int` |
+| `clamp(number value, number min, number max) -> number` | ограничение диапазоном |
+| `round(number value) -> int` | округление (половина — от нуля) |
+| `floor(number value) -> float`, `ceil(number value) -> float` | вниз и вверх |
+| `sqrt(number value) -> float` | корень; отрицательный аргумент — ошибка |
+| `pow(number base, number exponent) -> float` | степень |
+| `exp(number value) -> float` | e в степени `value` |
+| `log(number value) -> float`, `log10(number value) -> float` | логарифмы; аргумент больше 0 |
+| `sin(number radians)`, `cos(number radians)`, `tan(number radians)` | тригонометрия, результат `float` |
+| `asin(number value)`, `acos(number value)`, `atan(number value)` | обратные функции, радианы |
+| `atan2(number y, number x) -> float` | угол вектора с учётом четверти |
+| `random(int min, int max) -> int` | случайное целое, границы включены |
+| `random_float() -> float` | случайное число из [0, 1) |
+
+### Строки
+
+Позиции и длины считаются в символах, поэтому кириллица и emoji работают так же,
+как латиница. Исключение — `size(text)`, она считает байты UTF-8.
+
+| Функция | Описание |
+|---|---|
+| `str_length(string text) -> int` | число символов |
+| `str_contains(string text, string needle) -> bool` | есть ли подстрока |
+| `str_starts_with(string text, string prefix) -> bool` | начинается ли с `prefix` |
+| `str_ends_with(string text, string suffix) -> bool` | заканчивается ли на `suffix` |
+| `str_index_of(string text, string needle) -> int` | номер символа первого вхождения или -1 |
+| `str_substring(string text, int start, [int length]) -> string` | подстрока в символах |
+| `str_replace(string text, string from, string to) -> string` | замена всех вхождений |
+| `str_split(string text, string delimiter) -> array` | разбиение; пустой разделитель — по символам |
+| `str_join(array items, string separator) -> string` | склейка элементов |
+| `str_upper(string text) -> string`, `str_lower(string text) -> string` | регистр латиницы и кириллицы |
+| `str_trim(string text) -> string` | убрать пробелы и переводы строк по краям |
+| `str_repeat(string text, int count) -> string` | повторение |
+
+### JSON
+
+| Функция | Описание |
+|---|---|
+| `json_get(string json, string path) -> string` | значение по пути |
+| `json_count(string json, string path) -> int` | размер массива или объекта; -1, если там не контейнер |
+| `json_type(string json, string path) -> string` | `object`, `array`, `string`, `number`, `bool`, `null` или пустая строка |
+| `json_escape(string text) -> string` | экранирование для вставки внутрь JSON-строки |
+
+Путь состоит из ключей объектов и индексов массивов через точку:
+`message.chat.id`, `items.0.name` (можно и `items[0].name`). Пустой путь — весь
+документ. Строки декодируются, включая `\uXXXX` и суррогатные пары emoji; объект
+или массив возвращается как JSON-текст; отсутствующий путь даёт пустую строку.
+Некорректный JSON не вызывает ошибку, а просто не содержит значения.
+
+### Файлы и каталоги
+
+| Функция | Описание |
+|---|---|
+| `read_file(string path) -> string` | всё содержимое файла байт в байт; нет файла — пустая строка |
+| `write_file(string path, string content) -> bool` | записать, заменив содержимое |
+| `append_file(string path, string content) -> bool` | дописать в конец (файл создаётся) |
+| `fs_exists(string path) -> bool` | существует ли файл или каталог |
+| `fs_is_dir(string path) -> bool` | является ли каталогом |
+| `fs_make_dir(string path) -> bool` | создать каталог с родительскими |
+| `fs_remove(string path) -> bool` | удалить файл или **пустой** каталог |
+| `fs_list(string path) -> array` | имена внутри каталога по алфавиту |
+| `fs_size(string path) -> int` | размер файла в байтах или -1 |
+
+Относительные пути считаются от рабочего каталога процесса.
+
+### Окружение и логирование
+
+| Функция | Описание |
+|---|---|
+| `env_get(string name) -> string` | переменная окружения или пустая строка |
+| `env_set(string name, string value) -> bool` | задать переменную окружения процесса |
+| `env_required(string name) -> string` | обязательная переменная; нет — ошибка `Environment Error` |
+| `log_debug(string message)`, `log_info(string message)` | сообщения `[DEBUG]` и `[INFO]` в stderr |
+| `log_warn(string message)`, `log_error(string message)` | сообщения `[WARN]` и `[ERROR]` в stderr |
+
+### Время и процесс
+
+| Функция | Описание |
+|---|---|
+| `time_now_ms() -> float` | UNIX-время в миллисекундах |
+| `clock_ms() -> int` | миллисекунды с запуска программы по монотонным часам |
+| `time_format(string pattern) -> string` | локальное время по шаблону `strftime` (`%Y-%m-%d %H:%M:%S`) |
+| `os_args() -> array` | аргументы командной строки после имени программы |
+| `os_platform() -> string` | `linux`, `windows`, `macos` или `other` |
+| `os_cwd() -> string` | текущий рабочий каталог |
+
+`clock_ms` не зависит от перевода системных часов и подходит для замера
+длительности; `time_now_ms` имеет тип `float`, потому что значение не помещается в
+`int`.
+
+### Терминал
+
+| Функция | Описание |
+|---|---|
+| `term_clear()`, `term_home()` | очистить экран; курсор в левый верхний угол |
+| `term_write(string text)` | вывести без перевода строки |
+| `term_goto(int row, int col)` | переместить курсор (нумерация с 1) |
+| `term_hide_cursor()`, `term_show_cursor()` | скрыть и показать курсор |
+| `term_color(int ansi_code)`, `term_reset()` | ANSI-атрибут текста и сброс |
+
+### Сеть
+
+| Функция | Описание |
+|---|---|
+| `http_request(string method, string url, [string body], [string content_type]) -> string` | HTTP(S)-запрос любым методом |
+| `http_status() -> int` | статус последнего запроса; 0 — ответа не было |
+| `tcp_connect(string host, int port) -> int` | открыть TCP-соединение; -1 при ошибке |
+| `tcp_send(int socket, string data) -> int` | отправить; число байт или -1 |
+| `tcp_recv(int socket, int max_bytes) -> string` | прочитать; пустая строка — соединение закрыто |
+| `tcp_close(int socket) -> bool` | закрыть сокет |
+| `dns_lookup(string host) -> string` | IP-адрес или пустая строка |
+
+Сервер (подробно — в [разделе 16](#16-http--и-https-сервер)):
+
+| Функция | Описание |
+|---|---|
+| `server_route(string method, string path, string handler) -> void` | обработчик для метода и пути |
+| `server_listen(int port)`, `server_listen_tls(int port, string certificate, string private_key)` | запуск HTTP и HTTPS |
+| `server_stop() -> void` | остановка после текущего ответа |
+| `server_respond(int status, string body, [string content_type]) -> void` | ответ на текущий запрос |
+| `request_method()`, `request_path()`, `request_query()`, `request_body()` | части текущего запроса |
+| `request_header(string name) -> string` | заголовок запроса без учёта регистра имени |
+
+### Графика
+
+Примитивы модуля [`graphics`](#graphics): `gfx_open(int width, int height, string title)`,
+`gfx_poll()`, `gfx_close()`, `gfx_clear(int color)`,
+`gfx_rect(int x, int y, int width, int height, int color)`,
+`gfx_circle(int x, int y, int radius, int color)`,
+`gfx_text(int x, int y, string text, int scale, int color)`, `gfx_present()`,
+`gfx_delta()`, `gfx_down(string key)`, `gfx_pressed(string key)`, `gfx_mouse_x()`,
+`gfx_mouse_y()`, `gfx_focused()`, `gfx_rgb(int red, int green, int blue)`.
+Обычно их вызывают через модуль с понятными именами.
+
+---
+
+## 11. Стандартная библиотека
+
+Модули встроены в `foxlang` и в каждое standalone-приложение. Подсказки редактора
+берут описания функций прямо из исходников `std/*.fox`.
+
+### using string;
+
+| Функция | Описание |
+|---|---|
+| `length(string text) -> int` | число символов |
+| `contains(string text, string needle) -> bool` | есть ли подстрока |
+| `starts_with(string text, string prefix)`, `ends_with(string text, string suffix)` | проверка начала и конца |
+| `index_of(string text, string needle) -> int` | номер символа или -1 |
+| `substring(string text, int start, int count) -> string` | подстрока в символах |
+| `replace(string text, string from, string to) -> string` | замена всех вхождений |
+| `split(string text, string delimiter) -> array`, `join(array items, string separator) -> string` | разбиение и склейка |
+| `upper(string text)`, `lower(string text)`, `trim(string text)` | регистр и пробелы |
+| `repeat(string text, int count) -> string` | повторение |
+| `pad_left(string text, int width, string fill)`, `pad_right(string text, int width, string fill)` | выравнивание до ширины |
+
+```cpp
+using string;
+array parts = split("мир,лис,код", ",");
+print(join(parts, " | "));
+print(upper("лиса"), substring("Привет, мир", 8, 3), pad_left("7", 3, "0"));
+```
+
+### using arrays;
+
+| Функция | Описание |
+|---|---|
+| `sort(array items)`, `reverse(array items)` | сортировка и разворот на месте |
+| `find(array items, string value) -> int` | индекс элемента или -1 |
+| `includes(array items, string value) -> bool` | есть ли элемент |
+| `copy_array(array items) -> array` | независимая копия |
+| `slice(array items, int start, int end) -> array` | срез |
+| `sum(array items) -> float` | сумма числовых элементов |
+| `range(int start, int end) -> array` | числа от `start` до `end` (не включая) |
+
+```cpp
+using arrays;
+array scores = [40, 15, 99];
+sort(scores);
+print(scores, sum(scores), includes(scores, "99"), range(0, 3));
+```
+
+### using math;
+
+Константы `PI` и `E` и функции `clamp01(float value)`, `hypot(float x, float y)`,
+`radians(float degrees)`, `degrees(float radians)`, `lerp(float a, float b, float t)`,
+`sign(float value) -> int`, `is_even(int value) -> bool`.
+
+```cpp
+using math;
+float x = 100 + cos(radians(45.0)) * 20;
+print(hypot(3.0, 4.0), lerp(0.0, 10.0, 0.5), sign(-2.0), x > 100);
+```
+
+### using json;
+
+`json_path(string json, string path)`, `json_count_at(string json, string path)`,
+`json_type_at(string json, string path)`, `json_safe(string text)` — короткие имена
+для функций из [раздела JSON](#json); `json_quote(string text)` возвращает строку в
+кавычках, готовую к вставке в JSON.
+
+```cpp
+using json;
+string doc = "{\"items\":[{\"name\":\"лис\"},{\"name\":\"волк\"}]}";
+for (int i = 0; i < json_count_at(doc, "items"); i++) {
+    print(json_path(doc, "items." + i + ".name"));
+}
+string payload = "{\"text\":" + json_quote("Привет \"мир\"") + "}";
+print(payload);
+```
+
+### using fs;
+
+| Функция | Описание |
+|---|---|
+| `exists(string path)`, `is_dir(string path)` | проверки пути |
+| `make_dir(string path)`, `remove_path(string path)` | создание и удаление |
+| `list_dir(string path) -> array` | содержимое каталога |
+| `file_size(string path) -> int` | размер или -1 |
+| `read_lines(string path) -> array` | строки файла без переводов строк (CRLF тоже) |
+| `write_lines(string path, array lines) -> bool` | записать по элементу на строку |
+
+```cpp
+using fs;
+if (!exists("data")) {
+    make_dir("data");
+}
+write_lines("data/names.txt", ["Лис", "Волк"]);
+array names = read_lines("data/names.txt");
+print(names, list_dir("data"), file_size("data/names.txt"));
+```
+
+### using os;
+
+`args() -> array`, `arg_or(int index, string fallback) -> string`,
+`platform() -> string`, `cwd() -> string`. Завершение с кодом — встроенная `exit`.
+
+```cpp
+using os;
+string name = arg_or(0, "мир");
+print("Привет, " + name + " с " + platform());
+if (size(args()) > 1) {
+    exit(2);
+}
+```
+
+### using time;
+
+`sleep_ms(int milliseconds)`, `unix_time_ms() -> float`, `uptime_ms() -> int`,
+`format_time(string pattern) -> string`, `now_text() -> string` (`2026-09-24 15:04:05`).
+
+```cpp
+using time;
+int started = uptime_ms();
+sleep_ms(50);
+print("прошло " + (uptime_ms() - started) + " мс, сейчас " + now_text());
+```
+
+### using env;
+
+`env(string name)`, `secret(string name)`, `env_default(string name, string fallback)`,
+`set_env(string name, string value)`. См. [раздел 14](#14-окружение-env-и-логирование).
+
+### using log;
+
+`debug(string message)`, `info(string message)`, `warn(string message)`,
+`error(string message)`. См. [раздел 14](#14-окружение-env-и-логирование).
+
+### using http;
+
+| Функция | Описание |
+|---|---|
+| `http_get(string url)`, `http_delete(string url)` | запросы без тела |
+| `http_post(string url, string body, string content_type)` | POST с типом содержимого |
+| `http_put(string url, string body, string content_type)`, `http_patch(string url, string body, string content_type)` | PUT и PATCH |
+| `http_post_json(string url, string body)`, `http_put_json(string url, string body)` | с `application/json` |
+| `http_ok() -> bool` | статус последнего запроса от 200 до 299 |
+
+См. [раздел 15](#15-http-клиент-и-доверенные-ca).
+
+### using server;
+
+| Функция | Описание |
+|---|---|
+| `get(string path, string handler)`, `post(string path, string handler)` | обработчики GET и POST |
+| `put(string path, string handler)`, `delete(string path, string handler)` | обработчики PUT и DELETE |
+| `route(string method, string path, string handler)` | обработчик любого метода |
+| `body()`, `method()`, `path()`, `query()`, `header(string name)` | текущий запрос |
+| `respond(string data)`, `respond_status(int status, string data)` | JSON-ответ |
+| `respond_as(int status, string data, string content_type)` | ответ с заданным типом |
+| `listen(int port)`, `listen_tls(int port, string certificate, string private_key)` | запуск HTTP и HTTPS |
+| `stop_server()` | остановка после текущего ответа |
+
+См. [раздел 16](#16-http--и-https-сервер).
+
+### using net;
+
+`connect_tcp(string host, int port)`, `send_tcp(int socket, string data)`,
+`recv_tcp(int socket, int max_bytes)`, `close_tcp(int socket)`,
+`resolve_host(string host)` — короткие имена TCP- и DNS-функций.
 
 ```cpp
 using net;
-
-string ip = resolve_host("example.com");
-int sock = connect_tcp("example.com", 80);
-int sent = send_tcp(sock, "GET / HTTP/1.0\\r\\nHost: example.com\\r\\n\\r\\n");
-string chunk = recv_tcp(sock, 4096);
-bool closed = close_tcp(sock);
+int socket = connect_tcp("example.com", 80);
+if (socket >= 0) {
+    send_tcp(socket, "HEAD / HTTP/1.0\r\nHost: example.com\r\n\r\n");
+    print(recv_tcp(socket, 4096));
+    close_tcp(socket);
+}
 ```
 
-Значение сокета меньше нуля означает ошибку подключения. `recv_tcp` возвращает пустую строку, если соединение закрыто удалённой стороной или произошла ошибка чтения.
+### using terminal;
 
-### Терминальный API
+`clear()`, `home()`, `write(string text)`, `goto_xy(int row, int col)`,
+`hide_cursor()`, `show_cursor()`, `color(int ansi_code)`, `reset_color()`.
 
 ```cpp
 using terminal;
-
 clear();
-hide_cursor();
 goto_xy(2, 4);
 color(36);
 write("FoxLang");
 reset_color();
-show_cursor();
 ```
 
-### HTTP/webhook-сервер
+### using graphics;
 
-FoxLang содержит HTTP-сервер для Linux и Windows. Маршруты регистрируются до вызова `listen()`.
+`open_window(int width, int height, string title)`, `window_poll()`, `close_window()`,
+`clear_window(int color)`, `draw_rect(int x, int y, int width, int height, int color)`,
+`draw_circle(int x, int y, int radius, int color)`,
+`draw_text(int x, int y, string text, int scale, int color)`, `present_window()`,
+`frame_delta()`, `key_down(string key)`, `key_pressed(string key)`, `mouse_x()`,
+`mouse_y()`, `window_focused()`, `rgb(int red, int green, int blue)`.
+Подробности и пример — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
 
-```cpp
-using server;
+---
 
-void webhook() {
-    string payload = body();
-    respond_status(200, "{\"ok\":true}");
-}
+## 12. Ошибки и коды возврата
 
-void main() {
-    post("/webhook", "webhook");
-    listen(8080);
-}
+Ошибка останавливает программу, печатает сообщение в stderr и завершает процесс с
+кодом `1`:
 
-main();
+```text
+FoxLang: Type Error: argument 'text' of str_upper() must be string, got 'int' [line 3]
 ```
 
-Доступны `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status` и `listen`. Сервер принимает реальные TCP/HTTP-запросы и передаёт тело запроса обработчику.
+| Вид | Когда возникает |
+|---|---|
+| `Syntax Error` | текст программы не разбирается: пропущенная `;`, скобка, неизвестный символ |
+| `Type Error` | значение не того типа: в переменной, аргументе, условии, операторе |
+| `Runtime Error` | деление на ноль, выход за границы массива, переполнение `int`, глубина рекурсии |
+| `Module Error` | модуль или файл `include` не найден |
+| `Environment Error` | не задан обязательный секрет |
+| `HTTP Server Error`, `Graphics Error` | неверные параметры сервера или окна |
 
-## 11. Конфигурация, .env и секреты
+`exit(code)` завершает программу с указанным кодом без сообщения. Если обработчик
+HTTP-запроса завершается ошибкой, сервер отвечает `500` и продолжает работу.
 
-Перед запуском скрипта FoxLang автоматически загружает `.env` рядом со скриптом, а затем при необходимости `.env` текущего каталога. Уже заданные системные переменные имеют приоритет.
+`foxlang check` находит многие ошибки без запуска: синтаксис, необъявленные
+переменные и функции, неверное число аргументов (в том числе у встроенных функций),
+`return` не на своём месте, отсутствующие модули.
+
+---
+
+## 13. Командная строка
+
+```bash
+foxlang program.fox [аргументы...]   # запуск; аргументы доступны через os_args()
+foxlang check program.fox            # проверка без запуска
+foxlang build program.fox [-o app]   # standalone-приложение
+foxlang --version                    # версия
+foxlang --help                       # справка
+foxlang --foxlang-licenses           # лицензии встроенных библиотек
+```
+
+`foxlang check` печатает проблемы в формате `файл:строка:столбец: error: текст` и
+завершается кодом `1`, если есть хотя бы одна ошибка; предупреждения код не меняют.
+
+Код возврата запуска: `0` — успех, `1` — ошибка, либо значение, переданное в `exit`.
+
+Переменные окружения:
+
+| Переменная | Назначение |
+|---|---|
+| `FOXLANG_HOME` | каталог установки; модули ищутся в нём и в `FOXLANG_HOME/std` |
+| `FOXLANG_LOG_LEVEL` | порог логов: `debug`, `info` (по умолчанию), `warn`, `error`, `off` |
+| `FOXLANG_CA_BUNDLE` | доверенные CA для HTTPS: путь к PEM, `embedded` или `system` |
+
+---
+
+## 14. Окружение, .env и логирование
+
+При запуске исходника `foxlang app.fox` сначала читается `.env` рядом со скриптом,
+а если его нет — `.env` текущего каталога. Уже заданные переменные окружения имеют
+приоритет. Standalone-приложения `.env` не читают.
 
 ```dotenv
 TELEGRAM_BOT_TOKEN=replace_me
-FOXLANG_LOG_LEVEL=info
+FOXLANG_LOG_LEVEL=debug
 ```
 
-`using env;` предоставляет:
-- `env("NAME")` — возвращает значение переменной окружения или пустую строку, если она не задана;
-- `secret("NAME")` — возвращает значение обязательного секрета; если переменная отсутствует или пуста, программа немедленно завершается с понятной ошибкой (Runtime Error);
-- `env_default("NAME", "fallback")` — возвращает значение переменной окружения `NAME`, а если она отсутствует или пуста, возвращает значение по умолчанию `fallback`.
+```cpp
+using env;
+using log;
+string token = env_default("TELEGRAM_BOT_TOKEN", "");
+if (token == "") {
+    warn("токен не задан");
+}
+int port = to_int(env_default("PORT", "8080"));
+info("порт " + port);
+```
 
-Файлы `.env` исключены из Git; `.env.example` можно хранить как публичный шаблон.
+* `env(name)` — значение или пустая строка;
+* `secret(name)` — обязательное значение: если переменная не задана или пуста,
+  программа завершается с ошибкой `Environment Error`;
+* `env_default(name, fallback)` — значение или `fallback`;
+* `set_env(name, value)` — задать переменную для текущего процесса.
 
----
-
-## 12. Логирование
-
-`using log;` предоставляет функции:
-- `debug(message)`
-- `info(message)`
-- `warn(message)`
-- `error(message)`
-
-Сообщения выводятся в `stderr`.
-
-Переменная `FOXLANG_LOG_LEVEL` задаёт порог отображения: `debug`, `info`, `warn`, `error`, `off`. По умолчанию активен уровень `info`.
-
-Для обратной совместимости флаг `FOXLANG_LOG=false` (а также `0`, `off`, `no`) полностью отключает вывод логов.
+Логи `debug`, `info`, `warn`, `error` пишутся в stderr с префиксами `[DEBUG]`,
+`[INFO]`, `[WARN]`, `[ERROR]`. Уровень ниже порога `FOXLANG_LOG_LEVEL` не выводится.
+Файлы `.env` исключены из Git; публичный шаблон — `.env.example`.
 
 ---
 
-## 13. HTTP/webhook-сервер
+## 15. HTTP-клиент и доверенные CA
 
-На Linux и Windows FoxLang предоставляет встроенный HTTP runtime:
-- `get(path, handler_func_name)` — регистрация GET-обработчика;
-- `post(path, handler_func_name)` — регистрация POST-обработчика;
-- `body()` — получение тела запроса;
-- `method()` — метод HTTP запроса (GET/POST);
-- `path()` — путь запроса;
-- `respond(data)` — отправка ответа с кодом 200;
-- `respond_status(status, data)` — отправка ответа с произвольным HTTP-кодом (например, 201 или 400);
-- `listen(port)` — запуск цикла обработки входящих запросов;
-- `server_stop()` — корректная остановка сервера после обработки текущего запроса.
+```cpp
+using http;
+using json;
+using log;
+
+string answer = http_get("https://api.github.com/repos/SkrinVex/FoxLang");
+if (http_ok()) {
+    print(json_path(answer, "full_name"));
+} else {
+    warn("статус " + http_status());
+}
+
+string created = http_post_json("https://httpbin.org/post", "{\"name\":\"лис\"}");
+print(http_status(), size(created));
+```
+
+* Функции возвращают тело ответа при **любом** коде статуса; код последнего
+  запроса — `http_status()`, проверка успеха — `http_ok()`.
+* При сетевой ошибке или ошибке TLS возвращается пустая строка, `http_status()`
+  равен `0`, причина печатается в stderr как `[HTTP ERROR]`. URL и тело запроса в
+  сообщение не попадают: в них часто бывают токены.
+* `content_type` по умолчанию `application/json`. Ответ ограничен 16 МиБ,
+  подключение — 10 секундами, весь запрос — 35 секундами. Перенаправления
+  выполняются только на `http` и `https`.
+
+HTTPS всегда проверяет цепочку сертификатов и имя сервера. По умолчанию
+используется встроенный набор публичных CA Mozilla, поэтому отдельный пакет
+сертификатов не нужен. `FOXLANG_CA_BUNDLE` меняет источник:
+
+- путь к PEM-файлу — свой набор доверенных CA;
+- `embedded` — встроенный набор (по умолчанию);
+- `system` — хранилище операционной системы.
+
+На Linux, если `FOXLANG_CA_BUNDLE` не задан, учитывается `SSL_CERT_FILE`. Ошибочный
+путь приводит к ошибке проверки TLS, а не к отключению проверки. Происхождение и
+обновление встроенного набора описаны в [resources/ca](resources/ca/README.md).
+
+---
+
+## 16. HTTP- и HTTPS-сервер
 
 ```cpp
 using server;
+using json;
 
-void webhook() {
-    string payload = body();
-    respond_status(200, "{\"ok\":true}");
-    // server_stop(); // для остановки сервера из обработчика
+void health() {
+    respond("{\"ok\":true}");
 }
 
-void main() {
-    get("/health", "webhook");
-    post("/telegram", "webhook");
-    listen(8080);
+void echo() {
+    string name = json_path(body(), "name");
+    respond_status(201, "{\"hello\":" + json_quote(name) + "}");
 }
 
-main();
+void page() {
+    respond_as(200, "<h1>" + query() + "</h1>", "text/html; charset=utf-8");
+}
+
+void stop() {
+    respond("bye");
+    stop_server();
+}
+
+get("/health", "health");
+post("/echo", "echo");
+get("/page", "page");
+route("PATCH", "/stop", "stop");
+listen(8080);
 ```
 
-`listen()` слушает HTTP; `listen_tls()` включает встроенный HTTPS. Reverse proxy можно
-использовать по выбору, но он не требуется для TLS.
+* Маршрут — метод и точный путь без query-строки; обработчик — функция без
+  параметров, указанная по имени. `get`, `post`, `put`, `delete` — короткие формы
+  `route`.
+* Внутри обработчика доступны `method()`, `path()`, `query()` (без `?`), `body()` и
+  `header(name)`.
+* `respond(data)` отвечает кодом 200, `respond_status(code, data)` — заданным кодом,
+  `respond_as(code, data, content_type)` — с заданным `Content-Type`. По умолчанию
+  тип ответа `application/json; charset=utf-8`. Без вызова этих функций ответ — 200
+  с пустым телом.
+* Неизвестный путь — `404`, ошибка в обработчике — `500` с сообщением в stderr;
+  сервер продолжает работу.
+* `listen(port)` блокирует программу, пока обработчик не вызовет `stop_server()`.
+  Сервер слушает `0.0.0.0` и обслуживает соединения по очереди: HTTP/1.0–1.1,
+  `Content-Length`, до 64 КиБ заголовков и 1 МиБ тела; chunked-запросы не
+  поддерживаются. Соединение ограничено 10 секундами, отдельная операция чтения или
+  записи — 5 секундами.
 
-### HTTPS-сервер и доверенные CA
+**HTTPS.** `listen_tls(port, certificate, private_key)` включает встроенный TLS 1.2+
+на Linux и Windows; reverse proxy не нужен. Аргументы — пути к PEM-файлам во время
+запуска: сертификат (сначала сертификат сервера, затем промежуточные) и
+незашифрованный приватный ключ. Отсутствующие, повреждённые или несовпадающие файлы
+останавливают программу до открытия порта. Ошибка TLS-рукопожатия закрывает только
+одно соединение. mTLS и автоматический выпуск сертификатов не реализованы; для смены
+сертификата перезапустите сервер. Не храните ключи в исходниках.
 
 ```cpp
 using server;
 using env;
-void health() { respond("ready"); }
+
+void health() {
+    respond("ready");
+}
+
 get("/health", "health");
 listen_tls(8443, secret("TLS_CERT_FILE"), secret("TLS_KEY_FILE"));
 ```
 
-`listen_tls(int port, string certificate, string private_key)` использует TLS 1.2
-или новее через статический Mbed TLS на Linux и Windows. Аргументы — пути к
-PEM-файлам во время запуска: сертификат (leaf первым, затем intermediate chain) и
-его незашифрованный приватный ключ. Отсутствующие, повреждённые или несовпадающие
-credentials завершают программу с ошибкой до открытия порта. Ошибка handshake
-закрывает только соединение; сервер продолжает работать и не переключается на HTTP.
-Маршруты, `body`, `respond`, JSON и `server_stop` используются как в обычном сервере.
-Сервер обслуживает соединения последовательно, с ограничением I/O соединения
-10 сек. и отдельного блокирующего чтения/записи 5 сек. mTLS, автоматическое получение
-и продление сертификата и горячая смена ключа пока не реализованы; для обновления
-сертификата перезапустите сервер. Приватные ключи не должны находиться в исходниках:
-передавайте пути или подключайте хранилище секретов во время запуска.
-
-Для исходящих HTTPS-запросов по умолчанию встроен публичный CA snapshot Mozilla
-от 2026-08-13. У получателя не требуется отдельный пакет CA. Проверки цепочки и
-имени сервера обязательны. При необходимости задайте `FOXLANG_CA_BUNDLE`:
-
-- путь к PEM-файлу — заменить набор доверенных CA;
-- `embedded` — явно использовать встроенный snapshot;
-- `system` — явно использовать доверенное хранилище ОС.
-
-На Linux `SSL_CERT_FILE` учитывается, когда `FOXLANG_CA_BUNDLE` не задан.
-Ошибочный путь вызывает ошибку проверки TLS, а не отключение проверки.
-Пользовательские CA, сертификат сервера и его ключ автоматически не встраиваются.
-Для обновления встроенного snapshot обновите FoxLang и пересоберите standalone;
-происхождение, лицензия и порядок обновления описаны в [resources/ca](resources/ca/README.md).
-
 ---
 
-## 14. Работа с JSON
-
-Модуль `using json;` предоставляет:
-- `json_path(json_string, path)` — извлечение значения по вложенному точечному пути (например, `message.chat.id`, `message.from.first_name`, `user.name`);
-- `json_safe(text)` — безопасное экранирование специальных символов (`"`, `\`, переносов строк, табуляций) для формирования корректного JSON-документа.
-
-Парсер поддерживает:
-- строки, целые и дробные числа, булевы значения;
-- стандартные управляющие символы (`\n`, `\t`, `\r`, `\"`, `\\`);
-- последовательности Unicode `\uXXXX` (включая русские/кириллические символы);
-- суррогатные пары UTF-16 для emoji (например, `\uD83E\uDD8A` -> 🦊).
-
----
-
-## 15. CLI и ссылки
+## 17. Standalone-приложения
 
 ```bash
-foxlang program.fox
-foxlang build program.fox -o program
-foxlang build program.fox --output program
-foxlang --version
-foxlang --help
+foxlang build app.fox -o app      # Linux: ./app   Windows: app.exe
 ```
 
-Репозиторий: https://github.com/SkrinVex/FoxLang  
-Документация: https://github.com/SkrinVex/FoxLang/blob/master/DOCUMENTATION.md
+`foxlang build` упаковывает интерпретатор, программу и все её модули (`using` и
+`include`, найденные рекурсивно, в том числе внутри функций и неисполненных веток) в
+один исполняемый файл. Получателю не нужен установленный FoxLang, компилятор или
+CMake. Аргументы командной строки приложения доступны через `os_args()`.
+
+* Это упаковка со встроенным интерпретатором, а не компиляция в машинный код.
+  Исходники хранятся внутри файла и могут быть извлечены — это не защита кода.
+* `.env`, переменные окружения времени сборки и ресурсы (файлы для `read_file`) не
+  встраиваются; секреты передавайте через окружение при запуске.
+* Linux-сборка создаёт Linux-приложение, Windows-сборка — `.exe`; кросс-упаковки нет.
+* Существующий выходной файл не перезаписывается.
+
+Полное описание формата и ограничений — в [docs/STANDALONE.md](docs/STANDALONE.md).
 
 ---
 
-## 16. Архитектура ядра и C++ API библиотеки (foxlang_core)
+## 18. Нативная графика
 
-Реализация FoxLang отделена от консольного интерфейса и скомпонована в статическую библиотеку `foxlang_core`. Консольная команда `foxlang` — это тонкая обёртка над C++ API.
-
-### Подключение в C++:
+`using graphics;` открывает нативное окно (X11/XWayland на Linux, Win32/GDI на
+Windows) с программным 2D-рисованием, встроенным пиксельным шрифтом с кириллицей и
+вводом с клавиатуры и мыши. Браузер и графические ресурсы не нужны.
 
 ```cpp
+using graphics;
+open_window(320, 200, "FoxLang");
+while (window_poll()) {
+    if (key_pressed("ESCAPE")) {
+        break;
+    }
+    clear_window(rgb(20, 24, 36));
+    draw_circle(mouse_x(), mouse_y(), 12, rgb(255, 140, 0));
+    draw_text(10, 10, "Привет", 2, rgb(255, 255, 255));
+    present_window();
+}
+close_window();
+```
+
+Сигнатуры, коды клавиш и системные требования — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
+
+---
+
+## 19. Редакторы и языковой сервер
+
+`foxlang-lsp` — языковой сервер (LSP 3.17, stdio) для VS Code, Kate и Zed:
+диагностика при вводе, автодополнение, подсказки при наведении, подсказки
+параметров, переход к определению и символы документа. Он никогда не выполняет код
+программы. Описания встроенных функций берутся из того же каталога, по которому
+рантайм проверяет вызовы, а описания модулей — из комментариев `//!` и `///` в
+`std/*.fox`. Настройка редакторов — в [docs/EDITORS.md](docs/EDITORS.md).
+
+---
+
+## 20. Встраивание в C++
+
+Ядро собрано в статическую библиотеку `foxlang_core`; `foxlang` — тонкая обёртка над
+ней.
+
+```c++
 #include <foxlang/FoxLang.h>
 #include <iostream>
 
 int main() {
-    foxlang::Interpreter interpreter;
+    foxlang::InterpreterOptions options;
+    options.arguments = {"--verbose"};       // то, что вернёт os_args()
+    foxlang::Interpreter interpreter(options);
 
-    // Выполнение кода из строки
-    foxlang::RunResult res = interpreter.runSource("int x = 20; int y = 22; int z = x + y;");
-    if (res.success) {
-        std::cout << "Результат: " << interpreter.getGlobal("z").value << std::endl;
+    interpreter.setGlobal("limit", "int", "10");
+    foxlang::RunResult result = interpreter.runSource("int doubled = limit * 2;");
+    if (result.success) {
+        std::cout << interpreter.getGlobal("doubled").value << std::endl;   // 20
     } else {
-        std::cerr << "Ошибка: " << res.errorMessage << std::endl;
+        std::cerr << result.errorMessage << std::endl;
     }
-
-    // Выполнение файла
-    foxlang::RunResult fileRes = interpreter.runFile("script.fox");
-    return fileRes.exitCode;
+    return interpreter.runFile("script.fox").exitCode;
 }
 ```
 
-### Основные классы C++ API:
-- `foxlang::Interpreter` — основной экземпляр рантайма FoxLang. Хранит глобальный контекст переменных, функций и кеш модулей;
-- `foxlang::InterpreterOptions` — настройки интерпретатора (`foxHome`, `loadDotEnv`, `workingDir`, `sources`);
-- `foxlang::RunResult` — результат выполнения программы: `bool success`, `int exitCode`, `std::string errorMessage`;
-- `foxlang::Lexer` — токенизатор исходного кода, формирующий список `Token` с номерами строк и колонок;
-- `foxlang::Parser` — синтаксический анализатор, формирующий дерево AST (`BlockNode`) без немедленного выполнения;
-- `foxlang::Context` — иерархическая таблица символов (переменные, массивы, функции);
-- `foxlang::platform` — абстракция системных вызовов (сокеты, терминал, процессы).
+* `foxlang::Interpreter` — экземпляр рантайма со своими глобальными переменными,
+  функциями и загруженными модулями; экземпляры независимы друг от друга.
+* `foxlang::InterpreterOptions`: `foxHome` (каталог модулей), `loadDotEnv` (читать ли
+  `.env` в `runFile`), `sources` (свой `SourceProvider` вместо файловой системы),
+  `arguments` (аргументы для `os_args`).
+* `foxlang::RunResult`: `success`, `exitCode` (1 при ошибке или код из `exit`),
+  `errorMessage`.
+* `foxlang::builtinCatalog()` — описание всех встроенных функций: имя, параметры,
+  тип результата, документация.
+* `foxlang::Lexer`, `foxlang::Parser`, `foxlang::SemanticAnalyzer` — разбор и
+  статический анализ без выполнения.
+
+Для Android ядро собирается Android NDK в `libfoxlang.so`; путь к стандартной
+библиотеке задаётся через `options.foxHome` во внутреннем хранилище приложения, а
+сетевым функциям нужно разрешение `android.permission.INTERNET`. Android пока не
+входит в проверяемые платформы: TLS и доверенное хранилище там не проверены.
 
 ---
 
-## 17. Сборка, тестирование и разработка (CMake/CTest)
+## 21. Docker
 
-Стандартная сборка требует CMake 3.18+, компиляторы C и C++17. При первой
-конфигурации загружаются libcurl 8.22.0 и Mbed TLS 3.6.7 с проверкой
-SHA-256. Для offline-сборки укажите распакованные исходники через
-`FETCHCONTENT_SOURCE_DIR_CURL` и `FETCHCONTENT_SOURCE_DIR_MBEDTLS`.
-Тестам нужны Python 3 и `openssl`; Linux shell-тесту также нужен `curl`.
-Эти утилиты не требуются готовым программам.
+Образ на Alpine с `foxlang`, `foxlang-lsp` и стандартной библиотекой публикуется в
+GitHub Container Registry при каждом push в `master` и при выпуске версии:
 
 ```bash
-# Конфигурация и сборка
+docker run --rm ghcr.io/skrinvex/foxlang:latest --version
+docker run --rm -v "$(pwd)":/app ghcr.io/skrinvex/foxlang:latest script.fox
+docker run -d --name foxbot -p 8080:8080 -e TELEGRAM_BOT_TOKEN="..." \
+  -v "$(pwd)":/app ghcr.io/skrinvex/foxlang:latest bot.fox
+```
+
+---
+
+## 22. Сборка и тесты
+
+Нужны CMake 3.18+, компиляторы C и C++17; на Linux ещё pkg-config и заголовки XCB
+(`libxcb1-dev libxau-dev libxdmcp-dev`). При первой конфигурации CMake скачивает
+libcurl и Mbed TLS с проверкой SHA-256.
+
+```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
-
-# Запуск набора регрессионных и unit-тестов
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-Все тесты завершаются с ненулевым кодом при обнаружении расхождений.
+**Версия** хранится только в файле `VERSION`. CMake передаёт её в `foxlang` и
+`foxlang-lsp` и при каждой конфигурации сам проставляет её в манифесты расширений
+VS Code и Zed. Без сборки то же делает `cmake -P cmake/Version.cmake`. Изменение
+`VERSION` в ветке `master` запускает выпуск новой версии в GitHub Actions.
 
----
-
-## 18. Языковой сервер foxlang-lsp и интеграция с редакторами
-
-В состав FoxLang входит полнофункциональный языковой сервер `foxlang-lsp` (LSP 3.17) и готовые плагины для **VS Code** и **Kate**:
-
-```text
-    FoxLang исходный код
-             ↓
-           Lexer (UTF-8 байты и UTF-16 code units)
-             ↓
-           Parser (SourceRange для AST + восстановление после синтаксических ошибок)
-             ↓
-            AST
-          ↙     ↘
-  Semantic Analyzer   Runtime (eval)
-         ↓
-     foxlang-lsp (JSON-RPC stdio)
-     ↙         ↘
-VS Code        Kate
-```
-
-1. **Разделение анализа и исполнения**: `SemanticAnalyzer` выполняет статический анализ без вызова `eval()`, что гарантирует безопасность (пользовательский код не исполняется во время редактирования).
-2. **Точные диапазоны и UTF-16**: отслеживаются диапазоны `SourceRange` для всех объявлений и выражений, с корректным подсчётом смещений в UTF-16 для поддержки кириллицы и эмодзи (`🦊`).
-3. **Диагностика**: регистрация синтаксических ошибок парсера и семантических ошибок (необъявленные переменные/функции, дубликаты, несоответствие числа аргументов, возврат значения из `void` функции).
-4. **Возможности LSP**:
-   - `textDocument/hover`: сигнатуры функций и типы переменных;
-   - `textDocument/completion`: автодополнение ключевых слов, функций stdlib и пользовательских символов;
-   - `textDocument/definition`: переход к месту объявления (`F12`);
-   - `textDocument/documentSymbol`: навигация по структуре файла.
-
-Подробные инструкции по настройке VS Code и Kate см. в [docs/EDITORS.md](docs/EDITORS.md).
-
----
-
-## 19. Подготовка к встраиванию в Android (JNI)
-
-Ядро FoxLang может компилироваться с помощью Android NDK в разделяемую библиотеку `libfoxlang.so` и вызываться из Kotlin/Java через JNI.
-
-### Особенности платформы Android:
-1. **HTTPS**: HTTP-клиент использует статический libcurl, без внешней команды `curl`. Для Android ещё нужно проверить сборку TLS backend и доступ к доверенным сертификатам; эта платформа пока не подтверждена тестами.
-2. **Терминал**: интерактивные вызовы `getch()` и `kbhit()` требуют наличия TTY в `stdin` и не применяются в контексте Android GUI.
-3. **Разрешения сети**: использование сетевых сокетов и HTTP-сервера требует объявления `<uses-permission android:name="android.permission.INTERNET" />`.
-4. **Стандартная библиотека**: пути к модулям (`std/`) на Android должны конфигурироваться через `options.foxHome` во внутреннее хранилище приложения (`context.filesDir`).
-
----
-
-## 20. Запуск в Docker и публикация контейнеров
-
-FoxLang поддерживает исполнение в легковесных изолированных контейнерах Docker на базе Alpine Linux.
-
-Официальный контейнерный образ с интерпретатором `foxlang`, сервером `foxlang-lsp` и стандартной библиотекой:
-```bash
-ghcr.io/skrinvex/foxlang:latest
-```
-
-### Запуск файла скрипта:
-```bash
-docker run --rm -v $(pwd):/app ghcr.io/skrinvex/foxlang:latest script.fox
-```
-
-### Развёртывание бота / HTTP-сервера:
-```bash
-docker run -d --name foxbot -p 8080:8080 \
-  -e TELEGRAM_BOT_TOKEN="my_secret_token" \
-  -v $(pwd):/app \
-  ghcr.io/skrinvex/foxlang:latest bot.fox
-```
-
-### Автоматическая сборка в CI:
-Каждый push в ветку `master` и теги версий `v*` автоматически собирают и публикуют Docker-образ в GitHub Container Registry (`ghcr.io/skrinvex/foxlang`) через рабочий процесс `.github/workflows/docker.yml`.
-
-
-
-
-## 21. Standalone приложения: `foxlang build`
-
-```bash
-foxlang app.fox                      # Запуск исходника через установленный FoxLang
-foxlang build app.fox -o app          # Упаковка для распространения
-foxlang build app.fox --output app    # Та же команда
-```
-
-Linux: `./app`. Windows: `app.exe` (в PowerShell — `.\app.exe`). Без `-o`
-выходной файл получает имя исходника без расширения и создаётся в текущем каталоге;
-на Windows добавляется `.exe`. Путь с пробелами заключайте в кавычки.
-Существующий файл не перезаписывается. Ошибки аргументов, чтения, синтаксиса,
-отсутствующие модули и повреждённый bundle дают ненулевой exit code.
-
-**Получателю программы не требуется устанавливать FoxLang.** Один executable
-содержит общее ядро `foxlang_core`, исходник и разрешённые зависимости.
-Для упаковки и запуска не нужны CMake, C++ compiler или SDK. CMake и compiler
-нужны только для первоначальной сборки самого FoxLang из репозитория.
-Linux FoxLang создаёт Linux executable, Windows FoxLang — Windows executable.
-Выбора целевой платформы у `foxlang build` пока нет: Linux CLI не создаёт Windows
-`.exe`. Если вы разрабатываете на Linux, выполняйте упаковку для Windows
-Windows-версией FoxLang в Windows VM или GitHub Actions (`windows-latest`).
-Кросс-сборка самого FoxLang через MinGW создаёт Windows CLI, который затем ещё
-нужно запустить для упаковки программы. Подробности — в
-[руководстве по standalone на русском](docs/STANDALONE.md).
-
-Это standalone packaging / runtime bundling, а не компиляция FoxLang в native
-machine code. Исходники хранятся внутри файла и могут быть извлечены: упаковка
-не является защитой кода или секретов.
-
-### Модули
-
-Вся небольшая официальная stdlib встроена в CLI на этапе сборки CMake.
-`foxlang build` использует обычные Lexer/Parser и резолвер модулей, рекурсивно
-собирает `using`/`include` и сохраняет граф разрешённых импортов. Пользовательский
-код при этом не выполняется. Повторные импорты и циклы не дублируют исходники.
-При запуске standalone модули читаются из памяти без обращения к `FOXLANG_HOME`,
-исходной stdlib или каталогу разработчика.
-
-```text
-project/
-  main.fox       # include("utils.fox"); print(greeting());
-  utils.fox      # string greeting() { return "Hello"; }
-```
-
-Импорты собираются также из функций и неисполненных веток. Все такие зависимости
-должны существовать при сборке. Вычисляемые имена `include` не поддерживаются
-существующим синтаксисом языка. Сборщик не ищет зависимости по текстовым маркерам
-или регулярным выражениям.
-
-### Ресурсы, окружение и секреты
-
-`read_file("config.json")` читает внешний файл относительно рабочего каталога
-процесса. `config.json` и остальные ресурсы автоматически не упаковываются.
-Запись файлов и терминальные функции сохраняют обычное поведение runtime.
-
-**`.env` и переменные окружения времени сборки не встраиваются.** Standalone
-получает переменные процесса во время запуска; `env`, `secret`, `env_default`
-и уровни логирования продолжают работать. Автозагрузка `.env` для standalone
-отключена. Обычный `foxlang app.fox` сохраняет прежнюю автозагрузку `.env`.
-Секреты, записанные непосредственно в исходниках, окажутся внутри executable.
-
-### Системные зависимости и совместимость
-
-- HTTP(S)-клиент использует статический libcurl без shell, `popen` и отдельного
-  `curl` в PATH. Linux включает Mbed TLS статически; Windows использует Schannel.
-  Проверки цепочки сертификатов и имени сервера включены всегда. Публичные CA
-  Mozilla встроены. `FOXLANG_CA_BUNDLE` выбирает PEM-файл, `embedded` или `system`;
-  на Linux также учитывается `SSL_CERT_FILE`. Пользовательские CA не упаковываются.
-- HTTP-сервер, DNS и TCP реализованы через POSIX sockets на Linux и Winsock на
-  Windows. Сервер обрабатывает соединения последовательно: HTTP/1.0–1.1,
-  `Content-Length`, до 64 KiB заголовков и 1 MiB тела; chunked-запросы не поддержаны.
-  `listen_tls` обеспечивает встроенный HTTPS без reverse proxy. Исключение обработчика даёт
-  HTTP 500. Клиент ограничивает ответ 16 MiB, подключение — 10 сек., запрос — 35 сек.
-- Нативная графика использует X11/XWayland на Linux и Win32/GDI на Windows.
-  В переносимую Linux-сборку XCB и её зависимости включены статически;
-  обычная локальная CMake-сборка использует системную libxcb. Для показа окна
-  нужен графический сеанс ОС. См. [graphics](docs/GRAPHICS.md).
-- Лицензии библиотек доступны через `--foxlang-licenses` у CLI и у любого
-  standalone executable. Этот аргумент зарезервирован и не запускает программу.
-- Windows-сборка MSVC использует статический CRT (`/MT`), MinGW — статические
-  библиотеки компилятора. Отдельные DLL FoxLang или Visual C++ Redistributable
-  не нужны; системные DLL Windows остаются необходимы.
-- Linux-пакет и Docker target `portable` включают musl/libm, C++ и сетевые
-  библиотеки статически, без отдельного ELF-загрузчика и shared libraries.
-  Проверяются сборка в Alpine и запуск на Ubuntu. Нужны Linux x86_64, `/proc`
-  и поддерживаемые системные вызовы; это не бинарник для любой ОС/архитектуры.
-  Обычная локальная CMake-сборка Linux/GCC включает libstdc++/libgcc, но сохраняет
-  системные libc/libm. Для переносимого варианта используйте Docker target `portable`
-  либо musl toolchain с `-DFOXLANG_STATIC_LINUX=ON`.
-- Форматы первой реализации: Linux ELF64 x86_64 и Windows PE32+ x86_64.
-  Не применяйте `strip`, UPX или подпись к уже упакованному executable:
-  это изменяет контролируемые смещения/длину. Подписанные PE-stub не принимаются.
-
-Подробная спецификация формата, ограничения и проверки:
-[docs/STANDALONE.md](docs/STANDALONE.md). Настоящий AOT backend в будущем потребует
-семантического анализа и типизации, IR, генерации native-кода, ABI runtime и
-отдельного набора проверок эквивалентности интерпретатору.
-
-
-## 22. Нативная графика
-
-`using graphics;` предоставляет окно, программное 2D-рисование, встроенный русский
-пиксельный шрифт и ввод с клавиатуры и мыши. API доступно начиная с версии 5.6.1. Браузер и отдельный графический runtime не нужны.
-Примеры, сигнатуры, системные требования и проверки — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
+Состав тестов описан в [tests/README.md](tests/README.md).
