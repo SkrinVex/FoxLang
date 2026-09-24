@@ -60,7 +60,7 @@ void text_response(string text) {
 
 // Простой обработчик для главной страницы
 void home_handler() {
-    json_response("{\"message\":\"Welcome to FoxLang API!\",\"version\":\"5.6.0\"}");
+    json_response("{\"message\":\"Welcome to FoxLang API!\",\"version\":\"5.6.1\"}");
 }
 
 // Обработчик для API статуса

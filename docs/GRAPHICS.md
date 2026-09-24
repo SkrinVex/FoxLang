@@ -2,8 +2,7 @@
 
 Модуль `graphics` открывает обычное окно операционной системы. Рисование и игровая
 логика выполняются внутри FoxLang runtime; браузер, JavaScript, OpenGL и отдельные
-графические ресурсы не нужны. Это новая возможность текущей ветки разработки;
-в ранее опубликованном архиве FoxLang 5.6.0 этого API ещё нет.
+графические ресурсы не нужны. Модуль доступен начиная с FoxLang 5.6.1.
 
 ```fox
 using graphics;
@@ -136,3 +135,10 @@ Xlib применяется только тестовым драйвером Lin
 Описание системных API: [XCB](https://xcb.freedesktop.org/tutorial/),
 [Win32 CreateWindowExW](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowexw),
 [GDI StretchDIBits](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-stretchdibits).
+
+## Подсказки в редакторе
+
+В FoxLang 5.6.1 LSP предлагает модуль `graphics`, сигнатуры и русские описания
+всех его функций. После `using graphics;` начните вводить `draw_` или наведите
+курсор на `open_window`. При `(` и `,` появляется справка по аргументам.
+Обновите `foxlang-lsp` вместе с редакторным пакетом; см. [настройку редакторов](EDITORS.md).
