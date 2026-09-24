@@ -9,6 +9,7 @@ namespace foxlang {
 
 struct Node;
 class Interpreter;
+namespace graphics { class Window; }
 
 struct FuncParam {
     std::string type;
@@ -33,6 +34,7 @@ struct Context {
     std::map<std::string, Value> variables;
     std::map<std::string, std::shared_ptr<Node>> functions;
     std::map<std::string, std::vector<Value>> arrays;
+    std::shared_ptr<graphics::Window> graphics;
 
     bool exists(const std::string& name) const;
     Value getVar(const std::string& name) const;

@@ -42,6 +42,9 @@ add_library(foxlang_core STATIC
     src/core/Parser.cpp
     src/core/Interpreter.cpp
     src/core/SemanticAnalyzer.cpp
+    src/graphics/Surface.cpp
+    src/graphics/Window.cpp
+    src/graphics/Builtins.cpp
 )
 
 target_include_directories(foxlang_core PUBLIC
@@ -51,6 +54,7 @@ target_include_directories(foxlang_core PUBLIC
 target_include_directories(foxlang_core PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_definitions(foxlang_core PRIVATE FOXLANG_VERSION="${PROJECT_VERSION}")
 include(cmake/Networking.cmake)
+include(cmake/Graphics.cmake)
 
 # FoxLang CLI executable
 add_library(foxlang_bundle STATIC

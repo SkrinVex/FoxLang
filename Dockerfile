@@ -9,6 +9,9 @@ RUN apk add --no-cache \
     curl \
     openssl \
     ca-certificates \
+    pkgconf \
+    libxcb-dev libxcb-static libxau-dev libxdmcp-dev libbsd-static libmd-dev \
+    xvfb-run libx11 \
     bash
 
 WORKDIR /usr/src/foxlang
@@ -16,7 +19,7 @@ COPY . .
 
 RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DFOXLANG_STATIC_LINUX=ON \
     && cmake --build build --config Release -j$(nproc) \
-    && ctest --test-dir build --output-on-failure
+    && FOXLANG_REQUIRE_GRAPHICS_TESTS=1 xvfb-run -a ctest --test-dir build --output-on-failure
 
 # Export static Linux binaries, without the build tree or compiler.
 FROM scratch AS portable

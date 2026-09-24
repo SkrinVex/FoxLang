@@ -1,0 +1,16 @@
+// Нативная программная 2D-графика: Win32/GDI и X11/XWayland.
+void open_window(int width, int height, string title) { gfx_open(width, height, title); }
+bool window_poll() { return gfx_poll(); }
+void close_window() { gfx_close(); }
+void clear_window(int color) { gfx_clear(color); }
+void draw_rect(int x, int y, int width, int height, int color) { gfx_rect(x, y, width, height, color); }
+void draw_circle(int x, int y, int radius, int color) { gfx_circle(x, y, radius, color); }
+void draw_text(int x, int y, string text, int scale, int color) { gfx_text(x, y, text, scale, color); }
+void present_window() { gfx_present(); }
+float frame_delta() { return gfx_delta(); }
+bool key_down(string key) { return gfx_down(key); }
+bool key_pressed(string key) { return gfx_pressed(key); }
+int mouse_x() { return gfx_mouse_x(); }
+int mouse_y() { return gfx_mouse_y(); }
+bool window_focused() { return gfx_focused(); }
+int rgb(int red, int green, int blue) { return gfx_rgb(red, green, blue); }

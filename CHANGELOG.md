@@ -1,4 +1,13 @@
-# FoxLang 5.6.0 — Changelog
+# Изменения FoxLang
+
+## В разработке
+
+- Нативный модуль `graphics`: программное 2D-рисование, встроенный шрифт с кириллицей,
+  клавиатура и мышь. XCB на Linux, Win32/GDI на Windows; общий runtime для CLI и standalone.
+- Статическая графика в переносимом Linux executable и тест настоящего окна в CI.
+- Документация standalone и происхождения CA переведена на русский.
+
+## FoxLang 5.6.0
 
 - Встроенный HTTPS-сервер `listen_tls(port, certificate, private_key)` на Linux и
   Windows, без обязательного reverse proxy. PEM credentials читаются при запуске;

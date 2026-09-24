@@ -214,6 +214,10 @@ PE-файлы с сертификатом Authenticode отклоняются. �
 - `--foxlang-licenses` выводит встроенные лицензии зависимостей у CLI и приложений.
   Этот аргумент обрабатывается вместо запуска программы.
 - Терминальные API требуют подходящей консоли/TTY и поддержки ANSI.
+- [Нативная графика](GRAPHICS.md) использует X11/XWayland на Linux и Win32/GDI
+  на Windows. Графический сеанс ОС нужен для окна. Docker target `portable`
+  встраивает XCB и её зависимости статически; обычная локальная Linux-сборка
+  использует системную libxcb. Графические ресурсы автоматически не упаковываются.
 - MSVC использует `/MT` (статический CRT), MinGW — статические библиотеки компилятора.
   Стандартные DLL ОС нужны. Сборки MinGW с UCRT требуют Windows с этим компонентом,
   обычно Windows 10 или новее.
@@ -235,7 +239,8 @@ ctest --test-dir build -C Release --output-on-failure
 ctest --test-dir build -C Release -L standalone --output-on-failure
 ```
 
-Для сборки самого FoxLang нужны CMake 3.18+, компиляторы C и C++17. CMake загружает
+Для сборки самого FoxLang нужны CMake 3.18+, компиляторы C и C++17; на Linux —
+также pkg-config и заголовки XCB. CMake загружает
 архивы зафиксированных версий зависимостей и проверяет SHA-256
 (см. `cmake/Networking.cmake`). Для сборки без сети задайте
 `FETCHCONTENT_SOURCE_DIR_CURL` и `FETCHCONTENT_SOURCE_DIR_MBEDTLS`, указав каталоги
@@ -271,8 +276,12 @@ HTTPS-тесты создают временные сертификаты, пр�
 
 ```bash
 docker buildx build --target portable --output type=local,dest=build-portable .
-python3 tests/standalone/test_portable_linux.py build-portable/foxlang
+xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/foxlang
 ```
+
+Для графических тестов Linux нужен рабочий DISPLAY либо Xvfb; тестовый драйвер
+использует libX11. Оконный тест проверяет пиксели, клавиатуру, мышь и закрытие
+standalone после удаления исходников и копии CLI.
 
 Тест формата на C++ также проверяет повреждённые пакеты и структуры исполняемых
 файлов текущей платформы и PE, включая обрезание тестового пакета в каждой позиции.

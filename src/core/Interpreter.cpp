@@ -83,6 +83,7 @@ const Context& Interpreter::getContext() const {
 }
 
 void Interpreter::reset() {
+    globalContext.graphics.reset();
     globalContext.variables.clear();
     globalContext.functions.clear();
     globalContext.arrays.clear();

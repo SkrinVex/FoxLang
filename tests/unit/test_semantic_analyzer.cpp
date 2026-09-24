@@ -14,6 +14,15 @@
     } while (0)
 
 int main() {
+    // Graphics metadata is available without opening a window during analysis.
+    {
+        foxlang::Lexer lexer("using graphics; open_window(960, 640, \"Fox\"); draw_text(1, 2, \"Hi\", 2, rgb(255, 0, 0)); bool ready = window_poll(); close_window();");
+        foxlang::Parser parser(lexer.tokenize());
+        auto program = parser.parseProgram();
+        foxlang::SemanticAnalyzer analyzer;
+        analyzer.analyze(program.get());
+        TEST_ASSERT(analyzer.getDiagnostics().empty());
+    }
     // HTTPS API is known to editor diagnostics and analysis never opens a listener.
     {
         foxlang::Lexer lexer("using server; listen_tls(8443, \"chain.pem\", \"key.pem\");");

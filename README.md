@@ -123,6 +123,7 @@ Wine/MinGW не заменяют проверку на Windows runner.
 - Уровневое логирование (`debug`, `info`, `warn`, `error`, `off`).
 - Файловый ввод-вывод (`read_file`, `write_file`, `append_file`).
 - Терминальный/TUI API (ANSI-цвета, позиционирование курсора, очистка).
+- [Нативная 2D-графика](docs/GRAPHICS.md): окно, фигуры, русский пиксельный шрифт, клавиатура и мышь через `using graphics;` (новое API текущей ветки, отсутствует в ранее выпущенном архиве 5.6.0).
 - Сетевой клиент (DNS, TCP-сокеты, HTTP GET/POST/PUT/DELETE).
 - HTTP/webhook-сервер на Linux и Windows (`get`, `post`, `body`, `method`, `path`, `respond`, `listen`, `server_stop`).
 - Независимая C++17 библиотека ядра (`foxlang_core`) для встраивания в приложения и тесты.
@@ -133,6 +134,9 @@ Wine/MinGW не заменяют проверку на Windows runner.
 ## Сборка и тестирование (CMake)
 
 Проект использует **CMake 3.18+**, компиляторы C и C++17 и **CTest** для автоматического запуска регрессионных и модульных тестов.
+
+Для сборки на Linux также нужны pkg-config и заголовки XCB. На Debian/Ubuntu:
+`sudo apt-get install pkg-config libxcb1-dev libxau-dev libxdmcp-dev`.
 
 ### Быстрая сборка
 

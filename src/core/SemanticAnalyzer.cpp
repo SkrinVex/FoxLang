@@ -2,6 +2,7 @@
 #include "foxlang/Lexer.h"
 #include "foxlang/Parser.h"
 #include "foxlang/Runtime.h"
+#include "../graphics/Builtins.h"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -43,6 +44,9 @@ void SemanticAnalyzer::addBuiltins() {
         sym.documentation = std::move(doc);
         rootScope->symbols[name] = sym;
     };
+
+    for (const auto& signature : graphics::signatures())
+        addFn(signature.builtin, signature.result, signature.params, signature.documentation);
 
     addFn("print", "void", {},
         "Вывод значений в стандартный поток вывода с переводом строки.\n\n"
@@ -197,7 +201,10 @@ void SemanticAnalyzer::loadModuleSymbols(const std::string& moduleName, SourceRa
         rootScope->symbols[name] = sym;
     };
 
-    if (moduleName == "server") {
+    if (moduleName == "graphics") {
+        for (const auto& signature : graphics::signatures())
+            addFn(signature.name, signature.result, signature.params, signature.documentation);
+    } else if (moduleName == "server") {
         addFn("listen_tls", "void", {{"int", "port"}, {"string", "certificate"}, {"string", "private_key"}},
             "Запустить HTTPS/webhook сервер с TLS 1.2 или новее. Сертификат и ключ — пути к PEM-файлам во время запуска.");
         addFn("listen", "void", {{"int", "port"}},

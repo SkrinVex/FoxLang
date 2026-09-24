@@ -111,7 +111,7 @@ def cli(s):
 
 def modules(s):
     s.source("main.fox", '''using json; using log; using env; using math; using string; using time;
-using terminal; using http; using net; using server;
+using terminal; using http; using net; using server; using graphics;
 include("sub/first.fox"); include("sub/../sub/first.fox"); using local;
 void deferred() { include("late.fox"); }
 deferred();

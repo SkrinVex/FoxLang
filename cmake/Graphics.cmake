@@ -1,0 +1,17 @@
+# Software rendering needs no OpenGL, GPU driver SDK or separate graphics runtime.
+if(WIN32)
+    target_link_libraries(foxlang_core PRIVATE user32 gdi32)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
+    if(FOXLANG_STATIC_LINUX)
+        # pkg-config's private dependencies (Xau/Xdmcp) are needed for static XCB.
+        target_include_directories(foxlang_core PRIVATE ${XCB_INCLUDE_DIRS})
+        target_link_directories(foxlang_core PRIVATE ${XCB_STATIC_LIBRARY_DIRS})
+        target_link_libraries(foxlang_core PRIVATE ${XCB_STATIC_LIBRARIES})
+    else()
+        target_link_libraries(foxlang_core PRIVATE PkgConfig::XCB)
+    endif()
+else()
+    message(FATAL_ERROR "Native graphics currently supports Linux and Windows")
+endif()

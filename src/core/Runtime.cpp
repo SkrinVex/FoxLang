@@ -1,6 +1,7 @@
 #include "foxlang/Runtime.h"
 #include "foxlang/Platform.h"
 #include "foxlang/AST.h"
+#include "../graphics/Builtins.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -327,6 +328,7 @@ std::string resolveFoxFile(const std::string& requested, const std::string& curr
 }
 
 bool isBuiltin(const std::string& name) {
+    if (graphics::isBuiltin(name)) return true;
     static const std::unordered_set<std::string> builtins = {
         "print", "input", "getch", "kbhit", "wait", "round", "random",
         "abs", "min", "max", "clamp", "time_ms", "fox", "size",
@@ -345,6 +347,7 @@ bool isBuiltin(const std::string& name) {
 }
 
 Value callBuiltin(const std::string& name, const std::vector<Value>& args, Context& ctx) {
+    if (graphics::isBuiltin(name)) return graphics::callBuiltin(name, args, ctx);
     if (name == "print") {
         if (args.empty()) {
             std::cout << std::endl;
