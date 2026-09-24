@@ -1,6 +1,6 @@
 # 🦊 FoxLang
 
-![Версия](https://img.shields.io/badge/version-5.6.1-orange)
+![Версия](https://img.shields.io/badge/version-5.7.0-orange)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
@@ -336,15 +336,15 @@ docker build -t foxlang:latest .
 
 **Быстрая установка:**
 * **Через установщик**: скрипт `install.sh` автоматически регистрирует расширение в VS Code / VSCodium / Flatpak.
-* **Через пакет VSIX**: скачайте [`foxlang-5.6.1.vsix`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-5.6.1.vsix) и выполните:
+* **Через пакет VSIX**: скачайте [`foxlang-5.7.0.vsix`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-5.7.0.vsix) и выполните:
   ```bash
-  code --install-extension foxlang-5.6.1.vsix
+  code --install-extension foxlang-5.7.0.vsix
   ```
   *(или выберите в VS Code: Расширения `Ctrl+Shift+X` → `...` → **Install from VSIX...**)*
 * **Вручную из репозитория**:
   ```bash
-  mkdir -p ~/.vscode/extensions/SkrinVex.foxlang-language-5.6.1
-  cp -R editors/vscode/* ~/.vscode/extensions/SkrinVex.foxlang-language-5.6.1/
+  mkdir -p ~/.vscode/extensions/SkrinVex.foxlang-language-5.7.0
+  cp -R editors/vscode/* ~/.vscode/extensions/SkrinVex.foxlang-language-5.7.0/
   ```
 *(Расширение полностью автономно и не требует запуска `npm install`)*
 

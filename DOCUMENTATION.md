@@ -1,4 +1,4 @@
-# 📚 Документация FoxLang v5.6.1
+# 📚 Документация FoxLang v5.7.0
 
 ## Оглавление
 1. [Основы синтаксиса](#1-основы-синтаксиса)
@@ -89,7 +89,7 @@ void greet(string name) {
 
 // Функция без параметров
 string get_version() {
-    return "FoxLang 5.6.1";
+    return "FoxLang 5.7.0";
 }
 ```
 
@@ -484,7 +484,7 @@ include("src/net.fox");
 
 // Обработчики маршрутов
 void api_home() {
-    json_response("{\"message\":\"Welcome to FoxLang API!\",\"version\":\"5.6.1\"}");
+    json_response("{\"message\":\"Welcome to FoxLang API!\",\"version\":\"5.7.0\"}");
 }
 
 void api_users() {

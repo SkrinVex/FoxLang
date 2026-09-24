@@ -2,7 +2,7 @@
   "name": "foxlang-language",
   "displayName": "FoxLang Programming Language",
   "description": "Официальная поддержка языка FoxLang для VS Code: подсветка синтаксиса, LSP (диагностика, автодополнение, наведение, переход к определению, signature help)",
-  "version": "5.6.1",
+  "version": "5.7.0",
   "publisher": "SkrinVex",
   "license": "MIT",
   "homepage": "https://github.com/SkrinVex/FoxLang",
