@@ -53,6 +53,9 @@ while (window_poll()) {
         behind++;
     }
     other = ui_text_field("other", 150, 20, 200, other, "");
+    if (double_clicked()) {
+        append_file("events.txt", "frame " + frame + " double " + mouse_x() + "," + mouse_y() + " hover " + ui_hover("area", 150, 200, 100, 60) + "\n");
+    }
     if (ui_double_click("area", 150, 200, 100, 60)) {
         doubles++;
     }
@@ -141,7 +144,8 @@ with tempfile.TemporaryDirectory(prefix='fox-ui-') as directory:
     def report(error):
         # CI logs need a login to read; GitHub turns ::error:: lines into public annotations.
         events = (workdir / 'events.txt').read_text(encoding='utf-8') if (workdir / 'events.txt').exists() else ''
-        detail = f'{error} | events: {events}'
+        # The Windows console cannot print Cyrillic, so the report is ASCII with escapes.
+        detail = f'{error} | events: {events}'.encode('ascii', 'backslashreplace').decode('ascii')
         print(detail)
         if os.environ.get('GITHUB_ACTIONS'):
             print('::error title=ui_interaction::' + detail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
