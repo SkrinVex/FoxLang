@@ -177,8 +177,11 @@ struct Window::Native {
         if (!reply) fail("cannot read X11 keyboard mapping");
         keymap.fill(0);
         const auto* symbols = xcb_get_keyboard_mapping_keysyms(reply.get());
+        // A non-Latin primary layout keeps its Latin keysym in a later group, so WASD
+        // must be looked up across all groups instead of group 0 only.
         for (unsigned code = setup->min_keycode; code <= setup->max_keycode; ++code)
-            keymap[code] = key(symbols[(code - setup->min_keycode) * reply->keysyms_per_keycode]);
+            for (unsigned slot = 0; slot < reply->keysyms_per_keycode && !keymap[code]; ++slot)
+                keymap[code] = key(symbols[(code - setup->min_keycode) * reply->keysyms_per_keycode + slot]);
     }
     void open(const std::string& title) {
         int screenIndex = 0;
