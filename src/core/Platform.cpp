@@ -36,9 +36,11 @@ size_t stackBudget() {
         pthread_attr_destroy(&attributes);
     }
 #endif
-    if (size < (1u << 20)) size = 1u << 20;   // A stack we cannot measure is assumed small,
-    if (size > (64u << 20)) size = 64u << 20; // and one reported as huge is not believed.
-    return size / 5 * 3;
+    if (size < (1u << 20)) size = 1u << 20;  // A stack we cannot measure is assumed small,
+    if (size > (8u << 20)) size = 8u << 20;  // and one larger than we ever ask for is not believed.
+    // A third leaves room for the throw itself, for unwinding, and for whatever the
+    // host of an embedded interpreter had already put on the stack below us.
+    return size / 3;
 }
 
 std::string getch() {

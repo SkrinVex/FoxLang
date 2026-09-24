@@ -151,7 +151,15 @@ RunResult Interpreter::runFile(const std::string& filepath) {
     return runSource(buffer.str(), ec ? filepath : identity);
 }
 
+// Reports the line the interpreter last entered, unless the message already names one.
+static std::string withLine(const std::string& message) {
+    int line = runtime::stackGuard().line;
+    if (line <= 0 || message.find(" [line ") != std::string::npos) return message;
+    return message + " [line " + std::to_string(line) + "]";
+}
+
 RunResult Interpreter::runSource(const std::string& source, const std::string& scriptPath) {
+    runtime::stackGuard().line = 0;
     try {
         Lexer lexer(source);
         Parser parser(lexer.tokenize(), scriptPath);
@@ -164,7 +172,7 @@ RunResult Interpreter::runSource(const std::string& source, const std::string& s
     } catch (const ContinueException&) {
         return {false, 1, "Runtime Error: 'continue' outside of loop in global scope"};
     } catch (const std::exception& e) {
-        return {false, 1, e.what()};
+        return {false, 1, withLine(e.what())};
     }
 }
 

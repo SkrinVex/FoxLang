@@ -199,6 +199,7 @@ int main() {
     // 14. Runaway recursion is an error, not a stack overflow
     {
         step("recursion guard");
+        std::cout << "   stack budget: " << foxlang::platform::stackBudget() << " bytes" << std::endl;
         foxlang::Interpreter interp;
         auto res = interp.runSource("int forever(int n) { return forever(n + 1); } int r = forever(0);");
         TEST_ASSERT(!res.success);

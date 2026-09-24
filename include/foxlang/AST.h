@@ -51,31 +51,30 @@ inline void narrowToInt(Value& value, const char* role, const std::string& name)
     value.value = runtime::intText(value, role + std::string(" '") + name + "'");
 }
 
-// Runtime errors are reported with the line of the innermost statement that raised them.
-inline std::runtime_error located(const std::runtime_error& error, const SourceRange& range) {
-    std::string message = error.what();
-    if (range.start.line <= 0 || message.find(" [line ") != std::string::npos) return error;
-    return std::runtime_error(message + " [line " + std::to_string(range.start.line) + "]");
-}
-
 // Runaway recursion used to kill the process with a stack overflow instead of an error.
 // What runs out is the native stack, not a number of calls, and one call costs a
 // different amount of it per platform and per compiler: counting frames was wrong on
 // Windows, where a thread gets 1 MB rather than the 8 MB Linux gives. Measure the stack.
 struct CallDepth {
-    // Two brakes, because a stack cannot be measured the same way everywhere: the
-    // distance actually travelled down the stack, and a frame count derived from the
-    // same budget assuming a generous four kilobytes per call. Whichever trips first.
-    static constexpr size_t frameCost = 4096;
+    // A stack cannot be measured the same way everywhere, so nothing here is trusted
+    // alone. The call count starts at a pessimistic four kilobytes per frame and is
+    // recalculated from what the stack actually did once there are frames to average;
+    // the travelled distance is checked as well. Whichever brake trips first wins.
+    static constexpr size_t assumedFrameCost = 4096;
+    static constexpr int calibrateAt = 64;
     explicit CallDepth(const std::string& name) {
         char probe = 0;
         runtime::StackGuard& guard = runtime::stackGuard();
         if (guard.depth == 0) {
             guard.origin = &probe;
             guard.budget = platform::stackBudget();
-            guard.limit = static_cast<int>(guard.budget / frameCost);
+            guard.limit = static_cast<int>(guard.budget / assumedFrameCost);
         } else {
             std::ptrdiff_t used = guard.origin - &probe; // A stack growing upwards never trips this.
+            if (guard.depth == calibrateAt && used > 0) {
+                size_t measured = static_cast<size_t>(used) / calibrateAt;
+                if (measured > 64) guard.limit = static_cast<int>(guard.budget / measured);
+            }
             bool spent = (used > 0 && static_cast<size_t>(used) > guard.budget) || guard.depth >= guard.limit;
             if (spent)
                 throw std::runtime_error("Runtime Error: call depth limit reached in '" + name + "' after " +
@@ -449,14 +448,14 @@ struct BlockNode : Node {
             inner.interpreter = ctx.interpreter;
         }
         Context& scope = scoped ? inner : ctx;
+        runtime::StackGuard& guard = runtime::stackGuard();
         for (auto& stmt : stmts) {
             if (!stmt) continue;
-            // return/break/continue travel as their own types and pass through untouched.
-            try {
-                stmt->eval(scope);
-            } catch (const std::runtime_error& error) {
-                throw located(error, stmt->range);
-            }
+            // Remembering the line costs one store. Catching here to rethrow with the
+            // line attached cost an exception per nested block, and an error leaving a
+            // deep recursion had to pass through every one of them.
+            if (stmt->range.start.line > 0) guard.line = stmt->range.start.line;
+            stmt->eval(scope);
         }
         return {"void", ""};
     }

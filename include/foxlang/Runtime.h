@@ -23,6 +23,7 @@ struct StackGuard {
     int limit = 0;
     const char* origin = nullptr;
     size_t budget = 0;
+    int line = 0; // Line of the statement being executed, for the error report.
 };
 StackGuard& stackGuard();
 
