@@ -1,8 +1,13 @@
 #include <iostream>
+#include <cstdio>
 #include <string>
 #include "foxlang/FoxLang.h"
 #include "Transport.h"
 #include "LspServer.h"
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 
 int main(int argc, char* argv[]) {
     const std::string version = foxlang::Interpreter::getVersion();
@@ -26,6 +31,14 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // LSP framing counts bytes and supplies its own CRLF. Windows CRT text
+    // translation would turn CRLF into CRCRLF and corrupt Content-Length frames.
+#ifdef _WIN32
+    if (_setmode(_fileno(stdin), _O_BINARY) == -1 || _setmode(_fileno(stdout), _O_BINARY) == -1) {
+        std::cerr << "foxlang-lsp: cannot configure binary standard streams\n";
+        return 1;
+    }
+#endif
     foxlang::lsp::Transport transport;
     foxlang::lsp::LspServer server(transport);
     return server.run(std::cin, std::cout);

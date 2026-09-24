@@ -109,7 +109,7 @@ public:
     const std::vector<Diagnostic>& getDiagnostics() const { return diagnostics; }
 
     // LSP query methods
-    HoverInfo getHover(int line, int col) const;
+    HoverInfo getHover(int line, int col, const std::string& code = "") const;
     DefinitionInfo getDefinition(int line, int col) const;
     std::vector<CompletionItem> getCompletions(int line, int col) const;
     std::vector<DocumentSymbolInfo> getDocumentSymbols() const;

@@ -10,6 +10,10 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 root = Path(sys.argv[1])
+catalog_spec = importlib.util.spec_from_file_location("sync_editor_builtins", root / "packaging/sync_editor_builtins.py")
+catalog = importlib.util.module_from_spec(catalog_spec)
+catalog_spec.loader.exec_module(catalog)
+catalog.synchronize(root, check=True)
 version = (root / "VERSION").read_text().strip()
 assert re.fullmatch(r"\d+\.\d+\.\d+", version)
 assert json.loads((root / "editors/vscode/package.json").read_text(encoding="utf-8"))["version"] == version

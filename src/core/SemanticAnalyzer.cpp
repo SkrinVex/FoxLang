@@ -83,11 +83,11 @@ void SemanticAnalyzer::addBuiltins() {
     addFn("readfile", "string", {{"string", "path"}},
         "Псевдоним для `read_file`: чтение всего содержимого файла в виде строки.");
 
-    addFn("write_file", "void", {{"string", "path"}, {"string", "data"}},
+    addFn("write_file", "bool", {{"string", "path"}, {"string", "data"}},
         "Запись строковых данных в файл (перезапись содержимого файла).\n\n"
         "**Параметры:**\n- `path`: путь к файлу\n- `data`: записываемый текст");
 
-    addFn("append_file", "void", {{"string", "path"}, {"string", "data"}},
+    addFn("append_file", "bool", {{"string", "path"}, {"string", "data"}},
         "Добавление строковых данных в конец файла.\n\n"
         "**Параметры:**\n- `path`: путь к файлу\n- `data`: добавляемый текст");
 
@@ -105,7 +105,7 @@ void SemanticAnalyzer::addBuiltins() {
     addFn("str_replace", "string", {{"string", "str"}, {"string", "from"}, {"string", "to"}},
         "Замена всех вхождений подстроки `from` на `to` в строке `str`.");
 
-    addFn("str_split", "void", {{"string", "str"}, {"string", "delim"}},
+    addFn("str_split", "array", {{"string", "str"}, {"string", "delim"}},
         "Разбиение строки по разделителю `delim`.");
 
     addFn("str_to_int", "int", {{"string", "str"}},
@@ -152,18 +152,18 @@ void SemanticAnalyzer::addBuiltins() {
     addFn("httpdelete", "string", {{"string", "url"}},
         "Низкоуровневый исходящий HTTP DELETE-запрос.");
 
-    addFn("server_start", "string", {{"int", "port"}},
+    addFn("server_start", "void", {{"int", "port"}},
         "Низкоуровневый запуск встроенного HTTP-сервера на порту.");
     addFn("server_start_tls", "void", {{"int", "port"}, {"string", "certificate"}, {"string", "private_key"}},
         "Запуск HTTPS-сервера. PEM-сертификат и приватный ключ загружаются при запуске.");
 
-    addFn("server_stop", "string", {},
+    addFn("server_stop", "void", {},
         "Остановка запущенного встроенного HTTP-сервера.");
 
-    addFn("route_get", "string", {{"string", "path"}, {"string", "handler"}},
+    addFn("route_get", "void", {{"string", "path"}, {"string", "handler"}},
         "Регистрация маршрута для входящих HTTP GET-запросов.");
 
-    addFn("route_post", "string", {{"string", "path"}, {"string", "handler"}},
+    addFn("route_post", "void", {{"string", "path"}, {"string", "handler"}},
         "Регистрация маршрута для входящих HTTP POST-запросов.");
 
     addFn("send_response", "void", {{"string", "data"}},
@@ -183,10 +183,39 @@ void SemanticAnalyzer::addBuiltins() {
         "**Пример:**\n```foxlang\nint val = get(numbers, 0);\n```");
 
     addFn("size", "int", {{"any", "val"}},
-        "Получение количества элементов в массиве или длины строки в символах.\n\n"
+        "Получение количества элементов в массиве или длины строки в байтах UTF-8.\n\n"
         "**Параметры:**\n- `val`: массив или строка\n\n"
         "**Возвращает:** `int` — размер\n\n"
         "**Пример:**\n```foxlang\nint n = size(my_arr);\n```");
+
+    addFn("abs", "number", {{"number", "value"}},
+        "Модуль числа. Сохраняет тип int или float аргумента.");
+    for (const std::string name : {"min", "max"})
+        addFn(name, "number", {{"number", "a"}, {"number", "b"}},
+            std::string(name == "min" ? "Минимум" : "Максимум") +
+            " двух чисел. Возвращает int для двух int, иначе float.");
+    addFn("clamp", "float", {{"number", "value"}, {"number", "min"}, {"number", "max"}},
+        "Ограничить число заданным диапазоном. Переставляет границы, если min > max.");
+    addFn("time_ms", "string", {}, "UNIX-время в миллисекундах в виде строки.");
+    addFn("term_clear", "void", {}, "Очистить терминал и переместить курсор в начало ANSI-последовательностью.");
+    addFn("term_home", "void", {}, "Переместить курсор терминала в начало.");
+    addFn("term_write", "void", {{"string", "text"}}, "Вывести текст без перевода строки.");
+    addFn("term_goto", "void", {{"int", "row"}, {"int", "col"}}, "Переместить курсор терминала; координаты начинаются с 1.");
+    addFn("term_hide_cursor", "void", {}, "Скрыть курсор терминала.");
+    addFn("term_show_cursor", "void", {}, "Показать курсор терминала.");
+    addFn("term_color", "void", {{"int", "ansi_code"}}, "Установить ANSI-цвет текста терминала.");
+    addFn("term_reset", "void", {}, "Сбросить цвета и атрибуты терминала.");
+    addFn("tcp_connect", "int", {{"string", "host"}, {"int", "port"}}, "Открыть TCP-соединение. Возвращает дескриптор или -1 при ошибке.");
+    addFn("tcp_send", "int", {{"int", "socket"}, {"string", "data"}}, "Отправить данные в TCP-сокет; возвращает число байт или -1 при ошибке.");
+    addFn("tcp_recv", "string", {{"int", "socket"}, {"int", "max_bytes"}}, "Получить до max_bytes байт из TCP-сокета.");
+    addFn("tcp_close", "bool", {{"int", "socket"}}, "Закрыть TCP-сокет; true при успехе.");
+    addFn("dns_lookup", "string", {{"string", "host"}}, "Разрешить имя хоста в IPv4-адрес.");
+    addFn("http_get", "string", {{"string", "url"}}, "Исходящий HTTP/HTTPS GET-запрос; возвращает тело ответа.");
+    for (const auto* name : {"log_debug", "log_info", "log_warn", "log_error"})
+        addFn(name, "void", {{"string", "message"}}, "Записать сообщение соответствующего уровня; фильтр задаётся FOXLANG_LOG_LEVEL.");
+    addFn("request_body", "string", {}, "Тело текущего входящего HTTP/HTTPS-запроса.");
+    addFn("request_method", "string", {}, "Метод текущего входящего HTTP/HTTPS-запроса.");
+    addFn("request_path", "string", {}, "Путь текущего входящего HTTP/HTTPS-запроса.");
 }
 
 void SemanticAnalyzer::loadModuleSymbols(const std::string& moduleName, SourceRange importRange) {
@@ -803,77 +832,42 @@ const Symbol* SemanticAnalyzer::findFunction(const std::string& name) const {
 }
 
 SignatureHelpResult SemanticAnalyzer::getSignatureHelp(const std::string& code, int line, int col) const {
-    // 1. Calculate offset in code string
-    int curLine = 1;
-    int curCol = 1;
-    size_t offset = 0;
-    for (size_t i = 0; i < code.size(); i++) {
-        if (curLine == line && curCol >= col) {
-            offset = i;
+    // LSP columns count UTF-16 units; source offsets count UTF-8 bytes.
+    const size_t offset = utf::lspPositionToByteOffset(code, line - 1, col - 1);
+    // Reuse the lexer so quotes, escapes, comments and incomplete strings follow
+    // the same rules as the language. Punctuation inside strings is never an argument.
+    Lexer lexer(code.substr(0, offset), true);
+    const auto tokens = lexer.tokenize();
+    struct CallFrame { std::string name; int argument = 0; };
+    std::vector<CallFrame> calls;
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        switch (tokens[i].type) {
+        case TokenType::LPAREN: {
+            std::string name;
+            if (i > 0 && findFunction(tokens[i - 1].value)) name = tokens[i - 1].value;
+            calls.push_back({std::move(name), 0});
             break;
         }
-        if (code[i] == '\n') {
-            curLine++;
-            curCol = 1;
-        } else {
-            curCol++;
-        }
-        offset = i + 1;
-    }
-
-    // 2. Scan backward to find unclosed '(' and count commas
-    int parenDepth = 0;
-    int commaCount = 0;
-    size_t openParenIdx = std::string::npos;
-    bool inString = false;
-
-    for (int i = static_cast<int>(offset) - 1; i >= 0; i--) {
-        char c = code[i];
-        if (c == '"' && (i == 0 || code[i - 1] != '\\')) {
-            inString = !inString;
-            continue;
-        }
-        if (inString) continue;
-
-        if (c == ')') {
-            parenDepth++;
-        } else if (c == '(') {
-            if (parenDepth > 0) {
-                parenDepth--;
-            } else {
-                openParenIdx = i;
-                break;
-            }
-        } else if (c == ',' && parenDepth == 0) {
-            commaCount++;
-        } else if (c == ';' || c == '{' || c == '}') {
+        case TokenType::RPAREN:
+            if (!calls.empty()) calls.pop_back();
             break;
+        case TokenType::COMMA:
+            if (!calls.empty()) ++calls.back().argument;
+            break;
+        case TokenType::SEMICOLON:
+        case TokenType::LBRACE:
+        case TokenType::RBRACE:
+            calls.clear();
+            break;
+        default: break;
         }
     }
-
-    if (openParenIdx == std::string::npos) {
-        return {};
-    }
-
-    // 3. Find identifier right before open parenthesis
-    int idx = static_cast<int>(openParenIdx) - 1;
-    while (idx >= 0 && (code[idx] == ' ' || code[idx] == '\t' || code[idx] == '\r' || code[idx] == '\n')) {
-        idx--;
-    }
-    int endId = idx + 1;
-    while (idx >= 0 && (isalnum(static_cast<unsigned char>(code[idx])) || code[idx] == '_')) {
-        idx--;
-    }
-    int startId = idx + 1;
-    if (startId >= endId) {
-        return {};
-    }
-
-    std::string funcName = code.substr(startId, endId - startId);
-    const Symbol* fnSym = findFunction(funcName);
-    if (!fnSym) {
-        return {};
-    }
+    // A grouping expression has no signature; use the surrounding function call.
+    while (!calls.empty() && calls.back().name.empty()) calls.pop_back();
+    if (calls.empty()) return {};
+    const Symbol* fnSym = findFunction(calls.back().name);
+    if (!fnSym) return {};
+    const int commaCount = calls.back().argument;
 
     SignatureHelpResult result;
     result.found = true;
@@ -900,10 +894,11 @@ SignatureHelpResult SemanticAnalyzer::getSignatureHelp(const std::string& code, 
     return result;
 }
 
-HoverInfo SemanticAnalyzer::getHover(int line, int col) const {
+HoverInfo SemanticAnalyzer::getHover(int line, int col, const std::string& code) const {
     const SymbolRef* best = nullptr;
     for (const auto& ref : symbolRefs) {
-        if (ref.range.contains(line, col)) {
+        if (ref.range.contains(line, col) &&
+            !(line == ref.range.end.line && col == ref.range.end.column)) {
             // Find most specific (innermost) match
             if (!best || (ref.range.end.line - ref.range.start.line < best->range.end.line - best->range.start.line) ||
                 (ref.range.end.column - ref.range.start.column < best->range.end.column - best->range.start.column)) {
@@ -912,7 +907,40 @@ HoverInfo SemanticAnalyzer::getHover(int line, int col) const {
         }
     }
 
-    if (!best) return {};
+    if (!best) {
+        // Syntax has no symbol reference, but still deserves editor help.
+        Lexer lexer(code, true);
+        const auto tokens = lexer.tokenize();
+        const size_t offset = utf::lspPositionToByteOffset(code, line - 1, col - 1);
+        static const std::unordered_map<std::string, std::string> operators = {
+            {"+", "Сложение чисел или объединение строк."}, {"-", "Вычитание или изменение знака числа."},
+            {"*", "Умножение чисел."}, {"/", "Деление чисел."}, {"%", "Остаток от деления."},
+            {"++", "Постфиксное увеличение переменной на единицу: i++."},
+            {"=", "Присваивание значения переменной."},
+            {"+=", "Сложение с присваиванием."}, {"-=", "Вычитание с присваиванием."},
+            {"*=", "Умножение с присваиванием."}, {"/=", "Деление с присваиванием."},
+            {"==", "Проверка равенства."}, {"!=", "Проверка неравенства."},
+            {"<", "Сравнение: меньше."}, {">", "Сравнение: больше."},
+            {"<=", "Сравнение: меньше или равно."}, {">=", "Сравнение: больше или равно."},
+            {"&&", "Логическое И."}, {"||", "Логическое ИЛИ."}, {"!", "Логическое отрицание."}
+        };
+        for (size_t i = 0; i < tokens.size(); ++i) {
+            const auto& token = tokens[i];
+            if (offset < token.range.start.byteOffset || offset >= token.range.end.byteOffset) continue;
+            if (token.type == TokenType::STRING_LITERAL || token.type == TokenType::NUMBER) return {};
+            auto op = operators.find(token.value);
+            if (op != operators.end())
+                return {"`" + token.value + "`\n\n" + op->second, token.range, true};
+            for (const auto& item : getCompletions(line, col)) {
+                if (item.label == token.value && (item.kind == "Keyword" ||
+                    (item.kind == "Function" && i + 1 < tokens.size() && tokens[i + 1].type == TokenType::LPAREN) ||
+                    (item.kind == "Module" && i > 0 && tokens[i - 1].type == TokenType::USING)))
+                    return {"```foxlang\n" + item.detail + "\n```\n\n---\n" + item.documentation, token.range, true};
+            }
+            return {};
+        }
+        return {};
+    }
 
     HoverInfo info;
     info.found = true;
@@ -1003,7 +1031,8 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         const char* doc;
     };
     static const std::vector<ModuleDoc> stdModules = {
-        {"server", "Модуль HTTP/webhook сервера для Linux и Windows (`listen`, `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`)."},
+        {"graphics", "Нативная 2D-графика Linux/Windows: окно, фигуры, текст, клавиатура и мышь (`open_window`, `draw_text`, `key_pressed`)."},
+        {"server", "Модуль HTTP/HTTPS/webhook сервера для Linux и Windows (`listen`, `listen_tls`, `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`)."},
         {"http", "Модуль исходящих HTTP-клиентских запросов (`http_fetch`, `http_post_json`, `http_post_as`, `http_put_json`, `http_remove`)."},
         {"env", "Модуль переменных окружения и секретов (`env`, `secret`, `env_default`). Автоматически читает `.env` файл."},
         {"log", "Модуль уровневого логирования (`debug`, `info`, `warn`, `error`)."},

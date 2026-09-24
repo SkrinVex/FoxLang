@@ -64,3 +64,17 @@ runtime credentials, отказ при отсутствующем/несовпа
 драйвера; для CI используется `xvfb-run -a ctest --test-dir build`.
 Без DISPLAY тест пропускается, если не задано `FOXLANG_REQUIRE_GRAPHICS_TESTS=1`.
 Windows использует встроенные Win32/GDI без внешнего драйвера тестов.
+
+## LSP и каталоги редакторов
+
+`lsp_catalog` запускает настоящий `foxlang-lsp` по stdio в чистом каталоге без
+DISPLAY и stdlib на диске. Проверяет completion/hover/signatureHelp всех 11
+std-модулей, каталог встроенных функций, справку ключевых слов и операторов,
+неполные вызовы, вложенные выражения, кавычки, комментарии, кириллицу и emoji.
+Функции graphics/HTTP/filesystem при этом не выполняются.
+`packaging_versions` также проверяет синхронизацию списков функций для подсветки
+VS Code, Kate и Zed с runtime и `std/*.fox`.
+
+```bash
+ctest --test-dir build -R 'lsp|semantic|packaging_versions' --output-on-failure
+```

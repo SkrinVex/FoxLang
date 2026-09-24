@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE language SYSTEM "language.dtd">
-<language name="FoxLang" version="3" kateversion="5.0" section="Sources"
+<language name="FoxLang" version="4" kateversion="5.0" section="Sources"
           extensions="*.fox" mimetype="text/x-foxlang" author="SkrinVex" license="MIT">
   <highlighting>
     <list name="controlflow">
@@ -22,7 +22,6 @@
     </list>
     <list name="modifiers">
       <item>global</item>
-      <item>const</item>
     </list>
     <list name="types">
       <item>int</item>
@@ -37,77 +36,139 @@
       <item>false</item>
     </list>
     <list name="builtins">
-      <item>print</item>
-      <item>fox</item>
-      <item>input</item>
-      <item>getch</item>
-      <item>kbhit</item>
-      <item>round</item>
-      <item>random</item>
       <item>abs</item>
-      <item>min</item>
-      <item>max</item>
-      <item>sqrt</item>
-      <item>pow</item>
-      <item>floor</item>
-      <item>ceil</item>
-      <item>str_to_int</item>
-      <item>str_contains</item>
-      <item>size</item>
-      <item>set</item>
-      <item>get</item>
-      <item>length</item>
-      <item>substring</item>
-      <item>trim</item>
-      <item>split</item>
-      <item>replace</item>
-      <item>read_file</item>
-      <item>readfile</item>
-      <item>write_file</item>
       <item>append_file</item>
-      <item>file_exists</item>
-      <item>json_get</item>
-      <item>json_path</item>
-      <item>json_safe</item>
-      <item>json_parse</item>
-      <item>json_stringify</item>
-      <item>secret</item>
-      <item>env_get</item>
-      <item>env_set</item>
-      <item>get_env</item>
-      <item>load_env</item>
-      <item>server_start</item>
-      <item>server_stop</item>
-      <item>route_get</item>
-      <item>route_post</item>
-      <item>send_response</item>
-      <item>request_body</item>
-      <item>request_method</item>
-      <item>request_path</item>
-      <item>respond</item>
-      <item>respond_status</item>
-      <item>listen</item>
       <item>body</item>
-      <item>method</item>
-      <item>path</item>
+      <item>clamp</item>
+      <item>clamp01</item>
+      <item>clear</item>
+      <item>clear_window</item>
+      <item>close_tcp</item>
+      <item>close_window</item>
+      <item>color</item>
+      <item>connect_tcp</item>
+      <item>contains</item>
+      <item>debug</item>
+      <item>dns_lookup</item>
+      <item>draw_circle</item>
+      <item>draw_rect</item>
+      <item>draw_text</item>
+      <item>env</item>
+      <item>env_default</item>
+      <item>env_get</item>
+      <item>env_required</item>
+      <item>error</item>
+      <item>fox</item>
+      <item>frame_delta</item>
+      <item>get</item>
+      <item>getch</item>
+      <item>gfx_circle</item>
+      <item>gfx_clear</item>
+      <item>gfx_close</item>
+      <item>gfx_delta</item>
+      <item>gfx_down</item>
+      <item>gfx_focused</item>
+      <item>gfx_mouse_x</item>
+      <item>gfx_mouse_y</item>
+      <item>gfx_open</item>
+      <item>gfx_poll</item>
+      <item>gfx_present</item>
+      <item>gfx_pressed</item>
+      <item>gfx_rect</item>
+      <item>gfx_rgb</item>
+      <item>gfx_text</item>
+      <item>goto_xy</item>
+      <item>hide_cursor</item>
+      <item>home</item>
+      <item>http_fetch</item>
       <item>http_get</item>
-      <item>http_post</item>
-      <item>http_put</item>
-      <item>http_delete</item>
+      <item>http_post_as</item>
       <item>http_post_json</item>
+      <item>http_put_json</item>
+      <item>http_remove</item>
+      <item>httpdelete</item>
       <item>httpget</item>
       <item>httppost</item>
       <item>httpput</item>
-      <item>httpdelete</item>
+      <item>info</item>
+      <item>input</item>
+      <item>json_escape</item>
+      <item>json_get</item>
+      <item>json_path</item>
+      <item>json_safe</item>
+      <item>kbhit</item>
+      <item>key_down</item>
+      <item>key_pressed</item>
+      <item>listen</item>
+      <item>listen_tls</item>
       <item>log_debug</item>
+      <item>log_error</item>
       <item>log_info</item>
       <item>log_warn</item>
-      <item>log_error</item>
-      <item>debug</item>
-      <item>info</item>
+      <item>max</item>
+      <item>max_int</item>
+      <item>method</item>
+      <item>min</item>
+      <item>min_int</item>
+      <item>mouse_x</item>
+      <item>mouse_y</item>
+      <item>open_window</item>
+      <item>path</item>
+      <item>post</item>
+      <item>present_window</item>
+      <item>print</item>
+      <item>random</item>
+      <item>read_file</item>
+      <item>readfile</item>
+      <item>recv_tcp</item>
+      <item>replace</item>
+      <item>request_body</item>
+      <item>request_method</item>
+      <item>request_path</item>
+      <item>reset_color</item>
+      <item>resolve_host</item>
+      <item>respond</item>
+      <item>respond_status</item>
+      <item>rgb</item>
+      <item>round</item>
+      <item>route_get</item>
+      <item>route_post</item>
+      <item>secret</item>
+      <item>send_response</item>
+      <item>send_tcp</item>
+      <item>server_start</item>
+      <item>server_start_tls</item>
+      <item>server_stop</item>
+      <item>set</item>
+      <item>show_cursor</item>
+      <item>size</item>
+      <item>sleep_ms</item>
+      <item>str_contains</item>
+      <item>str_replace</item>
+      <item>str_split</item>
+      <item>str_to_int</item>
+      <item>strtoint</item>
+      <item>tcp_close</item>
+      <item>tcp_connect</item>
+      <item>tcp_recv</item>
+      <item>tcp_send</item>
+      <item>term_clear</item>
+      <item>term_color</item>
+      <item>term_goto</item>
+      <item>term_hide_cursor</item>
+      <item>term_home</item>
+      <item>term_reset</item>
+      <item>term_show_cursor</item>
+      <item>term_write</item>
+      <item>time_ms</item>
+      <item>to_int</item>
+      <item>unix_time_ms</item>
+      <item>wait</item>
       <item>warn</item>
-      <item>error</item>
-      <item>sleep</item>
+      <item>window_focused</item>
+      <item>window_poll</item>
+      <item>write</item>
+      <item>write_file</item>
     </list>
 
     <contexts>

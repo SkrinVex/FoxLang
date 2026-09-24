@@ -42,6 +42,8 @@ add_test(NAME unit_lsp_protocol COMMAND test_lsp_protocol)
 # Packaging is tested from a copied CLI with no stdlib, then with only the result
 # in a clean recipient directory. Python is a test dependency, never a runtime one.
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME lsp_catalog COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_lsp_catalog.py $<TARGET_FILE:foxlang-lsp> ${CMAKE_SOURCE_DIR})
+set_tests_properties(lsp_catalog PROPERTIES TIMEOUT 30)
 add_test(NAME packaging_versions COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_versions.py ${CMAKE_SOURCE_DIR})
 add_executable(test_bundle unit/test_bundle.cpp)
 target_link_libraries(test_bundle PRIVATE foxlang_bundle)

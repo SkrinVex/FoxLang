@@ -160,7 +160,7 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
         if (doc && doc->analyzer) {
             int line = utf::lspLineToLine(pos.line);
             int col = utf::lspCharacterToColumn(pos.character);
-            auto hover = doc->analyzer->getHover(line, col);
+            auto hover = doc->analyzer->getHover(line, col, doc->text);
             if (hover.found) {
                 std::map<std::string, JsonValue> res;
                 std::map<std::string, JsonValue> contents;
