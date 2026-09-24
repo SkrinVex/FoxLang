@@ -1,9 +1,9 @@
 id = "foxlang"
 name = "FoxLang"
-version = "6.3.0"
+version = "6.4.0"
 schema_version = 1
 authors = ["SkrinVex <skrinvex@gmail.com>"]
-description = "Official FoxLang language support for Zed: syntax highlighting, brackets, and LSP integration (diagnostics, completions, hover, goto definition)."
+description = "Official FoxLang language support for Zed: syntax highlighting, brackets, LSP integration (diagnostics, completions, hover, goto definition) and a debugger."
 repository = "https://github.com/SkrinVex/FoxLang"
 
 [lib]
@@ -18,3 +18,6 @@ commit = "b780e47fc780ddc8da13afa35a3f4ed5c157823d"
 [language_servers.foxlang-lsp]
 name = "foxlang-lsp"
 languages = ["FoxLang"]
+
+[debug_adapters.FoxLang]
+schema_path = "debug_adapter_schemas/FoxLang.json"

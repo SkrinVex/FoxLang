@@ -21,6 +21,26 @@
 «FoxLang: запустить», «FoxLang: проверить» и «FoxLang: собрать» для открытого файла.
 Откройте палитру команд и выполните `task: spawn`.
 
+## Отладка
+
+Расширение регистрирует отладчик **FoxLang** на основе `foxlang debug-adapter`
+(нужен FoxLang 6.4 или новее в `PATH`). Запуск — `debugger: start`, либо сценарий в
+`.zed/debug.json`:
+
+```json
+[
+  {
+    "label": "FoxLang: main.fox",
+    "adapter": "FoxLang",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/main.fox",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  }
+]
+```
+
+Подробнее — [docs/DEBUGGING.md](../../docs/DEBUGGING.md).
+
 ## Вариант 1. Тестирование и установка Dev-расширения локально в Zed
 
 Для того чтобы протестировать или использовать расширение прямо сейчас без публикации:

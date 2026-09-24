@@ -7,6 +7,8 @@
 * [`syntaxes/foxlang.tmLanguage.json`](syntaxes/foxlang.tmLanguage.json) — правила TextMate для подсветки синтаксиса.
 * [`language-configuration.json`](language-configuration.json) — настройка автозакрытия скобок, кавычек и правил комментариев.
 * [`client/extension.js`](client/extension.js) — клиент LSP для запуска и управления сервером `foxlang-lsp`.
+* [`client/run.js`](client/run.js) — запуск, проверка и сборка программ.
+* [`client/debug.js`](client/debug.js) — отладчик: запускает программу в терминале через `foxlang debug-adapter`.
 
 ## Возможности
 
@@ -35,6 +37,16 @@
 * Ошибки проверки и выполнения видны в панели «Проблемы» со ссылкой на файл и строку.
 * Настройки: `foxlang.run.executablePath`, `foxlang.run.entryFile`, `foxlang.run.arguments`;
   тип задач `foxlang` для `tasks.json` (см. [docs/EDITORS.md](../../docs/EDITORS.md)).
+
+## Отладка
+
+* **F5** или «FoxLang: отладить программу» (меню кнопки ▶ и контекстное меню) запускает
+  главный файл под отладчиком. Программа работает в терминале «FoxLang: отладка», так
+  что `input()` и графика ведут себя как при обычном запуске.
+* Точки останова, условные и по счётчику, лог-точки, шаги, стек вызовов, переменные с
+  раскрытием массивов, изменение значений, выражения в Watch, при наведении и в консоли.
+* Остановка на ошибке выполнения (фильтр «Ошибки выполнения» в панели точек останова).
+* Настройки `launch.json` — в [docs/DEBUGGING.md](../../docs/DEBUGGING.md).
 
 ## Установка и запуск
 

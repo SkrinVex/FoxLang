@@ -159,6 +159,12 @@ python3 packaging/sync_editor_builtins.py --check
 }
 ```
 
+### Отладка
+
+F5 или «FoxLang: отладить программу» запускает главный файл под отладчиком: точки
+останова, шаги, переменные, консоль. Программа работает в терминале «FoxLang: отладка».
+Настройки `launch.json` и возможности — в [DEBUGGING.md](DEBUGGING.md).
+
 ### Конфигурация в `settings.json` VS Code:
 ```json
 {
@@ -238,6 +244,12 @@ mkdir -p ~/.config/kate/externaltools
 cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
 ```
 
+### Шаг 5. Отладчик
+
+Включите плагин **Отладчик** и положите [`editors/kate/dap.json`](../editors/kate/dap.json)
+в `~/.config/kate/debugger/dap.json` (`install.sh` делает это сам, если файла ещё нет).
+На панели отладчика появится профиль **foxlang**. Подробнее — в [DEBUGGING.md](DEBUGGING.md).
+
 ### Возможности в Kate:
 * **Подсветка ошибок в коде**: красные и жёлтые подчеркивания в редакторе и список в нижней вкладке **Diagnostics**.
 * **Автодополнение**: всплывающий список вариантов при вводе идентификаторов.
@@ -270,6 +282,12 @@ cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
 Расширение добавляет задачи [`tasks.json`](../editors/zed/languages/foxlang/tasks.json):
 «FoxLang: запустить», «проверить» и «собрать» для текущего файла. Вызов — палитра
 команд, `task: spawn`.
+
+### Отладка
+
+Расширение регистрирует отладчик **FoxLang** (`debugger: start`, сценарии в
+`.zed/debug.json`). Нужен `foxlang` 6.4 или новее в `PATH`. Подробнее — в
+[DEBUGGING.md](DEBUGGING.md).
 
 ### Вариант Б: Быстрое подключение через `settings.json` (без расширения)
 Если вы хотите использовать FoxLang в Zed без сборки расширения, добавьте в `~/.config/zed/settings.json`:

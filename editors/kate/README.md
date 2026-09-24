@@ -6,6 +6,7 @@
 * [`foxlang.xml`](foxlang.xml) — XML-схема подсветки синтаксиса (KSyntaxHighlighting).
 * [`settings.json`](settings.json) — готовый фрагмент конфигурации для плагина LSP Client.
 * [`externaltools/`](externaltools/) — внешние инструменты «FoxLang: запустить», «проверить» и «собрать приложение».
+* [`dap.json`](dap.json) — настройки плагина «Отладчик» для `foxlang debug-adapter`.
 
 > **💡 Быстрая установка**: Скрипт `install.sh` из дистрибутива FoxLang автоматически устанавливает подсветку синтаксиса и регистрирует LSP для Kate!
 
@@ -23,6 +24,22 @@ cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
 
 Кнопку запуска можно вынести на панель инструментов (**Настройка → Панели
 инструментов**) и назначить ей клавишу (**Настройка → Комбинации клавиш**).
+
+## Отладка
+
+Включите плагин **Отладчик** (Настройка → Настроить Kate → Модули) и положите
+[`dap.json`](dap.json) в `~/.config/kate/debugger/dap.json` — `install.sh` делает это
+сам, если файла ещё нет; иначе добавьте секцию `foxlang` в свой файл:
+
+```bash
+mkdir -p ~/.config/kate/debugger
+cp editors/kate/dap.json ~/.config/kate/debugger/dap.json
+```
+
+На панели отладчика выберите **foxlang → launch (debug)** или **launch (stop on entry)**.
+Точки останова, шаги, стек, переменные и консоль работают как в других отладчиках Kate.
+Вывод программы появляется на панели отладчика, `input()` получает пустую строку.
+Подробнее — [docs/DEBUGGING.md](../../docs/DEBUGGING.md).
 
 ## 1. Подсветка синтаксиса (KSyntaxHighlighting)
 

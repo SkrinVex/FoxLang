@@ -8,6 +8,7 @@
 #include "foxlang/Project.h"
 #include <filesystem>
 #include "Image.h"
+#include "DebugAdapter.h"
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -121,6 +122,8 @@ int main(int argc, char* argv[]) {
                   << "  foxlang build <file.fox> [-o|--output app]\n"
                   << "                                  Bundle a standalone executable for this OS/architecture\n"
                   << "                                  Includes runtime and source modules; no compiler needed\n"
+                  << "  foxlang debug-adapter [--connect host:port]\n"
+                  << "                                  Debug Adapter Protocol server for editors (VS Code, Kate, Zed)\n"
                   << "  foxlang --version               Show version\n"
                   << "  foxlang --help                  Show this help\n"
                   << "  foxlang --foxlang-licenses      Show embedded dependency licenses\n\n"
@@ -145,6 +148,10 @@ int main(int argc, char* argv[]) {
     if (std::string(argv[1]) == "check") {
         if (argc != 3) throw std::runtime_error("Usage: foxlang check <script.fox>");
         return check(args[2]);
+    }
+
+    if (std::string(argv[1]) == "debug-adapter") {
+        return foxlang::debug::runAdapter(std::vector<std::string>(args.begin() + 2, args.end()));
     }
 
     if (std::string(argv[1]) == "build") {

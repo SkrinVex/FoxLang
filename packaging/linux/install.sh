@@ -67,6 +67,21 @@ if [ -d "$HERE/editors/kate/externaltools" ]; then
   echo "✔ Инструменты Kate (Сервис → Внешние инструменты → FoxLang) установлены в $KATE_TOOLS_DIR"
 fi
 
+# Отладчик Kate (плагин «Отладчик»): адаптер foxlang debug-adapter.
+KATE_DAP_DIR="$HOME/.config/kate/debugger"
+if [ -f "$HERE/editors/kate/dap.json" ]; then
+  mkdir -p "$KATE_DAP_DIR"
+  if [ ! -f "$KATE_DAP_DIR/dap.json" ]; then
+    cp "$HERE/editors/kate/dap.json" "$KATE_DAP_DIR/dap.json"
+    echo "✔ Отладчик FoxLang для Kate настроен в $KATE_DAP_DIR/dap.json"
+  elif ! grep -q '"foxlang"' "$KATE_DAP_DIR/dap.json" 2>/dev/null; then
+    cp "$HERE/editors/kate/dap.json" "$LIBDIR/kate-dap.json"
+    echo "ℹ Настройки отладчика Kate сохранены в $LIBDIR/kate-dap.json (добавьте секцию 'foxlang' в $KATE_DAP_DIR/dap.json)"
+  else
+    echo "✔ Отладчик FoxLang для Kate уже настроен в $KATE_DAP_DIR/dap.json"
+  fi
+fi
+
 if [ -f "$HERE/editors/kate/settings.json" ]; then
   if [ ! -f "$KATE_LSP_DIR/settings.json" ]; then
     cp "$HERE/editors/kate/settings.json" "$KATE_LSP_DIR/settings.json"
@@ -199,8 +214,8 @@ fi
 echo "Удаление:     $LIBDIR/uninstall.sh"
 echo ""
 echo "Редакторы:"
-echo "  • Kate:    подсветка активна; включите плагин 'Клиент LSP' в настройках Kate."
-echo "  • VS Code: расширение установлено (распознавание языка .fox, подсветка и LSP)."
+echo "  • Kate:    подсветка активна; включите плагины 'Клиент LSP' и 'Отладчик' в настройках Kate."
+echo "  • VS Code: расширение установлено (подсветка, LSP, отладка по F5)."
 echo "  • Zed IDE: dev-расширение в $LIBDIR/editors/zed (zed: install dev extension)."
 case ":$PATH:" in
   *":$BINDIR:"*) ;;

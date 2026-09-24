@@ -134,4 +134,4 @@ function activate(context) {
     }));
 }
 
-module.exports = { activate };
+module.exports = { activate, config, entryFile, resolveExecutable };

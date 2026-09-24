@@ -1,8 +1,8 @@
 {
   "name": "foxlang-language",
   "displayName": "FoxLang Programming Language",
-  "description": "Официальная поддержка языка FoxLang для VS Code: подсветка, LSP (диагностика по всему проекту, автодополнение, наведение, переход к определению, подсказки параметров), запуск, проверка и сборка программ",
-  "version": "6.3.0",
+  "description": "Официальная поддержка языка FoxLang для VS Code: подсветка, LSP (диагностика по всему проекту, автодополнение, наведение, переход к определению, подсказки параметров), отладчик (точки останова, шаги, переменные, консоль), запуск, проверка и сборка программ",
+  "version": "6.4.0",
   "publisher": "SkrinVex",
   "license": "MIT",
   "homepage": "https://github.com/SkrinVex/FoxLang",
@@ -17,20 +17,25 @@
     "vscode": "^1.75.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Debuggers"
   ],
   "keywords": [
     "foxlang",
     "fox",
     "language server",
-    "lsp"
+    "lsp",
+    "debugger"
   ],
   "activationEvents": [
     "onLanguage:fox",
     "onCommand:foxlang.run",
     "onCommand:foxlang.check",
     "onCommand:foxlang.build",
-    "onCommand:foxlang.chooseEntry"
+    "onCommand:foxlang.chooseEntry",
+    "onCommand:foxlang.debug",
+    "onDebugResolve:foxlang",
+    "onDebugDynamicConfigurations:foxlang"
   ],
   "main": "./client/extension.js",
   "contributes": {
@@ -101,6 +106,12 @@
         "icon": "$(play)"
       },
       {
+        "command": "foxlang.debug",
+        "title": "FoxLang: отладить программу",
+        "category": "FoxLang",
+        "icon": "$(debug-alt)"
+      },
+      {
         "command": "foxlang.check",
         "title": "FoxLang: проверить без запуска",
         "category": "FoxLang",
@@ -131,14 +142,24 @@
           "group": "navigation@0"
         },
         {
-          "command": "foxlang.check",
+          "command": "foxlang.debug",
           "when": "editorLangId == fox",
           "group": "navigation@1"
+        },
+        {
+          "command": "foxlang.check",
+          "when": "editorLangId == fox",
+          "group": "navigation@2"
         }
       ],
       "editor/context": [
         {
           "command": "foxlang.run",
+          "when": "editorLangId == fox",
+          "group": "foxlang@1"
+        },
+        {
+          "command": "foxlang.debug",
           "when": "editorLangId == fox",
           "group": "foxlang@1"
         },
@@ -227,6 +248,80 @@
           "line": 2,
           "message": 3
         }
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "fox"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "foxlang",
+        "label": "FoxLang",
+        "languages": [
+          "fox"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Главный файл программы .fox.",
+                "default": "${file}"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Аргументы программы (os_args()).",
+                "default": []
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Рабочая папка программы. По умолчанию — папка главного файла."
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Остановиться на первом операторе программы.",
+                "default": false
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Дополнительные переменные окружения программы.",
+                "default": {}
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "foxlang",
+            "request": "launch",
+            "name": "FoxLang: текущий файл",
+            "program": "${file}"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "FoxLang: отладка программы",
+            "description": "Запуск программы FoxLang под отладчиком",
+            "body": {
+              "type": "foxlang",
+              "request": "launch",
+              "name": "FoxLang: ${1:main.fox}",
+              "program": "^\"\\${workspaceFolder}/${1:main.fox}\"",
+              "stopOnEntry": false
+            }
+          }
+        ]
       }
     ]
   }

@@ -89,8 +89,25 @@ add_library(foxlang_bundle STATIC
 )
 target_include_directories(foxlang_bundle PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/standalone)
 target_link_libraries(foxlang_bundle PUBLIC foxlang_core)
+# JSON shared by the language server and the debug adapter
+add_library(foxlang_json STATIC src/lsp/Json.cpp)
+target_include_directories(foxlang_json PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/lsp)
+
+# Debug Adapter Protocol server inside the foxlang executable (foxlang debug-adapter)
+add_library(foxlang_debug STATIC
+    src/debug/Channel.cpp
+    src/debug/DebugAdapter.cpp
+)
+target_include_directories(foxlang_debug PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/debug)
+target_link_libraries(foxlang_debug PUBLIC foxlang_core foxlang_json)
+find_package(Threads REQUIRED)
+target_link_libraries(foxlang_debug PUBLIC Threads::Threads)
+if(WIN32)
+    target_link_libraries(foxlang_debug PUBLIC ws2_32)
+endif()
+
 add_executable(foxlang src/cli/main.cpp src/standalone/Stub.cpp)
-target_link_libraries(foxlang PRIVATE foxlang_bundle)
+target_link_libraries(foxlang PRIVATE foxlang_bundle foxlang_debug)
 if(WIN32)
     # CommandLineToArgvW: program arguments as UTF-16, converted to UTF-8 for os_args().
     target_link_libraries(foxlang PRIVATE shell32)
@@ -104,13 +121,12 @@ endif()
 # FoxLang Language Server executable (LSP)
 add_executable(foxlang-lsp
     src/lsp/main.cpp
-    src/lsp/Json.cpp
     src/lsp/Transport.cpp
     src/lsp/DocumentManager.cpp
     src/lsp/LspServer.cpp
 )
 target_include_directories(foxlang-lsp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/lsp)
-target_link_libraries(foxlang-lsp PRIVATE foxlang_core)
+target_link_libraries(foxlang-lsp PRIVATE foxlang_core foxlang_json)
 
 # CTest integration
 include(CTest)

@@ -1,0 +1,31 @@
+{
+    "dap": {
+        "foxlang": {
+            "url": "https://github.com/SkrinVex/FoxLang",
+            "run": {
+                "command": ["foxlang", "debug-adapter"],
+                "redirectStderr": true,
+                "supportsSourceRequest": true
+            },
+            "configurations": {
+                "launch (debug)": {
+                    "request": {
+                        "command": "launch",
+                        "program": "${file}",
+                        "args": "${args|list}",
+                        "cwd": "${workdir}"
+                    }
+                },
+                "launch (stop on entry)": {
+                    "request": {
+                        "command": "launch",
+                        "program": "${file}",
+                        "args": "${args|list}",
+                        "cwd": "${workdir}",
+                        "stopOnEntry": true
+                    }
+                }
+            }
+        }
+    }
+}

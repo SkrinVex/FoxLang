@@ -97,6 +97,12 @@ std::unique_ptr<BlockNode> Parser::parseProgram() {
     return program;
 }
 
+std::unique_ptr<Node> Parser::parseExpression() {
+    auto node = expression();
+    if (!check(TokenType::END)) fail("unexpected '" + peek().value + "' after the expression");
+    return node;
+}
+
 std::unique_ptr<BlockNode> Parser::parseProgramWithDiagnostics(std::vector<Diagnostic>& outDiagnostics) {
     diagnostics.clear();
     auto program = std::make_unique<BlockNode>();

@@ -266,6 +266,7 @@ function activate(context) {
 
     startServer(context);
     require('./run').activate(context);
+    require('./debug').activate(context);
 
     // Document synchronization events
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(doc => syncDocumentOpen(doc)));

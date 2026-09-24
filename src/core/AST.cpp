@@ -1,4 +1,5 @@
 #include "foxlang/AST.h"
+#include "foxlang/Debug.h"
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
@@ -6,6 +7,43 @@
 namespace foxlang {
 
 namespace {
+
+// Keeps the debugger's view of scopes and frames matched when a block or a call
+// ends, by an error as much as by reaching its end.
+struct ScopeMark {
+    DebugHook& hook;
+    ~ScopeMark() { hook.leaveScope(); }
+};
+
+struct FrameMark {
+    DebugHook* hook;
+    ~FrameMark() {
+        if (hook) hook->leaveFunction();
+    }
+};
+
+// A block run under a debugger: every statement is a place to stop, and an error is
+// reported while the scopes it happened in still exist.
+void evalDebugged(BlockNode& block, Context& scope, DebugHook& hook) {
+    runtime::StackGuard& guard = runtime::stackGuard();
+    hook.enterScope(scope);
+    ScopeMark mark{hook};
+    for (auto& stmt : block.stmts) {
+        if (!stmt) continue;
+        if (stmt->range.start.line > 0) {
+            guard.line = stmt->range.start.line;
+            guard.file = block.file;
+            // A function definition only registers the function; stepping over it is noise.
+            if (!dynamic_cast<const FuncDefNode*>(stmt.get())) hook.statement(block.file, stmt->range.start.line);
+        }
+        try {
+            stmt->eval(scope);
+        } catch (const std::exception& error) {
+            hook.error(error.what());
+            throw;
+        }
+    }
+}
 
 // Arrays leave a function by copy: the scope that owns the original is gone by the
 // time the caller sees the value, so the copy is handed to the caller to own.
@@ -47,6 +85,12 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
     }
 
     CallDepth guard(name);
+    DebugHook* hook = runtime::debugHook();
+    FrameMark frame{hook};
+    if (hook) {
+        auto* block = dynamic_cast<const BlockNode*>(body.get());
+        hook->enterFunction(name, block ? block->file : nullptr, range.start.line, scope);
+    }
     // After a normal return the caller's statement is the one running again, so an
     // error later in it must not be reported at the callee's last line.
     runtime::StackGuard& location = runtime::stackGuard();
@@ -294,6 +338,10 @@ Value BlockNode::eval(Context& ctx) {
         inner.interpreter = ctx.interpreter;
     }
     Context& scope = scoped ? inner : ctx;
+    if (DebugHook* hook = runtime::debugHook()) {
+        evalDebugged(*this, scope, *hook);
+        return {"void", ""};
+    }
     runtime::StackGuard& guard = runtime::stackGuard();
     for (auto& stmt : stmts) {
         if (!stmt) continue;

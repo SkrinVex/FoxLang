@@ -1,4 +1,5 @@
 #include "foxlang/Runtime.h"
+#include "foxlang/Debug.h"
 #include "foxlang/Platform.h"
 #include <algorithm>
 #include <cctype>
@@ -58,6 +59,13 @@ std::string locate(const std::string& message, const std::string& fallbackFile) 
     std::string file = displayPath(guard.file ? *guard.file : fallbackFile);
     return (file.empty() ? "line " : file + ":") + std::to_string(guard.line) + ": " + message;
 }
+
+namespace {
+DebugHook* attachedDebugger = nullptr;
+} // namespace
+
+DebugHook* debugHook() { return attachedDebugger; }
+void setDebugHook(DebugHook* hook) { attachedDebugger = hook; }
 
 StackGuard& stackGuard() {
     static thread_local StackGuard state;

@@ -49,6 +49,9 @@ for (int i = 0; i < size(words); i++) {
   `foxlang-lsp` с расширениями для VS Code, Kate и Zed. Проект из нескольких файлов
   анализируется целиком, ошибки указывают файл и строку, программу можно запустить
   кнопкой ▶ прямо из редактора.
+- Отладчик (Debug Adapter Protocol) для VS Code, Kate и Zed: точки останова с
+  условиями и счётчиками, лог-точки, шаги, стек вызовов, переменные и массивы,
+  изменение значений, консоль и остановка на ошибке выполнения.
 - `foxlang build` — самостоятельное приложение для Linux или Windows.
 - Библиотека `foxlang_core` для встраивания в программы на C++.
 
@@ -143,14 +146,16 @@ webhook и long polling, TCP, терминал и графика.
 встроенных функций и модулей берутся из того же каталога, по которому работает
 рантайм, поэтому подсказки всегда совпадают с языком.
 
-* **VS Code** (подсветка, LSP, кнопка ▶ запуска, проверка и сборка): установите `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.vsix)
+* **VS Code** (подсветка, LSP, кнопка ▶ запуска, отладка по F5, проверка и сборка): установите `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.vsix)
   командой `code --install-extension foxlang.vsix`.
 * **Kate**: подсветка [`editors/kate/foxlang.xml`](editors/kate/foxlang.xml), настройки
   LSP [`editors/kate/settings.json`](editors/kate/settings.json) и внешние инструменты
-  запуска, проверки и сборки [`editors/kate/externaltools/`](editors/kate/externaltools/).
-* **Zed**: dev-расширение из [`editors/zed/`](editors/zed/) с задачами запуска.
+  запуска, проверки и сборки [`editors/kate/externaltools/`](editors/kate/externaltools/),
+  отладчик [`editors/kate/dap.json`](editors/kate/dap.json).
+* **Zed**: dev-расширение из [`editors/zed/`](editors/zed/) с задачами запуска и отладчиком.
 
-Пошаговая настройка: [docs/EDITORS.md](docs/EDITORS.md).
+Пошаговая настройка: [docs/EDITORS.md](docs/EDITORS.md), отладка:
+[docs/DEBUGGING.md](docs/DEBUGGING.md).
 
 ## Docker
 

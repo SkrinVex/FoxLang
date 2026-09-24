@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "required": ["request", "program"],
+  "properties": {
+    "request": {
+      "type": "string",
+      "enum": ["launch"],
+      "description": "FoxLang запускает программу сам."
+    },
+    "program": {
+      "type": "string",
+      "description": "Главный файл программы .fox."
+    },
+    "args": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Аргументы программы (os_args())."
+    },
+    "cwd": {
+      "type": "string",
+      "description": "Рабочая папка программы."
+    },
+    "stopOnEntry": {
+      "type": "boolean",
+      "default": false,
+      "description": "Остановиться на первом операторе."
+    }
+  }
+}

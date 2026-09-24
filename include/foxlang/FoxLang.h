@@ -10,6 +10,7 @@
 #include "foxlang/Runtime.h"
 #include "foxlang/Builtins.h"
 #include "foxlang/Platform.h"
+#include "foxlang/Debug.h"
 
 namespace foxlang {
 
@@ -48,6 +49,7 @@ public:
 
     const std::set<std::string>& getLoadedModules() const;
     const std::vector<std::string>& getArguments() const { return options.arguments; }
+    const SourceProvider& getSources() const { return *sources; }
     void executeInclude(const std::string& path, const std::string& currentFile, bool importOnly);
     void executeUsing(const std::string& libName, const std::string& currentFile);
 

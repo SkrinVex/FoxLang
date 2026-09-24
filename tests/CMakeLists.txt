@@ -56,6 +56,9 @@ set_tests_properties(standalone_bundle_format PROPERTIES LABELS standalone)
 add_test(NAME standalone_graphics
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_graphics.py $<TARGET_FILE:foxlang>)
 set_tests_properties(standalone_graphics PROPERTIES TIMEOUT 90 LABELS standalone SKIP_RETURN_CODE 77)
+add_test(NAME debug_adapter
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_debugger.py $<TARGET_FILE:foxlang>)
+set_tests_properties(debug_adapter PROPERTIES TIMEOUT 120 LABELS standalone)
 add_test(NAME ui_interaction
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_ui.py $<TARGET_FILE:foxlang>)
 set_tests_properties(ui_interaction PROPERTIES TIMEOUT 120 LABELS standalone SKIP_RETURN_CODE 77)

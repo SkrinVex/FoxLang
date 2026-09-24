@@ -16,6 +16,8 @@ public:
     std::unique_ptr<BlockNode> parseProgram();
     // Collects syntax errors instead of stopping at the first one, for editors.
     std::unique_ptr<BlockNode> parseProgramWithDiagnostics(std::vector<Diagnostic>& outDiagnostics);
+    // A single expression and nothing after it, for a debugger's watch and console.
+    std::unique_ptr<Node> parseExpression();
 
     const std::vector<Diagnostic>& getDiagnostics() const { return diagnostics; }
     const std::vector<ModuleImport>& getImports() const { return imports; }
