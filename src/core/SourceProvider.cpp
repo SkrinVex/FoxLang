@@ -1,5 +1,6 @@
 #include "foxlang/SourceProvider.h"
 #include "foxlang/Runtime.h"
+#include "foxlang/Platform.h"
 #include "EmbeddedStdlib.h"
 #include <fstream>
 #include <sstream>
@@ -36,7 +37,7 @@ public:
 
     std::string read(const std::string& identity) const override {
         if (identity.rfind("@std/", 0) == 0) return embeddedStdlib().at(identity.substr(1));
-        std::ifstream file(identity, std::ios::binary);
+        std::ifstream file(platform::pathFromUtf8(identity), std::ios::binary);
         if (!file) throw std::runtime_error("Module Error: Cannot open file '" + identity + "'");
         std::ostringstream out;
         out << file.rdbuf();

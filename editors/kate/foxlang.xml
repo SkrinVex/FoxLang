@@ -36,7 +36,9 @@
     </list>
     <list name="builtins">
       <item>abs</item>
+      <item>access_log</item>
       <item>acos</item>
+      <item>allow_cors</item>
       <item>append_file</item>
       <item>arg_or</item>
       <item>args</item>
@@ -54,12 +56,14 @@
       <item>clamp01</item>
       <item>clear</item>
       <item>clear_window</item>
+      <item>client_ip</item>
       <item>clock_ms</item>
       <item>close_tcp</item>
       <item>close_window</item>
       <item>color</item>
       <item>connect_tcp</item>
       <item>contains</item>
+      <item>cookie</item>
       <item>copy_array</item>
       <item>cos</item>
       <item>cwd</item>
@@ -67,8 +71,12 @@
       <item>degrees</item>
       <item>delete</item>
       <item>dns_lookup</item>
+      <item>download</item>
       <item>draw_circle</item>
+      <item>draw_frame</item>
+      <item>draw_line</item>
       <item>draw_rect</item>
+      <item>draw_ring</item>
       <item>draw_text</item>
       <item>ends_with</item>
       <item>env</item>
@@ -80,9 +88,11 @@
       <item>exists</item>
       <item>exit</item>
       <item>exp</item>
+      <item>fail</item>
       <item>file_size</item>
       <item>find</item>
       <item>floor</item>
+      <item>form</item>
       <item>format_time</item>
       <item>frame_delta</item>
       <item>fs_exists</item>
@@ -99,6 +109,8 @@
       <item>gfx_delta</item>
       <item>gfx_down</item>
       <item>gfx_focused</item>
+      <item>gfx_frame</item>
+      <item>gfx_line</item>
       <item>gfx_mouse_x</item>
       <item>gfx_mouse_y</item>
       <item>gfx_open</item>
@@ -107,11 +119,14 @@
       <item>gfx_pressed</item>
       <item>gfx_rect</item>
       <item>gfx_rgb</item>
+      <item>gfx_ring</item>
       <item>gfx_text</item>
+      <item>gfx_text_width</item>
       <item>goto_xy</item>
       <item>header</item>
       <item>hide_cursor</item>
       <item>home</item>
+      <item>html_escape</item>
       <item>http_delete</item>
       <item>http_get</item>
       <item>http_ok</item>
@@ -139,8 +154,12 @@
       <item>json_path</item>
       <item>json_quote</item>
       <item>json_safe</item>
+      <item>json_set</item>
+      <item>json_set_raw</item>
       <item>json_type</item>
       <item>json_type_at</item>
+      <item>json_valid</item>
+      <item>json_value</item>
       <item>kbhit</item>
       <item>key_down</item>
       <item>key_pressed</item>
@@ -158,10 +177,12 @@
       <item>lower</item>
       <item>make_dir</item>
       <item>max</item>
+      <item>max_body_size</item>
       <item>method</item>
       <item>min</item>
       <item>mouse_x</item>
       <item>mouse_y</item>
+      <item>not_found</item>
       <item>now_text</item>
       <item>open_window</item>
       <item>os_args</item>
@@ -169,6 +190,8 @@
       <item>os_platform</item>
       <item>pad_left</item>
       <item>pad_right</item>
+      <item>param</item>
+      <item>patch</item>
       <item>path</item>
       <item>platform</item>
       <item>pop</item>
@@ -179,6 +202,7 @@
       <item>push</item>
       <item>put</item>
       <item>query</item>
+      <item>query_param</item>
       <item>radians</item>
       <item>random</item>
       <item>random_float</item>
@@ -186,34 +210,59 @@
       <item>read_file</item>
       <item>read_lines</item>
       <item>recv_tcp</item>
+      <item>redirect</item>
       <item>remove_at</item>
       <item>remove_path</item>
+      <item>render</item>
       <item>repeat</item>
       <item>replace</item>
       <item>request_body</item>
+      <item>request_cookie</item>
+      <item>request_file_name</item>
+      <item>request_file_save</item>
+      <item>request_form</item>
       <item>request_header</item>
+      <item>request_ip</item>
       <item>request_method</item>
+      <item>request_param</item>
       <item>request_path</item>
       <item>request_query</item>
+      <item>request_query_param</item>
       <item>reset_color</item>
       <item>resize</item>
       <item>resolve_host</item>
       <item>respond</item>
       <item>respond_as</item>
+      <item>respond_html</item>
       <item>respond_status</item>
+      <item>respond_text</item>
       <item>reverse</item>
       <item>rgb</item>
       <item>round</item>
       <item>route</item>
+      <item>save_upload</item>
       <item>secret</item>
+      <item>send_file</item>
       <item>send_tcp</item>
+      <item>server_access_log</item>
+      <item>server_cors</item>
+      <item>server_download</item>
+      <item>server_header</item>
       <item>server_listen</item>
       <item>server_listen_tls</item>
+      <item>server_max_body</item>
+      <item>server_not_found</item>
+      <item>server_redirect</item>
       <item>server_respond</item>
       <item>server_route</item>
+      <item>server_send_file</item>
+      <item>server_set_cookie</item>
+      <item>server_static</item>
       <item>server_stop</item>
       <item>set</item>
+      <item>set_cookie</item>
       <item>set_env</item>
+      <item>set_header</item>
       <item>show_cursor</item>
       <item>sign</item>
       <item>sin</item>
@@ -224,6 +273,7 @@
       <item>split</item>
       <item>sqrt</item>
       <item>starts_with</item>
+      <item>static_files</item>
       <item>stop_server</item>
       <item>str_contains</item>
       <item>str_ends_with</item>
@@ -245,6 +295,7 @@
       <item>tcp_connect</item>
       <item>tcp_recv</item>
       <item>tcp_send</item>
+      <item>template_render</item>
       <item>term_clear</item>
       <item>term_color</item>
       <item>term_goto</item>
@@ -253,6 +304,7 @@
       <item>term_reset</item>
       <item>term_show_cursor</item>
       <item>term_write</item>
+      <item>text_width</item>
       <item>time_format</item>
       <item>time_now_ms</item>
       <item>to_float</item>
@@ -261,8 +313,11 @@
       <item>trim</item>
       <item>type_of</item>
       <item>unix_time_ms</item>
+      <item>upload_name</item>
       <item>upper</item>
       <item>uptime_ms</item>
+      <item>url_decode</item>
+      <item>url_encode</item>
       <item>wait</item>
       <item>warn</item>
       <item>window_focused</item>

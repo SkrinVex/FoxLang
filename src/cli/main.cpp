@@ -5,6 +5,8 @@
 #include <vector>
 #include "foxlang/FoxLang.h"
 #include "foxlang/SemanticAnalyzer.h"
+#include "foxlang/Project.h"
+#include <filesystem>
 #include "Image.h"
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -18,7 +20,7 @@ bool foxlangHasBundleDescriptor();
 
 // Reports the diagnostics the editor already sees, for a terminal or CI, without executing code.
 static int check(const std::string& path) {
-    std::ifstream file(path);
+    std::ifstream file(foxlang::platform::pathFromUtf8(path), std::ios::binary);
     if (!file.is_open()) throw std::runtime_error("could not open file '" + path + "'");
     std::stringstream buffer;
     buffer << file.rdbuf();
@@ -32,7 +34,16 @@ static int check(const std::string& path) {
     auto program = parser.parseProgramWithDiagnostics(parserDiagnostics);
     diagnostics.insert(diagnostics.end(), parserDiagnostics.begin(), parserDiagnostics.end());
 
-    foxlang::SemanticAnalyzer analyzer(path, foxlang::platform::getEnvVar("FOXLANG_HOME"));
+    // Other files of the same program declare what this one may use: the project is
+    // searched below the working directory when the file is inside it.
+    std::string home = foxlang::platform::getEnvVar("FOXLANG_HOME");
+    auto sources = std::make_shared<foxlang::OverlaySources>(foxlang::filesystemSources(home));
+    foxlang::ProjectIndex project(sources);
+    std::string canonical = foxlang::canonicalPath(path);
+    std::string cwd = foxlang::platform::pathToUtf8(std::filesystem::current_path());
+    if (canonical.rfind(cwd, 0) == 0) project.setRoot(cwd);
+    foxlang::SemanticAnalyzer analyzer(canonical, home, sources);
+    analyzer.addProjectFiles(project.peers(canonical));
     analyzer.analyze(program.get());
     const auto& semantic = analyzer.getDiagnostics();
     diagnostics.insert(diagnostics.end(), semantic.begin(), semantic.end());
@@ -77,6 +88,7 @@ static std::vector<std::string> argumentsFrom(int argc, char* argv[], int first)
 
 int main(int argc, char* argv[]) {
     try {
+    const std::vector<std::string> args = argumentsFrom(argc, argv, 0);
     if (argc == 2 && std::string(argv[1]) == "--foxlang-licenses") {
         std::cout << foxlang::platform::thirdPartyLicenses();
         return 0;
@@ -132,28 +144,28 @@ int main(int argc, char* argv[]) {
 
     if (std::string(argv[1]) == "check") {
         if (argc != 3) throw std::runtime_error("Usage: foxlang check <script.fox>");
-        return check(argv[2]);
+        return check(args[2]);
     }
 
     if (std::string(argv[1]) == "build") {
         if (argc != 3 && argc != 5) {
             throw std::runtime_error("Usage: foxlang build <file.fox> [-o|--output app]");
         }
-        if (std::string(argv[2]).empty() || argv[2][0] == '-') throw std::runtime_error("Build Error: expected an input source file");
+        if (args[2].empty() || args[2][0] == '-') throw std::runtime_error("Build Error: expected an input source file");
         std::string output;
         if (argc == 5) {
             if (std::string(argv[3]) != "-o" && std::string(argv[3]) != "--output") throw std::runtime_error("Build Error: unknown option '" + std::string(argv[3]) + "'");
-            output = argv[4];
+            output = args[4];
             if (output.empty() || output[0] == '-') throw std::runtime_error("Build Error: expected output filename");
         }
-        foxlang::bundle::build(argv[2], output);
+        foxlang::bundle::build(foxlang::platform::pathFromUtf8(args[2]), foxlang::platform::pathFromUtf8(output));
         return 0;
     }
 
     foxlang::InterpreterOptions options;
     options.arguments = argumentsFrom(argc, argv, 2);
     foxlang::Interpreter interpreter(options);
-    return report(interpreter.runFile(argv[1]));
+    return report(interpreter.runFile(args[1]));
     } catch (const std::exception& error) {
         std::cerr << "FoxLang: " << error.what() << std::endl;
         return 1;

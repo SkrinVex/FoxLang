@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Гостевая книга FoxLang</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <h1>🦊 Гостевая книга</h1>
+  {{#if visitor}}<p class="hello">С возвращением, {{visitor}}!</p>{{/if}}
+  <form method="post" action="/sign">
+    <input name="name" placeholder="Имя" value="{{visitor}}" required>
+    <textarea name="message" placeholder="Сообщение" required></textarea>
+    <button>Оставить запись</button>
+  </form>
+  <h2>Записей: {{count}}</h2>
+  {{#each entries}}
+  <article>
+    <b>{{name}}</b>: {{message}} <a href="/entry/{{id}}">#{{@index}}</a>
+  </article>
+  {{/each}}
+  {{#if entries}}{{else}}<p>Пока пусто — будьте первым.</p>{{/if}}
+  <h2>Файл</h2>
+  <form method="post" action="/upload" enctype="multipart/form-data">
+    <input type="file" name="file"> <button>Загрузить</button>
+  </form>
+</body>
+</html>

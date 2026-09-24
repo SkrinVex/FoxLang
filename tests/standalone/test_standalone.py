@@ -270,7 +270,7 @@ listen(to_int(secret("FOX_TEST_PORT")));
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
         conn.request("PATCH", "/items")
         response = conn.getresponse()
-        assert response.status == 404
+        assert response.status == 405 and response.getheader("Allow") == "PUT, DELETE", response.getheaders()
         response.read()
         conn.close()
         for header, expected in [(b"Content-Length: -1", 400),

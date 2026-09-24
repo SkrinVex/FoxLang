@@ -58,7 +58,8 @@ run_expect_fail "int a = 2000000000; int b = a + a;" "int overflow" "int additio
 run_expect_fail "int forever(int n) { return forever(n + 1); } int r = forever(0);" "call depth limit" "runaway recursion"
 run_expect_fail "if (1) { print(\"yes\"); }" "condition must be bool" "non-bool condition"
 run_expect_fail "int reader() { return hidden; } int owner() { int hidden = 1; return reader(); } int x = owner();" "Variable 'hidden' not found" "callee cannot see caller locals"
-run_expect_fail "int z = 10 / 0;" "\[line 1\]" "runtime error carries its line"
+run_expect_fail "int z = 10 / 0;" "malformed.fox:1: Runtime Error" "runtime error carries its file and line"
+run_expect_fail "int a = 5" "malformed.fox:1: Syntax Error" "syntax error carries its file and line"
 
 # 9. Block scope is a real scope
 run_expect_fail "int i = 0; while (i < 1) { int inner = 5; i++; } print(inner);" "Variable 'inner' not found" "block variable outside its block"

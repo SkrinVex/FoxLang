@@ -8,6 +8,10 @@ void clear_window(int color) { gfx_clear(color); }
 void draw_rect(int x, int y, int width, int height, int color) { gfx_rect(x, y, width, height, color); }
 void draw_circle(int x, int y, int radius, int color) { gfx_circle(x, y, radius, color); }
 void draw_text(int x, int y, string text, int scale, int color) { gfx_text(x, y, text, scale, color); }
+void draw_line(int x1, int y1, int x2, int y2, int color) { gfx_line(x1, y1, x2, y2, color); }
+void draw_frame(int x, int y, int width, int height, int thickness, int color) { gfx_frame(x, y, width, height, thickness, color); }
+void draw_ring(int x, int y, int radius, int thickness, int color) { gfx_ring(x, y, radius, thickness, color); }
+int text_width(string text, int scale) { return gfx_text_width(text, scale); }
 void present_window() { gfx_present(); }
 float frame_delta() { return gfx_delta(); }
 bool key_down(string key) { return gfx_down(key); }

@@ -16,8 +16,24 @@ bool isDeclaration(const Node* stmt) {
 
 // Imports bring in declarations; calls on a module's top level are its own demo code.
 void runModule(BlockNode& program, Context& ctx, bool importOnly) {
+    runtime::StackGuard& guard = runtime::stackGuard();
     for (auto& stmt : program.stmts) {
-        if (stmt && (!importOnly || isDeclaration(stmt.get()))) stmt->eval(ctx);
+        if (!stmt || (importOnly && !isDeclaration(stmt.get()))) continue;
+        guard.line = stmt->range.start.line;
+        guard.file = program.file;
+        stmt->eval(ctx);
+    }
+}
+
+// Parses a source, naming the file in a syntax error that the lexer could not name.
+std::unique_ptr<BlockNode> parseSource(const std::string& text, const std::string& identity) {
+    try {
+        Lexer lexer(text);
+        Parser parser(lexer.tokenize(), identity);
+        return parser.parseProgram();
+    } catch (SyntaxError& error) {
+        if (error.file().empty()) error.setFile(runtime::displayPath(identity));
+        throw;
     }
 }
 
@@ -83,11 +99,15 @@ void Interpreter::executeInclude(const std::string& path, const std::string& cur
 
 void Interpreter::executeModule(const std::string& fullPath, bool importOnly) {
     if (loadedModules.count(fullPath)) return;
-    Lexer lexer(sources->read(fullPath));
-    Parser parser(lexer.tokenize(), fullPath);
-    auto program = parser.parseProgram();
+    auto program = parseSource(sources->read(fullPath), fullPath);
     loadedModules.insert(fullPath);
+    // The importing statement resumes after the module, so its location is restored.
+    runtime::StackGuard& guard = runtime::stackGuard();
+    int line = guard.line;
+    const std::string* file = guard.file;
     runModule(*program, globalContext, importOnly);
+    guard.line = line;
+    guard.file = file;
 }
 
 void Interpreter::executeUsing(const std::string& libName, const std::string& currentFile) {
@@ -99,7 +119,7 @@ RunResult Interpreter::runFile(const std::string& filepath) {
         runtime::loadDotEnv(filepath);
     }
 
-    std::ifstream file(filepath);
+    std::ifstream file(platform::pathFromUtf8(filepath), std::ios::binary);
     if (!file.is_open()) {
         return {false, 1, "could not open file '" + filepath + "'"};
     }
@@ -107,36 +127,32 @@ RunResult Interpreter::runFile(const std::string& filepath) {
     std::stringstream buffer;
     buffer << file.rdbuf();
     std::error_code ec;
-    auto identity = std::filesystem::weakly_canonical(filepath, ec).string();
+    auto identity = platform::pathToUtf8(std::filesystem::weakly_canonical(platform::pathFromUtf8(filepath), ec));
     return runSource(buffer.str(), ec ? filepath : identity);
 }
 
-// Reports the line the interpreter last entered, unless the message already names one.
-static std::string withLine(const std::string& message) {
-    int line = runtime::stackGuard().line;
-    if (line <= 0 || message.find(" [line ") != std::string::npos) return message;
-    return message + " [line " + std::to_string(line) + "]";
-}
-
 RunResult Interpreter::runSource(const std::string& source, const std::string& scriptPath) {
-    runtime::stackGuard().line = 0;
+    runtime::StackGuard& guard = runtime::stackGuard();
+    guard.line = 0;
+    guard.file = nullptr;
+    auto located = [&](const std::string& message) { return runtime::locate(message, scriptPath); };
     try {
-        Lexer lexer(source);
-        Parser parser(lexer.tokenize(), scriptPath);
-        auto program = parser.parseProgram();
+        auto program = parseSource(source, scriptPath);
         loadedModules.insert(scriptPath);
         program->eval(globalContext);
         return {true, 0, ""};
     } catch (const ExitRequest& request) {
         return {request.code == 0, request.code, ""};
+    } catch (const SyntaxError& error) {
+        return {false, 1, error.what()};
     } catch (const ReturnValue&) {
-        return {false, 1, withLine("Runtime Error: 'return' outside of a function")};
+        return {false, 1, located("Runtime Error: 'return' outside of a function")};
     } catch (const BreakException&) {
-        return {false, 1, "Runtime Error: 'break' outside of loop in global scope"};
+        return {false, 1, located("Runtime Error: 'break' outside of loop in global scope")};
     } catch (const ContinueException&) {
-        return {false, 1, "Runtime Error: 'continue' outside of loop in global scope"};
+        return {false, 1, located("Runtime Error: 'continue' outside of loop in global scope")};
     } catch (const std::exception& e) {
-        return {false, 1, withLine(e.what())};
+        return {false, 1, located(e.what())};
     }
 }
 

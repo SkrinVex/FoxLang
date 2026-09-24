@@ -47,6 +47,11 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
     }
 
     CallDepth guard(name);
+    // After a normal return the caller's statement is the one running again, so an
+    // error later in it must not be reported at the callee's last line.
+    runtime::StackGuard& location = runtime::stackGuard();
+    int callerLine = location.line;
+    const std::string* callerFile = location.file;
     Value result{"void", ""};
     try {
         body->eval(scope);
@@ -58,6 +63,8 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
         throw std::runtime_error("Runtime Error: 'continue' outside of loop in function '" + name + "'");
     }
 
+    location.line = callerLine;
+    location.file = callerFile;
     if (result.type == "array" && returnType != "array") caller.getRoot()->arrays.erase(result.value.str());
     if (returnType == "void") return {"void", ""};
     if (result.type == "void")
@@ -293,7 +300,10 @@ Value BlockNode::eval(Context& ctx) {
         // Remembering the line costs one store. Catching here to rethrow with the
         // line attached cost an exception per nested block, and an error leaving a
         // deep recursion had to pass through every one of them.
-        if (stmt->range.start.line > 0) guard.line = stmt->range.start.line;
+        if (stmt->range.start.line > 0) {
+            guard.line = stmt->range.start.line;
+            guard.file = file;
+        }
         stmt->eval(scope);
     }
     return {"void", ""};

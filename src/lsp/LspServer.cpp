@@ -35,8 +35,25 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
     JsonValue id = msg.get("id");
 
     if (method == "initialize") {
+        // The workspace root bounds the search for the other files of a program.
+        const auto& params = msg.get("params");
+        std::string root;
+        if (params.get("workspaceFolders").isArray() && !params.get("workspaceFolders").arrayValue.empty())
+            root = params.get("workspaceFolders")[0].get("uri").asString();
+        if (root.empty() && params.get("rootUri").isString()) root = params.get("rootUri").asString();
+        if (root.empty() && params.get("rootPath").isString()) root = DocumentManager::filePathToUri(params.get("rootPath").asString());
+        docManager.setWorkspaceRoot(root);
+
         std::map<std::string, JsonValue> capabilities;
-        capabilities["textDocumentSync"] = 1; // Full document sync
+        // Full document sync; saves are reported because a saved file can change
+        // what the other files of its program see.
+        std::map<std::string, JsonValue> sync;
+        sync["openClose"] = true;
+        sync["change"] = 1;
+        std::map<std::string, JsonValue> save;
+        save["includeText"] = false;
+        sync["save"] = JsonValue(save);
+        capabilities["textDocumentSync"] = JsonValue(sync);
 
         std::map<std::string, JsonValue> compProvider;
         compProvider["resolveProvider"] = false;
@@ -186,11 +203,7 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
             int col = utf::lspCharacterToColumn(pos.character);
             auto def = doc->analyzer->getDefinition(line, col);
             if (def.found) {
-                std::string targetUri = def.fileUri;
-                if (targetUri.compare(0, 7, "file://") != 0 && !targetUri.empty()) {
-                    targetUri = "file://" + targetUri;
-                }
-                if (targetUri.empty()) targetUri = uri;
+                std::string targetUri = def.fileUri.empty() ? uri : DocumentManager::filePathToUri(def.fileUri);
                 LspLocation loc;
                 loc.uri = targetUri;
                 loc.range = LspRange::fromSourceRange(def.range);
@@ -247,8 +260,7 @@ void LspServer::handleNotification(const JsonValue& msg, std::ostream& out) {
         std::string uri = td.get("uri").asString();
         std::string text = td.get("text").asString();
         int version = td.get("version").asInt(1);
-        docManager.openDocument(uri, text, version);
-        publishDiagnostics(uri, out);
+        for (const auto& changed : docManager.openDocument(uri, text, version)) publishDiagnostics(changed, out);
         return;
     }
 
@@ -260,15 +272,19 @@ void LspServer::handleNotification(const JsonValue& msg, std::ostream& out) {
         const auto& changes = params.get("contentChanges");
         if (changes.isArray() && !changes.arrayValue.empty()) {
             std::string text = changes[0].get("text").asString();
-            docManager.updateDocument(uri, text, version);
-            publishDiagnostics(uri, out);
+            for (const auto& changed : docManager.updateDocument(uri, text, version)) publishDiagnostics(changed, out);
         }
+        return;
+    }
+
+    if (method == "textDocument/didSave") {
+        for (const auto& changed : docManager.refresh()) publishDiagnostics(changed, out);
         return;
     }
 
     if (method == "textDocument/didClose") {
         std::string uri = msg.get("params").get("textDocument").get("uri").asString();
-        docManager.closeDocument(uri);
+        for (const auto& changed : docManager.closeDocument(uri)) publishDiagnostics(changed, out);
         // Clear diagnostics on close
         std::map<std::string, JsonValue> params;
         params["uri"] = uri;

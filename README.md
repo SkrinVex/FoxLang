@@ -33,11 +33,16 @@ for (int i = 0; i < size(words); i++) {
   `upper`/`lower` понимают кириллицу.
 - Стандартная библиотека из 14 модулей: `string`, `arrays`, `math`, `json`, `fs`,
   `os`, `time`, `env`, `log`, `http`, `server`, `net`, `terminal`, `graphics`.
-- HTTP(S)-клиент со статусом ответа, HTTP/HTTPS-сервер с маршрутами для любых
-  методов, TCP и DNS — на Linux и Windows, без внешних утилит.
+- Веб-сервер для сайтов и API: маршруты с параметрами (`/users/:id`), статические
+  файлы, HTML-шаблоны, формы и загрузка файлов, cookies, редиректы, скачивание, CORS,
+  HTTPS без reverse proxy. HTTP(S)-клиент со статусом ответа, TCP и DNS — на Linux и
+  Windows, без внешних утилит.
+- Сборка JSON без склейки строк (`json_set`, `json_value`) и чтение по путям.
 - Нативное окно с 2D-рисованием, текстом (включая кириллицу), клавиатурой и мышью.
 - `foxlang check` — статическая проверка без запуска; языковой сервер
-  `foxlang-lsp` с расширениями для VS Code, Kate и Zed.
+  `foxlang-lsp` с расширениями для VS Code, Kate и Zed. Проект из нескольких файлов
+  анализируется целиком, ошибки указывают файл и строку, программу можно запустить
+  кнопкой ▶ прямо из редактора.
 - `foxlang build` — самостоятельное приложение для Linux или Windows.
 - Библиотека `foxlang_core` для встраивания в программы на C++.
 
@@ -90,32 +95,31 @@ foxlang build hello.fox -o hello
 Windows — `.exe`. Linux-пакет релизов собран статически на musl и не зависит от
 версии glibc. Подробности: [docs/STANDALONE.md](docs/STANDALONE.md).
 
-## Пример: webhook-сервер
+## Пример: сайт
 
 ```cpp
 using server;
 using json;
-using log;
 
-void health() {
-    respond("{\"ok\":true}");
+void home() {
+    respond_html(template_render("<h1>Привет, {{name}}!</h1>", json_set("", "name", query_param("name"))));
 }
 
-void webhook() {
-    string update = body();
-    info("сообщение: " + json_path(update, "message.text"));
-    respond("{\"ok\":true}");
+void user() {
+    respond(json_set("", "id", param("id")));
 }
 
-get("/health", "health");
-post("/telegram", "webhook");
+static_files("/static", "public");
+get("/", "home");
+get("/users/:id", "user");
 listen(8080);
 ```
 
 HTTPS включается вызовом `listen_tls(port, certificate, private_key)` без reverse
-proxy. Больше примеров — в [examples/](examples): игра, частотный словарь, список
-дел в файле, HTTP-клиент, REST API, Telegram-боты на webhook и long polling, TCP,
-терминал и графика.
+proxy. Больше примеров — в [examples/](examples): сайт-гостевая книга из нескольких
+файлов с шаблонами, формами и загрузкой файлов ([examples/website](examples/website)),
+игра, частотный словарь, список дел в файле, HTTP-клиент, REST API, Telegram-боты на
+webhook и long polling, TCP, терминал и графика.
 
 ## Платформы
 
@@ -132,11 +136,12 @@ proxy. Больше примеров — в [examples/](examples): игра, ч�
 встроенных функций и модулей берутся из того же каталога, по которому работает
 рантайм, поэтому подсказки всегда совпадают с языком.
 
-* **VS Code**: установите `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.vsix)
+* **VS Code** (подсветка, LSP, кнопка ▶ запуска, проверка и сборка): установите `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.vsix)
   командой `code --install-extension foxlang.vsix`.
-* **Kate**: подсветка [`editors/kate/foxlang.xml`](editors/kate/foxlang.xml) и
-  настройки LSP [`editors/kate/settings.json`](editors/kate/settings.json).
-* **Zed**: dev-расширение из [`editors/zed/`](editors/zed/).
+* **Kate**: подсветка [`editors/kate/foxlang.xml`](editors/kate/foxlang.xml), настройки
+  LSP [`editors/kate/settings.json`](editors/kate/settings.json) и внешние инструменты
+  запуска, проверки и сборки [`editors/kate/externaltools/`](editors/kate/externaltools/).
+* **Zed**: dev-расширение из [`editors/zed/`](editors/zed/) с задачами запуска.
 
 Пошаговая настройка: [docs/EDITORS.md](docs/EDITORS.md).
 

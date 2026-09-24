@@ -1,4 +1,5 @@
 #include "Image.h"
+#include "foxlang/Platform.h"
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -45,9 +46,9 @@ void build(const fs::path& input, fs::path output) {
     if (extension != ".exe") output += ".exe";
 #endif
     output = fs::absolute(output);
-    if (fs::exists(fs::symlink_status(output))) throw std::runtime_error("Build Error: output already exists: " + output.string());
-    if (!fs::is_regular_file(input)) throw std::runtime_error("Build Error: could not open file '" + input.string() + "'");
-    auto sources = collect(input.string(), *filesystemSources());
+    if (fs::exists(fs::symlink_status(output))) throw std::runtime_error("Build Error: output already exists: " + platform::pathToUtf8(output));
+    if (!fs::is_regular_file(input)) throw std::runtime_error("Build Error: could not open file '" + platform::pathToUtf8(input) + "'");
+    auto sources = collect(platform::pathToUtf8(input), *filesystemSources());
     auto image = pack(readImage(executablePath()), sources);
     TemporaryDirectory temporary(output.parent_path());
     auto candidate = temporary.path / "program";

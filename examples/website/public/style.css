@@ -1,0 +1,7 @@
+body { font-family: system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #1b1f24; }
+h1 { color: #e8590c; }
+form { display: grid; gap: .5rem; margin: 1rem 0; }
+input, textarea, button { font: inherit; padding: .5rem; }
+button { background: #e8590c; color: white; border: 0; border-radius: .4rem; cursor: pointer; }
+article { border-bottom: 1px solid #ddd; padding: .5rem 0; }
+.hello { color: #2b8a3e; }

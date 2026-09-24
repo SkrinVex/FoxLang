@@ -265,11 +265,17 @@ function activate(context) {
     context.subscriptions.push(outputChannel);
 
     startServer(context);
+    require('./run').activate(context);
 
     // Document synchronization events
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(doc => syncDocumentOpen(doc)));
     context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(e => syncDocumentChange(e)));
     context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(doc => syncDocumentClose(doc)));
+    // A saved file changes what the other files of its project see.
+    context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
+        if (doc.languageId !== 'fox') return;
+        sendMessage({ jsonrpc: '2.0', method: 'textDocument/didSave', params: { textDocument: { uri: doc.uri.toString() } } });
+    }));
 
     // Hover Provider
     context.subscriptions.push(vscode.languages.registerHoverProvider('fox', {

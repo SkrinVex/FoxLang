@@ -114,6 +114,10 @@ public:
                               std::shared_ptr<const SourceProvider> sources = nullptr);
     ~SemanticAnalyzer();
 
+    // Declarations of the other files of the same program (see ProjectIndex), so a
+    // function or global defined there is known here. Call before analyze().
+    void addProjectFiles(const std::vector<std::string>& files);
+
     // Analyze the AST without executing user code
     void analyze(const BlockNode* root);
 
@@ -172,7 +176,7 @@ private:
     void enterScope();
     void exitScope();
     void addBuiltins();
-    void loadModuleSymbols(const ModuleImport& request, SourceRange importRange);
+    void loadModuleSymbols(const ModuleImport& request, SourceRange importRange, bool quiet = false);
 };
 
 } // namespace foxlang

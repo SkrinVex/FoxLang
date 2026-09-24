@@ -16,6 +16,11 @@ public:
     void rectangle(int x, int y, int width, int height, uint32_t color);
     void circle(int x, int y, int radius, uint32_t color);
     void text(int x, int y, const std::string& text, int scale, uint32_t color);
+    void line(int x1, int y1, int x2, int y2, uint32_t color);
+    void frame(int x, int y, int width, int height, int thickness, uint32_t color);
+    void ring(int x, int y, int radius, int thickness, uint32_t color);
+    // Width in pixels of the widest line of text drawn at this scale.
+    static int textWidth(const std::string& text, int scale);
     int width() const { return width_; }
     int height() const { return height_; }
     const std::vector<uint32_t>& pixels() const { return pixels_; }

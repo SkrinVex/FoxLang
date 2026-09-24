@@ -20,7 +20,7 @@ std::unique_ptr<NodeType> at(std::unique_ptr<NodeType> node, SourcePosition star
 } // namespace
 
 Parser::Parser(std::vector<Token> t, std::string curFile)
-    : currentFile(std::move(curFile)), tokens(std::move(t)) {
+    : currentFile(std::move(curFile)), tokens(std::move(t)), file(runtime::internFile(currentFile)) {
     if (tokens.empty() || tokens.back().type != TokenType::END) tokens.push_back({TokenType::END, "", 1, 1});
 }
 
@@ -40,7 +40,7 @@ void Parser::fail(const std::string& message) const {
     std::string found = atEnd ? "end of file" : "'" + token.value + "'";
     // At the end of the file, the line that is missing something is the last one written.
     int line = atEnd && pos > 0 ? tokens[pos - 1].line : token.line;
-    throw std::runtime_error("Syntax Error: " + message + " but found " + found + " at line " + std::to_string(line));
+    throw SyntaxError("Syntax Error: " + message + " but found " + found, line);
 }
 
 Token Parser::consume(TokenType type) {
@@ -90,6 +90,7 @@ void Parser::synchronize() {
 std::unique_ptr<BlockNode> Parser::parseProgram() {
     auto program = std::make_unique<BlockNode>();
     program->scoped = false;
+    program->file = file;
     SourcePosition start = peek().range.start;
     while (!check(TokenType::END)) program->stmts.push_back(statement());
     program->range = {start, previousEnd()};
@@ -100,10 +101,14 @@ std::unique_ptr<BlockNode> Parser::parseProgramWithDiagnostics(std::vector<Diagn
     diagnostics.clear();
     auto program = std::make_unique<BlockNode>();
     program->scoped = false;
+    program->file = file;
     SourcePosition start = peek().range.start;
     while (!check(TokenType::END)) {
         try {
             program->stmts.push_back(statement());
+        } catch (const SyntaxError& e) {
+            diagnostics.push_back({DiagnosticSeverity::Error, e.message(), peek().range});
+            synchronize();
         } catch (const std::exception& e) {
             diagnostics.push_back({DiagnosticSeverity::Error, e.what(), peek().range});
             synchronize();
@@ -118,6 +123,7 @@ std::unique_ptr<BlockNode> Parser::parseBlock() {
     SourcePosition start = peek().range.start;
     consume(TokenType::LBRACE);
     auto block = std::make_unique<BlockNode>();
+    block->file = file;
     while (!check(TokenType::RBRACE)) {
         if (check(TokenType::END)) fail("expected '}' to close the block");
         block->stmts.push_back(statement());
@@ -328,6 +334,7 @@ std::unique_ptr<Node> Parser::switchStatement() {
     auto caseBody = [&] {
         SourcePosition bodyStart = peek().range.start;
         auto body = std::make_unique<BlockNode>();
+        body->file = file;
         while (!check(TokenType::CASE) && !check(TokenType::DEFAULT) && !check(TokenType::RBRACE)) {
             if (check(TokenType::END)) fail("expected '}' to close the switch");
             body->stmts.push_back(statement());

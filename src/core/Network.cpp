@@ -170,8 +170,8 @@ struct Request : HttpRequest {
     int error = 0;
 };
 
-Request readRequest(Connection& connection) {
-    constexpr std::size_t maxHeaders = 64 * 1024, maxBody = 1024 * 1024;
+Request readRequest(Connection& connection, std::size_t maxBody) {
+    constexpr std::size_t maxHeaders = 64 * 1024;
     Request request;
     std::string bytes;
     char buffer[4096];
@@ -252,12 +252,19 @@ const char* reasonPhrase(int status) {
     }
 }
 
-constexpr const char* jsonType = "application/json; charset=utf-8";
+void respond(Connection& connection, const HttpReply& reply, bool head) {
+    std::string headers = "HTTP/1.1 " + std::to_string(reply.status) + " " + reasonPhrase(reply.status) + "\r\n";
+    if (!reply.contentType.empty() && reply.status != 204 && reply.status != 304)
+        headers += "Content-Type: " + reply.contentType + "\r\n";
+    headers += "Content-Length: " + std::to_string(reply.body.size()) + "\r\n";
+    for (const auto& [name, value] : reply.headers) headers += name + ": " + value + "\r\n";
+    headers += "Connection: close\r\n\r\n";
+    // A HEAD reply has the headers of the GET reply, without its body.
+    connection.write(head ? headers : headers + reply.body);
+}
 
-void respond(Connection& connection, int status, const std::string& response, const std::string& contentType = jsonType) {
-    connection.write("HTTP/1.1 " + std::to_string(status) + " " + reasonPhrase(status) +
-        "\r\nContent-Type: " + contentType + "\r\nContent-Length: " +
-        std::to_string(response.size()) + "\r\nConnection: close\r\n\r\n" + response);
+HttpReply errorReply(int status) {
+    return {status, "application/json; charset=utf-8", "{\"error\":\"" + std::string(reasonPhrase(status)) + "\"}", {}};
 }
 }
 
@@ -367,37 +374,38 @@ void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shou
         if (ready < 0 && interrupted()) continue;
         if (ready < 0) throw std::runtime_error("HTTP Server Error: select() failed");
         if (!ready) continue;
-        Socket client(accept(server.fd, nullptr, nullptr));
+        sockaddr_storage peer{};
+#ifdef _WIN32
+        int peerLength = sizeof(peer);
+#else
+        socklen_t peerLength = sizeof(peer);
+#endif
+        Socket client(accept(server.fd, reinterpret_cast<sockaddr*>(&peer), &peerLength));
         if (client.fd == invalidSocket) continue;
+        char ip[INET6_ADDRSTRLEN]{};
+        const void* where = peer.ss_family == AF_INET6
+            ? static_cast<const void*>(&reinterpret_cast<const sockaddr_in6*>(&peer)->sin6_addr)
+            : static_cast<const void*>(&reinterpret_cast<const sockaddr_in*>(&peer)->sin_addr);
+        inet_ntop(peer.ss_family, where, ip, sizeof(ip));
         Connection connection(client.fd, tls.get());
         if (!connection.handshake()) continue;
-        auto request = readRequest(connection);
-        if (request.error) { respond(connection, request.error, "{\"error\":\"Invalid request\"}"); continue; }
-        state.request = request;
-        state.status = 200;
-        state.contentType = jsonType;
-        state.response.clear();
-        int status = 404;
-        std::string contentType = jsonType;
-        std::string response = "{\"error\":\"Not Found\"}";
-        auto route = state.routes.find(request.method + " " + request.path);
-        if (route != state.routes.end()) {
-            auto* definition = dynamic_cast<FuncDefNode*>(rootCtx.getFunc(route->second).get());
-            status = 500;
-            response = "{\"error\":\"Handler not found\"}";
-            if (definition) {
-                try {
-                    definition->invoke({}, rootCtx);
-                    status = state.status;
-                    contentType = state.contentType;
-                    response = state.response;
-                } catch (const std::exception& error) {
-                    std::cerr << "[HTTP ERROR] Handler exception: " << error.what() << std::endl;
-                    response = "{\"error\":\"Handler failed\"}";
-                }
-            }
+        auto started = std::chrono::steady_clock::now();
+        auto request = readRequest(connection, state.maxBody);
+        HttpReply reply;
+        if (request.error) {
+            reply = errorReply(request.error);
+        } else {
+            state.request = request;
+            state.request.clientIp = ip;
+            reply = handleHttpRequest(state, rootCtx);
         }
-        respond(connection, status, response, contentType);
+        respond(connection, reply, request.method == "HEAD");
+        if (state.accessLog) {
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+            std::cerr << "[HTTP] " << ip << ' ' << (request.method.empty() ? "-" : request.method) << ' '
+                      << (request.path.empty() ? "-" : request.path) << (request.query.empty() ? "" : "?" + request.query)
+                      << " -> " << reply.status << " (" << elapsed << " ms)" << std::endl;
+        }
     }
 }
 } // namespace foxlang::platform

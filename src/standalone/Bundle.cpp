@@ -1,6 +1,7 @@
 #include "Bundle.h"
 #include "foxlang/Lexer.h"
 #include "foxlang/Parser.h"
+#include "foxlang/Platform.h"
 #include <algorithm>
 #include <filesystem>
 #include <stdexcept>
@@ -132,7 +133,7 @@ std::uint32_t checksum(const Bytes& bytes) {
 Sources collect(const std::string& entry, const SourceProvider& provider) {
     Sources sources;
     sources.entry = "main.fox";
-    auto root = std::filesystem::canonical(entry).string();
+    auto root = platform::pathToUtf8(std::filesystem::canonical(platform::pathFromUtf8(entry)));
     std::map<std::string, std::string> identities{{root, sources.entry}};
     std::vector<std::string> pending{root};
     std::size_t totalBytes = 0;
@@ -140,15 +141,22 @@ Sources collect(const std::string& entry, const SourceProvider& provider) {
     for (std::size_t i = 0; i < pending.size(); ++i) {
         auto identity = pending[i];
         auto id = identities.at(identity);
-        if (identity.rfind("@std/", 0) != 0 && std::filesystem::file_size(identity) > maxPayload - totalBytes) invalid("sources exceed 64 MiB");
+        if (identity.rfind("@std/", 0) != 0 && std::filesystem::file_size(platform::pathFromUtf8(identity)) > maxPayload - totalBytes) invalid("sources exceed 64 MiB");
         auto source = provider.read(identity);
         if (source.size() > maxPayload - totalBytes) invalid("sources exceed 64 MiB");
         totalBytes += source.size();
-        Lexer lexer(source);
-        Parser parser(lexer.tokenize(), id);
-        parser.parseProgram(); // Parse only; never eval or load .env during build.
+        std::vector<ModuleImport> imports;
+        try {
+            Lexer lexer(source);
+            Parser parser(lexer.tokenize(), id);
+            parser.parseProgram(); // Parse only; never eval or load .env during build.
+            imports = parser.getImports();
+        } catch (SyntaxError& error) {
+            if (error.file().empty()) error.setFile(runtime::displayPath(identity));
+            throw;
+        }
         sources.files.emplace(id, std::move(source));
-        for (const auto& request : parser.getImports()) {
+        for (const auto& request : imports) {
             auto resolved = provider.resolve(request, identity);
             auto found = identities.find(resolved);
             if (found == identities.end()) {

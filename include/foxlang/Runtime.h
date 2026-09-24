@@ -29,7 +29,8 @@ struct StackGuard {
     int limit = 0;
     const char* origin = nullptr;
     size_t budget = 0;
-    int line = 0; // Line of the statement being executed, for the error report.
+    int line = 0;                     // Line of the statement being executed, for the error report,
+    const std::string* file = nullptr; // and its source file (an interned name, never freed).
 };
 StackGuard& stackGuard();
 
@@ -57,6 +58,27 @@ Value jsonGet(const std::string& json, const std::string& path);
 Value jsonEscape(const std::string& text);
 int jsonCount(const std::string& json, const std::string& path);
 std::string jsonType(const std::string& json, const std::string& path);
+// The value at a path as JSON text (a string keeps its quotes); false if absent.
+bool jsonRaw(const std::string& json, const std::string& path, std::string& out);
+// A copy of the document with raw JSON stored at the path. Missing object keys are
+// created; an array index may name an element or the position right after the last.
+std::string jsonSet(const std::string& json, const std::string& path, const std::string& raw);
+bool jsonValid(const std::string& json);
+// Members of an object (key, raw value) or elements of an array ("", raw value), in
+// document order. Empty for anything else.
+std::vector<std::pair<std::string, std::string>> jsonEntries(const std::string& json);
+
+// Mustache-style HTML templates over a JSON document: {{path}} (HTML-escaped),
+// {{{path}}} (raw), {{#each path}}...{{/each}}, {{#if path}}...{{else}}...{{/if}}.
+std::string renderTemplate(const std::string& source, const std::string& json);
+
+// A stable pointer for a source file name; AST blocks keep it to report errors.
+const std::string* internFile(const std::string& name);
+// A source identity as a person wants to read it: relative to the working directory
+// when the file is inside it, and std/x.fox for the embedded standard library.
+std::string displayPath(const std::string& identity);
+// "file:line: message" for a runtime error at the statement last entered.
+std::string locate(const std::string& message, const std::string& fallbackFile);
 
 void loadDotEnv(const std::string& scriptPath);
 std::string resolveFoxFile(const std::string& requested, const std::string& currentFile, const std::string& foxHome);

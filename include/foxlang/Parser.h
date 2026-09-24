@@ -25,6 +25,7 @@ public:
 private:
     std::vector<Token> tokens;
     size_t pos = 0;
+    const std::string* file = nullptr;
     std::vector<Diagnostic> diagnostics;
     std::vector<ModuleImport> imports;
 

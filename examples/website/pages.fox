@@ -1,0 +1,74 @@
+// Обработчики страниц. Функции и данные берутся из storage.fox: оба файла
+// подключает site.fox, поэтому они видят друг друга.
+using server;
+using string;
+using fs;
+
+void home_page() {
+    string data = json_set_raw("", "entries", entries_json());
+    data = json_set(data, "count", size(names));
+    data = json_set(data, "visitor", cookie("visitor"));
+    render("views/home.html", data);
+}
+
+void sign_book() {
+    string name = form("name");
+    string message = form("message");
+    if (trim(name) == "" || trim(message) == "") {
+        respond_status(400, "{\"error\":\"нужны имя и сообщение\"}");
+        return;
+    }
+    add_entry(name, message);
+    set_cookie("visitor", trim(name), "Path=/; Max-Age=2592000; SameSite=Lax");
+    redirect("/");
+}
+
+void entry_page() {
+    string id = param("id");
+    if (!is_number(id) || to_int(id) < 0 || to_int(id) >= size(names)) {
+        missing_page();
+        return;
+    }
+    string data = json_set("", "name", names[to_int(id)]);
+    data = json_set(data, "message", messages[to_int(id)]);
+    render("views/entry.html", data);
+}
+
+void entries_api() {
+    respond(entries_json());
+}
+
+void upload_file() {
+    string original = upload_name("file");
+    if (original == "") {
+        respond_status(400, "{\"error\":\"файл не выбран\"}");
+        return;
+    }
+    // Присланное имя не используется как путь: оставляем только безопасные символы.
+    string safe = "";
+    array letters = split(original, "");
+    for (int i = 0; i < size(letters); i++) {
+        if (contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-", letters[i])) {
+            safe += letters[i];
+        }
+    }
+    if (safe == "" || starts_with(safe, ".")) {
+        safe = "upload.bin";
+    }
+    make_dir("uploads");
+    save_upload("file", "uploads/" + safe);
+    redirect("/uploads/" + url_encode(safe));
+}
+
+void download_file() {
+    string name = param("name");
+    if (contains(name, "/") || contains(name, "\\") || starts_with(name, ".")) {
+        missing_page();
+        return;
+    }
+    download("uploads/" + name, name);
+}
+
+void missing_page() {
+    respond_as(404, "<h1>404</h1><p>Такой страницы нет. <a href=\"/\">На главную</a></p>", "text/html; charset=utf-8");
+}

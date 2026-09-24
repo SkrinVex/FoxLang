@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 
@@ -26,6 +28,35 @@ std::string formatNumber(double val) {
     }
     std::snprintf(buffer, sizeof(buffer), "%.17g", val);
     return buffer;
+}
+
+const std::string* internFile(const std::string& name) {
+    static std::set<std::string> names;
+    static std::mutex guard;
+    std::lock_guard<std::mutex> lock(guard);
+    return &*names.insert(name).first;
+}
+
+std::string displayPath(const std::string& identity) {
+    if (identity.rfind("@", 0) == 0) return identity.substr(1);
+    // Editors that turn "file:line:" into links ask for full paths.
+    if (!platform::getEnvVar("FOXLANG_ABSOLUTE_PATHS").empty()) return identity;
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path path = platform::pathFromUtf8(identity);
+    if (!path.is_absolute()) return identity;
+    fs::path base = fs::current_path(ec);
+    if (ec) return identity;
+    auto relative = path.lexically_relative(base);
+    if (relative.empty() || *relative.begin() == "..") return identity;
+    return platform::pathToUtf8(relative.generic_string());
+}
+
+std::string locate(const std::string& message, const std::string& fallbackFile) {
+    const StackGuard& guard = stackGuard();
+    if (guard.line <= 0) return message;
+    std::string file = displayPath(guard.file ? *guard.file : fallbackFile);
+    return (file.empty() ? "line " : file + ":") + std::to_string(guard.line) + ": " + message;
 }
 
 StackGuard& stackGuard() {
@@ -337,6 +368,117 @@ private:
 
 } // namespace
 
+bool jsonRaw(const std::string& json, const std::string& path, std::string& out) {
+    JsonCursor cursor(json);
+    if (!cursor.locate(path)) return false;
+    size_t start = cursor.pos;
+    if (!cursor.value()) return false;
+    out = json.substr(start, cursor.pos - start);
+    return true;
+}
+
+std::vector<std::pair<std::string, std::string>> jsonEntries(const std::string& json) {
+    std::vector<std::pair<std::string, std::string>> entries;
+    JsonCursor cursor(json);
+    cursor.whitespace();
+    if (cursor.pos >= json.size() || (json[cursor.pos] != '{' && json[cursor.pos] != '[')) return entries;
+    bool object = json[cursor.pos] == '{';
+    char close = object ? '}' : ']';
+    ++cursor.pos;
+    while (!cursor.at(close)) {
+        std::string key;
+        if (object) {
+            if (!cursor.string(&key) || !cursor.at(':')) return {};
+            ++cursor.pos;
+        }
+        cursor.whitespace();
+        size_t start = cursor.pos;
+        if (!cursor.value()) return {};
+        entries.push_back({key, json.substr(start, cursor.pos - start)});
+        if (cursor.at(',')) ++cursor.pos;
+        else if (!cursor.at(close)) return {};
+    }
+    return entries;
+}
+
+bool jsonValid(const std::string& json) {
+    JsonCursor cursor(json);
+    if (!cursor.value()) return false;
+    cursor.whitespace();
+    return cursor.pos == json.size();
+}
+
+namespace {
+
+std::vector<std::string> pathSegments(const std::string& path) {
+    std::string normalized = path;
+    for (auto& ch : normalized) if (ch == '[') ch = '.';
+    normalized.erase(std::remove(normalized.begin(), normalized.end(), ']'), normalized.end());
+    std::vector<std::string> segments;
+    std::stringstream stream(normalized);
+    for (std::string segment; std::getline(stream, segment, '.');)
+        if (!segment.empty()) segments.push_back(segment);
+    return segments;
+}
+
+std::string setAt(const std::string& doc, const std::vector<std::string>& segments, size_t index,
+                  const std::string& raw, const std::string& path) {
+    if (index == segments.size()) return raw;
+    const std::string& segment = segments[index];
+    std::string text = doc;
+    auto first = text.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) text = "{}";
+    JsonCursor cursor(text);
+    cursor.whitespace();
+    char open = text[cursor.pos];
+    if (open == '{') {
+        ++cursor.pos;
+        bool any = false;
+        while (!cursor.at('}')) {
+            std::string key;
+            if (!cursor.string(&key) || !cursor.at(':')) break;
+            ++cursor.pos;
+            cursor.whitespace();
+            size_t start = cursor.pos;
+            if (!cursor.value()) break;
+            any = true;
+            if (key == segment) {
+                return text.substr(0, start) + setAt(text.substr(start, cursor.pos - start), segments, index + 1, raw, path) +
+                       text.substr(cursor.pos);
+            }
+            if (cursor.at(',')) ++cursor.pos;
+        }
+        if (!cursor.at('}')) throw std::runtime_error("Runtime Error: json_set() got malformed JSON");
+        std::string member = jsonEscape(segment).value.str();
+        return text.substr(0, cursor.pos) + (any ? "," : "") + "\"" + member + "\":" +
+               setAt("", segments, index + 1, raw, path) + text.substr(cursor.pos);
+    }
+    if (open == '[' && segment.find_first_not_of("0123456789") == std::string::npos && segment.size() < 10) {
+        size_t wanted = std::stoul(segment), position = 0;
+        ++cursor.pos;
+        while (!cursor.at(']')) {
+            cursor.whitespace();
+            size_t start = cursor.pos;
+            if (!cursor.value()) throw std::runtime_error("Runtime Error: json_set() got malformed JSON");
+            if (position++ == wanted) {
+                return text.substr(0, start) + setAt(text.substr(start, cursor.pos - start), segments, index + 1, raw, path) +
+                       text.substr(cursor.pos);
+            }
+            if (cursor.at(',')) ++cursor.pos;
+        }
+        if (wanted != position)
+            throw std::runtime_error("Runtime Error: json_set() index " + segment + " is past the end of the array in '" + path + "'");
+        return text.substr(0, cursor.pos) + (position ? "," : "") + setAt("", segments, index + 1, raw, path) + text.substr(cursor.pos);
+    }
+    throw std::runtime_error("Runtime Error: json_set() cannot set '" + path + "': '" + segment + "' is not inside an object");
+}
+
+} // namespace
+
+std::string jsonSet(const std::string& json, const std::string& path, const std::string& raw) {
+    return setAt(json, pathSegments(path), 0, raw, path);
+}
+
 Value jsonGet(const std::string& json, const std::string& path) {
     JsonCursor cursor(json);
     if (!cursor.locate(path)) return {"string", ""};
@@ -374,7 +516,7 @@ void loadDotEnv(const std::string& scriptPath) {
     size_t slash = scriptPath.find_last_of("/\\");
     if (slash != std::string::npos) dir = scriptPath.substr(0, slash);
 
-    std::ifstream env(dir + "/.env");
+    std::ifstream env(platform::pathFromUtf8(dir) / ".env");
     if (!env.is_open()) env.open(".env");
     if (!env.is_open()) return;
 
@@ -405,26 +547,26 @@ void loadDotEnv(const std::string& scriptPath) {
 std::string resolveFoxFile(const std::string& requested, const std::string& currentFile, const std::string& foxHome) {
     namespace fs = std::filesystem;
     std::vector<fs::path> candidates;
-    fs::path req(requested);
+    fs::path req = platform::pathFromUtf8(requested);
 
     if (req.is_absolute()) candidates.push_back(req);
     if (!currentFile.empty()) {
         size_t found = currentFile.find_last_of("/\\");
         std::string dir = (found == std::string::npos) ? "./" : currentFile.substr(0, found + 1);
-        candidates.push_back(fs::path(dir) / req);
+        candidates.push_back(platform::pathFromUtf8(dir) / req);
     }
     candidates.push_back(req);
 
     std::string home = foxHome.empty() ? platform::getEnvVar("FOXLANG_HOME") : foxHome;
     if (!home.empty()) {
-        candidates.push_back(fs::path(home) / req);
-        candidates.push_back(fs::path(home) / "std" / req);
+        candidates.push_back(platform::pathFromUtf8(home) / req);
+        candidates.push_back(platform::pathFromUtf8(home) / "std" / req);
     }
 
     for (const auto& candidate : candidates) {
         std::error_code ec;
         if (fs::exists(candidate, ec) && fs::is_regular_file(candidate, ec)) {
-            return fs::weakly_canonical(candidate, ec).string();
+            return platform::pathToUtf8(fs::weakly_canonical(candidate, ec));
         }
     }
     throw std::runtime_error("Module Error: File '" + requested + "' not found. Checked current file, working directory and FOXLANG_HOME.");

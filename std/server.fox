@@ -1,10 +1,11 @@
-//! HTTP/HTTPS/webhook-сервер для Linux и Windows. Маршруты регистрируются до `listen`;
-//! обработчик — обычная функция без параметров, указанная по имени.
+//! HTTP/HTTPS-сервер для сайтов и API на Linux и Windows: маршруты с параметрами,
+//! статические файлы, формы и загрузка файлов, cookies, редиректы, шаблоны HTML и CORS.
+//! Маршруты регистрируются до `listen`; обработчик — функция без параметров, указанная по имени.
 
-/// Обработчик GET-запросов к пути `path`.
+/// Обработчик GET-запросов. Путь может содержать параметры: `/users/:id`, `/files/*path`.
 ///
 /// ```foxlang
-/// get("/health", "health");
+/// get("/users/:id", "show_user");
 /// ```
 void get(string path, string handler) { server_route("GET", path, handler); }
 
@@ -14,17 +15,33 @@ void post(string path, string handler) { server_route("POST", path, handler); }
 /// Обработчик PUT-запросов к пути `path`.
 void put(string path, string handler) { server_route("PUT", path, handler); }
 
+/// Обработчик PATCH-запросов к пути `path`.
+void patch(string path, string handler) { server_route("PATCH", path, handler); }
+
 /// Обработчик DELETE-запросов к пути `path`.
 void delete(string path, string handler) { server_route("DELETE", path, handler); }
 
-/// Обработчик запросов произвольного метода (`PATCH`, `OPTIONS` и т. д.).
+/// Обработчик запросов произвольного метода.
 void route(string method, string path, string handler) { server_route(method, path, handler); }
+
+void static_files(string prefix, string directory) { server_static(prefix, directory); }
+void not_found(string handler) { server_not_found(handler); }
+void allow_cors(string origin) { server_cors(origin); }
+void access_log(bool enabled) { server_access_log(enabled); }
+void max_body_size(int bytes) { server_max_body(bytes); }
 
 string body() { return request_body(); }
 string method() { return request_method(); }
 string path() { return request_path(); }
 string query() { return request_query(); }
+string query_param(string name) { return request_query_param(name); }
+string param(string name) { return request_param(name); }
+string form(string name) { return request_form(name); }
 string header(string name) { return request_header(name); }
+string cookie(string name) { return request_cookie(name); }
+string client_ip() { return request_ip(); }
+string upload_name(string field) { return request_file_name(field); }
+bool save_upload(string field, string path) { return request_file_save(field, path); }
 
 /// Ответ с кодом 200 и JSON-телом.
 void respond(string data) { server_respond(200, data); }
@@ -38,6 +55,31 @@ void respond_status(int status, string data) { server_respond(status, data); }
 /// respond_as(200, "<h1>Привет</h1>", "text/html; charset=utf-8");
 /// ```
 void respond_as(int status, string data, string content_type) { server_respond(status, data, content_type); }
+
+/// Ответ 200 с HTML-страницей.
+void respond_html(string html) { server_respond(200, html, "text/html; charset=utf-8"); }
+
+/// Ответ 200 с обычным текстом.
+void respond_text(string text) { server_respond(200, text, "text/plain; charset=utf-8"); }
+
+/// Ответ HTML-страницей из файла-шаблона, заполненного данными JSON (см. `template_render`).
+/// Нет файла шаблона — ошибка обработчика и ответ 500.
+///
+/// ```foxlang
+/// render("views/user.html", json_set("", "name", "Лис"));
+/// ```
+void render(string template_path, string data) {
+    if (!fs_exists(template_path)) {
+        fail("template not found: " + template_path);
+    }
+    server_respond(200, template_render(read_file(template_path), data), "text/html; charset=utf-8");
+}
+
+bool send_file(string path) { return server_send_file(path); }
+bool download(string path, string filename) { return server_download(path, filename); }
+void redirect(string url) { server_redirect(url); }
+void set_header(string name, string value) { server_header(name, value); }
+void set_cookie(string name, string value, string options) { server_set_cookie(name, value, options); }
 
 void listen(int port) { server_listen(port); }
 void listen_tls(int port, string certificate, string private_key) { server_listen_tls(port, certificate, private_key); }

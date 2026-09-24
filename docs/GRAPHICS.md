@@ -51,14 +51,33 @@ foxlang build game.fox -o game
 | `key_pressed(string key)` | `bool`: новое нажатие в текущем кадре |
 | `mouse_x()`, `mouse_y()` | `int`: координаты указателя относительно окна |
 | `window_focused()` | `bool`: имеет ли окно фокус клавиатуры |
+| `draw_line(int x1, int y1, int x2, int y2, int color)` | Отрезок толщиной в пиксель |
+| `draw_frame(int x, int y, int width, int height, int thickness, int color)` | Контур прямоугольника |
+| `draw_ring(int x, int y, int radius, int thickness, int color)` | Окружность заданной толщины |
+| `text_width(string text, int scale)` | `int`: ширина самой длинной строки текста в пикселях; окно не нужно |
 
 Каждая функция модуля — обёртка над встроенной функцией с префиксом `gfx_`
 (`open_window` → `gfx_open`, `draw_text` → `gfx_text` и т. д.); их можно вызывать
 и без `using graphics;`. Готовый пример с движением и управлением стрелками —
 [examples/bouncing_ball.fox](../examples/bouncing_ball.fox).
 
+Текст по центру удобно выравнивать через `text_width`:
+
+```cpp
+using graphics;
+int scale = 3;
+string title = "Пауза";
+open_window(400, 200, "Центр");
+clear_window(rgb(0, 0, 0));
+draw_text((400 - text_width(title, scale)) / 2, 90, title, scale, rgb(255, 255, 255));
+draw_frame(10, 10, 380, 180, 2, rgb(255, 140, 0));
+draw_line(10, 70, 390, 70, rgb(80, 80, 80));
+present_window();
+close_window();
+```
+
 Клавиши: `A`–`Z`, `0`–`9`, `LEFT`, `RIGHT`, `UP`, `DOWN`, `SPACE`, `ENTER`,
-`ESCAPE`, `TAB`, `BACKSPACE`, `MOUSE_LEFT`, `MOUSE_RIGHT`. Однобуквенные имена
+`ESCAPE`, `TAB`, `BACKSPACE`, `SHIFT`, `CTRL`, `ALT`, `MOUSE_LEFT`, `MOUSE_RIGHT`. Однобуквенные имена
 допускают нижний регистр. Неизвестное имя вызывает понятную ошибку.
 
 Имена клавиш не зависят от раскладки: `key_down("W")` работает и при активной
@@ -82,8 +101,9 @@ foxlang build game.fox -o game
 не может быть отрицательным; радиус круга — 0..8192. Цвет — целое `0xRRGGBB`
 (в FoxLang удобно получать его через `rgb`). Прозрачность пока не поддерживается.
 
-Встроенный шрифт 5×7 содержит латинский и русский алфавиты, цифры, основные знаки,
-стрелки и сердечко. Строчные буквы рисуются прописными, неизвестный символ — `?`.
+Встроенный шрифт 5×7 содержит латинский и русский алфавиты, цифры, знаки
+препинания и символы `% " ' * # < > @ & { } | $ ^ ~ \ № ° « » — × …`, стрелки и
+сердечко. Строчные буквы рисуются прописными, неизвестный символ — `?`.
 `\n` переводит строку. Масштаб — целое 1..32, строка — до 65536 байт UTF-8.
 Системные шрифты, TTF-файлы и внешние изображения не используются.
 

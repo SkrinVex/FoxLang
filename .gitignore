@@ -14,3 +14,7 @@ src/foxlang
 .env
 .env.*
 !.env.example
+
+# Data the website example writes while it runs
+examples/website/entries.txt
+examples/website/uploads/

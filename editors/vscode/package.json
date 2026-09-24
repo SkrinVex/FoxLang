@@ -1,8 +1,8 @@
 {
   "name": "foxlang-language",
   "displayName": "FoxLang Programming Language",
-  "description": "Официальная поддержка языка FoxLang для VS Code: подсветка синтаксиса, LSP (диагностика, автодополнение, наведение, переход к определению, signature help)",
-  "version": "6.0.0",
+  "description": "Официальная поддержка языка FoxLang для VS Code: подсветка, LSP (диагностика по всему проекту, автодополнение, наведение, переход к определению, подсказки параметров), запуск, проверка и сборка программ",
+  "version": "6.1.0",
   "publisher": "SkrinVex",
   "license": "MIT",
   "homepage": "https://github.com/SkrinVex/FoxLang",
@@ -26,7 +26,11 @@
     "lsp"
   ],
   "activationEvents": [
-    "onLanguage:fox"
+    "onLanguage:fox",
+    "onCommand:foxlang.run",
+    "onCommand:foxlang.check",
+    "onCommand:foxlang.build",
+    "onCommand:foxlang.chooseEntry"
   ],
   "main": "./client/extension.js",
   "contributes": {
@@ -68,14 +72,167 @@
           ],
           "default": "off",
           "description": "Уровень трассировки сообщений между VS Code и foxlang-lsp."
+        },
+        "foxlang.run.executablePath": {
+          "type": "string",
+          "default": "foxlang",
+          "description": "Путь к исполняемому файлу foxlang для запуска, проверки и сборки (по умолчанию ищется в build/ проекта, ~/.local/bin и PATH)."
+        },
+        "foxlang.run.entryFile": {
+          "type": "string",
+          "default": "",
+          "description": "Главный файл программы относительно папки проекта. Пусто — запускается открытый файл. Удобно, когда main.fox подключает остальные файлы."
+        },
+        "foxlang.run.arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Аргументы командной строки программы (os_args())."
         }
       }
     },
     "commands": [
       {
+        "command": "foxlang.run",
+        "title": "FoxLang: запустить программу",
+        "category": "FoxLang",
+        "icon": "$(play)"
+      },
+      {
+        "command": "foxlang.check",
+        "title": "FoxLang: проверить без запуска",
+        "category": "FoxLang",
+        "icon": "$(check)"
+      },
+      {
+        "command": "foxlang.build",
+        "title": "FoxLang: собрать приложение",
+        "category": "FoxLang",
+        "icon": "$(package)"
+      },
+      {
+        "command": "foxlang.chooseEntry",
+        "title": "FoxLang: сделать этот файл главным",
+        "category": "FoxLang"
+      },
+      {
         "command": "foxlang.restartServer",
         "title": "FoxLang: Перезапустить языковой сервер (LSP)",
         "category": "FoxLang"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "foxlang.run",
+          "when": "editorLangId == fox",
+          "group": "navigation@0"
+        },
+        {
+          "command": "foxlang.check",
+          "when": "editorLangId == fox",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "foxlang.run",
+          "when": "editorLangId == fox",
+          "group": "foxlang@1"
+        },
+        {
+          "command": "foxlang.check",
+          "when": "editorLangId == fox",
+          "group": "foxlang@2"
+        },
+        {
+          "command": "foxlang.chooseEntry",
+          "when": "editorLangId == fox",
+          "group": "foxlang@3"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "foxlang.chooseEntry",
+          "when": "resourceExtname == .fox",
+          "group": "foxlang@1"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "foxlang.run",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorLangId == fox"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "foxlang",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "run",
+              "check",
+              "build"
+            ],
+            "default": "run",
+            "description": "Что сделать: run — запуск, check — проверка, build — standalone-приложение."
+          },
+          "file": {
+            "type": "string",
+            "description": "Файл программы относительно папки проекта."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Аргументы программы для run."
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "foxlang",
+        "owner": "foxlang",
+        "source": "foxlang check",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(.+?):(\\d+):(\\d+): (error|warning|info|hint): (.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      },
+      {
+        "name": "foxlang-runtime",
+        "owner": "foxlang",
+        "source": "foxlang",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "severity": "error",
+        "pattern": {
+          "regexp": "^FoxLang: (.+?):(\\d+): (.*)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        }
       }
     ]
   }

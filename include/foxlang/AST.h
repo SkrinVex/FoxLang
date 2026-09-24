@@ -242,6 +242,7 @@ struct ArrayGetNode : Node {
 
 struct BlockNode : Node {
     std::vector<std::unique_ptr<Node>> stmts;
+    const std::string* file = nullptr; // Source file of the statements, for error locations.
     // The program and an imported module are the global scope itself, not a block inside it.
     bool scoped = true;
     Value eval(Context& ctx) override;

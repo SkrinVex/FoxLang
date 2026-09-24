@@ -1,6 +1,7 @@
 // String and JSON builtins. Positions and lengths count characters (code points),
 // never UTF-8 bytes, so Cyrillic and emoji behave like Latin text.
 #include "Builtin.h"
+#include "../HttpServer.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -95,6 +96,22 @@ std::string scalarText(const Value& value, const std::string& what) {
 }
 
 constexpr size_t maxText = size_t{64} * 1024 * 1024;
+
+// A FoxLang value as JSON: numbers and bools as literals, strings quoted, arrays as
+// JSON arrays of their elements.
+std::string toJson(const Value& value, Context& ctx, int depth = 0) {
+    if (value.type == "string") return "\"" + jsonEscape(value.value.str()).value.str() + "\"";
+    if (value.type == "int" || value.type == "float" || value.type == "bool") return value.value.str();
+    if (value.type != "array") throw std::runtime_error("Type Error: json_value() cannot convert '" + value.type + "'");
+    if (depth > 32) throw std::runtime_error("Runtime Error: json_value() array nesting is too deep");
+    std::string out = "[";
+    const auto& items = ctx.arrayOf(value, "array");
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (i > 0) out += ",";
+        out += toJson(items[i], ctx, depth + 1);
+    }
+    return out + "]";
+}
 
 } // namespace
 
@@ -222,6 +239,39 @@ void addTextBuiltins(std::vector<Builtin>& out) {
     add({"json_type", "string", {{"string", "json"}, {"string", "path"}}, 2, false, "json",
          "Тип значения по пути: `object`, `array`, `string`, `number`, `bool`, `null` или пустая строка, если пути нет."},
         [](Call& c) { return text(jsonType(c.text(0), c.text(1))); });
+    add({"json_value", "string", {{"any", "value"}}, 1, false, "",
+         "Значение FoxLang в виде JSON: числа и `bool` как есть, строка в кавычках с экранированием, "
+         "массив — JSON-массив.\n\n```foxlang\njson_value([1, \"лис\", true]) // [1,\"лис\",true]\n```"},
+        [](Call& c) { return text(toJson(c.at(0), c.ctx)); });
+    add({"json_set", "string", {{"string", "json"}, {"string", "path"}, {"any", "value"}}, 3, false, "",
+         "Новый JSON-документ, где по пути записано значение (строка — как JSON-строка, массив — как JSON-массив). "
+         "Недостающие ключи объектов создаются; пустой документ считается `{}`.\n\n"
+         "```foxlang\nstring user = json_set(\"\", \"name\", \"Лис\");\nuser = json_set(user, \"stats.age\", 3); // {\"name\":\"Лис\",\"stats\":{\"age\":3}}\n```"},
+        [](Call& c) { return text(jsonSet(c.text(0), c.text(1), toJson(c.at(2), c.ctx))); });
+    add({"json_set_raw", "string", {{"string", "json"}, {"string", "path"}, {"string", "raw_json"}}, 3, false, "",
+         "Как `json_set`, но значение — уже готовый JSON (объект, массив или литерал), который вставляется без кавычек. "
+         "Некорректный JSON — ошибка выполнения."},
+        [](Call& c) {
+            if (!jsonValid(c.text(2))) throw std::runtime_error("Runtime Error: json_set_raw() value is not valid JSON");
+            return text(jsonSet(c.text(0), c.text(1), c.text(2)));
+        });
+    add({"json_valid", "bool", {{"string", "json"}}, 1, false, "",
+         "Является ли строка корректным JSON-документом. Удобно проверять тело запроса перед разбором."},
+        [](Call& c) { return boolean(jsonValid(c.text(0))); });
+    add({"template_render", "string", {{"string", "template"}, {"string", "json"}}, 2, false, "",
+         "Заполняет HTML-шаблон данными из JSON: `{{путь}}` — значение с экранированием HTML, `{{{путь}}}` — без "
+         "экранирования, `{{#each путь}}...{{/each}}` — повтор для элементов (`{{.}}`, `{{@index}}`, `{{@key}}`), "
+         "`{{#if путь}}...{{else}}...{{/if}}` — условие, `{{! ...}}` — комментарий."},
+        [](Call& c) { return text(renderTemplate(c.text(0), c.text(1))); });
+    add({"url_encode", "string", {{"string", "text"}}, 1, false, "",
+         "Кодирует текст для URL и query-строки: всё, кроме букв латиницы, цифр и `-_.~`, превращается в `%XX`."},
+        [](Call& c) { return text(http::percentEncode(c.text(0))); });
+    add({"url_decode", "string", {{"string", "text"}}, 1, false, "",
+         "Декодирует `%XX` и `+` (пробел) из URL или данных формы."},
+        [](Call& c) { return text(http::percentDecode(c.text(0), true)); });
+    add({"html_escape", "string", {{"string", "text"}}, 1, false, "",
+         "Экранирует `& < > \" '` для безопасной вставки текста пользователя в HTML."},
+        [](Call& c) { return text(http::htmlEscape(c.text(0))); });
 }
 
 } // namespace foxlang::runtime

@@ -1,4 +1,5 @@
 #pragma once
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -186,6 +187,29 @@ struct Diagnostic {
            << severityString() << ": " << message;
         return ss.str();
     }
+};
+
+// A syntax error that knows where it is. what() reads "file:line: message" once a
+// file is known and "message at line N" before that; message() is the bare text
+// editors show next to the range they already have.
+class SyntaxError : public std::runtime_error {
+public:
+    SyntaxError(std::string message, int line, std::string file = "")
+        : std::runtime_error(message), line(line), text(std::move(message)) {
+        setFile(std::move(file));
+    }
+    const char* what() const noexcept override { return full.c_str(); }
+    const std::string& message() const { return text; }
+    const std::string& file() const { return fileName; }
+    void setFile(std::string name) {
+        fileName = std::move(name);
+        full = fileName.empty() ? text + " at line " + std::to_string(line)
+                                : fileName + ":" + std::to_string(line) + ": " + text;
+    }
+    int line;
+
+private:
+    std::string text, fileName, full;
 };
 
 } // namespace foxlang

@@ -140,7 +140,7 @@ std::string Lexer::unicodeEscape(SourcePosition literalStart) {
     bool valid = closed && digits > 0 && (braced || digits == 4) && cp <= 0x10FFFF && (cp < 0xD800 || cp > 0xDFFF);
     if (!valid) {
         std::string msg = "Invalid \\u escape in string literal";
-        if (!collectDiagnostics) throw std::runtime_error("Syntax Error: " + msg + " at line " + std::to_string(literalStart.line));
+        if (!collectDiagnostics) throw SyntaxError("Syntax Error: " + msg, literalStart.line);
         diagnostics.push_back({DiagnosticSeverity::Error, msg, {literalStart, currentPosition()}});
         return "";
     }
@@ -264,7 +264,7 @@ std::vector<Token> Lexer::tokenize() {
                 if (collectDiagnostics) {
                     diagnostics.push_back({DiagnosticSeverity::Error, msg, {startPos, endPos}});
                 } else {
-                    throw std::runtime_error("Syntax Error: " + msg + " at line " + std::to_string(startPos.line));
+                    throw SyntaxError("Syntax Error: " + msg, startPos.line);
                 }
             }
             tokens.push_back({TokenType::STRING_LITERAL, str, startPos.line, startPos.column, {startPos, endPos}});
@@ -384,7 +384,7 @@ std::vector<Token> Lexer::tokenize() {
                         tokens.push_back({TokenType::ERROR, singleVal, startPos.line, startPos.column, {startPos, badEnd}});
                         continue;
                     } else {
-                        throw std::runtime_error(std::string("Syntax Error: Unknown character '") + current + "' at line " + std::to_string(startPos.line));
+                        throw SyntaxError(std::string("Syntax Error: Unknown character '") + current + "'", startPos.line);
                     }
             }
             advanceChar();

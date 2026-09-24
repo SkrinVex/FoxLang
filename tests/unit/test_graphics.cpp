@@ -42,7 +42,30 @@ int main() {
     rejected = false;
     try { pixels.text(0, 0, "test", 0, 0); } catch (const std::runtime_error&) { rejected = true; }
     CHECK(rejected);
+    // Lines, frames, rings and text measurement
+    pixels.clear(0);
+    pixels.line(0, 0, 31, 23, 0x00ff00);
+    CHECK(pixels.pixels()[0] == 0x00ff00 && pixels.pixels()[23 * 32 + 31] == 0x00ff00);
+    pixels.line(-100, 5, 100, 5, 0x0000ff);
+    CHECK(pixels.pixels()[5 * 32] == 0x0000ff && pixels.pixels()[5 * 32 + 31] == 0x0000ff);
+    pixels.clear(0);
+    pixels.frame(2, 2, 10, 8, 1, 0xff0000);
+    CHECK(pixels.pixels()[2 * 32 + 2] == 0xff0000 && pixels.pixels()[9 * 32 + 11] == 0xff0000);
+    CHECK(pixels.pixels()[5 * 32 + 6] == 0);
+    pixels.clear(0);
+    pixels.ring(16, 12, 6, 1, 0xffffff);
+    CHECK(pixels.pixels()[12 * 32 + 22] == 0xffffff && pixels.pixels()[12 * 32 + 16] == 0);
+    CHECK(Surface::textWidth("ab", 1) == 11 && Surface::textWidth("ab\nЛисий", 2) == 58 && Surface::textWidth("", 3) == 0);
+    // Punctuation used in games and interfaces has its own glyph instead of '?'
+    for (const char* symbol : {"%", "\"", "'", "*", "#", "<", ">", "@", "&", "{", "}", "|", "$", "№", "°", "«", "»"}) {
+        Surface a(8, 8), b(8, 8);
+        a.text(0, 0, symbol, 1, 0xffffff);
+        b.text(0, 0, "?", 1, 0xffffff);
+        CHECK(a.pixels() != b.pixels());
+    }
     foxlang::Interpreter interpreter;
+    auto measured = interpreter.runSource("using graphics; int w = text_width(\"FoxLang\", 2);");
+    CHECK(measured.success && interpreter.getGlobal("w").value == "82");
     auto result = interpreter.runSource("using graphics; int c = rgb(18, 52, 86); close_window(); close_window();");
     CHECK(result.success);
     CHECK(interpreter.getGlobal("c").value == "1193046");

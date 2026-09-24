@@ -17,6 +17,9 @@ ctest --test-dir build -C Release --output-on-failure
 | `integration_*` | `tests/regression/*.sh` | сообщения об ошибках и коды возврата, уровни логов, локальный HTTP-сервер и клиент (Linux) |
 | `check_examples_*`, `check_std_*` | `examples/`, `std/` | каждый пример и модуль проходит `foxlang check` |
 | `docs_examples` | `tests/test_docs.py` | каждый блок кода FoxLang в README и docs проходит `foxlang check`; DOCUMENTATION.md описывает каждую встроенную функцию и каждую функцию `std` |
+| `unit_web` | `tests/unit/test_web.cpp` | шаблоны, `json_set`, URL/HTML-кодирование, формы, multipart, cookies, маршруты с параметрами, статика и защита от `..`, 404/405, CORS — без сети |
+| `web_server_example` | `tests/test_web_server.py` | сайт `examples/website` по настоящему HTTP: шаблоны, форма, cookie, редирект, загрузка и скачивание, статика, HEAD, журнал запросов |
+| `lsp_project` | `tests/test_lsp_project.py` | проект из нескольких файлов в папке с кириллицей: соседние файлы видят друг друга, независимые программы — нет, переход к определению в другой файл, обновление диагностики после правки |
 | `lsp_catalog` | `tests/test_lsp_catalog.py` | настоящий `foxlang-lsp`: completion, hover и signatureHelp всех встроенных функций и всех функций 14 модулей |
 | `packaging_versions` | `tests/test_versions.py` | манифесты редакторов совпадают с `VERSION`, номер версии не продублирован в документации, VSIX собирается правильно, подсветка синхронизирована с каталогом функций |
 | `standalone_*` | `tests/standalone/` | упаковка и запуск приложений в чистом каталоге (см. ниже) |

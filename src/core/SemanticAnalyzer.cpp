@@ -2,6 +2,7 @@
 #include "foxlang/Builtins.h"
 #include "foxlang/Lexer.h"
 #include "foxlang/Parser.h"
+#include "foxlang/Project.h"
 #include "EmbeddedStdlib.h"
 #include <algorithm>
 #include <sstream>
@@ -140,14 +141,20 @@ void SemanticAnalyzer::addBuiltins() {
     }
 }
 
-void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRange importRange) {
+void SemanticAnalyzer::addProjectFiles(const std::vector<std::string>& files) {
+    // The file being edited is analyzed from its buffer, never from its copy on disk.
+    loadedModules.insert(canonicalPath(currentFile));
+    for (const auto& file : files) loadModuleSymbols({file, false}, {}, true);
+}
+
+void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRange importRange, bool quiet) {
     std::string identity;
     std::string text;
     try {
         identity = sources->resolve(request, currentFile);
         text = sources->read(identity);
     } catch (const std::exception&) {
-        diagnostics.push_back({DiagnosticSeverity::Warning, "Module '" + request.name + "' not found", importRange});
+        if (!quiet) diagnostics.push_back({DiagnosticSeverity::Warning, "Module '" + request.name + "' not found", importRange});
         return;
     }
     if (!loadedModules.insert(identity).second) return;
@@ -175,25 +182,27 @@ void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRang
             }
             if (s.documentation.empty()) s.documentation = signatureOf(fn->name, fn->params, fn->returnType);
             rootScope->symbols[fn->name] = s;
-        } else if (auto* var = dynamic_cast<const VarDeclNode*>(stmt.get())) {
+        } else if (dynamic_cast<const VarDeclNode*>(stmt.get()) || dynamic_cast<const ArrayDeclNode*>(stmt.get())) {
+            auto* var = dynamic_cast<const VarDeclNode*>(stmt.get());
+            auto* arr = dynamic_cast<const ArrayDeclNode*>(stmt.get());
             Symbol s;
-            s.name = var->name;
-            s.type = var->type;
+            s.name = var ? var->name : arr->name;
+            s.type = var ? var->type : "array";
             s.kind = SymbolKind::Variable;
-            s.declRange = var->nameRange;
+            s.declRange = var ? var->nameRange : arr->nameRange;
             s.fileUri = uri;
-            s.documentation = functionComment(source, var->range.start.line);
-            if (s.documentation.empty()) s.documentation = var->type + " " + var->name;
-            rootScope->symbols[var->name] = s;
+            s.documentation = functionComment(source, stmt->range.start.line);
+            if (s.documentation.empty()) s.documentation = s.type + " " + s.name;
+            rootScope->symbols[s.name] = s;
         } else if (auto* use = dynamic_cast<const UsingNode*>(stmt.get())) {
             std::string saved = currentFile;
             currentFile = identity;
-            loadModuleSymbols({use->libName, true}, importRange);
+            loadModuleSymbols({use->libName, true}, importRange, quiet);
             currentFile = saved;
         } else if (auto* inc = dynamic_cast<const IncludeNode*>(stmt.get())) {
             std::string saved = currentFile;
             currentFile = identity;
-            loadModuleSymbols({inc->filename, false}, importRange);
+            loadModuleSymbols({inc->filename, false}, importRange, quiet);
             currentFile = saved;
         }
     }

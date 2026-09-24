@@ -1,0 +1,28 @@
+// Сайт-гостевая книга: шаблоны HTML, статические файлы, формы, cookies,
+// параметры в пути, загрузка и скачивание файлов.
+//   cd examples/website && foxlang site.fox
+//   открыть http://localhost:8080
+using server;
+using env;
+using log;
+include("storage.fox");
+include("pages.fox");
+
+void main() {
+    load_entries();
+    static_files("/static", "public");
+    static_files("/uploads", "uploads");
+    get("/", "home_page");
+    post("/sign", "sign_book");
+    get("/entry/:id", "entry_page");
+    get("/api/entries", "entries_api");
+    post("/upload", "upload_file");
+    get("/download/:name", "download_file");
+    not_found("missing_page");
+    access_log(true);
+    int port = to_int(env_default("PORT", "8080"));
+    info("Гостевая книга: http://localhost:" + port);
+    listen(port);
+}
+
+main();

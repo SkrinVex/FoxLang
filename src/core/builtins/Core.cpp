@@ -108,6 +108,11 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             std::this_thread::sleep_for(std::chrono::milliseconds(c.amount(0, 86400000)));
             return nothing();
         });
+    add({"fail", "void", {{"string", "message"}}, 1, false, "",
+         "Останавливает программу с ошибкой выполнения и сообщением, как любая другая ошибка: с файлом и строкой. "
+         "В обработчике HTTP-запроса даёт ответ 500, а сервер продолжает работу.\n\n"
+         "```foxlang\nif (price < 0) { fail(\"цена не может быть отрицательной\"); }\n```"},
+        [](Call& c) -> Value { throw std::runtime_error("Runtime Error: " + c.text(0)); });
     add({"exit", "void", {{"int", "code"}}, 0, false, "",
          "Немедленно завершает программу с кодом возврата (по умолчанию `0`).\n\n```foxlang\nexit(2);\n```"},
         [](Call& c) -> Value { throw ExitRequest{c.has(0) ? static_cast<int>(c.integer(0)) : 0}; });

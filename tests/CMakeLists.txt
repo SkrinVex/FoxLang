@@ -15,6 +15,10 @@ add_executable(test_interpreter unit/test_interpreter.cpp)
 target_link_libraries(test_interpreter PRIVATE foxlang_core)
 add_test(NAME unit_interpreter COMMAND test_interpreter)
 
+add_executable(test_web unit/test_web.cpp)
+target_link_libraries(test_web PRIVATE foxlang_core)
+add_test(NAME unit_web COMMAND test_web)
+
 add_executable(test_certificates unit/test_certificates.cpp)
 target_include_directories(test_certificates PRIVATE ${CMAKE_BINARY_DIR}/generated)
 target_link_libraries(test_certificates PRIVATE mbedx509)
@@ -161,6 +165,7 @@ endif()
 # Examples and the standard library must stay valid FoxLang: checked without running.
 file(GLOB FOXLANG_CHECKED_SOURCES CONFIGURE_DEPENDS
     ${CMAKE_SOURCE_DIR}/examples/*.fox
+    ${CMAKE_SOURCE_DIR}/examples/*/*.fox
     ${CMAKE_SOURCE_DIR}/std/*.fox)
 foreach(SOURCE ${FOXLANG_CHECKED_SOURCES})
     get_filename_component(SOURCE_NAME ${SOURCE} NAME_WE)
@@ -173,3 +178,9 @@ endforeach()
 # Every FoxLang code block in the documentation passes `foxlang check`, and every
 # builtin and std function is described in DOCUMENTATION.md.
 add_test(NAME docs_examples COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_docs.py $<TARGET_FILE:foxlang> ${CMAKE_SOURCE_DIR})
+
+# The website example over real HTTP, and a multi-file project through the language server.
+add_test(NAME web_server_example COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_web_server.py $<TARGET_FILE:foxlang> ${CMAKE_SOURCE_DIR})
+set_tests_properties(web_server_example PROPERTIES TIMEOUT 60)
+add_test(NAME lsp_project COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_lsp_project.py $<TARGET_FILE:foxlang-lsp>)
+set_tests_properties(lsp_project PROPERTIES TIMEOUT 60)

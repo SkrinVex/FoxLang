@@ -1,6 +1,10 @@
 #include "foxlang/Lexer.h"
 #include "foxlang/Parser.h"
 #include "foxlang/SemanticAnalyzer.h"
+#include "foxlang/Project.h"
+#include <filesystem>
+#include <set>
+#include <fstream>
 #include <iostream>
 #include <cassert>
 #include <string>
@@ -342,6 +346,50 @@ int main() {
         for (const auto& module : modules) TEST_ASSERT(!module.documentation.empty());
     }
 
-    std::cout << "SEMANTIC_ANALYZER_TEST_OK" << std::endl;
+    // 19. Files of one program see each other; two programs sharing a library do not
+    {
+        namespace fs = std::filesystem;
+        fs::path dir = fs::temp_directory_path() / "foxlang project тест";
+        fs::remove_all(dir);
+        fs::create_directories(dir / "lib");
+        auto write = [&](const std::string& name, const std::string& text) { std::ofstream(dir / fs::u8path(name)) << text; };
+        write("main.fox", "include(\"lib/utils.fox\");\ninclude(\"render.fox\");\nint counter = 0;\n");
+        write("lib/utils.fox", "string shout(string t) { counter++; return t; }\n");
+        write("render.fox", "void show() { print(shout(\"x\"), counter); }\n");
+        write("other.fox", "include(\"lib/utils.fox\");\nint private_value = 1;\n");
+        write("alone.fox", "int single = 1;\n");
+        auto sources = std::make_shared<foxlang::OverlaySources>(foxlang::filesystemSources());
+        foxlang::ProjectIndex index(sources);
+        index.setRoot(dir.string());
+        auto name = [](const std::string& path) { return std::filesystem::path(path).filename().string(); };
+        auto peers = index.peers((dir / "render.fox").string());
+        TEST_ASSERT(peers.size() == 2);
+        std::set<std::string> names;
+        for (const auto& p : peers) names.insert(name(p));
+        TEST_ASSERT(names == (std::set<std::string>{"main.fox", "utils.fox"}));
+        // utils.fox belongs to both programs; main.fox and other.fox stay apart.
+        TEST_ASSERT(index.peers((dir / "lib/utils.fox").string()).size() == 3);
+        TEST_ASSERT(index.peers((dir / "other.fox").string()).size() == 1);
+        TEST_ASSERT(index.peers((dir / "alone.fox").string()).empty());
+
+        std::string code = "void show() { print(shout(\"x\"), counter); }\n";
+        foxlang::Lexer lexer(code, true);
+        foxlang::Parser parser(lexer.tokenize(), (dir / "render.fox").string());
+        std::vector<foxlang::Diagnostic> syntax;
+        auto prog = parser.parseProgramWithDiagnostics(syntax);
+        foxlang::SemanticAnalyzer analyzer((dir / "render.fox").string(), "", sources);
+        analyzer.addProjectFiles(peers);
+        analyzer.analyze(prog.get());
+        TEST_ASSERT(analyzer.getDiagnostics().empty());
+        auto definition = analyzer.getDefinition(1, 22);
+        TEST_ASSERT(definition.found && name(definition.fileUri) == "utils.fox");
+
+        // An unsaved buffer counts: removing the include detaches render.fox.
+        sources->set((dir / "main.fox").string(), "include(\"lib/utils.fox\");\nint counter = 0;\n");
+        TEST_ASSERT(index.peers((dir / "render.fox").string()).empty());
+        fs::remove_all(dir);
+    }
+
+        std::cout << "SEMANTIC_ANALYZER_TEST_OK" << std::endl;
     return 0;
 }

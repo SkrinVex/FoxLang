@@ -433,6 +433,7 @@ print(upper("fox"), json_quote("лис"));
 | `kbhit() -> bool` | есть ли нажатая клавиша в буфере терминала |
 | `wait(int milliseconds) -> void` | пауза |
 | `exit([int code]) -> void` | завершает программу с кодом возврата (по умолчанию 0) |
+| `fail(string message) -> void` | останавливает программу с ошибкой выполнения и этим сообщением |
 
 ### Массивы
 
@@ -523,12 +524,55 @@ if (is_number(answer)) {
 | `json_count(string json, string path) -> int` | размер массива или объекта; -1, если там не контейнер |
 | `json_type(string json, string path) -> string` | `object`, `array`, `string`, `number`, `bool`, `null` или пустая строка |
 | `json_escape(string text) -> string` | экранирование для вставки внутрь JSON-строки |
+| `json_value(any value) -> string` | значение FoxLang как JSON: строка в кавычках, массив — JSON-массив |
+| `json_set(string json, string path, any value) -> string` | новый документ со значением по пути |
+| `json_set_raw(string json, string path, string raw_json) -> string` | то же, но значение — готовый JSON |
+| `json_valid(string json) -> bool` | корректен ли документ |
 
 Путь состоит из ключей объектов и индексов массивов через точку:
 `message.chat.id`, `items.0.name` (можно и `items[0].name`). Пустой путь — весь
 документ. Строки декодируются, включая `\uXXXX` и суррогатные пары emoji; объект
 или массив возвращается как JSON-текст; отсутствующий путь даёт пустую строку.
 Некорректный JSON не вызывает ошибку, а просто не содержит значения.
+
+`json_set` строит документ по шагам и сам экранирует строки, поэтому собирать JSON
+склейкой строк не нужно. Пустой документ считается `{}`, недостающие ключи
+создаются, индекс, равный длине массива, добавляет элемент в конец:
+
+```cpp
+string user = json_set("", "name", "Лис \"Рыжий\"");
+user = json_set(user, "stats.age", 3);
+user = json_set(user, "tags", ["быстрый", "хитрый"]);
+string list = json_set_raw("[]", "0", user);
+print(list); // [{"name":"Лис \"Рыжий\"","stats":{"age":3},"tags":["быстрый","хитрый"]}]
+```
+
+### Веб и шаблоны
+
+| Функция | Описание |
+|---|---|
+| `template_render(string template, string json) -> string` | HTML-шаблон, заполненный данными JSON |
+| `html_escape(string text) -> string` | экранирование `& < > " '` для вставки в HTML |
+| `url_encode(string text) -> string`, `url_decode(string text) -> string` | кодирование `%XX` для URL и форм |
+
+Шаблоны похожи на Mustache:
+
+| Запись | Результат |
+|---|---|
+| `{{путь}}` | значение по пути, HTML экранируется |
+| `{{{путь}}}` | значение без экранирования |
+| `{{#each путь}}...{{/each}}` | повтор для каждого элемента массива (или значения объекта); внутри `{{.}}` — элемент, `{{@index}}` — номер, `{{@key}}` — ключ |
+| `{{#if путь}}...{{else}}...{{/if}}` | условие: `false`, `null`, `0`, `""`, `[]` и `{}` ложны |
+| `{{! текст}}` | комментарий |
+
+Внутри `each` путь ищется сначала в элементе, затем во внешних данных.
+
+```cpp
+string data = json_set("", "title", "Звери");
+data = json_set(data, "animals", ["лис", "волк"]);
+string page = template_render("<h1>{{title}}</h1><ul>{{#each animals}}<li>{{@index}}. {{.}}</li>{{/each}}</ul>", data);
+print(page);
+```
 
 ### Файлы и каталоги
 
@@ -597,12 +641,21 @@ if (is_number(answer)) {
 
 | Функция | Описание |
 |---|---|
-| `server_route(string method, string path, string handler) -> void` | обработчик для метода и пути |
+| `server_route(string method, string path, string handler) -> void` | обработчик для метода и пути; `:имя` и `*имя` — параметры |
+| `server_static(string prefix, string directory) -> void` | раздача файлов каталога |
+| `server_not_found(string handler)` | свой обработчик для ненайденных адресов |
+| `server_cors(string origin)`, `server_access_log(bool enabled)`, `server_max_body(int bytes)` | CORS, журнал запросов, предел тела |
 | `server_listen(int port)`, `server_listen_tls(int port, string certificate, string private_key)` | запуск HTTP и HTTPS |
 | `server_stop() -> void` | остановка после текущего ответа |
 | `server_respond(int status, string body, [string content_type]) -> void` | ответ на текущий запрос |
-| `request_method()`, `request_path()`, `request_query()`, `request_body()` | части текущего запроса |
-| `request_header(string name) -> string` | заголовок запроса без учёта регистра имени |
+| `server_send_file(string path, [string content_type]) -> bool` | ответ файлом |
+| `server_download(string path, [string filename]) -> bool` | файл для скачивания |
+| `server_redirect(string url, [int status])` | перенаправление |
+| `server_header(string name, string value)`, `server_set_cookie(string name, string value, [string options])` | заголовок и cookie ответа |
+| `request_method()`, `request_path()`, `request_query()`, `request_body()`, `request_ip()` | части текущего запроса |
+| `request_param(string name)`, `request_query_param(string name)`, `request_form(string name)` | параметр пути, query-строки и поле формы |
+| `request_header(string name)`, `request_cookie(string name)` | заголовок и cookie запроса |
+| `request_file_name(string field)`, `request_file_save(string field, string path) -> bool` | загруженный файл |
 
 ### Графика
 
@@ -612,7 +665,11 @@ if (is_number(answer)) {
 `gfx_circle(int x, int y, int radius, int color)`,
 `gfx_text(int x, int y, string text, int scale, int color)`, `gfx_present()`,
 `gfx_delta()`, `gfx_down(string key)`, `gfx_pressed(string key)`, `gfx_mouse_x()`,
-`gfx_mouse_y()`, `gfx_focused()`, `gfx_rgb(int red, int green, int blue)`.
+`gfx_mouse_y()`, `gfx_focused()`, `gfx_rgb(int red, int green, int blue)`,
+`gfx_line(int x1, int y1, int x2, int y2, int color)`,
+`gfx_frame(int x, int y, int width, int height, int thickness, int color)`,
+`gfx_ring(int x, int y, int radius, int thickness, int color)`,
+`gfx_text_width(string text, int scale)`.
 Обычно их вызывают через модуль с понятными именами.
 
 ---
@@ -766,11 +823,22 @@ print("прошло " + (uptime_ms() - started) + " мс, сейчас " + now_t
 | Функция | Описание |
 |---|---|
 | `get(string path, string handler)`, `post(string path, string handler)` | обработчики GET и POST |
-| `put(string path, string handler)`, `delete(string path, string handler)` | обработчики PUT и DELETE |
+| `put(string path, string handler)`, `patch(string path, string handler)`, `delete(string path, string handler)` | PUT, PATCH и DELETE |
 | `route(string method, string path, string handler)` | обработчик любого метода |
-| `body()`, `method()`, `path()`, `query()`, `header(string name)` | текущий запрос |
+| `static_files(string prefix, string directory)` | раздача каталога с файлами |
+| `not_found(string handler)` | своя страница 404 |
+| `allow_cors(string origin)`, `access_log(bool enabled)`, `max_body_size(int bytes)` | настройки сервера |
+| `body()`, `method()`, `path()`, `query()`, `client_ip()` | текущий запрос |
+| `param(string name)`, `query_param(string name)`, `form(string name)` | параметр пути, query-строки и поле формы |
+| `header(string name)`, `cookie(string name)` | заголовок и cookie запроса |
+| `upload_name(string field)`, `save_upload(string field, string path)` | загруженный файл |
 | `respond(string data)`, `respond_status(int status, string data)` | JSON-ответ |
+| `respond_html(string html)`, `respond_text(string text)` | HTML и текст |
 | `respond_as(int status, string data, string content_type)` | ответ с заданным типом |
+| `render(string template_path, string data)` | HTML из файла-шаблона и данных JSON |
+| `send_file(string path)`, `download(string path, string filename)` | ответ файлом и файл для скачивания |
+| `redirect(string url)` | перенаправление 302 |
+| `set_header(string name, string value)`, `set_cookie(string name, string value, string options)` | заголовок и cookie ответа |
 | `listen(int port)`, `listen_tls(int port, string certificate, string private_key)` | запуск HTTP и HTTPS |
 | `stop_server()` | остановка после текущего ответа |
 
@@ -813,7 +881,11 @@ reset_color();
 `draw_circle(int x, int y, int radius, int color)`,
 `draw_text(int x, int y, string text, int scale, int color)`, `present_window()`,
 `frame_delta()`, `key_down(string key)`, `key_pressed(string key)`, `mouse_x()`,
-`mouse_y()`, `window_focused()`, `rgb(int red, int green, int blue)`.
+`mouse_y()`, `window_focused()`, `rgb(int red, int green, int blue)`,
+`draw_line(int x1, int y1, int x2, int y2, int color)`,
+`draw_frame(int x, int y, int width, int height, int thickness, int color)`,
+`draw_ring(int x, int y, int radius, int thickness, int color)`,
+`text_width(string text, int scale)`.
 Подробности и пример — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
 
 ---
@@ -821,11 +893,15 @@ reset_color();
 ## 12. Ошибки и коды возврата
 
 Ошибка останавливает программу, печатает сообщение в stderr и завершает процесс с
-кодом `1`:
+кодом `1`. Сообщение начинается с файла и строки, где случилась ошибка, — и в
+программе из нескольких файлов это тот файл, где она произошла на самом деле:
 
 ```text
-FoxLang: Type Error: argument 'text' of str_upper() must be string, got 'int' [line 3]
+FoxLang: lib/prices.fox:12: Type Error: argument 'text' of str_upper() must be string, got 'int'
 ```
+
+Путь пишется относительно рабочего каталога; с переменной окружения
+`FOXLANG_ABSOLUTE_PATHS=1` — полностью (так делает кнопка запуска в VS Code).
 
 | Вид | Когда возникает |
 |---|---|
@@ -836,12 +912,25 @@ FoxLang: Type Error: argument 'text' of str_upper() must be string, got 'int' [l
 | `Environment Error` | не задан обязательный секрет |
 | `HTTP Server Error`, `Graphics Error` | неверные параметры сервера или окна |
 
-`exit(code)` завершает программу с указанным кодом без сообщения. Если обработчик
-HTTP-запроса завершается ошибкой, сервер отвечает `500` и продолжает работу.
+`exit(code)` завершает программу с указанным кодом без сообщения, `fail(message)` —
+с ошибкой `Runtime Error` и вашим сообщением. Если обработчик HTTP-запроса
+завершается ошибкой, сервер отвечает `500`, пишет ошибку в stderr и продолжает работу.
+
+```cpp
+int parse_age(string text) {
+    if (!is_number(text)) {
+        fail("возраст должен быть числом: " + text);
+    }
+    return to_int(text);
+}
+print(parse_age("7"));
+```
 
 `foxlang check` находит многие ошибки без запуска: синтаксис, необъявленные
 переменные и функции, неверное число аргументов (в том числе у встроенных функций),
-`return` не на своём месте, отсутствующие модули.
+`return` не на своём месте, отсутствующие модули. Проверка учитывает весь проект:
+если `main.fox` подключает `utils.fox` и `render.fox`, функции и переменные одного
+из них известны в другом (см. [раздел 19](#19-редакторы-и-языковой-сервер)).
 
 ---
 
@@ -868,6 +957,7 @@ foxlang --foxlang-licenses           # лицензии встроенных б�
 | `FOXLANG_HOME` | каталог установки; модули ищутся в нём и в `FOXLANG_HOME/std` |
 | `FOXLANG_LOG_LEVEL` | порог логов: `debug`, `info` (по умолчанию), `warn`, `error`, `off` |
 | `FOXLANG_CA_BUNDLE` | доверенные CA для HTTPS: путь к PEM, `embedded` или `system` |
+| `FOXLANG_ABSOLUTE_PATHS` | непустое значение — полные пути файлов в сообщениях об ошибках |
 
 ---
 
@@ -948,51 +1038,127 @@ HTTPS всегда проверяет цепочку сертификатов и
 
 ## 16. HTTP- и HTTPS-сервер
 
+Модуль `server` позволяет написать сайт или API целиком на FoxLang: маршруты с
+параметрами, статические файлы, HTML-шаблоны, формы, загрузку и скачивание файлов,
+cookies, перенаправления и CORS.
+
 ```cpp
 using server;
 using json;
 
-void health() {
-    respond("{\"ok\":true}");
+void home() {
+    string data = json_set("", "user", cookie("user"));
+    respond_html(template_render("<h1>Привет, {{#if user}}{{user}}{{else}}гость{{/if}}!</h1>", data));
 }
 
-void echo() {
-    string name = json_path(body(), "name");
-    respond_status(201, "{\"hello\":" + json_quote(name) + "}");
+void show_user() {
+    string id = param("id");
+    string tab = query_param("tab");
+    respond(json_set(json_set("", "id", id), "tab", tab));
 }
 
-void page() {
-    respond_as(200, "<h1>" + query() + "</h1>", "text/html; charset=utf-8");
+void login() {
+    set_cookie("user", form("name"), "Path=/; Max-Age=86400; HttpOnly; SameSite=Lax");
+    redirect("/");
 }
 
-void stop() {
-    respond("bye");
-    stop_server();
+void report() {
+    download("reports/2026.csv", "отчёт.csv");
 }
 
-get("/health", "health");
-post("/echo", "echo");
-get("/page", "page");
-route("PATCH", "/stop", "stop");
+void missing() {
+    respond_as(404, "<h1>Страница не найдена</h1>", "text/html; charset=utf-8");
+}
+
+static_files("/static", "public");
+get("/", "home");
+get("/users/:id", "show_user");
+post("/login", "login");
+get("/report", "report");
+not_found("missing");
+access_log(true);
 listen(8080);
 ```
 
-* Маршрут — метод и точный путь без query-строки; обработчик — функция без
-  параметров, указанная по имени. `get`, `post`, `put`, `delete` — короткие формы
-  `route`.
-* Внутри обработчика доступны `method()`, `path()`, `query()` (без `?`), `body()` и
-  `header(name)`.
-* `respond(data)` отвечает кодом 200, `respond_status(code, data)` — заданным кодом,
-  `respond_as(code, data, content_type)` — с заданным `Content-Type`. По умолчанию
-  тип ответа `application/json; charset=utf-8`. Без вызова этих функций ответ — 200
-  с пустым телом.
-* Неизвестный путь — `404`, ошибка в обработчике — `500` с сообщением в stderr;
-  сервер продолжает работу.
+Полный пример сайта из нескольких файлов — [examples/website](examples/website):
+гостевая книга с шаблонами, статикой, формой, cookies, загрузкой и скачиванием
+файлов и JSON API.
+
+### Маршруты
+
+`get`, `post`, `put`, `patch`, `delete` и `route(method, path, handler)` связывают
+метод и путь с функцией без параметров, указанной по имени.
+
+* `:имя` совпадает с одной частью пути, `*имя` в конце — с остатком пути (может быть
+  пустым): `/users/:id`, `/files/*path`. Значение читает `param(name)`, оно уже
+  декодировано из `%XX`.
+* Точный путь проверяется раньше шаблонов, шаблоны — в порядке регистрации.
+  Повторная регистрация того же метода и пути заменяет обработчик.
+* Завершающий `/` не важен: `/about` и `/about/` — один путь.
+* Маршрут GET отвечает и на HEAD (заголовки без тела).
+* Если путь есть, но для другого метода, ответ `405` с заголовком `Allow`.
+
+### Запрос
+
+| Функция | Что возвращает |
+|---|---|
+| `method()`, `path()`, `client_ip()` | метод, декодированный путь, IP клиента |
+| `query()` | query-строка как пришла, без `?` |
+| `query_param(name)` | параметр query-строки, декодированный |
+| `param(name)` | параметр из шаблона пути |
+| `form(name)` | поле HTML-формы: `application/x-www-form-urlencoded` или `multipart/form-data` |
+| `body()` | тело как есть (например, JSON — читайте его `json_path`) |
+| `header(name)` | заголовок без учёта регистра имени |
+| `cookie(name)` | cookie, присланный браузером |
+| `upload_name(field)` | исходное имя загруженного файла или пустая строка |
+| `save_upload(field, path)` | сохраняет загруженный файл; `false`, если файла нет |
+
+Не используйте имя загруженного файла как путь без проверки: в нём могут быть `../`.
+Тело запроса ограничено 10 МиБ; `max_body_size(bytes)` меняет предел, больший запрос
+получает `413`.
+
+### Ответ
+
+| Функция | Ответ |
+|---|---|
+| `respond(data)`, `respond_status(code, data)` | JSON (`application/json; charset=utf-8`) |
+| `respond_html(html)`, `respond_text(text)` | HTML и обычный текст, код 200 |
+| `respond_as(code, data, content_type)` | любой тип содержимого |
+| `render(template_path, data)` | HTML из файла-шаблона и данных JSON (см. [шаблоны](#веб-и-шаблоны)) |
+| `send_file(path)` | содержимое файла; тип по расширению; нет файла — `404` и `false` |
+| `download(path, filename)` | файл для скачивания под указанным именем (кириллица допустима) |
+| `redirect(url)` | перенаправление `302`; `server_redirect(url, 301)` — постоянное |
+| `set_header(name, value)` | дополнительный заголовок |
+| `set_cookie(name, value, options)` | cookie; `options` — атрибуты вроде `Path=/; Max-Age=3600; HttpOnly` |
+
+Без вызова этих функций ответ — `200` с пустым телом. Значения заголовков не могут
+содержать переводы строк: это защищает от подмены заголовков.
+
+### Статические файлы, 404 и CORS
+
+* `static_files(prefix, directory)` раздаёт файлы каталога: `static_files("/", "public")`
+  отдаёт `public/app.js` по `/app.js`. Для каталога отдаётся `index.html`; адрес
+  каталога без `/` на конце перенаправляется на адрес с `/`. Тип содержимого
+  определяется по расширению (HTML, CSS, JS, JSON, изображения, шрифты, PDF, видео…).
+  Скрытые файлы (например, `.env`) и выход за пределы каталога через `..` не отдаются.
+  Маршруты проверяются раньше статических файлов.
+* `not_found(handler)` вызывает вашу функцию, когда не подошёл ни маршрут, ни файл;
+  статус ответа по умолчанию `404`. Без неё — JSON `{"error":"Not Found"}`.
+* `allow_cors(origin)` добавляет заголовки CORS ко всем ответам и отвечает `204` на
+  предварительные запросы `OPTIONS`; `"*"` разрешает любой домен.
+* `access_log(true)` печатает в stderr строку о каждом запросе:
+  `[HTTP] 127.0.0.1 GET /users/7 -> 200 (1 ms)`.
+
+### Работа сервера
+
 * `listen(port)` блокирует программу, пока обработчик не вызовет `stop_server()`.
   Сервер слушает `0.0.0.0` и обслуживает соединения по очереди: HTTP/1.0–1.1,
-  `Content-Length`, до 64 КиБ заголовков и 1 МиБ тела; chunked-запросы не
-  поддерживаются. Соединение ограничено 10 секундами, отдельная операция чтения или
-  записи — 5 секундами.
+  `Content-Length`, до 64 КиБ заголовков; chunked-запросы не поддерживаются.
+  Соединение ограничено 10 секундами, отдельная операция чтения или записи — 5 секундами.
+* Ошибка в обработчике (включая `fail`) даёт ответ `500`, в stderr пишется ошибка с
+  файлом и строкой, сервер продолжает работу.
+* Все обработчики разделяют глобальные переменные программы: массив, объявленный на
+  верхнем уровне, живёт между запросами.
 
 **HTTPS.** `listen_tls(port, certificate, private_key)` включает встроенный TLS 1.2+
 на Linux и Windows; reverse proxy не нужен. Аргументы — пути к PEM-файлам во время
@@ -1070,7 +1236,30 @@ close_window();
 параметров, переход к определению и символы документа. Он никогда не выполняет код
 программы. Описания встроенных функций берутся из того же каталога, по которому
 рантайм проверяет вызовы, а описания модулей — из комментариев `//!` и `///` в
-`std/*.fox`. Настройка редакторов — в [docs/EDITORS.md](docs/EDITORS.md).
+`std/*.fox`.
+
+**Проекты из нескольких файлов.** В программе FoxLang одно общее пространство имён:
+если `main.fox` подключает `utils.fox` и `render.fox`, функция из `utils.fox` может
+вызвать функцию из `render.fox` и прочитать глобальную переменную из `main.fox`.
+Сервер и `foxlang check` анализируют файл вместе с остальными файлами его программы:
+теми, что подключают его (прямо или через другие файлы), и всем, что подключают они.
+Поэтому такие имена не подсвечиваются как необъявленные, а переход к определению
+открывает нужный файл. Две разные программы, подключающие общую библиотеку, друг
+друга не видят. Файлы ищутся в папке проекта (без скрытых папок, `build*` и
+`node_modules`); несохранённые правки в открытых файлах учитываются сразу.
+
+**Запуск из редактора.**
+
+* VS Code: кнопка ▶ в заголовке редактора, `Ctrl+Alt+R`, команды «FoxLang: запустить
+  программу», «проверить без запуска», «собрать приложение». Если программа состоит
+  из нескольких файлов, выберите главный командой «FoxLang: сделать этот файл главным»
+  — дальше ▶ запускает его из любого файла проекта. Ошибки выполнения и проверки
+  попадают в панель «Проблемы» со ссылкой на файл и строку.
+* Kate: «Сервис → Внешние инструменты → FoxLang» — запуск, проверка и сборка текущего
+  файла с выводом в нижней панели.
+* Zed: задачи «FoxLang: запустить / проверить / собрать» в `task: spawn`.
+
+Настройка редакторов — в [docs/EDITORS.md](docs/EDITORS.md).
 
 ---
 

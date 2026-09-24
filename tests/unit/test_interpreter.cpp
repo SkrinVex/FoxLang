@@ -193,7 +193,7 @@ int main() {
         foxlang::Interpreter interp;
         auto res = interp.runSource("int ok = 1;\nint bad = 10 / 0;");
         TEST_ASSERT(!res.success);
-        TEST_ASSERT(res.errorMessage.find("[line 2]") != std::string::npos);
+        TEST_ASSERT(res.errorMessage.rfind("<eval>:2: Runtime Error: Division by zero", 0) == 0);
     }
 
     // 14. Runaway recursion is an error, not a stack overflow

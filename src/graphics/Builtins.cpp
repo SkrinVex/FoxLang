@@ -19,11 +19,15 @@ const std::vector<Signature>& signatures() {
         {"gfx_text", "draw_text", "void", {{"int","x"},{"int","y"},{"string","text"},{"int","scale"},{"int","color"}}, "Встроенный пиксельный шрифт: латиница, русский алфавит, цифры. Масштаб 1..32; строчные отображаются прописными."},
         {"gfx_present", "present_window", "void", {}, "Показать буфер кадра в нативном окне."},
         {"gfx_delta", "frame_delta", "float", {}, "Время между window_poll в секундах, ограниченное 0.1 секунды."},
-        {"gfx_down", "key_down", "bool", {{"string","key"}}, "Проверить удержание клавиши: A..Z, 0..9, LEFT/RIGHT/UP/DOWN, SPACE/ENTER/ESCAPE/TAB/BACKSPACE, MOUSE_LEFT/MOUSE_RIGHT."},
+        {"gfx_down", "key_down", "bool", {{"string","key"}}, "Проверить удержание клавиши: A..Z, 0..9, LEFT/RIGHT/UP/DOWN, SPACE/ENTER/ESCAPE/TAB/BACKSPACE, SHIFT/CTRL/ALT, MOUSE_LEFT/MOUSE_RIGHT."},
         {"gfx_pressed", "key_pressed", "bool", {{"string","key"}}, "Проверить новое нажатие в текущем кадре; не сбрасывается при повторном чтении."},
         {"gfx_mouse_x", "mouse_x", "int", {}, "Положение мыши по X относительно окна."},
         {"gfx_mouse_y", "mouse_y", "int", {}, "Положение мыши по Y относительно окна."},
         {"gfx_focused", "window_focused", "bool", {}, "Имеет ли окно фокус. Потеря фокуса сбрасывает удерживаемые клавиши."},
+        {"gfx_line", "draw_line", "void", {{"int","x1"},{"int","y1"},{"int","x2"},{"int","y2"},{"int","color"}}, "Нарисовать отрезок толщиной в пиксель между двумя точками."},
+        {"gfx_frame", "draw_frame", "void", {{"int","x"},{"int","y"},{"int","width"},{"int","height"},{"int","thickness"},{"int","color"}}, "Нарисовать контур прямоугольника заданной толщины."},
+        {"gfx_ring", "draw_ring", "void", {{"int","x"},{"int","y"},{"int","radius"},{"int","thickness"},{"int","color"}}, "Нарисовать окружность (кольцо) заданной толщины."},
+        {"gfx_text_width", "text_width", "int", {{"string","text"},{"int","scale"}}, "Ширина текста в пикселях при данном масштабе — для выравнивания по центру. Окно не требуется."},
         {"gfx_rgb", "rgb", "int", {{"int","red"},{"int","green"},{"int","blue"}}, "Создать цвет 0xRRGGBB. Каждый канал должен быть в диапазоне 0..255."}
     };
     return result;
@@ -54,6 +58,7 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
         return {"int", Text::integer((r << 16) | (g << 8) | b)};
     }
     if (name == "gfx_close") { window.reset(); return {"void", ""}; }
+    if (name == "gfx_text_width") return {"int", Text::integer(Surface::textWidth(args[0].value, integer(1)))};
     if (name == "gfx_open") {
         if (window) throw std::runtime_error("Graphics Error: close the existing window before opening another");
         window = std::make_shared<Window>(integer(0), integer(1), args[2].value);
@@ -71,6 +76,9 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     else if (name == "gfx_rect") window->surface().rectangle(integer(0), integer(1), integer(2), integer(3), color(4));
     else if (name == "gfx_circle") window->surface().circle(integer(0), integer(1), integer(2), color(3));
     else if (name == "gfx_text") window->surface().text(integer(0), integer(1), args[2].value, integer(3), color(4));
+    else if (name == "gfx_line") window->surface().line(integer(0), integer(1), integer(2), integer(3), color(4));
+    else if (name == "gfx_frame") window->surface().frame(integer(0), integer(1), integer(2), integer(3), integer(4), color(5));
+    else if (name == "gfx_ring") window->surface().ring(integer(0), integer(1), integer(2), integer(3), color(4));
     else if (name == "gfx_present") window->present();
     return {"void", ""};
 }

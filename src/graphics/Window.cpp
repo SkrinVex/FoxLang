@@ -158,14 +158,19 @@ struct Window::Native {
         if (!reply) fail("cannot obtain X11 window property");
         return reply->atom;
     }
+    // Codes follow Win32 virtual keys. Only letters, digits and space come from their
+    // ASCII keysym: the apostrophe keysym is 39, which is also the code of RIGHT.
     static int key(uint32_t symbol) {
         if (symbol >= 'a' && symbol <= 'z') return int(symbol - 'a' + 'A');
-        if (symbol >= 32 && symbol <= 126) return int(symbol);
+        if ((symbol >= 'A' && symbol <= 'Z') || (symbol >= '0' && symbol <= '9') || symbol == ' ') return int(symbol);
         switch (symbol) {
-            case 0xff1b: return 27; case 0xff0d: return 13;
+            case 0xff1b: return 27; case 0xff0d: return 13; case 0xff8d: return 13;
             case 0xff51: return 37; case 0xff52: return 38;
             case 0xff53: return 39; case 0xff54: return 40;
             case 0xff09: return 9; case 0xff08: return 8;
+            case 0xffe1: case 0xffe2: return 16;                     // Shift
+            case 0xffe3: case 0xffe4: return 17;                     // Control
+            case 0xffe9: case 0xffea: case 0xff7e: return 18;        // Alt, AltGr
             default: return 0;
         }
     }
@@ -332,6 +337,9 @@ int Window::keyCode(const std::string& key) {
     if (key == "ESCAPE") return 27;
     if (key == "TAB") return 9;
     if (key == "BACKSPACE") return 8;
+    if (key == "SHIFT") return 16;
+    if (key == "CTRL") return 17;
+    if (key == "ALT") return 18;
     if (key == "MOUSE_LEFT") return 1;
     if (key == "MOUSE_RIGHT") return 2;
     fail("unknown key '" + key + "'");

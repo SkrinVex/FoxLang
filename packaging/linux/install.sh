@@ -54,6 +54,19 @@ if [ -f "$HERE/editors/kate/foxlang.xml" ]; then
   echo "✔ Подсветка синтаксиса для Kate установлена в $KATE_SYNTAX_DIR/foxlang.xml"
 fi
 
+# Внешние инструменты Kate: запуск, проверка и сборка текущего файла (меню Сервис).
+KATE_TOOLS_DIR="$HOME/.config/kate/externaltools"
+if [ -d "$HERE/editors/kate/externaltools" ]; then
+  mkdir -p "$KATE_TOOLS_DIR"
+  for tool in "$HERE"/editors/kate/externaltools/*.ini; do
+    target="$KATE_TOOLS_DIR/$(basename "$tool")"
+    if [ ! -f "$target" ]; then
+      sed "s|^executable=foxlang$|executable=$BINDIR/foxlang|" "$tool" > "$target"
+    fi
+  done
+  echo "✔ Инструменты Kate (Сервис → Внешние инструменты → FoxLang) установлены в $KATE_TOOLS_DIR"
+fi
+
 if [ -f "$HERE/editors/kate/settings.json" ]; then
   if [ ! -f "$KATE_LSP_DIR/settings.json" ]; then
     cp "$HERE/editors/kate/settings.json" "$KATE_LSP_DIR/settings.json"
@@ -158,6 +171,7 @@ if command -v code >/dev/null 2>&1; then
 fi
 rm -f "$BINDIR/foxlang" "$BINDIR/foxlang-lsp"
 rm -f "$HOME/.local/share/org.kde.syntax-highlighting/syntax/foxlang.xml"
+rm -f "$HOME/.config/kate/externaltools/foxlang-run.ini" "$HOME/.config/kate/externaltools/foxlang-check.ini" "$HOME/.config/kate/externaltools/foxlang-build.ini"
 rm -rf "$HOME/.vscode/extensions/foxlang"* "$HOME/.vscode/extensions/SkrinVex.foxlang"* 2>/dev/null || true
 rm -rf "$HOME/.vscode-oss/extensions/foxlang"* "$HOME/.vscode-oss/extensions/SkrinVex.foxlang"* 2>/dev/null || true
 rm -rf "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions/foxlang"* "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions/SkrinVex.foxlang"* 2>/dev/null || true

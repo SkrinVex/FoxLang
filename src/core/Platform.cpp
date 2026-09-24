@@ -17,6 +17,23 @@
 namespace foxlang {
 namespace platform {
 
+std::filesystem::path pathFromUtf8(const std::string& text) {
+#ifdef _WIN32
+    return std::filesystem::u8path(text);
+#else
+    return std::filesystem::path(text);
+#endif
+}
+
+std::string pathToUtf8(const std::filesystem::path& path) {
+#ifdef _WIN32
+    return path.u8string();
+#else
+    return path.string();
+#endif
+}
+
+
 // How much stack this thread actually has decides how deep a program may recurse:
 // Windows reserves 1 MB per thread by default where Linux gives 8, and one FoxLang
 // call costs a different number of kilobytes per compiler. Three fifths leaves room

@@ -1,0 +1,21 @@
+[
+  {
+    "label": "FoxLang: запустить $ZED_FILENAME",
+    "command": "foxlang",
+    "args": ["$ZED_FILE"],
+    "cwd": "$ZED_DIRNAME",
+    "tags": ["foxlang-run"]
+  },
+  {
+    "label": "FoxLang: проверить $ZED_FILENAME",
+    "command": "foxlang",
+    "args": ["check", "$ZED_FILE"],
+    "cwd": "$ZED_DIRNAME"
+  },
+  {
+    "label": "FoxLang: собрать $ZED_STEM",
+    "command": "foxlang",
+    "args": ["build", "$ZED_FILE", "-o", "$ZED_STEM"],
+    "cwd": "$ZED_DIRNAME"
+  }
+]
