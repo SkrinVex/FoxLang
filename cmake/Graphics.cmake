@@ -10,7 +10,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         # upstream C files with pinned provenance, rather than adding a runtime DSO.
         include(FetchContent)
         FetchContent_Declare(xau
-            URL https://www.x.org/releases/individual/lib/libXau-1.0.12.tar.xz
+            URL https://xorg.freedesktop.org/archive/individual/lib/libXau-1.0.12.tar.xz
+                https://www.x.org/archive/individual/lib/libXau-1.0.12.tar.xz
             URL_HASH SHA256=74d0e4dfa3d39ad8939e99bda37f5967aba528211076828464d2777d477fc0fb)
         FetchContent_MakeAvailable(xau)
         add_library(foxlang_xau STATIC
