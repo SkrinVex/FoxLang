@@ -349,7 +349,9 @@ int main() {
     // 19. Files of one program see each other; two programs sharing a library do not
     {
         namespace fs = std::filesystem;
-        fs::path dir = fs::temp_directory_path() / "foxlang project тест";
+        // Paths are UTF-8 text in FoxLang; on Windows a narrow literal would be read as ANSI.
+        fs::path dir = fs::temp_directory_path() / fs::u8path("foxlang project тест");
+        auto utf8 = [](const fs::path& path) { return foxlang::platform::pathToUtf8(path); };
         fs::remove_all(dir);
         fs::create_directories(dir / "lib");
         auto write = [&](const std::string& name, const std::string& text) { std::ofstream(dir / fs::u8path(name)) << text; };
@@ -360,24 +362,24 @@ int main() {
         write("alone.fox", "int single = 1;\n");
         auto sources = std::make_shared<foxlang::OverlaySources>(foxlang::filesystemSources());
         foxlang::ProjectIndex index(sources);
-        index.setRoot(dir.string());
-        auto name = [](const std::string& path) { return std::filesystem::path(path).filename().string(); };
-        auto peers = index.peers((dir / "render.fox").string());
+        index.setRoot(utf8(dir));
+        auto name = [](const std::string& path) { return foxlang::platform::pathToUtf8(foxlang::platform::pathFromUtf8(path).filename()); };
+        auto peers = index.peers(utf8(dir / "render.fox"));
         TEST_ASSERT(peers.size() == 2);
         std::set<std::string> names;
         for (const auto& p : peers) names.insert(name(p));
         TEST_ASSERT(names == (std::set<std::string>{"main.fox", "utils.fox"}));
         // utils.fox belongs to both programs; main.fox and other.fox stay apart.
-        TEST_ASSERT(index.peers((dir / "lib/utils.fox").string()).size() == 3);
-        TEST_ASSERT(index.peers((dir / "other.fox").string()).size() == 1);
-        TEST_ASSERT(index.peers((dir / "alone.fox").string()).empty());
+        TEST_ASSERT(index.peers(utf8(dir / "lib" / "utils.fox")).size() == 3);
+        TEST_ASSERT(index.peers(utf8(dir / "other.fox")).size() == 1);
+        TEST_ASSERT(index.peers(utf8(dir / "alone.fox")).empty());
 
         std::string code = "void show() { print(shout(\"x\"), counter); }\n";
         foxlang::Lexer lexer(code, true);
-        foxlang::Parser parser(lexer.tokenize(), (dir / "render.fox").string());
+        foxlang::Parser parser(lexer.tokenize(), utf8(dir / "render.fox"));
         std::vector<foxlang::Diagnostic> syntax;
         auto prog = parser.parseProgramWithDiagnostics(syntax);
-        foxlang::SemanticAnalyzer analyzer((dir / "render.fox").string(), "", sources);
+        foxlang::SemanticAnalyzer analyzer(utf8(dir / "render.fox"), "", sources);
         analyzer.addProjectFiles(peers);
         analyzer.analyze(prog.get());
         TEST_ASSERT(analyzer.getDiagnostics().empty());
@@ -385,8 +387,8 @@ int main() {
         TEST_ASSERT(definition.found && name(definition.fileUri) == "utils.fox");
 
         // An unsaved buffer counts: removing the include detaches render.fox.
-        sources->set((dir / "main.fox").string(), "include(\"lib/utils.fox\");\nint counter = 0;\n");
-        TEST_ASSERT(index.peers((dir / "render.fox").string()).empty());
+        sources->set(utf8(dir / "main.fox"), "include(\"lib/utils.fox\");\nint counter = 0;\n");
+        TEST_ASSERT(index.peers(utf8(dir / "render.fox")).empty());
         fs::remove_all(dir);
     }
 

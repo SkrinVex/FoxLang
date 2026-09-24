@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.parse
+import urllib.request
 
 binary = Path(sys.argv[1]).resolve()
 
@@ -83,6 +84,11 @@ with tempfile.TemporaryDirectory(prefix="fox-lsp-project-") as directory:
     assert last("other.fox") == ["Undefined function 'main_entry'"], published
 
     definition = responses[2]
-    assert definition and definition["uri"] == uri["lib/utils.fox"], definition
+    # Compare files, not spellings: Windows runners give the temporary directory as a
+    # short 8.3 path (RUNNER~1) while the server reports the canonical long one.
+    assert definition, definition
+    target = urllib.parse.urlparse(definition["uri"])
+    target_path = urllib.request.url2pathname(urllib.parse.unquote(target.path))
+    assert os.path.samefile(target_path, root / "lib" / "utils.fox"), definition
     assert definition["range"]["start"]["line"] == 0, definition
 print("LSP_PROJECT_OK")
