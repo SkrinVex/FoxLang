@@ -54,13 +54,6 @@ cp -r editors/vscode ~/.vscode/extensions/SkrinVex.foxlang-language
 ```
 Затем перезапустите VS Code или выполните `Developer: Reload Window` (`Ctrl+Shift+P`).
 
-### Способ 3. Архив из выпуска
-[`foxlang-vscode.zip`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip) содержит тот же каталог:
-```bash
-curl -L -o foxlang-vscode.zip https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-vscode.zip
-unzip foxlang-vscode.zip -d ~/.vscode/extensions/
-```
-
 ### Настройка пути к `foxlang-lsp`
 В настройках VS Code (`settings.json`) при необходимости можно явно указать путь к серверу:
 ```json

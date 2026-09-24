@@ -2,7 +2,7 @@
   "name": "foxlang-language",
   "displayName": "FoxLang Programming Language",
   "description": "Официальная поддержка языка FoxLang для VS Code: подсветка, LSP (диагностика по всему проекту, автодополнение, наведение, переход к определению, подсказки параметров), запуск, проверка и сборка программ",
-  "version": "6.1.0",
+  "version": "6.1.1",
   "publisher": "SkrinVex",
   "license": "MIT",
   "homepage": "https://github.com/SkrinVex/FoxLang",
@@ -205,10 +205,7 @@
         "name": "foxlang",
         "owner": "foxlang",
         "source": "foxlang check",
-        "fileLocation": [
-          "autoDetect",
-          "${workspaceFolder}"
-        ],
+        "fileLocation": "absolute",
         "pattern": {
           "regexp": "^(.+?):(\\d+):(\\d+): (error|warning|info|hint): (.*)$",
           "file": 1,
@@ -222,10 +219,7 @@
         "name": "foxlang-runtime",
         "owner": "foxlang",
         "source": "foxlang",
-        "fileLocation": [
-          "autoDetect",
-          "${workspaceFolder}"
-        ],
+        "fileLocation": "absolute",
         "severity": "error",
         "pattern": {
           "regexp": "^FoxLang: (.+?):(\\d+): (.*)$",

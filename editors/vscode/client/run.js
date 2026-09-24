@@ -45,29 +45,44 @@ function entryFile() {
     return null;
 }
 
+function commandLine(command, file, extraArgs) {
+    if (command === 'check') return ['check', file];
+    if (command === 'build') return ['build', file, '-o', path.basename(file, '.fox')];
+    return [file, ...(extraArgs || config().get('run.arguments') || [])];
+}
+
+const labels = { run: 'Запуск', check: 'Проверка', build: 'Сборка' };
+// Full paths in error messages let the problem matcher find files from any directory,
+// so it needs no workspace folder.
+const environment = { FOXLANG_ABSOLUTE_PATHS: '1' };
+
+// A task for a file inside an open folder; null for a file opened on its own, which
+// VS Code cannot run as a task.
 function makeTask(command, file, extraArgs) {
-    const executable = resolveExecutable();
-    let args;
-    if (command === 'check') {
-        args = ['check', file];
-    } else if (command === 'build') {
-        args = ['build', file, '-o', path.basename(file, '.fox')];
-    } else {
-        args = [file, ...(extraArgs || config().get('run.arguments') || [])];
-    }
+    const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file));
+    if (!folder) return null;
     const definition = { type: TASK_TYPE, command, file };
-    // Full paths in error messages let the problem matcher find files from any directory.
-    const execution = new vscode.ProcessExecution(executable, args, {
+    const execution = new vscode.ProcessExecution(resolveExecutable(), commandLine(command, file, extraArgs), {
         cwd: path.dirname(file),
-        env: { FOXLANG_ABSOLUTE_PATHS: '1' }
+        env: environment
     });
-    const labels = { run: 'Запуск', check: 'Проверка', build: 'Сборка' };
-    const task = new vscode.Task(definition, vscode.TaskScope.Workspace,
+    const task = new vscode.Task(definition, folder,
         `${labels[command] || command}: ${path.basename(file)}`, 'FoxLang', execution,
         command === 'check' ? ['$foxlang'] : ['$foxlang-runtime']);
     task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, clear: true, focus: command === 'run' };
     if (command === 'build') task.group = vscode.TaskGroup.Build;
     return task;
+}
+
+function runInTerminal(command, file) {
+    const terminal = vscode.window.createTerminal({
+        name: `FoxLang: ${labels[command] || command} ${path.basename(file)}`,
+        shellPath: resolveExecutable(),
+        shellArgs: commandLine(command, file),
+        cwd: path.dirname(file),
+        env: environment
+    });
+    terminal.show();
 }
 
 async function start(command) {
@@ -78,7 +93,9 @@ async function start(command) {
     }
     // Every file of a project may be part of the program, so all of them are saved.
     await vscode.workspace.saveAll(false);
-    await vscode.tasks.executeTask(makeTask(command, file));
+    const task = makeTask(command, file);
+    if (task) await vscode.tasks.executeTask(task);
+    else runInTerminal(command, file);
 }
 
 async function chooseEntry() {
@@ -101,7 +118,7 @@ function activate(context) {
     context.subscriptions.push(vscode.tasks.registerTaskProvider(TASK_TYPE, {
         provideTasks() {
             const file = entryFile();
-            return file ? ['run', 'check', 'build'].map(command => makeTask(command, file)) : [];
+            return file ? ['run', 'check', 'build'].map(command => makeTask(command, file)).filter(Boolean) : [];
         },
         resolveTask(task) {
             const definition = task.definition;
@@ -110,6 +127,7 @@ function activate(context) {
             const folder = (vscode.workspace.workspaceFolders || [])[0];
             if (!path.isAbsolute(file) && folder) file = path.join(folder.uri.fsPath, file);
             const resolved = makeTask(definition.command || 'run', file, definition.args);
+            if (!resolved) return undefined;
             resolved.definition = definition;
             return resolved;
         }

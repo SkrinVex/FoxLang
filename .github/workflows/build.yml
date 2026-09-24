@@ -80,17 +80,14 @@ jobs:
           cp -R std "$PKG/std"
           cp -R editors "$PKG/editors"
 
-          # Build official .vsix package
-          python3 packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" "dist-editors/foxlang-${{ needs.version.outputs.version }}.vsix"
-          cp "dist-editors/foxlang-${{ needs.version.outputs.version }}.vsix" "$PKG/foxlang-${{ needs.version.outputs.version }}.vsix"
+          # The VS Code package goes into the Linux package for install.sh and, once, into
+          # the release under a fixed name so releases/latest/download/foxlang.vsix works.
+          python3 packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" dist-editors/foxlang.vsix
+          cp dist-editors/foxlang.vsix "$PKG/foxlang-${{ needs.version.outputs.version }}.vsix"
 
           tar -czf "$PKG.tar.gz" "$PKG"
 
-          # Standalone editor assets for direct download in GitHub Releases. The
-          # unversioned copy keeps releases/latest/download/foxlang.vsix stable.
-          cp "dist-editors/foxlang-${{ needs.version.outputs.version }}.vsix" dist-editors/foxlang.vsix
           cp editors/kate/foxlang.xml dist-editors/foxlang.xml
-          (cd editors && zip -r ../dist-editors/foxlang-vscode.zip vscode)
       - uses: actions/upload-artifact@v4
         with:
           name: linux-release
@@ -100,8 +97,7 @@ jobs:
           name: editors-release
           path: |
             dist-editors/foxlang.xml
-            dist-editors/foxlang*.vsix
-            dist-editors/foxlang-vscode.zip
+            dist-editors/foxlang.vsix
 
   build-windows:
     needs: version

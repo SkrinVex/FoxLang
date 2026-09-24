@@ -34,7 +34,8 @@ def request(method, path, body=None, headers=None):
 
 with tempfile.TemporaryDirectory(prefix="fox-web-") as directory:
     site = Path(directory) / "сайт"
-    shutil.copytree(example, site)
+    # Data a local run of the example left behind is not part of the example.
+    shutil.copytree(example, site, ignore=shutil.ignore_patterns("entries.txt", "uploads"))
     env = dict(os.environ, PORT=str(port), FOXLANG_LOG_LEVEL="info")
     process = subprocess.Popen([str(binary), "site.fox"], cwd=site, env=env,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)

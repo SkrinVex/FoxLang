@@ -90,10 +90,16 @@ for f in "$HERE"/foxlang-*.vsix; do
   fi
 done
 
-# Если доступна консольная утилита code, устанавливаем .vsix напрямую
+# Расширение ставится одним способом на каждый редактор: две копии запускали бы
+# два языковых сервера и дважды регистрировали команды. Если есть утилита code,
+# VS Code получает .vsix, а каталог копируется только редакторам без неё.
+VSCODE_BY_CLI=0
 if command -v code >/dev/null 2>&1 && [ -n "$VSIX_FILE" ]; then
+  # Копия каталога от прежних установок мешала бы пакету из .vsix.
+  rm -rf "$HOME/.vscode/extensions/SkrinVex.foxlang-language"* "$HOME/.vscode/extensions/foxlang"* 2>/dev/null || true
   if code --install-extension "$VSIX_FILE" --force >/dev/null 2>&1; then
-    echo "✔ Расширение FoxLang для VS Code успешно установлено через команду 'code'"
+    VSCODE_BY_CLI=1
+    echo "✔ Расширение FoxLang для VS Code установлено через команду 'code'"
   fi
 fi
 
@@ -106,6 +112,9 @@ EXTENSION_TARGET_BASES=(
 )
 
 for ext_base in "${EXTENSION_TARGET_BASES[@]}"; do
+  if [ "$VSCODE_BY_CLI" = 1 ] && [ "$ext_base" = "$HOME/.vscode/extensions" ]; then
+    continue
+  fi
   parent_dir="$(dirname "$ext_base")"
   if [ -d "$parent_dir" ] || [ -d "$ext_base" ]; then
     mkdir -p "$ext_base"
