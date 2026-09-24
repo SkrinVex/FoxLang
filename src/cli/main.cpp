@@ -1,9 +1,43 @@
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include "foxlang/FoxLang.h"
+#include "foxlang/SemanticAnalyzer.h"
 #include "Image.h"
 
 bool foxlangHasBundleDescriptor();
+
+// Reports the diagnostics the editor already sees, for a terminal or CI, without executing code.
+static int check(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) throw std::runtime_error("could not open file '" + path + "'");
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+
+    foxlang::Lexer lexer(buffer.str(), true);
+    auto tokens = lexer.tokenize();
+    std::vector<foxlang::Diagnostic> diagnostics = lexer.getDiagnostics();
+
+    foxlang::Parser parser(std::move(tokens), path);
+    std::vector<foxlang::Diagnostic> parserDiagnostics;
+    auto program = parser.parseProgramWithDiagnostics(parserDiagnostics);
+    diagnostics.insert(diagnostics.end(), parserDiagnostics.begin(), parserDiagnostics.end());
+
+    foxlang::SemanticAnalyzer analyzer(path, foxlang::platform::getEnvVar("FOXLANG_HOME"));
+    analyzer.analyze(program.get());
+    const auto& semantic = analyzer.getDiagnostics();
+    diagnostics.insert(diagnostics.end(), semantic.begin(), semantic.end());
+
+    int errors = 0;
+    for (const auto& diagnostic : diagnostics) {
+        if (diagnostic.severity == foxlang::DiagnosticSeverity::Error) ++errors;
+        std::cout << path << ":" << diagnostic.range.start.line << ":" << diagnostic.range.start.column
+                  << ": " << diagnostic.severityString() << ": " << diagnostic.message << std::endl;
+    }
+    if (diagnostics.empty()) std::cout << path << ": no problems found" << std::endl;
+    return errors ? 1 : 0;
+}
 
 static int report(const foxlang::RunResult& result) {
     if (!result.success) std::cerr << "FoxLang: " << result.errorMessage << std::endl;
@@ -39,6 +73,7 @@ int main(int argc, char* argv[]) {
         std::cout << "FoxLang " << version << "\n\n"
                   << "Usage:\n"
                   << "  foxlang <script.fox>    Run a FoxLang program\n"
+                  << "  foxlang check <script.fox>  Report problems without running the program\n"
                   << "  foxlang build <file.fox> [-o|--output app]\n"
                   << "                         Bundle a standalone executable for this OS/architecture\n"
                   << "                         Includes runtime and source modules; no compiler needed\n"
@@ -62,6 +97,11 @@ int main(int argc, char* argv[]) {
                   << "       foxlang --help\n"
                   << "       foxlang --version" << std::endl;
         return 1;
+    }
+
+    if (std::string(argv[1]) == "check") {
+        if (argc != 3) throw std::runtime_error("Usage: foxlang check <script.fox>");
+        return check(argv[2]);
     }
 
     if (std::string(argv[1]) == "build") {
