@@ -55,7 +55,7 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     if (name == "gfx_rgb") {
         int r = integer(0), g = integer(1), b = integer(2);
         if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) throw std::runtime_error("Graphics Error: RGB channels must be 0..255");
-        return {"int", std::to_string((r << 16) | (g << 8) | b)};
+        return {"int", Text::integer((r << 16) | (g << 8) | b)};
     }
     if (name == "gfx_close") { window.reset(); return {"void", ""}; }
     if (name == "gfx_open") {
@@ -65,9 +65,9 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     }
     if (!window) throw std::runtime_error("Graphics Error: call open_window first");
     if (name == "gfx_poll") return {"bool", window->poll() ? "true" : "false"};
-    if (name == "gfx_delta") return {"float", runtime::formatNumber(window->delta())};
-    if (name == "gfx_mouse_x") return {"int", std::to_string(window->mouseX())};
-    if (name == "gfx_mouse_y") return {"int", std::to_string(window->mouseY())};
+    if (name == "gfx_delta") return {"float", runtime::realResult(window->delta())};
+    if (name == "gfx_mouse_x") return {"int", Text::integer(window->mouseX())};
+    if (name == "gfx_mouse_y") return {"int", Text::integer(window->mouseY())};
     if (name == "gfx_focused") return {"bool", window->focused() ? "true" : "false"};
     if (name == "gfx_down") return {"bool", window->keyDown(args[0].value) ? "true" : "false"};
     if (name == "gfx_pressed") return {"bool", window->keyPressed(args[0].value) ? "true" : "false"};

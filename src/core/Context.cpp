@@ -3,10 +3,34 @@
 #include "foxlang/Runtime.h"
 #include <algorithm>
 #include <atomic>
+#include <ostream>
 #include <string>
 #include <stdexcept>
 
 namespace foxlang {
+
+Text Text::integer(long long value) {
+    Text result;
+    result.kind_ = Kind::Integer;
+    result.integer_ = value;
+    result.ready_ = false;
+    return result;
+}
+
+Text Text::real(double value) {
+    Text result;
+    result.kind_ = Kind::Real;
+    result.real_ = value;
+    result.ready_ = false;
+    return result;
+}
+
+void Text::materialize() const {
+    text_ = kind_ == Kind::Integer ? std::to_string(integer_) : runtime::formatNumber(real_);
+    ready_ = true;
+}
+
+std::ostream& operator<<(std::ostream& out, const Text& text) { return out << text.str(); }
 
 Context::~Context() { releaseArrays(); }
 

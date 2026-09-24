@@ -21,8 +21,9 @@ bool tryInt(const Value& value, long long& out);
 
 double toNumber(const Value& value, const std::string& what);
 int toInt(const Value& value, const std::string& what);
-std::string intText(const Value& value, const std::string& what);
-std::string intResult(long long result, const std::string& op);
+Text intText(const Value& value, const std::string& what);
+Text intResult(long long result, const std::string& op);
+Text realResult(double result);
 
 Value jsonGet(const std::string& json, const std::string& path);
 Value jsonEscape(const std::string& text);

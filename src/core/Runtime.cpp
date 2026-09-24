@@ -36,7 +36,9 @@ std::string formatNumber(double val) {
 }
 
 bool tryNumber(const Value& value, double& out) {
-    const std::string& text = value.value;
+    if (value.value.isInteger()) { out = static_cast<double>(value.value.integerValue()); return true; }
+    if (value.value.isReal()) { out = value.value.realValue(); return true; }
+    const std::string& text = value.value.str();
     char* end = nullptr;
     double result = std::strtod(text.c_str(), &end);
     if (text.empty() || end != text.c_str() + text.size() || !std::isfinite(result)) return false;
@@ -45,7 +47,15 @@ bool tryNumber(const Value& value, double& out) {
 }
 
 bool tryInt(const Value& value, long long& out) {
-    const std::string& text = value.value;
+    if (value.value.isInteger()) {
+        long long stored = value.value.integerValue();
+        if (stored < -2147483648LL || stored > 2147483647LL) return false;
+        out = stored;
+        return true;
+    }
+    // A real narrows through toInt, which truncates it, exactly as its text would.
+    if (value.value.isReal()) return false;
+    const std::string& text = value.value.str();
     char* end = nullptr;
     long long result = std::strtoll(text.c_str(), &end, 10);
     if (text.empty() || end != text.c_str() + text.size() ||
@@ -61,6 +71,11 @@ double toNumber(const Value& value, const std::string& what) {
     return result;
 }
 
+Text realResult(double result) {
+    if (!std::isfinite(result)) throw std::runtime_error("Runtime Error: float result is not a finite number");
+    return Text::real(result);
+}
+
 int toInt(const Value& value, const std::string& what) {
     double number = toNumber(value, what);
     if (number < -2147483648.0 || number > 2147483647.0)
@@ -69,15 +84,15 @@ int toInt(const Value& value, const std::string& what) {
     return static_cast<int>(number);
 }
 
-std::string intText(const Value& value, const std::string& what) {
-    return std::to_string(toInt(value, what));
+Text intText(const Value& value, const std::string& what) {
+    return Text::integer(toInt(value, what));
 }
 
-std::string intResult(long long result, const std::string& op) {
+Text intResult(long long result, const std::string& op) {
     if (result < -2147483648LL || result > 2147483647LL)
         throw std::runtime_error("Runtime Error: int overflow in '" + op + "': result " + std::to_string(result) +
                                  " is outside -2147483648..2147483647");
-    return std::to_string(result);
+    return Text::integer(result);
 }
 
 int getLogLevelThreshold() {
@@ -453,14 +468,14 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
         static std::random_device rd;
         static std::mt19937 gen(rd());
         std::uniform_int_distribution<> dis(min, max);
-        return {"int", std::to_string(dis(gen))};
+        return {"int", Text::integer(dis(gen))};
     }
 
     if (name == "abs" && args.size() == 1) {
         const Value& v = args[0];
         double n = toNumber(v, "abs() argument");
         if (v.type == "int") return {"int", intResult(std::llabs(static_cast<long long>(n)), "abs")};
-        return {"float", formatNumber(std::fabs(n))};
+        return {"float", realResult(std::fabs(n))};
     }
 
     if ((name == "min" || name == "max") && args.size() == 2) {
@@ -469,7 +484,7 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
         double av = toNumber(a, name + "() first argument"), bv = toNumber(b, name + "() second argument");
         double out = (name == "min") ? std::min(av, bv) : std::max(av, bv);
         if (a.type == "int" && b.type == "int") return {"int", intResult(static_cast<long long>(out), name)};
-        return {"float", formatNumber(out)};
+        return {"float", realResult(out)};
     }
 
     if (name == "clamp" && args.size() == 3) {
@@ -477,7 +492,7 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
         double lo = toNumber(args[1], "clamp() lower bound");
         double hi = toNumber(args[2], "clamp() upper bound");
         if (lo > hi) std::swap(lo, hi);
-        return {"float", formatNumber(std::max(lo, std::min(v, hi)))};
+        return {"float", realResult(std::max(lo, std::min(v, hi)))};
     }
 
     if (args.size() == 1 && (name == "sqrt" || name == "floor" || name == "ceil" || name == "sin" || name == "cos")) {
@@ -488,23 +503,23 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
                         name == "floor" ? std::floor(value) :
                         name == "ceil" ? std::ceil(value) :
                         name == "sin" ? std::sin(value) : std::cos(value);
-        return {"float", formatNumber(result)};
+        return {"float", realResult(result)};
     }
 
     if (name == "pow" && args.size() == 2) {
         double result = std::pow(toNumber(args[0], "pow() base"), toNumber(args[1], "pow() exponent"));
         if (!std::isfinite(result))
             throw std::runtime_error("Runtime Error: pow() result is out of the float range");
-        return {"float", formatNumber(result)};
+        return {"float", Text::real(result)};
     }
 
     if (name == "str_length" && args.size() == 1) {
         if (args[0].type != "string") throw std::runtime_error("str_length() requires string");
         // Characters, not bytes: a UTF-8 continuation byte never starts a character.
         long long characters = 0;
-        for (unsigned char byte : args[0].value)
+        for (unsigned char byte : args[0].value.str())
             if ((byte & 0xc0) != 0x80) ++characters;
-        return {"int", std::to_string(characters)};
+        return {"int", Text::integer(characters)};
     }
 
     if (name == "time_ms" && args.empty()) {
@@ -594,10 +609,10 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     if (name == "size" && args.size() == 1) {
         const Value& val = args[0];
         if (val.type == "string") {
-            return {"int", std::to_string(val.value.length())};
+            return {"int", Text::integer(static_cast<long long>(val.value.length()))};
         }
         if (val.type == "array") {
-            return {"int", std::to_string(ctx.getRoot()->arrays[val.value].size())};
+            return {"int", Text::integer(static_cast<long long>(ctx.getRoot()->arrays[val.value].size()))};
         }
         throw std::runtime_error("size() requires array or string");
     }

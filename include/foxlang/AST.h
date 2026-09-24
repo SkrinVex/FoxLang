@@ -271,7 +271,7 @@ struct BinOpNode : Node {
                 return {"string", lval.value + rval.value};
             }
             if (lval.type == "float" || rval.type == "float") {
-                return {"float", runtime::formatNumber(number(lval, "left") + number(rval, "right"))};
+                return {"float", runtime::realResult(number(lval, "left") + number(rval, "right"))};
             }
             return {"int", runtime::intResult(integer(lval, "left") + integer(rval, "right"), op)};
         }
@@ -285,7 +285,7 @@ struct BinOpNode : Node {
                 double result = (op == "-" || op == "-=") ? l - r :
                                 (op == "*" || op == "*=") ? l * r :
                                 (op == "/" || op == "/=") ? l / r : std::fmod(l, r);
-                return {"float", runtime::formatNumber(result)};
+                return {"float", runtime::realResult(result)};
             }
             long long l = integer(lval, "left"), r = integer(rval, "right");
             if ((op == "/" || op == "/=" || op == "%") && r == 0) {
@@ -369,7 +369,7 @@ struct PostIncNode : Node {
         Value current = ctx.getVar(name);
         long long val = intArg(current, "variable", name);
         ctx.setVar(name, {"int", runtime::intResult(val + 1, "++")});
-        return {"int", std::to_string(val)};
+        return {"int", Text::integer(val)};
     }
 };
 

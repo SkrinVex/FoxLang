@@ -260,6 +260,21 @@ int main() {
         TEST_ASSERT(interp.getGlobal("other").value == "true");
     }
 
+    // 19. A number carries its binary form but still prints the text it always did
+    {
+        foxlang::Interpreter interp;
+        auto res = interp.runSource(
+            "int n = 21 * 2; string label = \"n = \" + n;"
+            "float quarter = 1.0 / 4.0; string shown = \"\" + quarter;"
+            "float tiny = 2.0 / 3.0; string precise = \"\" + tiny;"
+            "bool same = n == 42;");
+        TEST_ASSERT(res.success);
+        TEST_ASSERT(interp.getGlobal("label").value == "n = 42");
+        TEST_ASSERT(interp.getGlobal("shown").value == "0.25");
+        TEST_ASSERT(interp.getGlobal("precise").value == "0.6666666666666666");
+        TEST_ASSERT(interp.getGlobal("same").value == "true");
+    }
+
     std::cout << "TEST_INTERPRETER_OK" << std::endl;
     return 0;
 }
