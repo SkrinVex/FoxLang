@@ -3,6 +3,8 @@ import os
 import sys
 import json
 import zipfile
+from pathlib import Path
+import re
 
 def build_vsix(source_dir, output_vsix, version):
     pkg_json_path = os.path.join(source_dir, 'package.json')
@@ -12,7 +14,11 @@ def build_vsix(source_dir, output_vsix, version):
     with open(pkg_json_path, 'r', encoding='utf-8') as f:
         pkg = json.load(f)
 
-    pkg_version = pkg.get('version', version)
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
+        raise ValueError(f"Invalid FoxLang version: {version}")
+    pkg_version = pkg.get('version')
+    if pkg_version != version:
+        raise ValueError(f"VS Code version {pkg_version!r} does not match requested version {version!r}")
     pkg_id = pkg.get('name', 'foxlang-language')
     pkg_publisher = pkg.get('publisher', 'SkrinVex')
     display_name = pkg.get('displayName', 'FoxLang Programming Language')
@@ -49,15 +55,18 @@ def build_vsix(source_dir, output_vsix, version):
         z.writestr('[Content_Types].xml', content_types)
         z.writestr('extension.vsixmanifest', vsix_manifest)
         for root, dirs, files in os.walk(source_dir):
-            for file in files:
+            dirs[:] = sorted(d for d in dirs if d not in {'.git', 'node_modules', '__pycache__'})
+            for file in sorted(files):
+                if file == '.env' or file.startswith('.env.'):
+                    continue
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, source_dir)
-                z.write(full_path, f"extension/{rel_path}")
+                z.write(full_path, f"extension/{Path(rel_path).as_posix()}")
 
     print(f"Successfully packaged VSIX: {output_vsix} (v{pkg_version})")
 
 if __name__ == '__main__':
     src = sys.argv[1] if len(sys.argv) > 1 else 'editors/vscode'
-    ver = sys.argv[2] if len(sys.argv) > 2 else '5.5.3'
+    ver = sys.argv[2] if len(sys.argv) > 2 else (Path(__file__).resolve().parents[1] / 'VERSION').read_text().strip()
     out = sys.argv[3] if len(sys.argv) > 3 else f'foxlang-{ver}.vsix'
     build_vsix(src, out, ver)

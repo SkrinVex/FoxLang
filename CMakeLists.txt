@@ -1,6 +1,18 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.18)
 cmake_policy(SET CMP0091 NEW)
-project(FoxLang VERSION 5.5.3 LANGUAGES CXX)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" FOXLANG_VERSION LIMIT_COUNT 1)
+if(NOT FOXLANG_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "VERSION must contain a major.minor.patch version")
+endif()
+project(FoxLang VERSION ${FOXLANG_VERSION} LANGUAGES C CXX)
+option(FOXLANG_STATIC_LINUX "Link Linux executables statically (use a musl toolchain for portability)" OFF)
+if(FOXLANG_STATIC_LINUX)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "FOXLANG_STATIC_LINUX requires a Linux toolchain")
+    endif()
+    add_link_options(-static)
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
 
 # Standalone programs must not need a separately installed MSVC runtime.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -12,15 +24,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Enable compiler warnings
 if(MSVC)
-    add_compile_options(/W4 /EHsc /utf-8)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/W4> $<$<COMPILE_LANGUAGE:CXX>:/EHsc> $<$<COMPILE_LANGUAGE:CXX>:/utf-8>)
 else()
-    add_compile_options(-Wall -Wextra -pedantic)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wall> $<$<COMPILE_LANGUAGE:CXX>:-Wextra> $<$<COMPILE_LANGUAGE:CXX>:-pedantic>)
 endif()
 
 # Reusable FoxLang core library
 add_library(foxlang_core STATIC
     src/core/Context.cpp
     src/core/Platform.cpp
+    src/core/Network.cpp
+    src/core/HttpClient.cpp
+    src/core/TlsServer.cpp
     src/core/Runtime.cpp
     src/core/SourceProvider.cpp
     src/core/Lexer.cpp
@@ -34,6 +49,8 @@ target_include_directories(foxlang_core PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 target_include_directories(foxlang_core PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+target_compile_definitions(foxlang_core PRIVATE FOXLANG_VERSION="${PROJECT_VERSION}")
+include(cmake/Networking.cmake)
 
 # FoxLang CLI executable
 add_library(foxlang_bundle STATIC

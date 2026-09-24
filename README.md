@@ -1,6 +1,6 @@
 # 🦊 FoxLang
 
-![Версия](https://img.shields.io/badge/version-5.5.3-orange)
+![Версия](https://img.shields.io/badge/version-5.6.0-orange)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
@@ -18,7 +18,8 @@ main();
 
 ## Установка
 
-Для сборки FoxLang из этого репозитория нужны CMake и компилятор C++17:
+Для сборки FoxLang из этого репозитория нужны CMake 3.18+, компиляторы C и C++17
+и интернет для первоначальной загрузки закреплённых сетевых библиотек:
 
 ```bash
 git clone https://github.com/SkrinVex/FoxLang.git
@@ -77,10 +78,15 @@ FoxLang runtime получателю не нужны. Сам `foxlang build` т�
 `.env` автоматически. Секрет, записанный прямо в `.fox`, останется частью программы.
 Файлы для `read_file()` по-прежнему предоставляются отдельно.
 
-HTTP-клиент по-прежнему требует внешний `curl` в `PATH` (для HTTPS — также доверенные
-сертификаты ОС). HTTP-сервер и TCP/DNS доступны на Linux/POSIX; в Windows их
-реализация пока отсутствует. На Linux сохраняется зависимость от совместимых
-системных libc/libm и загрузчика; перенос между glibc и musl не гарантируется.
+HTTP(S)-клиент встроен: отдельные `curl` и DLL сетевой библиотеки не нужны.
+HTTP/HTTPS-сервер и TCP/DNS реализованы на Linux и Windows. Публичные CA Mozilla
+встроены: отдельная установка CA-сертификатов не требуется. HTTPS проверяет цепочку
+сертификатов и имя сервера. `FOXLANG_CA_BUNDLE` позволяет выбрать свой PEM-файл,
+`system` — доверенное хранилище ОС, `embedded` — встроенное.
+
+Linux-пакет собирается статически на musl, чтобы исключить зависимость от версии
+glibc/musl у получателя. Обычная локальная CMake-сборка может сохранять зависимости
+от libc/libm. Linux и Windows по-прежнему получают разные executable для своей ОС.
 
 Подробности: [standalone и ограничения](docs/STANDALONE.md),
 [полная документация языка](DOCUMENTATION.md).
@@ -89,11 +95,12 @@ HTTP-клиент по-прежнему требует внешний `curl` в 
 
 | Платформа | CLI | Standalone build |
 |---|---|---|
-| Linux x86_64 | Проверено локально, CTest | Проверено из чистого временного каталога |
-| Windows x86_64 | Job `desktop-windows` в CI | Job `desktop-windows`: сборка и запуск `.exe` в чистом каталоге; результат текущего изменения ещё требует проверки |
+| Linux x86_64 | Да, локальные тесты и CI | Да, запуск из чистого временного каталога в CI |
+| Windows x86_64 | Да, MSVC в CI | Да, создание и запуск `.exe` в чистом каталоге в CI |
 | Android | Планируется отдельная интеграция | Планируется, не реализовано |
 
 Тесты Linux и Windows находятся в [обычном CI](.github/workflows/ci.yml).
+Первый подтверждённый прогон: [Linux и Windows, оба job прошли](https://github.com/SkrinVex/FoxLang/actions/runs/35911331060).
 Wine/MinGW не заменяют проверку на Windows runner.
 
 ---
@@ -115,7 +122,7 @@ Wine/MinGW не заменяют проверку на Windows runner.
 - Файловый ввод-вывод (`read_file`, `write_file`, `append_file`).
 - Терминальный/TUI API (ANSI-цвета, позиционирование курсора, очистка).
 - Сетевой клиент (DNS, TCP-сокеты, HTTP GET/POST/PUT/DELETE).
-- HTTP/webhook-сервер на POSIX (`get`, `post`, `body`, `method`, `path`, `respond`, `listen`, `server_stop`).
+- HTTP/webhook-сервер на Linux и Windows (`get`, `post`, `body`, `method`, `path`, `respond`, `listen`, `server_stop`).
 - Независимая C++17 библиотека ядра (`foxlang_core`) для встраивания в приложения и тесты.
 - Полнофункциональный языковой сервер `foxlang-lsp` (LSP 3.17) и готовые плагины для VS Code, Kate и Zed IDE.
 
@@ -123,7 +130,7 @@ Wine/MinGW не заменяют проверку на Windows runner.
 
 ## Сборка и тестирование (CMake)
 
-Проект использует стандартную систему сборки **CMake** (требуется C++17) и **CTest** для автоматического запуска регрессионных и модульных тестов.
+Проект использует **CMake 3.18+**, компиляторы C и C++17 и **CTest** для автоматического запуска регрессионных и модульных тестов.
 
 ### Быстрая сборка
 
@@ -142,8 +149,41 @@ ctest --test-dir build -C Release --output-on-failure
 
 Все тесты (native unit-тесты Lexer, Parser, Interpreter API, регрессионные тесты языка, локальные тесты HTTP сервера/клиента) запускаются в едином цикле CTest и завершаются с ненулевым статусом при обнаружении регрессий.
 
-Стандартная библиотека встраивается во время конфигурации CMake. Для тестов
-дополнительно нужен Python 3; в готовых CLI и standalone он не используется.
+Стандартная библиотека встраивается во время конфигурации CMake. HTTP(S) использует
+статический libcurl 8.22.0. HTTPS-сервер на обеих ОС использует Mbed TLS 3.6.7;
+клиент использует Mbed TLS на Linux и Schannel на Windows.
+CMake загружает исходники с проверкой SHA-256; повторная сборка использует кэш.
+Для сборки без сети задайте `FETCHCONTENT_SOURCE_DIR_CURL` и
+`FETCHCONTENT_SOURCE_DIR_MBEDTLS`, указывающие на распакованные исходники этих версий.
+Для тестов дополнительно нужны Python 3 и утилита `openssl`; старый Linux shell-тест
+использует `curl` как тестовый клиент. Готовые CLI и standalone эти утилиты не запускают.
+Лицензии библиотек встроены: `foxlang --foxlang-licenses` или `./app --foxlang-licenses`.
+
+### Переносимая Linux-сборка
+
+```bash
+docker buildx build --target portable --output type=local,dest=build-portable .
+./build-portable/foxlang build hello.fox -o hello
+```
+
+Этот вариант статически включает musl и библиотеки C++, HTTP и TLS. CI проверяет
+сборку в Alpine и запуск тех же бинарников на Ubuntu. Флаг CMake
+`-DFOXLANG_STATIC_LINUX=ON` предназначен для musl toolchain. Один executable не
+заменяет ядро ОС и не обеспечивает запуск Linux ELF на Windows.
+
+### HTTPS-сервер
+
+```cpp
+using server;
+using env;
+void health() { respond("ready"); }
+get("/health", "health");
+listen_tls(8443, secret("TLS_CERT_FILE"), secret("TLS_KEY_FILE"));
+```
+
+TLS встроен; reverse proxy необязателен. Укажите пути к PEM-сертификату с цепочкой
+и приватному ключу во время запуска. Ключ и сертификат автоматически не упаковываются.
+Обычный `listen(8080)` сохраняет HTTP. Подробнее: [HTTPS и trust store](DOCUMENTATION.md#https-сервер-и-доверенные-ca).
 
 ---
 
@@ -283,15 +323,15 @@ docker build -t foxlang:latest .
 
 **Быстрая установка:**
 * **Через установщик**: скрипт `install.sh` автоматически регистрирует расширение в VS Code / VSCodium / Flatpak.
-* **Через пакет VSIX**: скачайте [`foxlang-5.5.3.vsix`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-5.5.3.vsix) и выполните:
+* **Через пакет VSIX**: скачайте [`foxlang-5.6.0.vsix`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-5.6.0.vsix) и выполните:
   ```bash
-  code --install-extension foxlang-5.5.3.vsix
+  code --install-extension foxlang-5.6.0.vsix
   ```
   *(или выберите в VS Code: Расширения `Ctrl+Shift+X` → `...` → **Install from VSIX...**)*
 * **Вручную из репозитория**:
   ```bash
-  mkdir -p ~/.vscode/extensions/SkrinVex.foxlang-language-5.5.3
-  cp -R editors/vscode/* ~/.vscode/extensions/SkrinVex.foxlang-language-5.5.3/
+  mkdir -p ~/.vscode/extensions/SkrinVex.foxlang-language-5.6.0
+  cp -R editors/vscode/* ~/.vscode/extensions/SkrinVex.foxlang-language-5.6.0/
   ```
 *(Расширение полностью автономно и не требует запуска `npm install`)*
 
@@ -437,7 +477,7 @@ FoxLang/
 Архитектура изолирует платформозависимый код в `Platform.h` / `Platform.cpp` и `foxlang_core`. Библиотека может компилироваться в `libfoxlang.so` для Android с помощью Android NDK.
 
 **Текущие особенности и ограничения при встраивании в Android:**
-- **Отсутствие утилиты curl**: на обычном Android нет системного бинарника `curl`. При встраивании в Android HTTP-клиент следует перенаправлять в Java-стек (`HttpURLConnection` / `OkHttp`) через JNI или линковать проект с `libcurl.so`.
+- **HTTPS и сертификаты**: внешний `curl` больше не нужен. Интеграцию статического TLS backend и доверенного хранилища Android ещё необходимо проверить; Android не входит в подтверждённые платформы.
 - **Терминальный ввод**: функции `getch()` и `kbhit()` обращаются к `stdin` TUI, который не поддерживается в графических Android-активностях.
 - **Сетевые сокеты**: требуют разрешения `android.permission.INTERNET` в манифесте приложения.
 - **Файловая система и FOXLANG_HOME**: на Android путь к стандартной библиотеке `std/` должен указывать на внутренний каталог приложения (например, `/data/data/<package>/files/std`), задаваемый через `InterpreterOptions.foxHome`.

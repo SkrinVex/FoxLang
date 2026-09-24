@@ -12,6 +12,10 @@ static int report(const foxlang::RunResult& result) {
 
 int main(int argc, char* argv[]) {
     try {
+    if (argc == 2 && std::string(argv[1]) == "--foxlang-licenses") {
+        std::cout << foxlang::platform::thirdPartyLicenses();
+        return 0;
+    }
 #if (defined(__linux__) || defined(_WIN32)) && (defined(__x86_64__) || defined(_M_X64))
     if (!foxlangHasBundleDescriptor()) throw std::runtime_error("Bundle Error: damaged stub descriptor");
     auto embedded = foxlang::bundle::unpack(foxlang::bundle::readImage(foxlang::bundle::executablePath()));
@@ -40,11 +44,13 @@ int main(int argc, char* argv[]) {
                   << "                         Includes runtime and source modules; no compiler needed\n"
                   << "  foxlang --version       Show version\n"
                   << "  foxlang --help          Show this help\n\n"
+                  << "  foxlang --foxlang-licenses  Show embedded dependency licenses\n\n"
                   << "Environment:\n"
                   << "  FOXLANG_HOME            FoxLang installation/std library path\n"
                   << "  FOXLANG_LOG_LEVEL       debug | info | warn | error | off\n"
                   << "  FOXLANG_LOG             Legacy master log switch\n\n"
-                  << "Standalone: .env/resources are not bundled; HTTP client still requires curl.\n\n"
+                  << "  FOXLANG_CA_BUNDLE       PEM CA file | embedded (default) | system\n\n"
+                  << "Standalone: .env/resources are not bundled; HTTP(S) and TCP are built in.\n\n"
                   << "Repository & documentation:\n"
                   << "  https://github.com/SkrinVex/FoxLang\n"
                   << "  https://github.com/SkrinVex/FoxLang/blob/master/DOCUMENTATION.md\n";

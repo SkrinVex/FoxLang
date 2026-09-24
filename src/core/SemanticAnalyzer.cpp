@@ -150,6 +150,8 @@ void SemanticAnalyzer::addBuiltins() {
 
     addFn("server_start", "string", {{"int", "port"}},
         "Низкоуровневый запуск встроенного HTTP-сервера на порту.");
+    addFn("server_start_tls", "void", {{"int", "port"}, {"string", "certificate"}, {"string", "private_key"}},
+        "Запуск HTTPS-сервера. PEM-сертификат и приватный ключ загружаются при запуске.");
 
     addFn("server_stop", "string", {},
         "Остановка запущенного встроенного HTTP-сервера.");
@@ -196,6 +198,8 @@ void SemanticAnalyzer::loadModuleSymbols(const std::string& moduleName, SourceRa
     };
 
     if (moduleName == "server") {
+        addFn("listen_tls", "void", {{"int", "port"}, {"string", "certificate"}, {"string", "private_key"}},
+            "Запустить HTTPS/webhook сервер с TLS 1.2 или новее. Сертификат и ключ — пути к PEM-файлам во время запуска.");
         addFn("listen", "void", {{"int", "port"}},
             "Запустить HTTP/webhook сервер на указанном порту (0.0.0.0).\n"
             "Блокирует текущий поток до вызова `server_stop()`.\n\n"
@@ -992,7 +996,7 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         const char* doc;
     };
     static const std::vector<ModuleDoc> stdModules = {
-        {"server", "Модуль HTTP/webhook сервера на POSIX (`listen`, `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`)."},
+        {"server", "Модуль HTTP/webhook сервера для Linux и Windows (`listen`, `get`, `post`, `body`, `method`, `path`, `respond`, `respond_status`)."},
         {"http", "Модуль исходящих HTTP-клиентских запросов (`http_fetch`, `http_post_json`, `http_post_as`, `http_put_json`, `http_remove`)."},
         {"env", "Модуль переменных окружения и секретов (`env`, `secret`, `env_default`). Автоматически читает `.env` файл."},
         {"log", "Модуль уровневого логирования (`debug`, `info`, `warn`, `error`)."},

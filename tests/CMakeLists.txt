@@ -11,6 +11,11 @@ add_executable(test_interpreter unit/test_interpreter.cpp)
 target_link_libraries(test_interpreter PRIVATE foxlang_core)
 add_test(NAME unit_interpreter COMMAND test_interpreter)
 
+add_executable(test_certificates unit/test_certificates.cpp)
+target_include_directories(test_certificates PRIVATE ${CMAKE_BINARY_DIR}/generated)
+target_link_libraries(test_certificates PRIVATE mbedx509)
+add_test(NAME unit_certificates COMMAND test_certificates)
+
 add_executable(test_positions unit/test_positions.cpp)
 target_link_libraries(test_positions PRIVATE foxlang_core)
 add_test(NAME unit_positions COMMAND test_positions)
@@ -33,19 +38,25 @@ add_test(NAME unit_lsp_protocol COMMAND test_lsp_protocol)
 # Packaging is tested from a copied CLI with no stdlib, then with only the result
 # in a clean recipient directory. Python is a test dependency, never a runtime one.
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME packaging_versions COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_versions.py ${CMAKE_SOURCE_DIR})
 add_executable(test_bundle unit/test_bundle.cpp)
 target_link_libraries(test_bundle PRIVATE foxlang_bundle)
 add_test(NAME standalone_bundle_format COMMAND test_bundle $<TARGET_FILE:foxlang>)
 set_tests_properties(standalone_bundle_format PROPERTIES LABELS standalone)
-set(STANDALONE_TESTS hello cli modules unicode_json environment errors corruption http_client)
-if(UNIX AND NOT APPLE)
-    list(APPEND STANDALONE_TESTS http_server)
-endif()
+set(STANDALONE_TESTS hello cli modules unicode_json environment errors corruption http_client http_server tcp)
 foreach(T IN LISTS STANDALONE_TESTS)
     add_test(NAME standalone_${T}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_standalone.py $<TARGET_FILE:foxlang> ${T})
     set_tests_properties(standalone_${T} PROPERTIES TIMEOUT 60 LABELS standalone)
 endforeach()
+
+add_test(NAME standalone_https
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_tls.py $<TARGET_FILE:foxlang>)
+set_tests_properties(standalone_https PROPERTIES TIMEOUT 90 LABELS standalone)
+
+add_test(NAME standalone_https_server
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_https_server.py $<TARGET_FILE:foxlang>)
+set_tests_properties(standalone_https_server PROPERTIES TIMEOUT 90 LABELS standalone)
 
 # Common environment for FoxLang script tests
 set(FOXLANG_TEST_ENV
@@ -91,13 +102,14 @@ endforeach()
 
 # CLI flags tests
 add_test(NAME cli_version COMMAND foxlang --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "FoxLang 5.5.3")
+string(REPLACE "." "[.]" FOXLANG_VERSION_PATTERN "${PROJECT_VERSION}")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "FoxLang ${FOXLANG_VERSION_PATTERN}")
 
 add_test(NAME cli_help COMMAND foxlang --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "https://github.com/SkrinVex/FoxLang")
 
 add_test(NAME lsp_cli_version COMMAND foxlang-lsp --version)
-set_tests_properties(lsp_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "foxlang-lsp 5.5.3")
+set_tests_properties(lsp_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "foxlang-lsp ${FOXLANG_VERSION_PATTERN}")
 
 add_test(NAME lsp_cli_help COMMAND foxlang-lsp --help)
 set_tests_properties(lsp_cli_help PROPERTIES PASS_REGULAR_EXPRESSION "Language Server")

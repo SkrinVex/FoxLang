@@ -1,4 +1,6 @@
 #include "Image.h"
+#include <algorithm>
+#include <cctype>
 #include <fstream>
 #include <random>
 #include <stdexcept>
@@ -38,7 +40,9 @@ public:
 void build(const fs::path& input, fs::path output) {
     if (output.empty()) output = input.stem();
 #ifdef _WIN32
-    if (output.extension() != ".exe" && output.extension() != ".EXE") output += ".exe";
+    auto extension = output.extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (extension != ".exe") output += ".exe";
 #endif
     output = fs::absolute(output);
     if (fs::exists(fs::symlink_status(output))) throw std::runtime_error("Build Error: output already exists: " + output.string());

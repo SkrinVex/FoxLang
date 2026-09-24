@@ -1,3 +1,33 @@
+# FoxLang 5.6.0 — Changelog
+
+- Встроенный HTTPS-сервер `listen_tls(port, certificate, private_key)` на Linux и
+  Windows, без обязательного reverse proxy. PEM credentials читаются при запуске;
+  отсутствующий/неверный ключ не приводит к переключению на незашифрованный HTTP.
+- Публичный набор CA Mozilla встроен и проверяется по закреплённому SHA-256.
+  Системный пакет CA больше не обязателен; доступны явные `embedded`, `system`
+  и пользовательский PEM через `FOXLANG_CA_BUNDLE`.
+- Переносимый Linux-пакет собирается статически на musl. CI проверяет отсутствие
+  ELF interpreter/shared libraries и запуск Alpine-сборки на Ubuntu.
+
+- `foxlang build file.fox [-o|--output app]` создаёт один standalone executable
+  со встроенным runtime, stdlib и рекурсивными локальными модулями для Linux x86_64
+  и Windows x86_64. Компилятор при упаковке и установленный FoxLang у получателя
+  не нужны. Это runtime bundling, не native AOT-компиляция.
+- Bundle использует проверяемый ELF/PE-дескриптор, версию, границы, таблицу модулей
+  и CRC32; существующий выходной файл не перезаписывается. `.env`, значения
+  окружения и ресурсы автоматически не упаковываются.
+- HTTP(S)-клиент больше не запускает внешний `curl`: libcurl встроен статически,
+  TLS использует Mbed TLS на Linux и Schannel на Windows. Сертификаты и имя
+  сервера проверяются; поддержан runtime `FOXLANG_CA_BUNDLE`.
+- HTTP-сервер, TCP и DNS работают через общее ядро с POSIX sockets и Winsock.
+  Исправлены частичная отправка данных, регистр HTTP-заголовков, проверка
+  Content-Length и HTTP 500 при исключении обработчика.
+- Версии CLI/LSP берутся из VERSION; метаданные VS Code и Zed синхронизированы.
+  VSIX-сборщик проверяет совпадение версий и переносимые пути архива.
+- Добавлены изолированные standalone-тесты, локальные HTTP/HTTPS/TCP и webhook
+  проверки, тесты повреждённого bundle, отсутствия секретов и согласованности
+  версий. Linux и Windows выполняют их в обычном CI.
+
 # FoxLang 5.5.3 — Changelog
 
 - **Функция `env_default(name, fallback)`**:

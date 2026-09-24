@@ -1,4 +1,4 @@
-# 📚 Документация FoxLang v5.5.3
+# 📚 Документация FoxLang v5.6.0
 
 ## Оглавление
 1. [Основы синтаксиса](#1-основы-синтаксиса)
@@ -11,6 +11,7 @@
 8. [Встроенные функции](#8-встроенные-функции)
 9. [Сетевые возможности и HTTP](#9-сетевые-возможности-и-http)
 10. [Современный синтаксис](#10-современный-синтаксис)
+11. [Standalone приложения](#21-standalone-приложения-foxlang-build)
 
 ---
 
@@ -78,7 +79,7 @@ void greet(string name) {
 
 // Функция без параметров
 string get_version() {
-    return "FoxLang 5.5.2";
+    return "FoxLang 5.6.0";
 }
 ```
 
@@ -436,7 +437,7 @@ include("src/net.fox");
 
 // Обработчики маршрутов
 void api_home() {
-    json_response("{\"message\":\"Welcome to FoxLang API!\",\"version\":\"5.0.1\"}");
+    json_response("{\"message\":\"Welcome to FoxLang API!\",\"version\":\"5.6.0\"}");
 }
 
 void api_users() {
@@ -643,18 +644,15 @@ main();
 
 #### 🧪 Компиляция и запуск
 ```bash
-# Сборка через CMake (рекомендуется)
-cmake -S . -B build && cmake --build build
-
-# Или прямая компиляция через g++
+# Сборка runtime через CMake
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 
 # Запуск HTTP клиента
-./foxlang examples/http_demo.fox
+./build/foxlang examples/http_demo.fox
 
 # Запуск веб-сервера
-./foxlang examples/fastapi_demo.fox
+./build/foxlang examples/fastapi_demo.fox
 ```
 
 ### Расширенные примеры использования
@@ -803,7 +801,7 @@ main();
 - Использует простую реализацию HTTP сервера
 - Поддерживает GET и POST методы
 - JSON ответы автоматически получают правильный Content-Type
-- `listen` / `server_start` блокирует выполнение до остановки сервера; сетевой runtime доступен только на Linux/POSIX
+- `listen` / `server_start` блокирует выполнение до остановки сервера; сетевой runtime реализован для Linux и Windows
 
 ---
 
@@ -902,7 +900,7 @@ void sort_user_scores(array scores, int count) {
 | Модуль | Назначение |
 |---|---|
 | `terminal` | очистка терминала, перемещение курсора, ANSI-цвета и вывод без переноса строки |
-| `net` | DNS и настоящие TCP-клиентские соединения на POSIX |
+| `net` | DNS и TCP-клиентские соединения на Linux и Windows |
 | `http` | удобные обёртки для GET/POST/PUT/DELETE |
 | `math` | `clamp`, `min`, `max` и математические помощники |
 | `string` | поиск, замена и преобразование строк |
@@ -938,7 +936,7 @@ show_cursor();
 
 ### HTTP/webhook-сервер
 
-FoxLang содержит настоящий HTTP-сервер для Linux/POSIX. Маршруты регистрируются до вызова `listen()`.
+FoxLang содержит HTTP-сервер для Linux и Windows. Маршруты регистрируются до вызова `listen()`.
 
 ```cpp
 using server;
@@ -994,7 +992,7 @@ FOXLANG_LOG_LEVEL=info
 
 ## 13. HTTP/webhook-сервер
 
-На Linux/POSIX FoxLang предоставляет встроенный HTTP runtime:
+На Linux и Windows FoxLang предоставляет встроенный HTTP runtime:
 - `get(path, handler_func_name)` — регистрация GET-обработчика;
 - `post(path, handler_func_name)` — регистрация POST-обработчика;
 - `body()` — получение тела запроса;
@@ -1023,7 +1021,45 @@ void main() {
 main();
 ```
 
-Сервер слушает соединения по HTTP. Для развёртывания в публичном интернете рекомендуется использовать HTTPS reverse proxy (Nginx, Caddy) либо туннель Cloudflare.
+`listen()` слушает HTTP; `listen_tls()` включает встроенный HTTPS. Reverse proxy можно
+использовать по выбору, но он не требуется для TLS.
+
+### HTTPS-сервер и доверенные CA
+
+```cpp
+using server;
+using env;
+void health() { respond("ready"); }
+get("/health", "health");
+listen_tls(8443, secret("TLS_CERT_FILE"), secret("TLS_KEY_FILE"));
+```
+
+`listen_tls(int port, string certificate, string private_key)` использует TLS 1.2
+или новее через статический Mbed TLS на Linux и Windows. Аргументы — пути к
+PEM-файлам во время запуска: сертификат (leaf первым, затем intermediate chain) и
+его незашифрованный приватный ключ. Отсутствующие, повреждённые или несовпадающие
+credentials завершают программу с ошибкой до открытия порта. Ошибка handshake
+закрывает только соединение; сервер продолжает работать и не переключается на HTTP.
+Маршруты, `body`, `respond`, JSON и `server_stop` используются как в обычном сервере.
+Сервер обслуживает соединения последовательно, с ограничением I/O соединения
+10 сек. и отдельного блокирующего чтения/записи 5 сек. mTLS, автоматическое получение
+и продление сертификата и горячая смена ключа пока не реализованы; для обновления
+сертификата перезапустите сервер. Приватные ключи не должны находиться в исходниках:
+передавайте пути или подключайте хранилище секретов во время запуска.
+
+Для исходящих HTTPS-запросов по умолчанию встроен публичный CA snapshot Mozilla
+от 2026-08-13. У получателя не требуется отдельный пакет CA. Проверки цепочки и
+имени сервера обязательны. При необходимости задайте `FOXLANG_CA_BUNDLE`:
+
+- путь к PEM-файлу — заменить набор доверенных CA;
+- `embedded` — явно использовать встроенный snapshot;
+- `system` — явно использовать доверенное хранилище ОС.
+
+На Linux `SSL_CERT_FILE` учитывается, когда `FOXLANG_CA_BUNDLE` не задан.
+Ошибочный путь вызывает ошибку проверки TLS, а не отключение проверки.
+Пользовательские CA, сертификат сервера и его ключ автоматически не встраиваются.
+Для обновления встроенного snapshot обновите FoxLang и пересоберите standalone;
+происхождение, лицензия и порядок обновления описаны в [resources/ca](resources/ca/README.md).
 
 ---
 
@@ -1096,7 +1132,12 @@ int main() {
 
 ## 17. Сборка, тестирование и разработка (CMake/CTest)
 
-Стандартная сборка проекта выполняется через CMake (требуется компилятор с поддержкой C++17):
+Стандартная сборка требует CMake 3.18+, компиляторы C и C++17. При первой
+конфигурации загружаются libcurl 8.22.0 и Mbed TLS 3.6.7 с проверкой
+SHA-256. Для offline-сборки укажите распакованные исходники через
+`FETCHCONTENT_SOURCE_DIR_CURL` и `FETCHCONTENT_SOURCE_DIR_MBEDTLS`.
+Тестам нужны Python 3 и `openssl`; Linux shell-тесту также нужен `curl`.
+Эти утилиты не требуются готовым программам.
 
 ```bash
 # Конфигурация и сборка
@@ -1149,7 +1190,7 @@ VS Code        Kate
 Ядро FoxLang может компилироваться с помощью Android NDK в разделяемую библиотеку `libfoxlang.so` и вызываться из Kotlin/Java через JNI.
 
 ### Особенности платформы Android:
-1. **HTTP-клиент и curl**: в стандартном Android нет системной утилиты `/system/bin/curl`. При сборке под Android сетевой клиент должен быть либо слинкован с `libcurl.so`, либо перенаправлен через JNI в Java HTTP-клиент (`HttpURLConnection` / OkHttp).
+1. **HTTPS**: HTTP-клиент использует статический libcurl, без внешней команды `curl`. Для Android ещё нужно проверить сборку TLS backend и доступ к доверенным сертификатам; эта платформа пока не подтверждена тестами.
 2. **Терминал**: интерактивные вызовы `getch()` и `kbhit()` требуют наличия TTY в `stdin` и не применяются в контексте Android GUI.
 3. **Разрешения сети**: использование сетевых сокетов и HTTP-сервера требует объявления `<uses-permission android:name="android.permission.INTERNET" />`.
 4. **Стандартная библиотека**: пути к модулям (`std/`) на Android должны конфигурироваться через `options.foxHome` во внутреннее хранилище приложения (`context.filesDir`).
@@ -1243,18 +1284,28 @@ project/
 
 ### Системные зависимости и совместимость
 
-- HTTP-клиент использует внешний `curl` через `popen` / `_popen`; для HTTPS нужны
-  сертификаты доверия. Для `httpget` / `httppost` требуется curl с
-  `--fail-with-body`. Упаковка не устраняет эту зависимость.
-- HTTP-сервер, DNS и TCP используют POSIX sockets и доступны на Linux. В Windows
-  HTTP-сервер выдаёт явную ошибку; TCP/DNS пока имеют прежние заглушки.
+- HTTP(S)-клиент использует статический libcurl без shell, `popen` и отдельного
+  `curl` в PATH. Linux включает Mbed TLS статически; Windows использует Schannel.
+  Проверки цепочки сертификатов и имени сервера включены всегда. Публичные CA
+  Mozilla встроены. `FOXLANG_CA_BUNDLE` выбирает PEM-файл, `embedded` или `system`;
+  на Linux также учитывается `SSL_CERT_FILE`. Пользовательские CA не упаковываются.
+- HTTP-сервер, DNS и TCP реализованы через POSIX sockets на Linux и Winsock на
+  Windows. Сервер обрабатывает соединения последовательно: HTTP/1.0–1.1,
+  `Content-Length`, до 64 KiB заголовков и 1 MiB тела; chunked-запросы не поддержаны.
+  `listen_tls` обеспечивает встроенный HTTPS без reverse proxy. Исключение обработчика даёт
+  HTTP 500. Клиент ограничивает ответ 16 MiB, подключение — 10 сек., запрос — 35 сек.
+- Лицензии сетевых библиотек доступны через `--foxlang-licenses` у CLI и у любого
+  standalone executable. Этот аргумент зарезервирован и не запускает программу.
 - Windows-сборка MSVC использует статический CRT (`/MT`), MinGW — статические
   библиотеки компилятора. Отдельные DLL FoxLang или Visual C++ Redistributable
   не нужны; системные DLL Windows остаются необходимы.
-- Linux/GCC включает libstdc++ и libgcc статически, но сохраняет системные libc,
-  libm и загрузчик. Нужна совместимая ОС той же архитектуры и libc; собирайте
-  сам FoxLang на самой старой целевой системе. Настройки других toolchain могут
-  добавлять системные зависимости, их следует проверять отдельно.
+- Linux-пакет и Docker target `portable` включают musl/libm, C++ и сетевые
+  библиотеки статически, без отдельного ELF-загрузчика и shared libraries.
+  Проверяются сборка в Alpine и запуск на Ubuntu. Нужны Linux x86_64, `/proc`
+  и поддерживаемые системные вызовы; это не бинарник для любой ОС/архитектуры.
+  Обычная локальная CMake-сборка Linux/GCC включает libstdc++/libgcc, но сохраняет
+  системные libc/libm. Для переносимого варианта используйте Docker target `portable`
+  либо musl toolchain с `-DFOXLANG_STATIC_LINUX=ON`.
 - Форматы первой реализации: Linux ELF64 x86_64 и Windows PE32+ x86_64.
   Не применяйте `strip`, UPX или подпись к уже упакованному executable:
   это изменяет контролируемые смещения/длину. Подписанные PE-stub не принимаются.
