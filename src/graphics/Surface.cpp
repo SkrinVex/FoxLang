@@ -6,9 +6,43 @@
 
 namespace foxlang::graphics {
 namespace {
-using Glyph = std::array<uint8_t, 7>;
+// Seven rows above the baseline and two for descenders (g, p, q, y, j).
+using Glyph = std::array<uint8_t, 9>;
 // Original 5x7 bitmap alphabet; no OS fonts, font files or third-party font license.
+// Lower-case letters have their own shapes; x-height is five rows, descenders are folded
+// into the seven-row cell. Cyrillic letters that look like Latin ones share them.
+const std::unordered_map<char32_t, Glyph>& lowercase() {
+    static const std::unordered_map<char32_t, Glyph> letters = {
+        {U'a',{0,0,14,1,15,17,15}}, {U'b',{16,16,22,25,17,17,30}}, {U'c',{0,0,14,16,16,17,14}},
+        {U'd',{1,1,13,19,17,17,15}}, {U'e',{0,0,14,17,31,16,14}}, {U'f',{6,9,8,28,8,8,8}},
+        {U'g',{0,0,15,17,17,17,15,1,14}}, {U'h',{16,16,22,25,17,17,17}}, {U'i',{4,0,12,4,4,4,14}},
+        {U'j',{2,0,6,2,2,2,2,18,12}}, {U'k',{16,16,18,20,24,20,18}}, {U'l',{12,4,4,4,4,4,14}},
+        {U'm',{0,0,26,21,21,17,17}}, {U'n',{0,0,22,25,17,17,17}}, {U'o',{0,0,14,17,17,17,14}},
+        {U'p',{0,0,30,17,17,17,30,16,16}}, {U'q',{0,0,15,17,17,17,15,1,1}}, {U'r',{0,0,22,25,16,16,16}},
+        {U's',{0,0,15,16,14,1,30}}, {U't',{8,8,28,8,8,9,6}}, {U'u',{0,0,17,17,17,19,13}},
+        {U'v',{0,0,17,17,17,10,4}}, {U'w',{0,0,17,17,21,21,10}}, {U'x',{0,0,17,10,4,10,17}},
+        {U'y',{0,0,17,17,17,17,15,1,14}}, {U'z',{0,0,31,2,4,8,31}},
+        {U'б',{15,16,30,17,17,17,14}}, {U'в',{0,0,30,17,30,17,30}}, {U'г',{0,0,31,16,16,16,16}},
+        {U'д',{0,0,6,10,10,31,17}}, {U'ё',{10,0,14,17,31,16,14}}, {U'ж',{0,0,21,21,14,21,21}},
+        {U'з',{0,0,30,1,6,1,30}}, {U'и',{0,0,17,19,21,25,17}}, {U'й',{10,4,17,19,21,25,17}},
+        {U'к',{0,0,18,20,24,20,18}}, {U'л',{0,0,7,9,9,9,17}}, {U'м',{0,0,17,27,21,17,17}},
+        {U'н',{0,0,17,17,31,17,17}}, {U'п',{0,0,31,17,17,17,17}}, {U'т',{0,0,31,4,4,4,4}},
+        {U'ф',{0,4,14,21,21,14,4}}, {U'ц',{0,0,18,18,18,31,1}}, {U'ч',{0,0,17,17,15,1,1}},
+        {U'ш',{0,0,21,21,21,21,31}}, {U'щ',{0,0,21,21,21,31,1}}, {U'ъ',{0,0,24,8,14,9,14}},
+        {U'ы',{0,0,17,17,29,21,29}}, {U'ь',{0,0,16,16,30,17,30}}, {U'э',{0,0,14,1,7,1,14}},
+        {U'ю',{0,0,18,21,29,21,18}}, {U'я',{0,0,15,17,15,9,17}}
+    };
+    return letters;
+}
+
 Glyph glyph(char32_t code) {
+    static const std::u32string lookalikes = U"аеорсух";
+    static const std::u32string latinLower = U"aeopcyx";
+    auto same = lookalikes.find(code);
+    if (same != std::u32string::npos) code = latinLower[same];
+    const auto& small = lowercase();
+    auto lower = small.find(code);
+    if (lower != small.end()) return lower->second;
     if (code >= U'a' && code <= U'z') code -= 32;
     if (code >= U'а' && code <= U'я') code -= 32;
     if (code == U'ё') code = U'Ё';
@@ -112,6 +146,22 @@ void Surface::circle(int x, int y, int radius, uint32_t color) {
         if (left <= right) rectangle(static_cast<int>(left), static_cast<int>(row), static_cast<int>(right - left + 1), 1, color);
     }
 }
+void Surface::blend(int x, int y, int width, int height, uint32_t color, int alpha) {
+    if (width < 0 || height < 0) throw std::runtime_error("Graphics Error: rectangle size must not be negative");
+    if (alpha < 0 || alpha > 255) throw std::runtime_error("Graphics Error: alpha must be 0..255");
+    int left = std::max(0, x), top = std::max(0, y);
+    int right = static_cast<int>(std::min<int64_t>(width_, int64_t(x) + width));
+    int bottom = static_cast<int>(std::min<int64_t>(height_, int64_t(y) + height));
+    auto mix = [&](uint32_t under, int shift) {
+        uint32_t a = (under >> shift) & 255, b = (color >> shift) & 255;
+        return ((a * uint32_t(255 - alpha) + b * uint32_t(alpha) + 127) / 255) << shift;
+    };
+    for (int row = top; row < bottom; ++row)
+        for (int col = left; col < right; ++col) {
+            uint32_t& pixel = pixels_[size_t(row) * width_ + col];
+            pixel = mix(pixel, 16) | mix(pixel, 8) | mix(pixel, 0);
+        }
+}
 void Surface::line(int x1, int y1, int x2, int y2, uint32_t color) {
     // Bresenham; points outside the surface are skipped, the line is not shortened.
     int64_t dx = std::llabs(int64_t(x2) - x1), dy = -std::llabs(int64_t(y2) - y1);
@@ -167,7 +217,7 @@ void Surface::text(int x, int y, const std::string& value, int scale, uint32_t c
         if (code == U'\n') { cursorX = x; cursorY += 9 * scale; continue; }
         if (cursorX > -6 * scale && cursorX < width_ && cursorY > -7 * scale && cursorY < height_) {
             auto bitmap = glyph(code);
-            for (int row = 0; row < 7; ++row)
+            for (int row = 0; row < 9; ++row)
                 for (int col = 0; col < 5; ++col)
                     if (bitmap[row] & (1 << (4 - col))) rectangle(static_cast<int>(cursorX) + col * scale, static_cast<int>(cursorY) + row * scale, scale, scale, color);
         }

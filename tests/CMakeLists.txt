@@ -56,6 +56,9 @@ set_tests_properties(standalone_bundle_format PROPERTIES LABELS standalone)
 add_test(NAME standalone_graphics
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_graphics.py $<TARGET_FILE:foxlang>)
 set_tests_properties(standalone_graphics PROPERTIES TIMEOUT 90 LABELS standalone SKIP_RETURN_CODE 77)
+add_test(NAME ui_interaction
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_ui.py $<TARGET_FILE:foxlang>)
+set_tests_properties(ui_interaction PROPERTIES TIMEOUT 120 LABELS standalone SKIP_RETURN_CODE 77)
 set(STANDALONE_TESTS hello cli modules unicode_json environment errors corruption http_client http_server tcp)
 foreach(T IN LISTS STANDALONE_TESTS)
     add_test(NAME standalone_${T}

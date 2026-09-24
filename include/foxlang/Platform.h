@@ -14,6 +14,12 @@ namespace platform {
 std::filesystem::path pathFromUtf8(const std::string& text);
 std::string pathToUtf8(const std::filesystem::path& path);
 
+// Runs a program with arguments, without a shell, and waits for it. Returns its exit
+// code, or -1 when it cannot be started; output, when given, receives its stdout.
+int runProcess(const std::string& program, const std::vector<std::string>& args, std::string* output);
+// Opens a file, folder or URL with the application the desktop associates with it.
+bool openWithDefaultApp(const std::string& target);
+
 // Console / Terminal input
 std::string getch();
 bool kbhit();

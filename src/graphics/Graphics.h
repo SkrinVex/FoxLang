@@ -14,6 +14,8 @@ public:
     Surface(int width, int height);
     void clear(uint32_t color);
     void rectangle(int x, int y, int width, int height, uint32_t color);
+    // Mixes color into the rectangle: alpha 0 leaves it, 255 covers it.
+    void blend(int x, int y, int width, int height, uint32_t color, int alpha);
     void circle(int x, int y, int radius, uint32_t color);
     void text(int x, int y, const std::string& text, int scale, uint32_t color);
     void line(int x1, int y1, int x2, int y2, uint32_t color);
@@ -29,6 +31,63 @@ private:
     std::vector<uint32_t> pixels_;
 };
 
+class Window;
+
+// Unicode code point an X11 keysym types (Latin-1, Unicode keysyms, Cyrillic, keypad), or 0.
+uint32_t keysymToUnicode(uint32_t keysym);
+
+// One step of typing, in the order it happened within a frame: text or an editing key
+// press (including OS repeats), with Ctrl as it was at that moment.
+struct TextEdit {
+    std::string text;
+    int key = 0;
+    bool control = false;
+};
+
+// Immediate-mode interface state: which element is under the mouse, which one has the
+// keyboard, and text-field cursors. Elements register their rectangles every frame;
+// the element under the mouse is resolved from the previous frame, top layer first,
+// and a modal layer disables every layer below it.
+class Ui {
+public:
+    void beginFrame(Window& window);
+    void layerBegin(bool modal);
+    void layerEnd();
+    bool hover(const std::string& id, int x, int y, int width, int height, Window& window);
+    bool click(const std::string& id, int x, int y, int width, int height, Window& window);
+    // Edits and draws a single-line text field's content; returns the new text.
+    std::string text(const std::string& id, int x, int y, int width, int height, const std::string& value,
+                     int scale, uint32_t color, Window& window);
+    bool focused(const std::string& id) const { return focus_ == id; }
+    // A field focused before it is first drawn keeps the focus for one more frame.
+    void setFocus(const std::string& id) {
+        focus_ = id;
+        focusFresh_ = true;
+        if (!id.empty()) field(id).cursor = static_cast<size_t>(-1); // caret after the existing text
+    }
+    bool typing() const { return !focus_.empty(); }
+
+private:
+    struct Region {
+        std::string id;
+        int x, y, width, height, layer;
+        bool focusable;
+    };
+    std::vector<Region> current_, previous_;
+    std::vector<int> stack_;      // open layers of this frame
+    std::vector<bool> stackModal_;
+    int nextLayer_ = 0, blockBelow_ = 0, modalLayer_ = 0;
+    std::string hot_, focus_;
+    bool clickTaken_ = false;
+    bool focusFresh_ = false;
+    struct Field { size_t cursor = 0, scroll = 0; };
+    std::vector<std::pair<std::string, Field>> fields_;
+    int layer() const { return stack_.empty() ? 0 : stack_.back(); }
+    void add(const std::string& id, int x, int y, int width, int height, bool focusable);
+    bool active(const std::string& id, int x, int y, int width, int height, Window& window) const;
+    Field& field(const std::string& id);
+};
+
 class Window {
 public:
     Window(int width, int height, const std::string& title);
@@ -39,22 +98,46 @@ public:
     void present();
     bool keyDown(const std::string& key) const;
     bool keyPressed(const std::string& key) const;
+    // Pressed in this frame, or repeated by the OS while held: for editing and lists.
+    bool keyRepeat(const std::string& key) const;
+    // Text typed since the previous poll, as UTF-8, following layout, Shift and Caps Lock.
+    const std::string& text() const { return text_; }
+    const std::vector<TextEdit>& edits() const { return edits_; }
+    int wheel() const { return wheel_; }
+    bool doubleClicked() const { return doubleClick_; }
+    std::string clipboard();
+    void setClipboard(const std::string& text);
     int mouseX() const { return mouseX_; }
     int mouseY() const { return mouseY_; }
     bool focused() const { return focused_; }
     double delta() const { return delta_; }
     Surface& surface() { return surface_; }
+    Ui& ui() { return ui_; }
     // Native backends feed one shared input state. Press edges are reset by poll().
     void keyEvent(int key, bool down);
+    void textEvent(const std::string& utf8) {
+        if (utf8.empty() || text_.size() >= 4096) return;
+        text_ += utf8;
+        if (edits_.size() < 4096) edits_.push_back({utf8, 0, down_[17]});
+    }
+    void wheelEvent(int steps) { wheel_ += steps; }
     void focusEvent(bool focused);
     void mouseEvent(int x, int y) { mouseX_ = x; mouseY_ = y; }
     void closeEvent() { open_ = false; }
 private:
     struct Native;
     Surface surface_;
+    Ui ui_;
     std::unique_ptr<Native> native_;
     std::array<bool, 256> down_{};
     std::array<bool, 256> pressed_{};
+    std::array<bool, 256> repeated_{};
+    std::string text_;
+    std::vector<TextEdit> edits_;
+    int wheel_ = 0;
+    bool doubleClick_ = false;
+    std::chrono::steady_clock::time_point lastClick_{};
+    int lastClickX_ = -1000, lastClickY_ = -1000;
     bool open_ = true, focused_ = false;
     int mouseX_ = 0, mouseY_ = 0;
     double delta_ = 1.0 / 60.0;

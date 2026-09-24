@@ -65,20 +65,47 @@ class NativeWindow:
                     if children: self.api.XFree(children)
         return bool(self.handle)
 
-    def send_key(self, name, down):
+    # Windows virtual keys and X11 keysyms for the named keys tests use.
+    VIRTUAL_KEYS = {'SPACE': 32, 'LEFT': 37, 'RIGHT': 39, 'ESCAPE': 27, 'ENTER': 13, 'BACKSPACE': 8, 'TAB': 9,
+                    'DELETE': 46, 'HOME': 36, 'END': 35, 'SHIFT': 16, 'CTRL': 17}
+    KEYSYMS = {'SPACE': 32, 'LEFT': 0xff51, 'RIGHT': 0xff53, 'ESCAPE': 0xff1b, 'ENTER': 0xff0d, 'BACKSPACE': 0xff08,
+               'TAB': 0xff09, 'DELETE': 0xffff, 'HOME': 0xff50, 'END': 0xff57, 'SHIFT': 0xffe1, 'CTRL': 0xffe3, '/': 0x2f, '.': 0x2e}
+
+    def send_key(self, name, down, shift=False, repeat=False):
         if os.name == 'nt':
-            key = {'SPACE': 32, 'LEFT': 37, 'RIGHT': 39, 'ESCAPE': 27, 'ENTER': 13}.get(name, ord(name[0]))
-            self.api.PostMessageW(self.handle, 0x100 if down else 0x101, key, 0)
+            key = self.VIRTUAL_KEYS.get(name, ord(name[0].upper()))
+            # Bit 30 of lParam marks a key that was already down: an OS auto-repeat.
+            self.api.PostMessageW(self.handle, 0x100 if down else 0x101, key, (1 << 30) if repeat else 0)
         else:
             class KeyEvent(C.Structure):
                 _fields_ = [('type',C.c_int),('serial',C.c_ulong),('send_event',C.c_int),('display',C.c_void_p),
                     ('window',C.c_ulong),('root',C.c_ulong),('subwindow',C.c_ulong),('time',C.c_ulong),
                     ('x',C.c_int),('y',C.c_int),('x_root',C.c_int),('y_root',C.c_int),
                     ('state',C.c_uint),('keycode',C.c_uint),('same_screen',C.c_int)]
-            symbol = {'SPACE':32,'LEFT':0xff51,'RIGHT':0xff53,'ESCAPE':0xff1b,'ENTER':0xff0d}.get(name,ord(name[0].lower()))
+            symbol = self.KEYSYMS.get(name, ord(name[0].lower()))
             event = KeyEvent(type=2 if down else 3, display=self.display, window=self.handle, root=self.root,
-                             keycode=self.api.XKeysymToKeycode(self.display,symbol),same_screen=1)
+                             keycode=self.api.XKeysymToKeycode(self.display,symbol), state=1 if shift else 0, same_screen=1)
             self._send(event, 1 if down else 2)
+
+    def type_text(self, text):
+        """Types text: key presses on X11 (ASCII only), WM_CHAR on Windows (any character)."""
+        for ch in text:
+            if os.name == 'nt':
+                self.api.PostMessageW(self.handle, 0x102, ord(ch), 0)
+            else:
+                shift = ch.isupper()
+                self.send_key(ch, True, shift)
+                self.send_key(ch, False, shift)
+
+    def wheel(self, x, y, steps):
+        """Positive steps turn the wheel away from the user."""
+        for _ in range(abs(steps)):
+            if os.name == 'nt':
+                delta = 120 if steps > 0 else -120
+                self.api.PostMessageW(self.handle, 0x20A, (delta & 0xffff) << 16, (y << 16) | x)
+            else:
+                self.mouse(x, y, True, button=4 if steps > 0 else 5)
+                self.mouse(x, y, False, button=4 if steps > 0 else 5)
 
     def mouse(self, x, y, down=None, button=1):
         if os.name == 'nt':
@@ -91,7 +118,8 @@ class NativeWindow:
                     ('x',C.c_int),('y',C.c_int),('x_root',C.c_int),('y_root',C.c_int),
                     ('state',C.c_uint),('button',C.c_uint),('same_screen',C.c_int)]
             event = MouseEvent(type=6 if down is None else 4 if down else 5, display=self.display,
-                window=self.handle, root=self.root, x=x, y=y, button=(1 if button == 1 else 3) if down is not None else 0, same_screen=1)
+                window=self.handle, root=self.root, x=x, y=y,
+                button={1: 1, 2: 3, 4: 4, 5: 5}[button] if down is not None else 0, same_screen=1)
             self._send(event, 64 if down is None else 4 if down else 8)
 
     def _send(self, event, mask=0):

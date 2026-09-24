@@ -29,7 +29,20 @@ int main() {
     before = pixels.pixels();
     pixels.clear(0);
     pixels.text(0, 0, "ЛИСИЙ\nЁЖ", 1, 0xffffff);
-    CHECK(pixels.pixels() == before);
+    CHECK(pixels.pixels() != before); // lower case has its own letters
+    // Every Latin and Cyrillic lower-case letter has a glyph of its own, not '?'.
+    for (const char* letter : {"a", "g", "m", "q", "z", "б", "д", "ж", "л", "ф", "щ", "ы", "ю", "я", "ё"}) {
+        Surface a(8, 8), b(8, 8);
+        a.text(0, 0, letter, 1, 0xffffff);
+        b.text(0, 0, "?", 1, 0xffffff);
+        CHECK(a.pixels() != b.pixels());
+    }
+    {
+        Surface latin(8, 8), cyrillic(8, 8);
+        latin.text(0, 0, "o", 1, 0xffffff);
+        cyrillic.text(0, 0, "о", 1, 0xffffff);
+        CHECK(latin.pixels() == cyrillic.pixels()); // Cyrillic о looks like Latin o
+    }
     pixels.text(INT_MAX, INT_MAX, "ignored", 32, 0);
     pixels.text(INT_MIN, INT_MIN, "ignored", 1, 0);
     pixels.text(0, 0, "\xf0\x80\x80\x80\xed\xa0\x80\xff", 1, 0xff00ff);
@@ -63,6 +76,14 @@ int main() {
         b.text(0, 0, "?", 1, 0xffffff);
         CHECK(a.pixels() != b.pixels());
     }
+    // X11 keysyms a Russian layout sends become Cyrillic text
+    using foxlang::graphics::keysymToUnicode;
+    CHECK(keysymToUnicode('a') == 'a' && keysymToUnicode('/') == '/' && keysymToUnicode(0xE9) == 0xE9);
+    CHECK(keysymToUnicode(0x6CC) == 0x43B && keysymToUnicode(0x6EC) == 0x41B); // л Л
+    CHECK(keysymToUnicode(0x6C1) == 0x430 && keysymToUnicode(0x6FF) == 0x42A); // а Ъ
+    CHECK(keysymToUnicode(0x6A3) == 0x451 && keysymToUnicode(0x6B3) == 0x401); // ё Ё
+    CHECK(keysymToUnicode(0x100263A) == 0x263A && keysymToUnicode(0xFFB5) == '5');
+    CHECK(keysymToUnicode(0xFF08) == 0 && keysymToUnicode(0xFFE1) == 0); // BackSpace, Shift type nothing
     foxlang::Interpreter interpreter;
     auto measured = interpreter.runSource("using graphics; int w = text_width(\"FoxLang\", 2);");
     CHECK(measured.success && interpreter.getGlobal("w").value == "82");

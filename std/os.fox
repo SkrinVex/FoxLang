@@ -1,9 +1,14 @@
-//! Сведения о процессе: аргументы командной строки, операционная система, рабочий каталог.
+//! Процесс и система: аргументы командной строки, ОС, рабочий каталог, запуск программ и
+//! открытие файлов приложением по умолчанию.
 //! Завершение с кодом возврата — встроенная `exit(code)`.
 
 array args() { return os_args(); }
 string platform() { return os_platform(); }
 string cwd() { return os_cwd(); }
+bool open_path(string target) { return os_open(target); }
+int run(string program, array args) { return os_run(program, args); }
+string run_output(string program, array args) { return os_run_output(program, args); }
+int last_exit() { return os_last_exit(); }
 
 /// Аргумент командной строки по номеру (с нуля) или `fallback`, если его нет.
 ///

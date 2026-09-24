@@ -1,0 +1,121 @@
+//! Интерфейс для окон `graphics`: кнопки, поля ввода, флажки и модальные окна, которые ведут
+//! себя как в обычных программах. Клик достаётся только верхнему элементу, модальное окно
+//! блокирует всё под собой, клавиатура принадлежит полю с фокусом (Tab — следующее поле).
+//! У каждого элемента свой строковый `id`, одинаковый от кадра к кадру.
+using graphics;
+
+/// Цвет акцента: рамка поля в фокусе, основная кнопка, флажок.
+int UI_ACCENT = rgb(45, 105, 175);
+int UI_TEXT = rgb(30, 35, 42);
+int UI_MUTED = rgb(120, 128, 138);
+int UI_BORDER = rgb(200, 206, 216);
+int UI_FIELD = rgb(255, 255, 255);
+int UI_BUTTON = rgb(238, 241, 246);
+int UI_BUTTON_HOVER = rgb(222, 229, 239);
+int UI_PANEL = rgb(255, 255, 255);
+int UI_BACKDROP = rgb(15, 20, 30);
+
+/// Кнопка с подписью по центру. `true` в кадре, когда по ней щёлкнули.
+///
+/// ```foxlang
+/// if (ui_button("save", 20, 20, 120, 30, "Сохранить")) { save(); }
+/// ```
+bool ui_button(string id, int x, int y, int width, int height, string label) {
+    bool clicked = gfx_ui_click(id, x, y, width, height);
+    bool hover = gfx_ui_hover(id, x, y, width, height);
+    int fill = UI_BUTTON;
+    if (hover) {
+        fill = UI_BUTTON_HOVER;
+    }
+    gfx_rect(x, y, width, height, UI_BORDER);
+    gfx_rect(x + 1, y + 1, width - 2, height - 2, fill);
+    gfx_text(x + (width - gfx_text_width(label, 1)) / 2, y + (height - 7) / 2, label, 1, UI_TEXT);
+    return clicked;
+}
+
+/// Основная (выделенная цветом) кнопка, например «ОК» в диалоге.
+bool ui_primary_button(string id, int x, int y, int width, int height, string label) {
+    bool clicked = gfx_ui_click(id, x, y, width, height);
+    gfx_rect(x, y, width, height, UI_ACCENT);
+    if (gfx_ui_hover(id, x, y, width, height)) {
+        gfx_rect_alpha(x, y, width, height, rgb(0, 0, 0), 40);
+    }
+    gfx_text(x + (width - gfx_text_width(label, 1)) / 2, y + (height - 7) / 2, label, 1, rgb(255, 255, 255));
+    return clicked;
+}
+
+/// Однострочное поле ввода высотой 28 пикселей. Возвращает текст после правок этого кадра;
+/// `placeholder` виден, пока поле пустое и без фокуса.
+///
+/// ```foxlang
+/// name = ui_text_field("name", 20, 60, 300, name, "Имя файла");
+/// if (ui_focused("name") && key_pressed("ENTER")) { create(name); }
+/// ```
+string ui_text_field(string id, int x, int y, int width, string text, string placeholder) {
+    int border = UI_BORDER;
+    if (gfx_ui_focused(id)) {
+        border = UI_ACCENT;
+    }
+    gfx_rect(x, y, width, 28, border);
+    gfx_rect(x + 1, y + 1, width - 2, 26, UI_FIELD);
+    if (text == "" && !gfx_ui_focused(id)) {
+        gfx_text(x + 4, y + 10, placeholder, 1, UI_MUTED);
+    }
+    return gfx_ui_text(id, x, y, width, 28, text, 1, UI_TEXT);
+}
+
+/// Флажок с подписью. Возвращает новое состояние: щелчок по флажку или подписи переключает его.
+bool ui_checkbox(string id, int x, int y, string label, bool checked) {
+    int width = 20 + gfx_text_width(label, 1);
+    bool clicked = gfx_ui_click(id, x, y, width, 14);
+    bool value = checked;
+    if (clicked) {
+        value = !checked;
+    }
+    gfx_rect(x, y, 14, 14, UI_BORDER);
+    gfx_rect(x + 1, y + 1, 12, 12, UI_FIELD);
+    if (value) {
+        gfx_rect(x + 3, y + 3, 8, 8, UI_ACCENT);
+    }
+    gfx_text(x + 20, y + 4, label, 1, UI_TEXT);
+    return value;
+}
+
+/// Начинает модальное окно: затемняет всё окно, рисует карточку с заголовком и отключает
+/// все элементы под ней. Содержимое рисуется между `ui_modal_begin` и `ui_modal_end`.
+///
+/// ```foxlang
+/// if (asking) {
+///     ui_modal_begin(200, 150, 400, 180, "Новая папка");
+///     folder = ui_text_field("folder", 220, 200, 360, folder, "Имя");
+///     if (ui_button("cancel", 380, 280, 90, 28, "Отмена")) { asking = false; }
+///     ui_modal_end();
+/// }
+/// ```
+void ui_modal_begin(int x, int y, int width, int height, string title) {
+    gfx_ui_layer_begin(true);
+    gfx_rect_alpha(0, 0, gfx_width(), gfx_height(), UI_BACKDROP, 110);
+    gfx_ui_hover("#modal-card", x, y, width, height);
+    gfx_rect(x - 1, y - 1, width + 2, height + 2, UI_BORDER);
+    gfx_rect(x, y, width, height, UI_PANEL);
+    gfx_rect(x, y, width, 32, UI_ACCENT);
+    gfx_text(x + 12, y + 12, title, 1, rgb(255, 255, 255));
+}
+
+void ui_modal_end() { gfx_ui_layer_end(); }
+
+/// Слой поверх интерфейса, который не блокирует остальное: выпадающий список, подсказка.
+void ui_layer_begin() { gfx_ui_layer_begin(false); }
+void ui_layer_end() { gfx_ui_layer_end(); }
+
+bool ui_hover(string id, int x, int y, int width, int height) { return gfx_ui_hover(id, x, y, width, height); }
+bool ui_click(string id, int x, int y, int width, int height) { return gfx_ui_click(id, x, y, width, height); }
+bool ui_focused(string id) { return gfx_ui_focused(id); }
+void ui_focus(string id) { gfx_ui_focus(id); }
+void ui_unfocus() { gfx_ui_focus(""); }
+bool ui_typing() { return gfx_ui_typing(); }
+
+/// Двойной щелчок по элементу — например, чтобы открыть файл в списке.
+bool ui_double_click(string id, int x, int y, int width, int height) {
+    return gfx_ui_hover(id, x, y, width, height) && gfx_double_click();
+}

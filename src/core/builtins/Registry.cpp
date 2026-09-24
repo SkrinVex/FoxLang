@@ -32,6 +32,7 @@ struct Registry {
         addTextBuiltins(builtins);
         addCollectionBuiltins(builtins);
         addSystemBuiltins(builtins);
+        addFileBuiltins(builtins);
         addNetworkBuiltins(builtins);
         addGraphicsBuiltins(builtins);
         for (size_t i = 0; i < builtins.size(); ++i) {

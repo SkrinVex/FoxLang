@@ -20,3 +20,12 @@ int mouse_x() { return gfx_mouse_x(); }
 int mouse_y() { return gfx_mouse_y(); }
 bool window_focused() { return gfx_focused(); }
 int rgb(int red, int green, int blue) { return gfx_rgb(red, green, blue); }
+bool key_repeat(string key) { return gfx_repeat(key); }
+string text_input() { return gfx_text_input(); }
+int mouse_wheel() { return gfx_wheel(); }
+bool double_clicked() { return gfx_double_click(); }
+string clipboard_text() { return gfx_clipboard(); }
+void set_clipboard_text(string text) { gfx_set_clipboard(text); }
+void draw_rect_alpha(int x, int y, int width, int height, int color, int alpha) { gfx_rect_alpha(x, y, width, height, color, alpha); }
+int window_width() { return gfx_width(); }
+int window_height() { return gfx_height(); }

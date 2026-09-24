@@ -36,6 +36,7 @@
     </list>
     <list name="builtins">
       <item>abs</item>
+      <item>absolute_path</item>
       <item>access_log</item>
       <item>acos</item>
       <item>allow_cors</item>
@@ -57,6 +58,7 @@
       <item>clear</item>
       <item>clear_window</item>
       <item>client_ip</item>
+      <item>clipboard_text</item>
       <item>clock_ms</item>
       <item>close_tcp</item>
       <item>close_window</item>
@@ -65,17 +67,20 @@
       <item>contains</item>
       <item>cookie</item>
       <item>copy_array</item>
+      <item>copy_path</item>
       <item>cos</item>
       <item>cwd</item>
       <item>debug</item>
       <item>degrees</item>
       <item>delete</item>
       <item>dns_lookup</item>
+      <item>double_clicked</item>
       <item>download</item>
       <item>draw_circle</item>
       <item>draw_frame</item>
       <item>draw_line</item>
       <item>draw_rect</item>
+      <item>draw_rect_alpha</item>
       <item>draw_ring</item>
       <item>draw_text</item>
       <item>ends_with</item>
@@ -89,27 +94,48 @@
       <item>exit</item>
       <item>exp</item>
       <item>fail</item>
+      <item>file_extension</item>
+      <item>file_name</item>
       <item>file_size</item>
+      <item>file_stem</item>
       <item>find</item>
       <item>floor</item>
       <item>form</item>
+      <item>format_bytes</item>
       <item>format_time</item>
       <item>frame_delta</item>
+      <item>free_space</item>
+      <item>fs_copy</item>
       <item>fs_exists</item>
+      <item>fs_free_space</item>
+      <item>fs_home</item>
       <item>fs_is_dir</item>
+      <item>fs_is_executable</item>
+      <item>fs_is_file</item>
+      <item>fs_is_link</item>
       <item>fs_list</item>
       <item>fs_make_dir</item>
+      <item>fs_modified</item>
+      <item>fs_move</item>
+      <item>fs_owner</item>
+      <item>fs_permissions</item>
       <item>fs_remove</item>
+      <item>fs_remove_all</item>
+      <item>fs_set_permissions</item>
       <item>fs_size</item>
+      <item>fs_temp_dir</item>
       <item>get</item>
       <item>getch</item>
       <item>gfx_circle</item>
       <item>gfx_clear</item>
+      <item>gfx_clipboard</item>
       <item>gfx_close</item>
       <item>gfx_delta</item>
+      <item>gfx_double_click</item>
       <item>gfx_down</item>
       <item>gfx_focused</item>
       <item>gfx_frame</item>
+      <item>gfx_height</item>
       <item>gfx_line</item>
       <item>gfx_mouse_x</item>
       <item>gfx_mouse_y</item>
@@ -118,14 +144,29 @@
       <item>gfx_present</item>
       <item>gfx_pressed</item>
       <item>gfx_rect</item>
+      <item>gfx_rect_alpha</item>
+      <item>gfx_repeat</item>
       <item>gfx_rgb</item>
       <item>gfx_ring</item>
+      <item>gfx_set_clipboard</item>
       <item>gfx_text</item>
+      <item>gfx_text_input</item>
       <item>gfx_text_width</item>
+      <item>gfx_ui_click</item>
+      <item>gfx_ui_focus</item>
+      <item>gfx_ui_focused</item>
+      <item>gfx_ui_hover</item>
+      <item>gfx_ui_layer_begin</item>
+      <item>gfx_ui_layer_end</item>
+      <item>gfx_ui_text</item>
+      <item>gfx_ui_typing</item>
+      <item>gfx_wheel</item>
+      <item>gfx_width</item>
       <item>goto_xy</item>
       <item>header</item>
       <item>hide_cursor</item>
       <item>home</item>
+      <item>home_dir</item>
       <item>html_escape</item>
       <item>http_delete</item>
       <item>http_get</item>
@@ -145,8 +186,12 @@
       <item>insert</item>
       <item>is_dir</item>
       <item>is_even</item>
+      <item>is_executable</item>
+      <item>is_file</item>
+      <item>is_link</item>
       <item>is_number</item>
       <item>join</item>
+      <item>join_path</item>
       <item>json_count</item>
       <item>json_count_at</item>
       <item>json_escape</item>
@@ -163,6 +208,8 @@
       <item>kbhit</item>
       <item>key_down</item>
       <item>key_pressed</item>
+      <item>key_repeat</item>
+      <item>last_exit</item>
       <item>length</item>
       <item>lerp</item>
       <item>list_dir</item>
@@ -180,19 +227,36 @@
       <item>max_body_size</item>
       <item>method</item>
       <item>min</item>
+      <item>modified_ms</item>
+      <item>mouse_wheel</item>
       <item>mouse_x</item>
       <item>mouse_y</item>
+      <item>move_path</item>
       <item>not_found</item>
       <item>now_text</item>
+      <item>open_path</item>
       <item>open_window</item>
       <item>os_args</item>
       <item>os_cwd</item>
+      <item>os_last_exit</item>
+      <item>os_open</item>
       <item>os_platform</item>
+      <item>os_run</item>
+      <item>os_run_output</item>
+      <item>owner</item>
       <item>pad_left</item>
       <item>pad_right</item>
       <item>param</item>
+      <item>parent_dir</item>
       <item>patch</item>
       <item>path</item>
+      <item>path_absolute</item>
+      <item>path_extension</item>
+      <item>path_join</item>
+      <item>path_name</item>
+      <item>path_parent</item>
+      <item>path_stem</item>
+      <item>permissions</item>
       <item>platform</item>
       <item>pop</item>
       <item>post</item>
@@ -213,6 +277,7 @@
       <item>redirect</item>
       <item>remove_at</item>
       <item>remove_path</item>
+      <item>remove_tree</item>
       <item>render</item>
       <item>repeat</item>
       <item>replace</item>
@@ -240,6 +305,8 @@
       <item>rgb</item>
       <item>round</item>
       <item>route</item>
+      <item>run</item>
+      <item>run_output</item>
       <item>save_upload</item>
       <item>secret</item>
       <item>send_file</item>
@@ -260,9 +327,11 @@
       <item>server_static</item>
       <item>server_stop</item>
       <item>set</item>
+      <item>set_clipboard_text</item>
       <item>set_cookie</item>
       <item>set_env</item>
       <item>set_header</item>
+      <item>set_permissions</item>
       <item>show_cursor</item>
       <item>sign</item>
       <item>sin</item>
@@ -295,6 +364,7 @@
       <item>tcp_connect</item>
       <item>tcp_recv</item>
       <item>tcp_send</item>
+      <item>temp_dir</item>
       <item>template_render</item>
       <item>term_clear</item>
       <item>term_color</item>
@@ -304,6 +374,7 @@
       <item>term_reset</item>
       <item>term_show_cursor</item>
       <item>term_write</item>
+      <item>text_input</item>
       <item>text_width</item>
       <item>time_format</item>
       <item>time_now_ms</item>
@@ -312,6 +383,21 @@
       <item>to_string</item>
       <item>trim</item>
       <item>type_of</item>
+      <item>ui_button</item>
+      <item>ui_checkbox</item>
+      <item>ui_click</item>
+      <item>ui_double_click</item>
+      <item>ui_focus</item>
+      <item>ui_focused</item>
+      <item>ui_hover</item>
+      <item>ui_layer_begin</item>
+      <item>ui_layer_end</item>
+      <item>ui_modal_begin</item>
+      <item>ui_modal_end</item>
+      <item>ui_primary_button</item>
+      <item>ui_text_field</item>
+      <item>ui_typing</item>
+      <item>ui_unfocus</item>
       <item>unix_time_ms</item>
       <item>upload_name</item>
       <item>upper</item>
@@ -321,7 +407,9 @@
       <item>wait</item>
       <item>warn</item>
       <item>window_focused</item>
+      <item>window_height</item>
       <item>window_poll</item>
+      <item>window_width</item>
       <item>write</item>
       <item>write_file</item>
       <item>write_lines</item>

@@ -1,0 +1,194 @@
+// Файловый браузер: список с правами, размерами и датами, двойной щелчок и Enter
+// открывают каталог или файл, колесо и стрелки прокручивают, диалоги «Перейти» и
+// «Новая папка» блокируют окно под собой.
+//   foxlang examples/file_browser.fox [каталог]
+using graphics;
+using ui;
+using fs;
+using os;
+using string;
+using time;
+
+string current = absolute_path(arg_or(0, cwd()));
+array names;
+int selected = 0;
+int scroll = 0;
+string status = "";
+int dialog = 0; // 0 — нет, 1 — перейти, 2 — новая папка
+string input = "";
+int rows_visible = 16;
+
+void load(string path) {
+    if (!is_dir(path)) {
+        status = "Нет такого каталога: " + path;
+        return;
+    }
+    current = absolute_path(path);
+    names = list_dir(current);
+    selected = 0;
+    scroll = 0;
+    status = "" + size(names) + " объектов, свободно " + format_bytes(free_space(current));
+}
+
+void open_selected() {
+    if (size(names) == 0) {
+        return;
+    }
+    string target = join_path(current, names[selected]);
+    if (is_dir(target)) {
+        load(target);
+    } else if (!open_path(target)) {
+        status = "Не удалось открыть " + names[selected];
+    }
+}
+
+void keep_selection_visible() {
+    if (selected < scroll) {
+        scroll = selected;
+    }
+    if (selected >= scroll + rows_visible) {
+        scroll = selected - rows_visible + 1;
+    }
+}
+
+void draw_list() {
+    int top = 60;
+    int count = size(names);
+    int wheel = mouse_wheel();
+    if (ui_hover("list", 10, top, 780, rows_visible * 24)) {
+        scroll = clamp(scroll - wheel * 3, 0, max(0, count - rows_visible));
+    }
+    draw_rect(10, top, 780, rows_visible * 24, rgb(255, 255, 255));
+    for (int row = 0; row < rows_visible && scroll + row < count; row++) {
+        int index = scroll + row;
+        int y = top + row * 24;
+        string path = join_path(current, names[index]);
+        if (ui_click("row" + index, 10, y, 780, 24)) {
+            selected = index;
+        }
+        if (ui_double_click("row" + index, 10, y, 780, 24)) {
+            open_selected();
+            return;
+        }
+        if (index == selected) {
+            draw_rect(10, y, 780, 24, rgb(205, 226, 252));
+        } else if (ui_hover("row" + index, 10, y, 780, 24)) {
+            draw_rect(10, y, 780, 24, rgb(238, 244, 254));
+        }
+        int kind_color = rgb(85, 100, 115);
+        string kind = "[F]";
+        string size_text = format_bytes(file_size(path));
+        if (is_dir(path)) {
+            kind = "[D]";
+            kind_color = rgb(225, 145, 20);
+            size_text = "";
+        } else if (is_executable(path)) {
+            kind = "[*]";
+            kind_color = rgb(35, 140, 55);
+        }
+        draw_text(18, y + 8, kind, 1, kind_color);
+        draw_text(48, y + 8, substring(names[index], 0, 48), 1, rgb(30, 35, 42));
+        draw_text(360, y + 8, permissions(path), 1, rgb(112, 120, 130));
+        draw_text(450, y + 8, owner(path), 1, rgb(112, 120, 130));
+        draw_text(560, y + 8, size_text, 1, rgb(30, 35, 42));
+        draw_text(660, y + 8, days_ago(modified_ms(path)), 1, rgb(112, 120, 130));
+    }
+}
+
+string days_ago(float stamp) {
+    if (stamp < 0) {
+        return "";
+    }
+    int days = to_int((unix_time_ms() - stamp) / 86400000);
+    if (days == 0) {
+        return "сегодня";
+    }
+    return "" + days + " дн. назад";
+}
+
+void draw_dialogs() {
+    if (dialog == 0) {
+        return;
+    }
+    string title = "Перейти в каталог";
+    string hint = "/home или ~/projects";
+    if (dialog == 2) {
+        title = "Новая папка";
+        hint = "Имя папки";
+    }
+    ui_modal_begin(200, 180, 400, 150, title);
+    input = ui_text_field("dialog-input", 220, 230, 360, input, hint);
+    bool accept = ui_primary_button("dialog-ok", 400, 280, 90, 28, "ОК");
+    if (accept || (ui_focused("dialog-input") && key_pressed("ENTER"))) {
+        if (dialog == 1) {
+            string target = input;
+            if (starts_with(target, "~")) {
+                target = home_dir() + substring(target, 1, length(target));
+            }
+            load(target);
+        } else if (make_dir(join_path(current, input))) {
+            load(current);
+        } else {
+            status = "Не удалось создать " + input;
+        }
+        dialog = 0;
+    }
+    if (ui_button("dialog-cancel", 500, 280, 80, 28, "Отмена") || key_pressed("ESCAPE")) {
+        dialog = 0;
+    }
+    ui_modal_end();
+}
+
+void handle_keys() {
+    // Пока в поле идёт ввод или открыт диалог, буквы — это текст, а не команды.
+    if (dialog != 0 || ui_typing()) {
+        return;
+    }
+    if (key_repeat("DOWN") && selected + 1 < size(names)) {
+        selected++;
+    }
+    if (key_repeat("UP") && selected > 0) {
+        selected--;
+    }
+    if (key_pressed("ENTER")) {
+        open_selected();
+    }
+    if (key_pressed("BACKSPACE")) {
+        load(parent_dir(current));
+    }
+    keep_selection_visible();
+}
+
+void main() {
+    load(current);
+    open_window(800, 500, "FoxLang: файлы");
+    while (window_poll()) {
+        if (key_pressed("ESCAPE") && dialog == 0) {
+            break;
+        }
+        handle_keys();
+        clear_window(rgb(244, 246, 249));
+        if (ui_button("up", 10, 12, 60, 30, "Вверх")) {
+            load(parent_dir(current));
+        }
+        if (ui_button("goto", 80, 12, 90, 30, "Перейти")) {
+            dialog = 1;
+            input = current;
+            ui_focus("dialog-input");
+        }
+        if (ui_button("mkdir", 180, 12, 110, 30, "Новая папка")) {
+            dialog = 2;
+            input = "";
+            ui_focus("dialog-input");
+        }
+        draw_text(300, 24, substring(current, 0, 60), 1, rgb(30, 35, 42));
+        draw_list();
+        draw_text(10, 460, status, 1, rgb(112, 120, 130));
+        draw_dialogs();
+        present_window();
+        wait(16);
+    }
+    close_window();
+}
+
+main();

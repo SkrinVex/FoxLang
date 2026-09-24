@@ -1,4 +1,5 @@
-//! Файловая система: проверка путей, каталоги, удаление, размеры и построчное чтение.
+//! Файловая система: проверка путей, каталоги, права доступа, время изменения, копирование,
+//! перемещение, удаление, работа с путями, размеры и построчное чтение.
 //! Чтение и запись файла целиком — встроенные `read_file`, `write_file`, `append_file`.
 
 bool exists(string path) { return fs_exists(path); }
@@ -6,7 +7,45 @@ bool is_dir(string path) { return fs_is_dir(path); }
 bool make_dir(string path) { return fs_make_dir(path); }
 bool remove_path(string path) { return fs_remove(path); }
 array list_dir(string path) { return fs_list(path); }
-int file_size(string path) { return fs_size(path); }
+float file_size(string path) { return fs_size(path); }
+bool is_file(string path) { return fs_is_file(path); }
+bool is_link(string path) { return fs_is_link(path); }
+float modified_ms(string path) { return fs_modified(path); }
+string permissions(string path) { return fs_permissions(path); }
+bool set_permissions(string path, string mode) { return fs_set_permissions(path, mode); }
+bool is_executable(string path) { return fs_is_executable(path); }
+string owner(string path) { return fs_owner(path); }
+bool copy_path(string from, string to) { return fs_copy(from, to, false); }
+bool move_path(string from, string to) { return fs_move(from, to); }
+int remove_tree(string path) { return fs_remove_all(path); }
+float free_space(string path) { return fs_free_space(path); }
+string home_dir() { return fs_home(); }
+string temp_dir() { return fs_temp_dir(); }
+string join_path(string base, string name) { return path_join(base, name); }
+string parent_dir(string path) { return path_parent(path); }
+string file_name(string path) { return path_name(path); }
+string file_stem(string path) { return path_stem(path); }
+string file_extension(string path) { return path_extension(path); }
+string absolute_path(string path) { return path_absolute(path); }
+
+/// Размер в байтах в удобочитаемом виде: `532 B`, `1.5 KB`, `3.2 GB`.
+string format_bytes(float bytes) {
+    if (bytes < 0) {
+        return "";
+    }
+    array units = ["B", "KB", "MB", "GB", "TB"];
+    int unit = 0;
+    float value = bytes;
+    while (value >= 1024 && unit < 4) {
+        value = value / 1024;
+        unit++;
+    }
+    if (unit == 0) {
+        return to_string(to_int(value)) + " B";
+    }
+    float rounded = floor(value * 10 + 0.5) / 10;
+    return to_string(rounded) + " " + units[unit];
+}
 
 /// Строки текстового файла без символов перевода строки. Для отсутствующего файла — пустой массив.
 ///

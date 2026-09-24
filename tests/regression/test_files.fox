@@ -65,4 +65,58 @@ assert_true(remove_path(dir) && remove_path("temp_fs_test_dir"), "remove empty d
 assert_true(!exists("temp_fs_test_dir"), "directory is gone");
 assert_true(remove_path(test_filename) && !exists(test_filename), "remove the test file");
 
+// 8. Details, copying, moving and trees
+using os;
+using time;
+using string;
+string base = join_path(temp_dir(), "foxlang files test");
+remove_tree(base);
+assert_true(make_dir(join_path(base, "src/deep")), "nested directories");
+string script = join_path(base, "src/deep/run.sh");
+write_file(script, "#!/bin/sh\necho hi\n");
+assert_true(is_file(script) && !is_dir(script) && !is_link(script), "is_file");
+assert_true(file_size(script) == 18 && type_of(file_size(script)) == "float", "file_size is a float");
+assert_true(modified_ms(script) > unix_time_ms() - 600000 && modified_ms(join_path(base, "missing")) == -1, "modified_ms");
+if (platform() != "windows") {
+    assert_true(set_permissions(script, "754") && permissions(script) == "rwxr-xr--", "octal permissions");
+    assert_true(is_executable(script), "is_executable after chmod");
+    assert_true(set_permissions(script, "rw-r-----") && permissions(script) == "rw-r-----" && !is_executable(script), "symbolic permissions");
+    assert_true(owner(script) != "", "owner");
+}
+assert_true(permissions(join_path(base, "missing")) == "", "permissions of a missing path");
+
+assert_true(copy_path(join_path(base, "src"), join_path(base, "copy")), "copy a tree");
+assert_true(read_file(join_path(base, "copy/deep/run.sh")) == "#!/bin/sh\necho hi\n", "copied content");
+assert_true(!copy_path(join_path(base, "src"), join_path(base, "copy")), "copy refuses to overwrite");
+assert_true(fs_copy(join_path(base, "src"), join_path(base, "copy"), true), "copy with overwrite");
+assert_true(move_path(join_path(base, "copy"), join_path(base, "moved")), "move a tree");
+assert_true(!exists(join_path(base, "copy")) && exists(join_path(base, "moved/deep/run.sh")), "moved");
+assert_true(!move_path(join_path(base, "src"), join_path(base, "moved")), "move refuses an existing target");
+assert_true(remove_tree(join_path(base, "moved")) == 3 && !exists(join_path(base, "moved")), "remove_tree counts entries");
+assert_true(remove_tree(join_path(base, "moved")) == 0, "remove_tree of a missing path");
+assert_true(free_space(base) > 0 && home_dir() != "", "free space and home");
+
+// 9. Paths
+assert_true(file_name(join_path("dir", "notes.txt")) == "notes.txt" && file_name("dir/sub/") == "sub", "file_name");
+assert_true(file_stem("archive.tar.gz") == "archive.tar" && file_extension("archive.tar.gz") == ".gz", "stem and extension");
+assert_true(file_extension(".env") == "" && file_extension("README") == "", "no extension");
+assert_true(parent_dir(join_path(join_path("a", "b"), "c.txt")) == join_path("a", "b"), "parent_dir");
+assert_true(format_bytes(532) == "532 B" && format_bytes(1536) == "1.5 KB" && format_bytes(3435973837.0) == "3.2 GB", "format_bytes");
+assert_true(absolute_path("x") == join_path(cwd(), "x"), "absolute_path");
+
+// 10. Running programs without a shell
+string greeting = "";
+if (platform() == "windows") {
+    greeting = run_output("cmd", ["/c", "echo", "hi"]);
+} else {
+    greeting = run_output("sh", ["-c", "echo \"$1 $2\"", "sh", "привет", "a b"]);
+}
+assert_true(last_exit() == 0 && trim(greeting) != "", "run_output");
+if (platform() != "windows") {
+    assert_true(trim(greeting) == "привет a b", "arguments reach the program unchanged");
+    assert_true(run("sh", ["-c", "exit 7"]) == 7, "exit code");
+}
+assert_true(run("definitely-not-a-program-foxlang", []) == -1, "missing program");
+assert_true(remove_tree(base) > 0, "cleanup");
+
 print("FILES_OK");

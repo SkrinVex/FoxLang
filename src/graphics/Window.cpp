@@ -21,6 +21,51 @@
 namespace foxlang::graphics {
 namespace {
 [[noreturn]] void fail(const std::string& message) { throw std::runtime_error("Graphics Error: " + message); }
+
+std::string utf8(uint32_t cp) {
+    std::string out;
+    if (cp < 0x80) {
+        out += static_cast<char>(cp);
+    } else if (cp < 0x800) {
+        out += static_cast<char>(0xC0 | (cp >> 6));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        out += static_cast<char>(0xE0 | (cp >> 12));
+        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else {
+        out += static_cast<char>(0xF0 | (cp >> 18));
+        out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+    }
+    return out;
+}
+}
+
+// Unicode for the keysyms a keyboard types: Latin-1, the Unicode block and Cyrillic.
+uint32_t keysymToUnicode(uint32_t sym) {
+    if ((sym >= 0x20 && sym <= 0x7E) || (sym >= 0xA0 && sym <= 0xFF)) return sym;
+    if (sym >= 0x01000000 && sym <= 0x0110FFFF) return sym - 0x01000000;
+    static const uint16_t cyrillic[32] = {
+        0x44E, 0x430, 0x431, 0x446, 0x434, 0x435, 0x444, 0x433, 0x445, 0x438, 0x439, 0x43A, 0x43B, 0x43C, 0x43D, 0x43E,
+        0x43F, 0x44F, 0x440, 0x441, 0x442, 0x443, 0x436, 0x432, 0x44C, 0x44B, 0x437, 0x448, 0x44D, 0x449, 0x447, 0x44A};
+    if (sym >= 0x6C0 && sym <= 0x6DF) return cyrillic[sym - 0x6C0];
+    if (sym >= 0x6E0 && sym <= 0x6FF) return cyrillic[sym - 0x6E0] - 0x20u;
+    switch (sym) {
+        case 0x6A3: return 0x451; case 0x6B3: return 0x401; // ё Ё
+        case 0x6A4: return 0x454; case 0x6B4: return 0x404; // є Є
+        case 0x6A6: return 0x456; case 0x6B6: return 0x406; // і І
+        case 0x6A7: return 0x457; case 0x6B7: return 0x407; // ї Ї
+        case 0x6AD: return 0x491; case 0x6BD: return 0x490; // ґ Ґ
+        case 0x6AE: return 0x45E; case 0x6BE: return 0x40E; // ў Ў
+        case 0xFF80: return ' ';
+        case 0xFFAA: return '*'; case 0xFFAB: return '+'; case 0xFFAD: return '-';
+        case 0xFFAE: return '.'; case 0xFFAF: return '/';
+        default: break;
+    }
+    if (sym >= 0xFFB0 && sym <= 0xFFB9) return '0' + (sym - 0xFFB0);
+    return 0;
 }
 
 #ifdef _WIN32
@@ -28,6 +73,8 @@ struct Window::Native {
     Window& owner;
     HWND hwnd = nullptr;
     BITMAPINFO bitmap{};
+    wchar_t highSurrogate = 0;
+    int wheelRemainder = 0;
     explicit Native(Window& window) : owner(window) {}
     ~Native() { if (hwnd) DestroyWindow(hwnd); }
     void paint(HDC dc) {
@@ -50,6 +97,31 @@ struct Window::Native {
             case WM_KEYDOWN: case WM_SYSKEYDOWN: self->owner.keyEvent(static_cast<int>(wparam), true); break;
             case WM_KEYUP: case WM_SYSKEYUP: self->owner.keyEvent(static_cast<int>(wparam), false); break;
             case WM_MOUSEMOVE: self->owner.mouseEvent(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)); return 0;
+            case WM_CHAR: {
+                auto unit = static_cast<wchar_t>(wparam);
+                if (unit >= 0xD800 && unit <= 0xDBFF) { self->highSurrogate = unit; return 0; }
+                uint32_t cp = unit;
+                if (unit >= 0xDC00 && unit <= 0xDFFF) {
+                    if (!self->highSurrogate) return 0;
+                    cp = 0x10000 + ((uint32_t(self->highSurrogate) - 0xD800) << 10) + (uint32_t(unit) - 0xDC00);
+                }
+                self->highSurrogate = 0;
+                if (cp >= 0x20 && cp != 0x7F) self->owner.textEvent(utf8(cp));
+                return 0;
+            }
+            case WM_MOUSEWHEEL: {
+                self->wheelRemainder += GET_WHEEL_DELTA_WPARAM(wparam);
+                int steps = self->wheelRemainder / WHEEL_DELTA;
+                self->wheelRemainder -= steps * WHEEL_DELTA;
+                if (steps) self->owner.wheelEvent(steps);
+                return 0;
+            }
+            case WM_MBUTTONDOWN:
+                self->owner.mouseEvent(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+                self->owner.keyEvent(4, true); return 0;
+            case WM_MBUTTONUP:
+                self->owner.mouseEvent(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+                self->owner.keyEvent(4, false); return 0;
             case WM_LBUTTONDOWN:
                 self->owner.mouseEvent(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
                 SetCapture(handle); self->owner.keyEvent(1, true); return 0;
@@ -122,6 +194,34 @@ struct Window::Native {
         paint(dc);
         ReleaseDC(hwnd, dc);
     }
+    std::string clipboard() {
+        std::string out;
+        if (!IsClipboardFormatAvailable(CF_UNICODETEXT) || !OpenClipboard(hwnd)) return out;
+        if (HANDLE data = GetClipboardData(CF_UNICODETEXT)) {
+            if (auto* text = static_cast<const wchar_t*>(GlobalLock(data))) {
+                int size = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
+                if (size > 1) {
+                    out.resize(static_cast<size_t>(size - 1));
+                    WideCharToMultiByte(CP_UTF8, 0, text, -1, out.data(), size, nullptr, nullptr);
+                }
+                GlobalUnlock(data);
+            }
+        }
+        CloseClipboard();
+        return out;
+    }
+    void setClipboard(const std::string& text) {
+        int length = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, nullptr, 0);
+        if (length <= 0) return;
+        HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, size_t(length) * sizeof(wchar_t));
+        if (!memory) return;
+        MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, static_cast<wchar_t*>(GlobalLock(memory)), length);
+        GlobalUnlock(memory);
+        if (!OpenClipboard(hwnd)) { GlobalFree(memory); return; }
+        EmptyClipboard();
+        if (!SetClipboardData(CF_UNICODETEXT, memory)) GlobalFree(memory);
+        CloseClipboard();
+    }
 };
 #else
 struct Window::Native {
@@ -136,6 +236,10 @@ struct Window::Native {
     size_t stride = 0, rowsPerRequest = 0;
     std::vector<uint8_t> image;
     std::array<int, 256> keymap{};
+    std::vector<uint32_t> keysyms;    // every keysym of every keycode, for typed text
+    unsigned keysymsPerCode = 0, minKeycode = 0;
+    xcb_atom_t clipboardAtom = XCB_NONE, utf8Atom = XCB_NONE, targetsAtom = XCB_NONE, transferAtom = XCB_NONE;
+    std::string ownedClipboard;       // what this window offers while it owns CLIPBOARD
     explicit Native(Window& w) : owner(w) {}
     ~Native() {
         if (connection) {
@@ -168,11 +272,98 @@ struct Window::Native {
             case 0xff51: return 37; case 0xff52: return 38;
             case 0xff53: return 39; case 0xff54: return 40;
             case 0xff09: return 9; case 0xff08: return 8;
+            case 0xffff: return 46; case 0xff50: return 36; case 0xff57: return 35;   // Delete, Home, End
+            case 0xff55: return 33; case 0xff56: return 34; case 0xff63: return 45;   // Page Up/Down, Insert
             case 0xffe1: case 0xffe2: return 16;                     // Shift
             case 0xffe3: case 0xffe4: return 17;                     // Control
             case 0xffe9: case 0xffea: case 0xff7e: return 18;        // Alt, AltGr
-            default: return 0;
+            default: return symbol >= 0xffbe && symbol <= 0xffc9 ? int(symbol - 0xffbe + 112) : 0; // F1..F12
         }
+    }
+    uint32_t keysymAt(unsigned code, unsigned index) const {
+        if (code < minKeycode || index >= keysymsPerCode) return 0;
+        size_t at = size_t(code - minKeycode) * keysymsPerCode + index;
+        return at < keysyms.size() ? keysyms[at] : 0;
+    }
+    // The text a key press types. XKB reports the active layout group in bits 13-14 of
+    // the core event state, so the Russian layout gives Cyrillic without extra libraries.
+    std::string typed(const xcb_key_press_event_t* e) const {
+        unsigned state = e->state;
+        if (state & (XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_1 | XCB_MOD_MASK_4)) return "";
+        unsigned group = (state >> 13) & 3;
+        bool shift = state & XCB_MOD_MASK_SHIFT, lock = state & XCB_MOD_MASK_LOCK, numLock = state & XCB_MOD_MASK_2;
+        uint32_t plain = keysymAt(e->detail, group * 2), shifted = keysymAt(e->detail, group * 2 + 1);
+        if (!plain && !shifted) { plain = keysymAt(e->detail, 0); shifted = keysymAt(e->detail, 1); }
+        if (!shifted) shifted = plain;
+        uint32_t sym = shift ? shifted : plain;
+        if (numLock && shifted >= 0xFFAA && shifted <= 0xFFB9) sym = shift ? plain : shifted;
+        uint32_t cp = keysymToUnicode(sym);
+        // Caps Lock flips the case of letters only.
+        if (lock && cp) {
+            uint32_t other = keysymToUnicode(shift ? plain : shifted);
+            bool letter = (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z') || (cp >= 0x400 && cp <= 0x45F);
+            if (letter && other) cp = other;
+        }
+        return cp >= 0x20 && cp != 0x7F ? utf8(cp) : "";
+    }
+    void answerSelection(const xcb_selection_request_event_t* request) {
+        xcb_selection_notify_event_t reply{};
+        reply.response_type = XCB_SELECTION_NOTIFY;
+        reply.time = request->time;
+        reply.requestor = request->requestor;
+        reply.selection = request->selection;
+        reply.target = request->target;
+        xcb_atom_t property = request->property ? request->property : request->target;
+        reply.property = XCB_NONE;
+        if (request->selection == clipboardAtom && (!ownedClipboard.empty() || request->target == targetsAtom)) {
+            if (request->target == targetsAtom) {
+                xcb_atom_t targets[] = {targetsAtom, utf8Atom, XCB_ATOM_STRING};
+                xcb_change_property(connection, XCB_PROP_MODE_REPLACE, request->requestor, property, XCB_ATOM_ATOM, 32, 3, targets);
+                reply.property = property;
+            } else if (request->target == utf8Atom || request->target == XCB_ATOM_STRING) {
+                xcb_change_property(connection, XCB_PROP_MODE_REPLACE, request->requestor, property, request->target, 8,
+                                    static_cast<uint32_t>(ownedClipboard.size()), ownedClipboard.data());
+                reply.property = property;
+            }
+        }
+        xcb_send_event(connection, 0, request->requestor, 0, reinterpret_cast<const char*>(&reply));
+        xcb_flush(connection);
+    }
+    std::vector<Reply<xcb_generic_event_t>> backlog; // events that arrived while waiting for the clipboard
+    std::string clipboard() {
+        if (!ownedClipboard.empty()) {
+            auto owner = Reply<xcb_get_selection_owner_reply_t>(xcb_get_selection_owner_reply(connection, xcb_get_selection_owner(connection, clipboardAtom), nullptr), &std::free);
+            if (owner && owner->owner == window) return ownedClipboard;
+        }
+        xcb_delete_property(connection, window, transferAtom);
+        xcb_convert_selection(connection, window, clipboardAtom, utf8Atom, transferAtom, XCB_CURRENT_TIME);
+        xcb_flush(connection);
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(800);
+        bool answered = false;
+        while (!answered && std::chrono::steady_clock::now() < deadline) {
+            auto* event = xcb_poll_for_event(connection);
+            if (!event) { std::this_thread::sleep_for(std::chrono::milliseconds(5)); continue; }
+            if ((event->response_type & 127) == XCB_SELECTION_NOTIFY) {
+                auto* notify = reinterpret_cast<xcb_selection_notify_event_t*>(event);
+                answered = true;
+                bool empty = notify->property == XCB_NONE;
+                std::free(event);
+                if (empty) return "";
+            } else {
+                backlog.emplace_back(event, &std::free);
+            }
+        }
+        if (!answered) return "";
+        auto cookie = xcb_get_property(connection, 1, window, transferAtom, XCB_GET_PROPERTY_TYPE_ANY, 0, 4 * 1024 * 1024 / 4);
+        Reply<xcb_get_property_reply_t> reply(xcb_get_property_reply(connection, cookie, nullptr), &std::free);
+        if (!reply || reply->format != 8) return "";
+        return std::string(static_cast<const char*>(xcb_get_property_value(reply.get())),
+                           static_cast<size_t>(xcb_get_property_value_length(reply.get())));
+    }
+    void setClipboard(const std::string& text) {
+        ownedClipboard = text;
+        xcb_set_selection_owner(connection, window, clipboardAtom, XCB_CURRENT_TIME);
+        xcb_flush(connection);
     }
     void refreshKeys() {
         const auto* setup = xcb_get_setup(connection);
@@ -182,6 +373,9 @@ struct Window::Native {
         if (!reply) fail("cannot read X11 keyboard mapping");
         keymap.fill(0);
         const auto* symbols = xcb_get_keyboard_mapping_keysyms(reply.get());
+        keysymsPerCode = reply->keysyms_per_keycode;
+        minKeycode = setup->min_keycode;
+        keysyms.assign(symbols, symbols + size_t(count) * keysymsPerCode);
         // A non-Latin primary layout keeps its Latin keysym in a later group, so WASD
         // must be looked up across all groups instead of group 0 only.
         for (unsigned code = setup->min_keycode; code <= setup->max_keycode; ++code)
@@ -221,6 +415,8 @@ struct Window::Native {
             static_cast<uint16_t>(width), static_cast<uint16_t>(height), 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual,
             XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK, values));
         protocols = atom("WM_PROTOCOLS"); deleteWindow = atom("WM_DELETE_WINDOW");
+        clipboardAtom = atom("CLIPBOARD"); utf8Atom = atom("UTF8_STRING");
+        targetsAtom = atom("TARGETS"); transferAtom = atom("FOXLANG_CLIPBOARD");
         check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, protocols, XCB_ATOM_ATOM, 32, 1, &deleteWindow));
         check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, atom("_NET_WM_NAME"), atom("UTF8_STRING"), 8, static_cast<uint32_t>(title.size()), title.data()));
         check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, static_cast<uint32_t>(title.size()), title.data()));
@@ -238,7 +434,8 @@ struct Window::Native {
         present();
     }
     void poll() {
-        std::vector<Reply<xcb_generic_event_t>> events;
+        std::vector<Reply<xcb_generic_event_t>> events = std::move(backlog);
+        backlog.clear();
         while (auto* event = xcb_poll_for_event(connection)) events.emplace_back(event, &std::free);
         for (size_t i = 0; i < events.size(); ++i) {
             auto* event = events[i].get();
@@ -248,13 +445,21 @@ struct Window::Native {
                 // X11 autorepeat emits release+press with the same timestamp. It is not a new press.
                 if (type == XCB_KEY_RELEASE && i + 1 < events.size() && (events[i+1]->response_type & 127) == XCB_KEY_PRESS) {
                     auto* next = reinterpret_cast<xcb_key_press_event_t*>(events[i+1].get());
-                    if (next->detail == e->detail && next->time == e->time) { ++i; continue; }
+                    if (next->detail == e->detail && next->time == e->time) {
+                        ++i;
+                        if (keymap[e->detail]) owner.keyEvent(keymap[e->detail], true); // still down: a repeat
+                        owner.textEvent(typed(next));
+                        continue;
+                    }
                 }
                 if (keymap[e->detail]) owner.keyEvent(keymap[e->detail], type == XCB_KEY_PRESS);
+                if (type == XCB_KEY_PRESS) owner.textEvent(typed(e));
             } else if (type == XCB_BUTTON_PRESS || type == XCB_BUTTON_RELEASE) {
                 auto* e = reinterpret_cast<xcb_button_press_event_t*>(event);
-                if (e->detail == 1 || e->detail == 3) owner.keyEvent(e->detail == 1 ? 1 : 2, type == XCB_BUTTON_PRESS);
                 owner.mouseEvent(e->event_x, e->event_y);
+                if (e->detail == 1 || e->detail == 3) owner.keyEvent(e->detail == 1 ? 1 : 2, type == XCB_BUTTON_PRESS);
+                else if (e->detail == 2) owner.keyEvent(4, type == XCB_BUTTON_PRESS);
+                else if ((e->detail == 4 || e->detail == 5) && type == XCB_BUTTON_PRESS) owner.wheelEvent(e->detail == 4 ? 1 : -1);
             } else if (type == XCB_MOTION_NOTIFY) {
                 auto* e = reinterpret_cast<xcb_motion_notify_event_t*>(event); owner.mouseEvent(e->event_x, e->event_y);
             } else if (type == XCB_FOCUS_IN) owner.focusEvent(true);
@@ -264,6 +469,8 @@ struct Window::Native {
                 auto* e = reinterpret_cast<xcb_client_message_event_t*>(event);
                 if (e->type == protocols && e->format == 32 && e->data.data32[0] == deleteWindow) owner.closeEvent();
             } else if (type == XCB_DESTROY_NOTIFY) { window = XCB_NONE; owner.closeEvent(); }
+            else if (type == XCB_SELECTION_REQUEST) answerSelection(reinterpret_cast<xcb_selection_request_event_t*>(event));
+            else if (type == XCB_SELECTION_CLEAR) ownedClipboard.clear();
             else if (type == XCB_EXPOSE) copy();
             else if (type == 0) fail("X11 reported an asynchronous protocol error");
         }
@@ -308,20 +515,42 @@ Window::Window(int width, int height, const std::string& title) : surface_(width
 Window::~Window() = default;
 bool Window::poll() {
     pressed_.fill(false);
+    repeated_.fill(false);
+    text_.clear();
+    edits_.clear();
+    wheel_ = 0;
+    doubleClick_ = false;
     if (!open_) return false;
     auto now = std::chrono::steady_clock::now();
     delta_ = std::clamp(std::chrono::duration<double>(now - lastPoll_).count(), 0.0, 0.1);
     lastPoll_ = now;
     native_->poll();
+    ui_.beginFrame(*this);
     return open_;
 }
 void Window::present() { if (open_) native_->present(); }
 void Window::keyEvent(int key, bool down) {
     if (key <= 0 || key >= 256) return;
-    if (down && !down_[key]) pressed_[key] = true;
+    if (down) {
+        // A key that is already down is being repeated by the OS.
+        repeated_[key] = true;
+        if (key > 2 && key != 4 && edits_.size() < 4096) edits_.push_back({"", key, down_[17]});
+        if (!down_[key]) {
+            pressed_[key] = true;
+            if (key == 1) {
+                auto now = std::chrono::steady_clock::now();
+                doubleClick_ = now - lastClick_ < std::chrono::milliseconds(450) &&
+                               std::abs(mouseX_ - lastClickX_) <= 4 && std::abs(mouseY_ - lastClickY_) <= 4;
+                // A third click starts a new pair instead of counting as another double click.
+                lastClick_ = doubleClick_ ? std::chrono::steady_clock::time_point{} : now;
+                lastClickX_ = mouseX_;
+                lastClickY_ = mouseY_;
+            }
+        }
+    }
     down_[key] = down;
 }
-void Window::focusEvent(bool focused) { focused_ = focused; down_.fill(false); pressed_.fill(false); }
+void Window::focusEvent(bool focused) { focused_ = focused; down_.fill(false); pressed_.fill(false); repeated_.fill(false); }
 int Window::keyCode(const std::string& key) {
     if (key.size() == 1) {
         unsigned char c = static_cast<unsigned char>(key[0]);
@@ -337,6 +566,17 @@ int Window::keyCode(const std::string& key) {
     if (key == "ESCAPE") return 27;
     if (key == "TAB") return 9;
     if (key == "BACKSPACE") return 8;
+    if (key == "DELETE") return 46;
+    if (key == "HOME") return 36;
+    if (key == "END") return 35;
+    if (key == "PAGE_UP") return 33;
+    if (key == "PAGE_DOWN") return 34;
+    if (key == "INSERT") return 45;
+    if (key.size() >= 2 && key.size() <= 3 && key[0] == 'F' && key.find_first_not_of("0123456789", 1) == std::string::npos) {
+        int number = std::stoi(key.substr(1));
+        if (number >= 1 && number <= 12) return 111 + number;
+    }
+    if (key == "MOUSE_MIDDLE") return 4;
     if (key == "SHIFT") return 16;
     if (key == "CTRL") return 17;
     if (key == "ALT") return 18;
@@ -346,4 +586,7 @@ int Window::keyCode(const std::string& key) {
 }
 bool Window::keyDown(const std::string& key) const { return down_[keyCode(key)]; }
 bool Window::keyPressed(const std::string& key) const { return pressed_[keyCode(key)]; }
+bool Window::keyRepeat(const std::string& key) const { return repeated_[keyCode(key)]; }
+std::string Window::clipboard() { return native_->clipboard(); }
+void Window::setClipboard(const std::string& text) { native_->setClipboard(text); }
 } // namespace foxlang::graphics

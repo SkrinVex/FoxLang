@@ -102,13 +102,14 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
             for (auto& name : names) items.push_back(text(std::move(name)));
             return Value{"array", c.ctx.newArray(std::move(items))};
         });
-    add({"fs_size", "int", {{"string", "path"}}, 1, false, "fs",
-         "Размер файла в байтах или `-1`, если файла нет. Файл больше 2 ГиБ — ошибка выполнения."},
+    add({"fs_size", "float", {{"string", "path"}}, 1, false, "fs",
+         "Размер файла в байтах или `-1`, если это не файл. Тип `float`: размеры больше 2 ГиБ не помещаются в `int`, "
+         "а `float` хранит их точно."},
         [](Call& c) {
             std::error_code ec;
             auto size = fs::file_size(pathOf(c.text(0)), ec);
-            if (ec) return integer(-1);
-            return integer(static_cast<long long>(size));
+            if (ec) return real(-1);
+            return real(static_cast<double>(size));
         });
 
     // Environment

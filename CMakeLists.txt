@@ -51,6 +51,7 @@ add_library(foxlang_core STATIC
     src/core/AST.cpp
     src/core/Project.cpp
     src/core/HttpServer.cpp
+    src/core/Process.cpp
     src/core/Template.cpp
     src/core/Interpreter.cpp
     src/core/SemanticAnalyzer.cpp
@@ -59,9 +60,11 @@ add_library(foxlang_core STATIC
     src/core/builtins/Text.cpp
     src/core/builtins/Collections.cpp
     src/core/builtins/System.cpp
+    src/core/builtins/Files.cpp
     src/core/builtins/NetworkBuiltins.cpp
     src/graphics/Surface.cpp
     src/graphics/Window.cpp
+    src/graphics/Ui.cpp
     src/graphics/Builtins.cpp
 )
 
@@ -73,6 +76,10 @@ target_include_directories(foxlang_core PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/gene
 target_compile_definitions(foxlang_core PRIVATE FOXLANG_VERSION="${PROJECT_VERSION}")
 include(cmake/Networking.cmake)
 include(cmake/Graphics.cmake)
+if(WIN32)
+    # ShellExecuteW opens files with their default application (os_open).
+    target_link_libraries(foxlang_core PRIVATE shell32)
+endif()
 
 # FoxLang CLI executable
 add_library(foxlang_bundle STATIC

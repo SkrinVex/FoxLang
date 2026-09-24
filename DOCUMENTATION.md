@@ -586,9 +586,26 @@ print(page);
 | `fs_make_dir(string path) -> bool` | создать каталог с родительскими |
 | `fs_remove(string path) -> bool` | удалить файл или **пустой** каталог |
 | `fs_list(string path) -> array` | имена внутри каталога по алфавиту |
-| `fs_size(string path) -> int` | размер файла в байтах или -1 |
+| `fs_size(string path) -> float` | размер файла в байтах или -1; `float`, чтобы файлы больше 2 ГиБ не переполняли `int` |
+| `fs_is_file(string path)`, `fs_is_link(string path)` | обычный файл, символическая ссылка |
+| `fs_modified(string path) -> float` | время изменения в мс UNIX или -1 |
+| `fs_permissions(string path) -> string` | права вида `rwxr-xr-x` или пустая строка |
+| `fs_set_permissions(string path, string mode) -> bool` | права: `"755"`, `"0644"` или `"rwxr-x---"` |
+| `fs_is_executable(string path) -> bool` | можно ли запустить (на Windows — по расширению) |
+| `fs_owner(string path) -> string` | владелец файла (Linux/macOS) |
+| `fs_copy(string from, string to, [bool overwrite]) -> bool` | копия файла или каталога со всем содержимым и правами |
+| `fs_move(string from, string to) -> bool` | переименование или перенос, в том числе на другой диск |
+| `fs_remove_all(string path) -> int` | удалить со всем содержимым; число удалённых объектов |
+| `fs_free_space(string path) -> float` | свободное место на диске в байтах |
+| `fs_home()`, `fs_temp_dir()` | домашний каталог и каталог временных файлов |
+| `path_join(string base, string name)`, `path_parent(string path)` | соединить части пути, родительский каталог |
+| `path_name(string path)`, `path_stem(string path)`, `path_extension(string path)` | имя, имя без расширения, расширение с точкой |
+| `path_absolute(string path) -> string` | полный путь без `.` и `..` |
 
-Относительные пути считаются от рабочего каталога процесса.
+Относительные пути считаются от рабочего каталога процесса. Функции путей используют
+разделитель ОС (`/` или `\`) и понимают оба. `fs_copy` и `fs_move` не заменяют
+существующую цель без разрешения; `fs_remove_all` отказывается удалять корень диска и
+домашний каталог.
 
 ### Окружение и логирование
 
@@ -610,6 +627,14 @@ print(page);
 | `os_args() -> array` | аргументы командной строки после имени программы |
 | `os_platform() -> string` | `linux`, `windows`, `macos` или `other` |
 | `os_cwd() -> string` | текущий рабочий каталог |
+| `os_open(string target) -> bool` | открыть файл, папку или URL приложением по умолчанию |
+| `os_run(string program, [array args]) -> int` | запустить программу и дождаться; код возврата, `-1` — не запустилась |
+| `os_run_output(string program, [array args]) -> string` | запустить и вернуть стандартный вывод |
+| `os_last_exit() -> int` | код возврата последнего `os_run_output` |
+
+Программы запускаются без командной оболочки: каждый аргумент доходит до программы как
+есть, пробелы, кавычки и `;` в нём не превращаются в команды. Нужна оболочка — запустите
+её явно: `os_run("sh", ["-c", "ls | wc -l"])`.
 
 `clock_ms` не зависит от перевода системных часов и подходит для замера
 длительности; `time_now_ms` имеет тип `float`, потому что значение не помещается в
@@ -669,7 +694,15 @@ print(page);
 `gfx_line(int x1, int y1, int x2, int y2, int color)`,
 `gfx_frame(int x, int y, int width, int height, int thickness, int color)`,
 `gfx_ring(int x, int y, int radius, int thickness, int color)`,
-`gfx_text_width(string text, int scale)`.
+`gfx_text_width(string text, int scale)`,
+`gfx_rect_alpha(int x, int y, int width, int height, int color, int alpha)`, `gfx_width()`,
+`gfx_height()`, `gfx_text_input()`, `gfx_repeat(string key)`, `gfx_wheel()`,
+`gfx_double_click()`, `gfx_clipboard()`, `gfx_set_clipboard(string text)`.
+Основа модуля [`ui`](#using-ui): `gfx_ui_layer_begin(bool modal)`, `gfx_ui_layer_end()`,
+`gfx_ui_hover(string id, int x, int y, int width, int height)`,
+`gfx_ui_click(string id, int x, int y, int width, int height)`,
+`gfx_ui_text(string id, int x, int y, int width, int height, string text, int scale, int color)`,
+`gfx_ui_focused(string id)`, `gfx_ui_focus(string id)`, `gfx_ui_typing()`.
 Обычно их вызывают через модуль с понятными именами.
 
 ---
@@ -756,7 +789,17 @@ print(payload);
 | `exists(string path)`, `is_dir(string path)` | проверки пути |
 | `make_dir(string path)`, `remove_path(string path)` | создание и удаление |
 | `list_dir(string path) -> array` | содержимое каталога |
-| `file_size(string path) -> int` | размер или -1 |
+| `file_size(string path) -> float` | размер или -1 |
+| `is_file(string path)`, `is_link(string path)`, `is_executable(string path)` | тип и запуск |
+| `permissions(string path)`, `set_permissions(string path, string mode)`, `owner(string path)` | права и владелец |
+| `modified_ms(string path) -> float` | время изменения |
+| `copy_path(string from, string to)`, `move_path(string from, string to)` | копирование и перемещение без перезаписи |
+| `remove_tree(string path) -> int` | удаление со всем содержимым |
+| `free_space(string path)`, `home_dir()`, `temp_dir()` | диск и стандартные каталоги |
+| `join_path(string base, string name)`, `parent_dir(string path)` | части пути |
+| `file_name(string path)`, `file_stem(string path)`, `file_extension(string path)` | имя и расширение |
+| `absolute_path(string path)` | полный путь |
+| `format_bytes(float bytes) -> string` | размер для людей: `1.5 KB`, `3.2 GB` |
 | `read_lines(string path) -> array` | строки файла без переводов строк (CRLF тоже) |
 | `write_lines(string path, array lines) -> bool` | записать по элементу на строку |
 
@@ -768,12 +811,19 @@ if (!exists("data")) {
 write_lines("data/names.txt", ["Лис", "Волк"]);
 array names = read_lines("data/names.txt");
 print(names, list_dir("data"), file_size("data/names.txt"));
+
+string report = join_path("data", "names.txt");
+print(file_name(report), permissions(report), format_bytes(file_size(report)));
+copy_path("data", join_path(temp_dir(), "data-backup"));
+print(remove_tree(join_path(temp_dir(), "data-backup")));
 ```
 
 ### using os;
 
 `args() -> array`, `arg_or(int index, string fallback) -> string`,
-`platform() -> string`, `cwd() -> string`. Завершение с кодом — встроенная `exit`.
+`platform() -> string`, `cwd() -> string`, `open_path(string target) -> bool`,
+`run(string program, array args) -> int`, `run_output(string program, array args) -> string`,
+`last_exit() -> int`. Завершение с кодом — встроенная `exit`.
 
 ```cpp
 using os;
@@ -885,8 +935,30 @@ reset_color();
 `draw_line(int x1, int y1, int x2, int y2, int color)`,
 `draw_frame(int x, int y, int width, int height, int thickness, int color)`,
 `draw_ring(int x, int y, int radius, int thickness, int color)`,
-`text_width(string text, int scale)`.
+`text_width(string text, int scale)`, `draw_rect_alpha(int x, int y, int width, int height, int color, int alpha)`,
+`window_width()`, `window_height()`, `text_input()`, `key_repeat(string key)`,
+`mouse_wheel()`, `double_clicked()`, `clipboard_text()`, `set_clipboard_text(string text)`.
 Подробности и пример — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
+
+### using ui;
+
+Элементы интерфейса для окна `graphics`, которые ведут себя как в обычных программах:
+
+| Функция | Описание |
+|---|---|
+| `ui_button(string id, int x, int y, int width, int height, string label) -> bool` | кнопка; `true` в кадре щелчка |
+| `ui_primary_button(string id, int x, int y, int width, int height, string label) -> bool` | выделенная кнопка |
+| `ui_text_field(string id, int x, int y, int width, string text, string placeholder) -> string` | поле ввода; возвращает текст |
+| `ui_checkbox(string id, int x, int y, string label, bool checked) -> bool` | флажок; возвращает состояние |
+| `ui_modal_begin(int x, int y, int width, int height, string title)`, `ui_modal_end()` | модальное окно |
+| `ui_layer_begin()`, `ui_layer_end()` | немодальный слой поверх (выпадающий список) |
+| `ui_hover(string id, int x, int y, int width, int height) -> bool` | мышь над своим элементом |
+| `ui_click(string id, int x, int y, int width, int height) -> bool` | щелчок по своему элементу |
+| `ui_double_click(string id, int x, int y, int width, int height) -> bool` | двойной щелчок по элементу |
+| `ui_focused(string id)`, `ui_focus(string id)`, `ui_unfocus()` | фокус клавиатуры |
+| `ui_typing() -> bool` | идёт ли ввод в поле — тогда не обрабатывайте горячие клавиши-буквы |
+
+См. [раздел 18](#18-нативная-графика).
 
 ---
 
@@ -1207,8 +1279,9 @@ CMake. Аргументы командной строки приложения �
 ## 18. Нативная графика
 
 `using graphics;` открывает нативное окно (X11/XWayland на Linux, Win32/GDI на
-Windows) с программным 2D-рисованием, встроенным пиксельным шрифтом с кириллицей и
-вводом с клавиатуры и мыши. Браузер и графические ресурсы не нужны.
+Windows) с программным 2D-рисованием, встроенным пиксельным шрифтом с кириллицей,
+вводом текста, клавиатурой, мышью с колесом и буфером обмена. Браузер и графические
+ресурсы не нужны. Модуль `ui` добавляет кнопки, поля ввода и модальные окна.
 
 ```cpp
 using graphics;
@@ -1224,6 +1297,77 @@ while (window_poll()) {
 }
 close_window();
 ```
+
+### Интерфейс: кнопки, поля, диалоги
+
+Модуль `ui` решает то, что в интерфейсе «из прямоугольников» сделать правильно
+трудно: какой элемент получает щелчок, кто принимает ввод с клавиатуры и что
+делает модальное окно.
+
+* **Щелчок получает один элемент — верхний.** Кнопка, открывшая диалог, не нажимает
+  в том же кадре кнопку диалога под курсором; перекрытый элемент не реагирует.
+* **Модальное окно блокирует всё под собой:** кнопки, поля, списки под ним не
+  подсвечиваются и не нажимаются, а фокус не уходит за его пределы.
+* **Клавиатура принадлежит полю с фокусом.** Щелчок по полю даёт ему фокус и ставит
+  курсор, Tab и Shift+Tab переходят между полями слоя, щелчок мимо полей снимает фокус
+  (в диалоге фокус остаётся, пока не выбрано другое поле). Пока `ui_typing()` истинно,
+  приложение не должно реагировать на горячие клавиши-буквы.
+* **Поле ввода** принимает текст в любой раскладке (кириллицу, `/`, `.` и остальные
+  символы), с Shift и Caps Lock, стирает Backspace и Delete с автоповтором, двигает
+  курсор стрелками, Home и End, вставляет Ctrl+V и копирует Ctrl+C, прокручивает
+  длинный текст.
+* У каждого элемента свой постоянный `id`: по нему интерфейс узнаёт элемент в
+  следующем кадре. Для строк списка подойдёт `"row" + i`.
+
+```cpp
+using graphics;
+using ui;
+
+open_window(480, 320, "Файлы");
+bool asking = false;
+string folder = "";
+string status = "";
+while (window_poll()) {
+    clear_window(rgb(244, 246, 249));
+    if (ui_button("new", 20, 20, 140, 30, "Новая папка")) {
+        asking = true;
+        folder = "";
+        ui_focus("folder");
+    }
+    for (int i = 0; i < 3; i++) {
+        if (ui_double_click("row" + i, 20, 70 + i * 26, 300, 24)) {
+            status = "открыт файл " + i;
+        }
+        draw_text(24, 78 + i * 26, "файл " + i, 1, rgb(30, 35, 42));
+    }
+    if (!ui_typing() && key_pressed("Q")) {
+        break;
+    }
+    if (asking) {
+        ui_modal_begin(90, 90, 300, 150, "Новая папка");
+        folder = ui_text_field("folder", 110, 140, 260, folder, "Имя папки");
+        bool create = ui_primary_button("create", 190, 190, 90, 28, "Создать");
+        if (create || (ui_focused("folder") && key_pressed("ENTER"))) {
+            status = "создана " + folder;
+            asking = false;
+        }
+        if (ui_button("cancel", 290, 190, 80, 28, "Отмена") || key_pressed("ESCAPE")) {
+            asking = false;
+        }
+        ui_modal_end();
+    }
+    draw_text(20, 290, status, 1, rgb(90, 96, 104));
+    present_window();
+    wait(16);
+}
+close_window();
+```
+
+Для своих элементов используйте `ui_click` и `ui_hover` вместо проверки
+`key_pressed("MOUSE_LEFT")` и координат мыши: только они учитывают слои и модальные
+окна. Цвета элементов задают переменные модуля `UI_ACCENT`, `UI_TEXT`, `UI_BORDER`,
+`UI_FIELD`, `UI_BUTTON`, `UI_BUTTON_HOVER`, `UI_PANEL`, `UI_BACKDROP` — их можно
+присвоить до цикла.
 
 Сигнатуры, коды клавиш и системные требования — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
 
