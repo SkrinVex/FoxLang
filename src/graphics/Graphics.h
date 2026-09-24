@@ -26,9 +26,17 @@ public:
     int width() const { return width_; }
     int height() const { return height_; }
     const std::vector<uint32_t>& pixels() const { return pixels_; }
+    // Drawing is limited to the innermost clip rectangle, itself limited by the ones
+    // around it; clear() still fills the whole surface.
+    struct Clip { int left, top, right, bottom; };
+    void pushClip(int x, int y, int width, int height);
+    void popClip();
+    void resetClip() { clips_.clear(); }
+    Clip clip() const { return clips_.empty() ? Clip{0, 0, width_, height_} : clips_.back(); }
 private:
     int width_, height_;
     std::vector<uint32_t> pixels_;
+    std::vector<Clip> clips_;
 };
 
 class Window;
@@ -66,6 +74,15 @@ public:
         if (!id.empty()) field(id).cursor = static_cast<size_t>(-1); // caret after the existing text
     }
     bool typing() const { return !focus_.empty(); }
+    // True while the element is held by the mouse: from a press on it until the button is
+    // released, even if the mouse leaves it. Other elements do not react meanwhile.
+    bool drag(const std::string& id, int x, int y, int width, int height, Window& window);
+    // Where inside the dragged element the press happened.
+    int dragX() const { return dragX_; }
+    int dragY() const { return dragY_; }
+    // The wheel turn for this scroll area: the innermost area under the mouse that is not
+    // covered by a higher layer gets it, the others get 0.
+    int wheel(const std::string& id, int x, int y, int width, int height, Window& window);
 
 private:
     struct Region {
@@ -74,6 +91,9 @@ private:
         bool focusable;
     };
     std::vector<Region> current_, previous_;
+    std::vector<Region> scrolls_, previousScrolls_;
+    std::string drag_, wheelOwner_;
+    int dragX_ = 0, dragY_ = 0, hotLayer_ = -1;
     std::vector<int> stack_;      // open layers of this frame
     std::vector<bool> stackModal_;
     int nextLayer_ = 0, blockBelow_ = 0, modalLayer_ = 0;
@@ -83,8 +103,9 @@ private:
     struct Field { size_t cursor = 0, scroll = 0; };
     std::vector<std::pair<std::string, Field>> fields_;
     int layer() const { return stack_.empty() ? 0 : stack_.back(); }
-    void add(const std::string& id, int x, int y, int width, int height, bool focusable);
-    bool active(const std::string& id, int x, int y, int width, int height, Window& window) const;
+    // Registers the element, cut to the clip rectangle, and returns where it can be hit.
+    Region add(const std::string& id, int x, int y, int width, int height, bool focusable, Window& window);
+    bool active(const Region& region, Window& window) const;
     Field& field(const std::string& id);
 };
 

@@ -525,6 +525,7 @@ bool Window::poll() {
     delta_ = std::clamp(std::chrono::duration<double>(now - lastPoll_).count(), 0.0, 0.1);
     lastPoll_ = now;
     native_->poll();
+    surface_.resetClip();
     ui_.beginFrame(*this);
     return open_;
 }

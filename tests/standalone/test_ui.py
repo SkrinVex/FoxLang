@@ -3,6 +3,8 @@
 A modal dialog must keep clicks and typing away from what lies under it, a text field
 must receive typed text (with Shift), Backspace and the caret keys, letter shortcuts
 must stay quiet while a field has the keyboard, and the wheel and double clicks count.
+A scroll area takes the wheel only when nothing covers it, its thumb follows the mouse
+until the button is released, and rows scrolled out of it cannot be clicked.
 """
 from pathlib import Path
 import os
@@ -30,6 +32,8 @@ int wheel = 0;
 int doubles = 0;
 int frame = 0;
 int quiet_q = 0;
+int scroll = 0;
+string picked = "";
 while (window_poll()) {
     frame++;
     clear_window(rgb(250, 250, 250));
@@ -54,6 +58,22 @@ while (window_poll()) {
     }
     if (!ui_typing() && key_pressed("Q")) {
         quiet_q++;
+    }
+    if (!ui_typing() && !dialog && key_pressed("N")) {
+        dialog = true;
+        ui_focus("name");
+    }
+    scroll = ui_scroll_begin("list", 20, 160, 110, 120, scroll, 400);
+    for (int i = 0; i < 20; i++) {
+        int row_y = 160 + i * 20 - scroll;
+        if (ui_click("row" + i, 20, row_y, 98, 20)) {
+            picked += "" + i + ",";
+        }
+        draw_text(24, row_y + 6, "row " + i, 1, rgb(0, 0, 0));
+    }
+    ui_scroll_end();
+    if (ui_button("report", 280, 210, 100, 30, "Report")) {
+        write_file("scroll.txt", "" + scroll + "|" + picked);
     }
     if (dialog) {
         ui_modal_begin(60, 60, 280, 180, "Dialog");
@@ -144,6 +164,11 @@ with tempfile.TemporaryDirectory(prefix='fox-ui-') as directory:
         click(driver, workdir, 200, 35)
         driver.type_text('zz')
         settle(workdir)
+        # The wheel over the backdrop does not scroll the list under the dialog.
+        driver.mouse(40, 250)
+        settle(workdir, 2)
+        driver.wheel(40, 250, -2)
+        settle(workdir)
         # A letter shortcut is text while a field is focused.
         driver.send_key('Q', True)
         driver.send_key('Q', False)
@@ -188,8 +213,47 @@ with tempfile.TemporaryDirectory(prefix='fox-ui-') as directory:
         settle(workdir)
         click(driver, workdir, 330, 265)
         wait_for(lambda: (workdir / 'done.txt').exists(), process, 'done')
-        expected = cyrillic + '|1|1|1|1'
+        expected = cyrillic + '|1|-1|1|1'
         assert (workdir / 'done.txt').read_text(encoding='utf-8') == expected, (workdir / 'done.txt').read_text(encoding='utf-8')
+
+        # Two wheel steps scroll the list by 96 pixels: row 4 now sits half above the area,
+        # so a click just above the area misses it and a click inside picks row 5.
+        # Windows wheel messages do not move the pointer, so move it over the list first.
+        driver.mouse(60, 200)
+        settle(workdir, 2)
+        driver.wheel(60, 200, -2)
+        settle(workdir)
+        click(driver, workdir, 60, 155)
+        click(driver, workdir, 60, 170)
+        # The thumb (y 188..224) follows the mouse even after it leaves the bar.
+        driver.mouse(124, 200)
+        settle(workdir, 2)
+        driver.mouse(124, 200, True)
+        settle(workdir, 2)
+        for y in (220, 250, 290):
+            driver.mouse(124, y)
+            settle(workdir, 1)
+        driver.mouse(300, 290)
+        settle(workdir, 2)
+        driver.mouse(300, 290, False)
+        settle(workdir, 2)
+        click(driver, workdir, 330, 225)
+        wait_for(lambda: (workdir / 'scroll.txt').exists(), process, 'scroll report')
+        assert (workdir / 'scroll.txt').read_text(encoding='utf-8') == '280|5,', (workdir / 'scroll.txt').read_text(encoding='utf-8')
+
+        # A letter shortcut opens the dialog; the letter itself is not typed into its field.
+        (workdir / 'dialog.txt').unlink()
+        driver.mouse(200, 150)
+        settle(workdir, 2)
+        driver.send_key('N', True)
+        driver.send_key('N', False)
+        settle(workdir)
+        driver.type_text('k')
+        settle(workdir)
+        click(driver, workdir, 120, 174)
+        wait_for(lambda: (workdir / 'dialog.txt').exists(), process, 'shortcut dialog closed')
+        name = (workdir / 'dialog.txt').read_text(encoding='utf-8').split('|')[0]
+        assert name == 'XAbc/.zzqk', name
         driver.close_window()
         stdout, stderr = process.communicate(timeout=15)
         assert process.returncode == 0, (stdout, stderr)

@@ -58,6 +58,8 @@
       <item>clear</item>
       <item>clear_window</item>
       <item>client_ip</item>
+      <item>clip_begin</item>
+      <item>clip_end</item>
       <item>clipboard_text</item>
       <item>clock_ms</item>
       <item>close_tcp</item>
@@ -128,6 +130,8 @@
       <item>getch</item>
       <item>gfx_circle</item>
       <item>gfx_clear</item>
+      <item>gfx_clip_begin</item>
+      <item>gfx_clip_end</item>
       <item>gfx_clipboard</item>
       <item>gfx_close</item>
       <item>gfx_delta</item>
@@ -153,6 +157,9 @@
       <item>gfx_text_input</item>
       <item>gfx_text_width</item>
       <item>gfx_ui_click</item>
+      <item>gfx_ui_drag</item>
+      <item>gfx_ui_drag_x</item>
+      <item>gfx_ui_drag_y</item>
       <item>gfx_ui_focus</item>
       <item>gfx_ui_focused</item>
       <item>gfx_ui_hover</item>
@@ -160,6 +167,7 @@
       <item>gfx_ui_layer_end</item>
       <item>gfx_ui_text</item>
       <item>gfx_ui_typing</item>
+      <item>gfx_ui_wheel</item>
       <item>gfx_wheel</item>
       <item>gfx_width</item>
       <item>goto_xy</item>
@@ -387,6 +395,9 @@
       <item>ui_checkbox</item>
       <item>ui_click</item>
       <item>ui_double_click</item>
+      <item>ui_drag</item>
+      <item>ui_drag_x</item>
+      <item>ui_drag_y</item>
       <item>ui_focus</item>
       <item>ui_focused</item>
       <item>ui_hover</item>
@@ -395,9 +406,14 @@
       <item>ui_modal_begin</item>
       <item>ui_modal_end</item>
       <item>ui_primary_button</item>
+      <item>ui_scroll_begin</item>
+      <item>ui_scroll_end</item>
+      <item>ui_scroll_to</item>
+      <item>ui_scrollbar</item>
       <item>ui_text_field</item>
       <item>ui_typing</item>
       <item>ui_unfocus</item>
+      <item>ui_wheel</item>
       <item>unix_time_ms</item>
       <item>upload_name</item>
       <item>upper</item>

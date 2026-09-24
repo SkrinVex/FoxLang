@@ -23,12 +23,12 @@ const std::unordered_map<char32_t, Glyph>& lowercase() {
         {U'v',{0,0,17,17,17,10,4}}, {U'w',{0,0,17,17,21,21,10}}, {U'x',{0,0,17,10,4,10,17}},
         {U'y',{0,0,17,17,17,17,15,1,14}}, {U'z',{0,0,31,2,4,8,31}},
         {U'б',{15,16,30,17,17,17,14}}, {U'в',{0,0,30,17,30,17,30}}, {U'г',{0,0,31,16,16,16,16}},
-        {U'д',{0,0,6,10,10,31,17}}, {U'ё',{10,0,14,17,31,16,14}}, {U'ж',{0,0,21,21,14,21,21}},
+        {U'д',{0,0,14,10,10,10,31,17}}, {U'ё',{10,0,14,17,31,16,14}}, {U'ж',{0,0,21,21,14,21,21}},
         {U'з',{0,0,30,1,6,1,30}}, {U'и',{0,0,17,19,21,25,17}}, {U'й',{10,4,17,19,21,25,17}},
         {U'к',{0,0,18,20,24,20,18}}, {U'л',{0,0,7,9,9,9,17}}, {U'м',{0,0,17,27,21,17,17}},
         {U'н',{0,0,17,17,31,17,17}}, {U'п',{0,0,31,17,17,17,17}}, {U'т',{0,0,31,4,4,4,4}},
-        {U'ф',{0,4,14,21,21,14,4}}, {U'ц',{0,0,18,18,18,31,1}}, {U'ч',{0,0,17,17,15,1,1}},
-        {U'ш',{0,0,21,21,21,21,31}}, {U'щ',{0,0,21,21,21,31,1}}, {U'ъ',{0,0,24,8,14,9,14}},
+        {U'ф',{0,4,14,21,21,14,4}}, {U'ц',{0,0,18,18,18,18,31,1}}, {U'ч',{0,0,17,17,15,1,1}},
+        {U'ш',{0,0,21,21,21,21,31}}, {U'щ',{0,0,21,21,21,21,31,1}}, {U'ъ',{0,0,24,8,14,9,14}},
         {U'ы',{0,0,17,17,29,21,29}}, {U'ь',{0,0,16,16,30,17,30}}, {U'э',{0,0,14,1,7,1,14}},
         {U'ю',{0,0,18,21,29,21,18}}, {U'я',{0,0,15,17,15,9,17}}
     };
@@ -126,12 +126,27 @@ Surface::Surface(int width, int height) : width_(width), height_(height) {
         throw std::runtime_error("Graphics Error: dimensions must be 1..4096, at most 8388608 pixels");
     pixels_.resize(size_t(width) * height);
 }
+void Surface::pushClip(int x, int y, int width, int height) {
+    if (width < 0 || height < 0) throw std::runtime_error("Graphics Error: clip size must not be negative");
+    if (clips_.size() >= 256) throw std::runtime_error("Graphics Error: more than 256 nested clip rectangles");
+    Clip outer = clip();
+    int left = static_cast<int>(std::clamp<int64_t>(x, outer.left, outer.right));
+    int top = static_cast<int>(std::clamp<int64_t>(y, outer.top, outer.bottom));
+    int right = static_cast<int>(std::clamp<int64_t>(int64_t(x) + width, left, outer.right));
+    int bottom = static_cast<int>(std::clamp<int64_t>(int64_t(y) + height, top, outer.bottom));
+    clips_.push_back({left, top, right, bottom});
+}
+void Surface::popClip() {
+    if (clips_.empty()) throw std::runtime_error("Graphics Error: clip_end without a matching clip_begin");
+    clips_.pop_back();
+}
 void Surface::clear(uint32_t color) { std::fill(pixels_.begin(), pixels_.end(), color & 0xffffff); }
 void Surface::rectangle(int x, int y, int width, int height, uint32_t color) {
     if (width < 0 || height < 0) throw std::runtime_error("Graphics Error: rectangle size must not be negative");
-    int left = std::max(0, x), top = std::max(0, y);
-    int right = static_cast<int>(std::min<int64_t>(width_, int64_t(x) + width));
-    int bottom = static_cast<int>(std::min<int64_t>(height_, int64_t(y) + height));
+    Clip area = clip();
+    int left = std::max(area.left, x), top = std::max(area.top, y);
+    int right = static_cast<int>(std::min<int64_t>(area.right, int64_t(x) + width));
+    int bottom = static_cast<int>(std::min<int64_t>(area.bottom, int64_t(y) + height));
     if (left >= right || top >= bottom) return;
     for (int row = top; row < bottom; ++row)
         std::fill(pixels_.begin() + size_t(row) * width_ + left, pixels_.begin() + size_t(row) * width_ + right, color & 0xffffff);
@@ -149,9 +164,10 @@ void Surface::circle(int x, int y, int radius, uint32_t color) {
 void Surface::blend(int x, int y, int width, int height, uint32_t color, int alpha) {
     if (width < 0 || height < 0) throw std::runtime_error("Graphics Error: rectangle size must not be negative");
     if (alpha < 0 || alpha > 255) throw std::runtime_error("Graphics Error: alpha must be 0..255");
-    int left = std::max(0, x), top = std::max(0, y);
-    int right = static_cast<int>(std::min<int64_t>(width_, int64_t(x) + width));
-    int bottom = static_cast<int>(std::min<int64_t>(height_, int64_t(y) + height));
+    Clip area = clip();
+    int left = std::max(area.left, x), top = std::max(area.top, y);
+    int right = static_cast<int>(std::min<int64_t>(area.right, int64_t(x) + width));
+    int bottom = static_cast<int>(std::min<int64_t>(area.bottom, int64_t(y) + height));
     auto mix = [&](uint32_t under, int shift) {
         uint32_t a = (under >> shift) & 255, b = (color >> shift) & 255;
         return ((a * uint32_t(255 - alpha) + b * uint32_t(alpha) + 127) / 255) << shift;
@@ -167,9 +183,10 @@ void Surface::line(int x1, int y1, int x2, int y2, uint32_t color) {
     int64_t dx = std::llabs(int64_t(x2) - x1), dy = -std::llabs(int64_t(y2) - y1);
     int64_t sx = x1 < x2 ? 1 : -1, sy = y1 < y2 ? 1 : -1, error = dx + dy;
     int64_t x = x1, y = y1;
+    Clip area = clip();
     if (dx > 20000 || -dy > 20000) throw std::runtime_error("Graphics Error: line is longer than 20000 pixels");
     for (;;) {
-        if (x >= 0 && y >= 0 && x < width_ && y < height_) pixels_[size_t(y) * width_ + size_t(x)] = color & 0xffffff;
+        if (x >= area.left && y >= area.top && x < area.right && y < area.bottom) pixels_[size_t(y) * width_ + size_t(x)] = color & 0xffffff;
         if (x == x2 && y == y2) break;
         int64_t twice = 2 * error;
         if (twice >= dy) { error += dy; x += sx; }
@@ -190,8 +207,9 @@ void Surface::ring(int x, int y, int radius, int thickness, uint32_t color) {
     if (thickness < 1) throw std::runtime_error("Graphics Error: ring thickness must be at least 1");
     int64_t outer = int64_t(radius) * radius, innerRadius = std::max<int64_t>(0, int64_t(radius) - thickness);
     int64_t inner = innerRadius * innerRadius;
-    int64_t top = std::max<int64_t>(0, int64_t(y) - radius), bottom = std::min<int64_t>(height_ - 1, int64_t(y) + radius);
-    int64_t left = std::max<int64_t>(0, int64_t(x) - radius), right = std::min<int64_t>(width_ - 1, int64_t(x) + radius);
+    Clip area = clip();
+    int64_t top = std::max<int64_t>(area.top, int64_t(y) - radius), bottom = std::min<int64_t>(area.bottom - 1, int64_t(y) + radius);
+    int64_t left = std::max<int64_t>(area.left, int64_t(x) - radius), right = std::min<int64_t>(area.right - 1, int64_t(x) + radius);
     for (int64_t row = top; row <= bottom; ++row)
         for (int64_t col = left; col <= right; ++col) {
             int64_t d = (col - x) * (col - x) + (row - y) * (row - y);

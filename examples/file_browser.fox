@@ -1,6 +1,6 @@
 // Файловый браузер: список с правами, размерами и датами, двойной щелчок и Enter
 // открывают каталог или файл, колесо и стрелки прокручивают, диалоги «Перейти» и
-// «Новая папка» блокируют окно под собой.
+// «Новая папка» блокируют окно под собой. Список прокручивается колесом и ползунком.
 //   foxlang examples/file_browser.fox [каталог]
 using graphics;
 using ui;
@@ -16,7 +16,6 @@ int scroll = 0;
 string status = "";
 int dialog = 0; // 0 — нет, 1 — перейти, 2 — новая папка
 string input = "";
-int rows_visible = 16;
 
 void load(string path) {
     if (!is_dir(path)) {
@@ -42,38 +41,31 @@ void open_selected() {
     }
 }
 
-void keep_selection_visible() {
-    if (selected < scroll) {
-        scroll = selected;
-    }
-    if (selected >= scroll + rows_visible) {
-        scroll = selected - rows_visible + 1;
-    }
-}
+int list_top = 60;
+int row_height = 24;
+int list_height = 384;
 
 void draw_list() {
-    int top = 60;
     int count = size(names);
-    int wheel = mouse_wheel();
-    if (ui_hover("list", 10, top, 780, rows_visible * 24)) {
-        scroll = clamp(scroll - wheel * 3, 0, max(0, count - rows_visible));
-    }
-    draw_rect(10, top, 780, rows_visible * 24, rgb(255, 255, 255));
-    for (int row = 0; row < rows_visible && scroll + row < count; row++) {
-        int index = scroll + row;
-        int y = top + row * 24;
+    scroll = ui_scroll_begin("list", 10, list_top, 780, list_height, scroll, count * row_height);
+    draw_rect(10, list_top, 768, list_height, rgb(255, 255, 255));
+    // Рисуются только строки, попадающие в область, даже в каталоге на тысячи файлов.
+    int first = scroll / row_height;
+    for (int index = first; index < count && index * row_height - scroll < list_height; index++) {
+        int y = list_top + index * row_height - scroll;
         string path = join_path(current, names[index]);
-        if (ui_click("row" + index, 10, y, 780, 24)) {
+        if (ui_click("row" + index, 10, y, 768, row_height)) {
             selected = index;
         }
-        if (ui_double_click("row" + index, 10, y, 780, 24)) {
+        if (ui_double_click("row" + index, 10, y, 768, row_height)) {
+            ui_scroll_end();
             open_selected();
             return;
         }
         if (index == selected) {
-            draw_rect(10, y, 780, 24, rgb(205, 226, 252));
-        } else if (ui_hover("row" + index, 10, y, 780, 24)) {
-            draw_rect(10, y, 780, 24, rgb(238, 244, 254));
+            draw_rect(10, y, 768, row_height, rgb(205, 226, 252));
+        } else if (ui_hover("row" + index, 10, y, 768, row_height)) {
+            draw_rect(10, y, 768, row_height, rgb(238, 244, 254));
         }
         int kind_color = rgb(85, 100, 115);
         string kind = "[F]";
@@ -93,6 +85,7 @@ void draw_list() {
         draw_text(560, y + 8, size_text, 1, rgb(30, 35, 42));
         draw_text(660, y + 8, days_ago(modified_ms(path)), 1, rgb(112, 120, 130));
     }
+    ui_scroll_end();
 }
 
 string days_ago(float stamp) {
@@ -144,11 +137,17 @@ void handle_keys() {
     if (dialog != 0 || ui_typing()) {
         return;
     }
+    bool moved = false;
     if (key_repeat("DOWN") && selected + 1 < size(names)) {
         selected++;
+        moved = true;
     }
     if (key_repeat("UP") && selected > 0) {
         selected--;
+        moved = true;
+    }
+    if (moved) {
+        scroll = ui_scroll_to(scroll, selected * row_height, (selected + 1) * row_height, list_height);
     }
     if (key_pressed("ENTER")) {
         open_selected();
@@ -156,7 +155,6 @@ void handle_keys() {
     if (key_pressed("BACKSPACE")) {
         load(parent_dir(current));
     }
-    keep_selection_visible();
 }
 
 void main() {

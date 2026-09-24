@@ -29,3 +29,5 @@ void set_clipboard_text(string text) { gfx_set_clipboard(text); }
 void draw_rect_alpha(int x, int y, int width, int height, int color, int alpha) { gfx_rect_alpha(x, y, width, height, color, alpha); }
 int window_width() { return gfx_width(); }
 int window_height() { return gfx_height(); }
+void clip_begin(int x, int y, int width, int height) { gfx_clip_begin(x, y, width, height); }
+void clip_end() { gfx_clip_end(); }

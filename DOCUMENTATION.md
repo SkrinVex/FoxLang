@@ -702,7 +702,10 @@ print(page);
 `gfx_ui_hover(string id, int x, int y, int width, int height)`,
 `gfx_ui_click(string id, int x, int y, int width, int height)`,
 `gfx_ui_text(string id, int x, int y, int width, int height, string text, int scale, int color)`,
-`gfx_ui_focused(string id)`, `gfx_ui_focus(string id)`, `gfx_ui_typing()`.
+`gfx_ui_focused(string id)`, `gfx_ui_focus(string id)`, `gfx_ui_typing()`,
+`gfx_ui_drag(string id, int x, int y, int width, int height)`, `gfx_ui_drag_x()`, `gfx_ui_drag_y()`,
+`gfx_ui_wheel(string id, int x, int y, int width, int height)`,
+`gfx_clip_begin(int x, int y, int width, int height)`, `gfx_clip_end()`.
 Обычно их вызывают через модуль с понятными именами.
 
 ---
@@ -937,7 +940,8 @@ reset_color();
 `draw_ring(int x, int y, int radius, int thickness, int color)`,
 `text_width(string text, int scale)`, `draw_rect_alpha(int x, int y, int width, int height, int color, int alpha)`,
 `window_width()`, `window_height()`, `text_input()`, `key_repeat(string key)`,
-`mouse_wheel()`, `double_clicked()`, `clipboard_text()`, `set_clipboard_text(string text)`.
+`mouse_wheel()`, `double_clicked()`, `clipboard_text()`, `set_clipboard_text(string text)`,
+`clip_begin(int x, int y, int width, int height)`, `clip_end()`.
 Подробности и пример — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
 
 ### using ui;
@@ -957,6 +961,11 @@ reset_color();
 | `ui_double_click(string id, int x, int y, int width, int height) -> bool` | двойной щелчок по элементу |
 | `ui_focused(string id)`, `ui_focus(string id)`, `ui_unfocus()` | фокус клавиатуры |
 | `ui_typing() -> bool` | идёт ли ввод в поле — тогда не обрабатывайте горячие клавиши-буквы |
+| `ui_scroll_begin(string id, int x, int y, int width, int height, int offset, int content_height) -> int`, `ui_scroll_end()` | прокручиваемая область: колесо, полоса прокрутки, обрезка содержимого; возвращает смещение |
+| `ui_scrollbar(string id, int x, int y, int width, int height, int offset, int total, int page) -> int` | отдельная полоса прокрутки в любых единицах (строки, пиксели) |
+| `ui_scroll_to(int offset, int top, int bottom, int page) -> int` | смещение, при котором отрезок виден — прокрутка к выделенной строке |
+| `ui_wheel(string id, int x, int y, int width, int height) -> int` | колесо для своей области прокрутки (достаётся самой внутренней) |
+| `ui_drag(string id, int x, int y, int width, int height) -> bool`, `ui_drag_x()`, `ui_drag_y()` | элемент, который тянут мышью, и точка, за которую его схватили |
 
 См. [раздел 18](#18-нативная-графика).
 
@@ -1316,6 +1325,12 @@ close_window();
   символы), с Shift и Caps Lock, стирает Backspace и Delete с автоповтором, двигает
   курсор стрелками, Home и End, вставляет Ctrl+V и копирует Ctrl+C, прокручивает
   длинный текст.
+* **Прокрутка.** `ui_scroll_begin` … `ui_scroll_end` — область с полосой прокрутки у
+  правого края: колесо над ней, ползунок тянется мышью (и держится, даже если мышь
+  ушла за полосу), щелчок по дорожке листает на страницу. Всё, что нарисовано внутри,
+  обрезается по области, и щёлкнуть по строке, уехавшей за край, нельзя. Колесо
+  получает самая внутренняя область под мышью; под модальным окном списки не
+  прокручиваются.
 * У каждого элемента свой постоянный `id`: по нему интерфейс узнаёт элемент в
   следующем кадре. Для строк списка подойдёт `"row" + i`.
 
@@ -1366,8 +1381,47 @@ close_window();
 Для своих элементов используйте `ui_click` и `ui_hover` вместо проверки
 `key_pressed("MOUSE_LEFT")` и координат мыши: только они учитывают слои и модальные
 окна. Цвета элементов задают переменные модуля `UI_ACCENT`, `UI_TEXT`, `UI_BORDER`,
-`UI_FIELD`, `UI_BUTTON`, `UI_BUTTON_HOVER`, `UI_PANEL`, `UI_BACKDROP` — их можно
-присвоить до цикла.
+`UI_FIELD`, `UI_BUTTON`, `UI_BUTTON_HOVER`, `UI_PANEL`, `UI_BACKDROP`, `UI_TRACK`,
+`UI_THUMB`, `UI_THUMB_ACTIVE`, а шаг колеса — `UI_SCROLL_STEP`; их можно присвоить до цикла.
+
+Длинный список с прокруткой. Рисуются только видимые строки, поэтому каталог на
+тысячи файлов не замедляет кадр:
+
+```cpp
+using graphics;
+using ui;
+
+open_window(420, 320, "Список");
+array items;
+for (int i = 0; i < 500; i++) {
+    push(items, "строка " + i);
+}
+int scroll = 0;
+int selected = 0;
+int row = 24;
+while (window_poll()) {
+    clear_window(rgb(244, 246, 249));
+    if (key_repeat("DOWN") && selected + 1 < size(items)) {
+        selected++;
+        scroll = ui_scroll_to(scroll, selected * row, (selected + 1) * row, 260);
+    }
+    scroll = ui_scroll_begin("items", 20, 30, 380, 260, scroll, size(items) * row);
+    for (int i = scroll / row; i < size(items) && i * row - scroll < 260; i++) {
+        int y = 30 + i * row - scroll;
+        if (ui_click("item" + i, 20, y, 368, row)) {
+            selected = i;
+        }
+        if (i == selected) {
+            draw_rect(20, y, 368, row, rgb(205, 226, 252));
+        }
+        draw_text(28, y + 8, items[i], 1, rgb(30, 35, 42));
+    }
+    ui_scroll_end();
+    present_window();
+    wait(16);
+}
+close_window();
+```
 
 Сигнатуры, коды клавиш и системные требования — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
 

@@ -1,4 +1,4 @@
-//! Интерфейс для окон `graphics`: кнопки, поля ввода, флажки и модальные окна, которые ведут
+//! Интерфейс для окон `graphics`: кнопки, поля ввода, флажки, прокрутка и модальные окна, которые ведут
 //! себя как в обычных программах. Клик достаётся только верхнему элементу, модальное окно
 //! блокирует всё под собой, клавиатура принадлежит полю с фокусом (Tab — следующее поле).
 //! У каждого элемента свой строковый `id`, одинаковый от кадра к кадру.
@@ -14,6 +14,11 @@ int UI_BUTTON = rgb(238, 241, 246);
 int UI_BUTTON_HOVER = rgb(222, 229, 239);
 int UI_PANEL = rgb(255, 255, 255);
 int UI_BACKDROP = rgb(15, 20, 30);
+int UI_TRACK = rgb(236, 239, 243);
+int UI_THUMB = rgb(188, 196, 207);
+int UI_THUMB_ACTIVE = rgb(140, 150, 163);
+/// Сколько пикселей прокручивает один щелчок колеса в `ui_scroll_begin`.
+int UI_SCROLL_STEP = 48;
 
 /// Кнопка с подписью по центру. `true` в кадре, когда по ней щёлкнули.
 ///
@@ -45,7 +50,7 @@ bool ui_primary_button(string id, int x, int y, int width, int height, string la
 }
 
 /// Однострочное поле ввода высотой 28 пикселей. Возвращает текст после правок этого кадра;
-/// `placeholder` виден, пока поле пустое и без фокуса.
+/// `placeholder` — серая подсказка, видна, пока поле пустое (и в фокусе тоже).
 ///
 /// ```foxlang
 /// name = ui_text_field("name", 20, 60, 300, name, "Имя файла");
@@ -58,7 +63,7 @@ string ui_text_field(string id, int x, int y, int width, string text, string pla
     }
     gfx_rect(x, y, width, 28, border);
     gfx_rect(x + 1, y + 1, width - 2, 26, UI_FIELD);
-    if (text == "" && !gfx_ui_focused(id)) {
+    if (text == "") {
         gfx_text(x + 4, y + 10, placeholder, 1, UI_MUTED);
     }
     return gfx_ui_text(id, x, y, width, 28, text, 1, UI_TEXT);
@@ -119,3 +124,88 @@ bool ui_typing() { return gfx_ui_typing(); }
 bool ui_double_click(string id, int x, int y, int width, int height) {
     return gfx_ui_hover(id, x, y, width, height) && gfx_double_click();
 }
+
+/// Вертикальная полоса прокрутки. `offset` — первая видимая позиция, `total` — длина всего
+/// содержимого, `page` — сколько видно сразу; единицы любые, но одни и те же (строки или
+/// пиксели). Ползунок тянется мышью, щелчок по дорожке листает на страницу. Возвращает
+/// новое смещение в пределах `0..total - page`.
+///
+/// ```foxlang
+/// first = ui_scrollbar("lines-bar", 780, 40, 12, 400, first, size(lines), 25);
+/// ```
+int ui_scrollbar(string id, int x, int y, int width, int height, int offset, int total, int page) {
+    int limit = max(0, total - page);
+    int value = clamp(offset, 0, limit);
+    gfx_rect(x, y, width, height, UI_TRACK);
+    if (limit == 0 || height < 8) {
+        return value;
+    }
+    int thumb = clamp(height * page / total, min(24, height), height);
+    int travel = height - thumb;
+    int thumb_y = y + travel * value / limit;
+    if (gfx_ui_click(id + "#track", x, y, width, height)) {
+        if (gfx_mouse_y() < thumb_y) {
+            value = max(0, value - page);
+        } else if (gfx_mouse_y() >= thumb_y + thumb) {
+            value = min(limit, value + page);
+        }
+    }
+    bool held = gfx_ui_drag(id, x, thumb_y, width, thumb);
+    if (held && travel > 0) {
+        int top = gfx_mouse_y() - gfx_ui_drag_y() - y;
+        value = clamp((top * limit + travel / 2) / travel, 0, limit);
+    }
+    thumb_y = y + travel * value / limit;
+    int color = UI_THUMB;
+    if (held || gfx_ui_hover(id, x, thumb_y, width, thumb)) {
+        color = UI_THUMB_ACTIVE;
+    }
+    gfx_rect(x + 2, thumb_y + 1, max(1, width - 4), max(1, thumb - 2), color);
+    return value;
+}
+
+/// Начинает прокручиваемую область: колесо мыши над ней, полоса прокрутки шириной 12 пикселей
+/// у правого края, и всё, что нарисовано до `ui_scroll_end`, обрезается по области — как
+/// картинка, так и щелчки по элементам. `content_height` — полная высота содержимого в
+/// пикселях. Возвращает смещение: рисуйте содержимое выше на него.
+///
+/// ```foxlang
+/// scroll = ui_scroll_begin("files", 10, 60, 400, 300, scroll, size(names) * 24);
+/// for (int i = 0; i < size(names); i++) {
+///     int row_y = 60 + i * 24 - scroll;
+///     if (row_y > -24 && row_y < 360 && ui_click("file" + i, 10, row_y, 388, 24)) { selected = i; }
+///     draw_text(16, row_y + 8, names[i], 1, UI_TEXT);
+/// }
+/// ui_scroll_end();
+/// ```
+int ui_scroll_begin(string id, int x, int y, int width, int height, int offset, int content_height) {
+    int value = offset - gfx_ui_wheel(id, x, y, width, height) * UI_SCROLL_STEP;
+    value = ui_scrollbar(id + "#bar", x + width - 12, y, 12, height, value, content_height, height);
+    gfx_clip_begin(x, y, width - 12, height);
+    return value;
+}
+
+/// Закрывает область, начатую `ui_scroll_begin`.
+void ui_scroll_end() { gfx_clip_end(); }
+
+/// Смещение, при котором отрезок `top..bottom` (например, выбранная строка) виден в окне
+/// высотой `page` — для прокрутки к выделению с клавиатуры.
+int ui_scroll_to(int offset, int top, int bottom, int page) {
+    if (top < offset) {
+        return max(0, top);
+    }
+    if (bottom > offset + page) {
+        return bottom - page;
+    }
+    return offset;
+}
+
+/// Поворот колеса для своей прокручиваемой области: его получает самая внутренняя область под
+/// мышью, если её не закрывает модальное окно. Для своих виджетов прокрутки.
+int ui_wheel(string id, int x, int y, int width, int height) { return gfx_ui_wheel(id, x, y, width, height); }
+
+/// Элемент, который тянут мышью (ползунок, разделитель панелей): `true` от нажатия на нём до
+/// отпускания кнопки. `ui_drag_x()`/`ui_drag_y()` — где внутри элемента его схватили.
+bool ui_drag(string id, int x, int y, int width, int height) { return gfx_ui_drag(id, x, y, width, height); }
+int ui_drag_x() { return gfx_ui_drag_x(); }
+int ui_drag_y() { return gfx_ui_drag_y(); }

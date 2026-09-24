@@ -1,6 +1,6 @@
 [package]
 name = "foxlang"
-version = "6.2.0"
+version = "6.3.0"
 edition = "2021"
 authors = ["SkrinVex <skrinvex@gmail.com>"]
 description = "FoxLang language extension for Zed"

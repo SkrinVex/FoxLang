@@ -43,14 +43,34 @@ void Ui::beginFrame(Window& window) {
     nextLayer_ = 0;
 
     hot_.clear();
-    int best = -1;
+    hotLayer_ = -1;
     for (const auto& region : previous_) {
         if (region.layer < blockBelow_) continue;
         if (!inside(window.mouseX(), window.mouseY(), region.x, region.y, region.width, region.height)) continue;
-        if (region.layer >= best) {
-            best = region.layer;
+        if (region.layer >= hotLayer_) {
+            hotLayer_ = region.layer;
             hot_ = region.id;
         }
+    }
+
+    // A held element keeps the mouse until the button goes up.
+    if (!drag_.empty()) {
+        auto held = std::find_if(previous_.begin(), previous_.end(), [&](const Region& r) { return r.id == drag_; });
+        if (!window.keyDown("MOUSE_LEFT") || held == previous_.end() || held->layer < blockBelow_) {
+            drag_.clear();
+        } else {
+            hot_ = drag_;
+            hotLayer_ = held->layer;
+        }
+    }
+
+    // The last scroll area drawn under the mouse is the innermost one.
+    previousScrolls_ = std::move(scrolls_);
+    scrolls_.clear();
+    wheelOwner_.clear();
+    for (const auto& area : previousScrolls_) {
+        if (area.layer < blockBelow_ || area.layer < hotLayer_) continue;
+        if (inside(window.mouseX(), window.mouseY(), area.x, area.y, area.width, area.height)) wheelOwner_ = area.id;
     }
 
     bool fresh = focusFresh_;
@@ -93,34 +113,72 @@ void Ui::layerEnd() {
     stackModal_.pop_back();
 }
 
-void Ui::add(const std::string& id, int x, int y, int width, int height, bool focusable) {
+Ui::Region Ui::add(const std::string& id, int x, int y, int width, int height, bool focusable, Window& window) {
     if (id.empty()) throw std::runtime_error("Graphics Error: an interface element needs a non-empty id");
     // Asking about the same element twice in a frame (clicked, then hovered) is one element.
     for (auto it = current_.rbegin(); it != current_.rend() && it - current_.rbegin() < 8; ++it)
-        if (it->id == id && it->layer == layer()) return;
-    if (current_.size() < 100000) current_.push_back({id, x, y, width, height, layer(), focusable});
+        if (it->id == id && it->layer == layer()) return *it;
+    // Only the visible part of an element inside a scroll area can be hit.
+    auto area = window.surface().clip();
+    int left = static_cast<int>(std::clamp<int64_t>(x, area.left, area.right));
+    int top = static_cast<int>(std::clamp<int64_t>(y, area.top, area.bottom));
+    int right = static_cast<int>(std::clamp<int64_t>(int64_t(x) + std::max(0, width), left, area.right));
+    int bottom = static_cast<int>(std::clamp<int64_t>(int64_t(y) + std::max(0, height), top, area.bottom));
+    Region region{id, left, top, right - left, bottom - top, layer(), focusable};
+    if (current_.size() < 100000) current_.push_back(region);
+    return region;
 }
 
 // Under the mouse and not covered: the topmost element of the last frame, or, for an
 // element that just appeared, any element whose layer is not disabled by a modal.
-bool Ui::active(const std::string& id, int x, int y, int width, int height, Window& window) const {
-    if (!inside(window.mouseX(), window.mouseY(), x, y, width, height)) return false;
+bool Ui::active(const Region& region, Window& window) const {
+    if (!inside(window.mouseX(), window.mouseY(), region.x, region.y, region.width, region.height)) return false;
     if (layer() < blockBelow_ || layer() < modalLayer_) return false;
-    return hot_ == id;
+    return hot_ == region.id;
 }
 
 bool Ui::hover(const std::string& id, int x, int y, int width, int height, Window& window) {
-    add(id, x, y, width, height, false);
-    return active(id, x, y, width, height, window);
+    Region region = add(id, x, y, width, height, false, window);
+    if (!drag_.empty()) return drag_ == id;
+    return active(region, window);
 }
 
 bool Ui::click(const std::string& id, int x, int y, int width, int height, Window& window) {
-    add(id, x, y, width, height, false);
+    Region region = add(id, x, y, width, height, false, window);
     // One click, one element: the button that opens a dialog does not also press
     // whatever the dialog shows at the same place in the same frame.
-    if (clickTaken_ || !window.keyPressed("MOUSE_LEFT") || !active(id, x, y, width, height, window)) return false;
+    if (clickTaken_ || !window.keyPressed("MOUSE_LEFT") || !active(region, window)) return false;
     clickTaken_ = true;
     return true;
+}
+
+bool Ui::drag(const std::string& id, int x, int y, int width, int height, Window& window) {
+    Region region = add(id, x, y, width, height, false, window);
+    if (drag_.empty() && !clickTaken_ && window.keyPressed("MOUSE_LEFT") && active(region, window)) {
+        clickTaken_ = true;
+        drag_ = id;
+        dragX_ = window.mouseX() - x;
+        dragY_ = window.mouseY() - y;
+    }
+    return drag_ == id && window.keyDown("MOUSE_LEFT");
+}
+
+int Ui::wheel(const std::string& id, int x, int y, int width, int height, Window& window) {
+    if (id.empty()) throw std::runtime_error("Graphics Error: an interface element needs a non-empty id");
+    auto area = window.surface().clip();
+    int left = std::max(area.left, x), top = std::max(area.top, y);
+    int right = static_cast<int>(std::min<int64_t>(area.right, int64_t(x) + std::max(0, width)));
+    int bottom = static_cast<int>(std::min<int64_t>(area.bottom, int64_t(y) + std::max(0, height)));
+    if (scrolls_.size() < 10000) scrolls_.push_back({id, left, top, std::max(0, right - left), std::max(0, bottom - top), layer(), false});
+    if (window.wheel() == 0 || layer() < blockBelow_ || layer() < modalLayer_) return 0;
+    if (!inside(window.mouseX(), window.mouseY(), left, top, right - left, bottom - top)) return 0;
+    // An area that just appeared may take the wheel only while no known area claims it.
+    bool known = std::any_of(previousScrolls_.begin(), previousScrolls_.end(), [&](const Region& r) { return r.id == id; });
+    if (wheelOwner_ == id || (!known && wheelOwner_.empty() && layer() >= hotLayer_)) {
+        wheelOwner_ = id;
+        return window.wheel();
+    }
+    return 0;
 }
 
 Ui::Field& Ui::field(const std::string& id) {
@@ -133,13 +191,13 @@ Ui::Field& Ui::field(const std::string& id) {
 std::string Ui::text(const std::string& id, int x, int y, int width, int height, const std::string& value,
                      int scale, uint32_t color, Window& window) {
     if (scale < 1 || scale > 32) throw std::runtime_error("Graphics Error: text scale must be 1..32");
-    add(id, x, y, width, height, true);
+    Region region = add(id, x, y, width, height, true, window);
     auto chars = characters(value);
     Field& state = field(id);
     const int pad = 4 * scale, cell = 6 * scale;
     size_t visible = static_cast<size_t>(std::max(1, (width - 2 * pad) / cell));
 
-    if (!clickTaken_ && window.keyPressed("MOUSE_LEFT") && active(id, x, y, width, height, window)) {
+    if (!clickTaken_ && window.keyPressed("MOUSE_LEFT") && active(region, window)) {
         clickTaken_ = true;
         focus_ = id;
         int column = (window.mouseX() - x - pad + cell / 2) / cell;
@@ -148,8 +206,10 @@ std::string Ui::text(const std::string& id, int x, int y, int width, int height,
     state.cursor = std::min(state.cursor, chars.size());
 
     // Keyboard events reach only the window they belong to, so focus inside it is enough.
+    // A field focused by ui_focus in this frame skips the frame's typing: the key that
+    // opened a dialog (a letter shortcut) must not also land in the dialog's field.
     bool editing = focus_ == id;
-    if (editing) {
+    if (editing && !focusFresh_) {
         auto insert = [&](const std::string& typed) {
             for (auto& ch : characters(typed)) {
                 if (ch == "\n" || ch == "\r" || ch == "\t") continue;

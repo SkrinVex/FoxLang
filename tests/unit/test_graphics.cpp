@@ -76,6 +76,23 @@ int main() {
         b.text(0, 0, "?", 1, 0xffffff);
         CHECK(a.pixels() != b.pixels());
     }
+    // Clip rectangles nest: drawing stays inside the innermost one until it is closed
+    pixels.clear(0);
+    pixels.pushClip(4, 4, 10, 10);
+    pixels.pushClip(8, 0, 32, 32);
+    pixels.rectangle(0, 0, 32, 24, 0xffffff);
+    pixels.text(0, 6, "WW", 1, 0x00ff00);
+    pixels.line(0, 10, 31, 10, 0xff0000);
+    CHECK(pixels.pixels()[8 * 32 + 7] == 0 && pixels.pixels()[3 * 32 + 10] == 0 && pixels.pixels()[14 * 32 + 10] == 0);
+    CHECK(pixels.pixels()[10 * 32 + 8] == 0xff0000 && pixels.pixels()[10 * 32 + 14] == 0 && pixels.pixels()[10 * 32 + 20] == 0);
+    CHECK(pixels.pixels()[5 * 32 + 12] == 0xffffff);
+    pixels.popClip();
+    pixels.popClip();
+    pixels.rectangle(0, 0, 2, 2, 0x123456);
+    CHECK(pixels.pixels()[0] == 0x123456);
+    bool unbalanced = false;
+    try { pixels.popClip(); } catch (const std::runtime_error&) { unbalanced = true; }
+    CHECK(unbalanced);
     // X11 keysyms a Russian layout sends become Cyrillic text
     using foxlang::graphics::keysymToUnicode;
     CHECK(keysymToUnicode('a') == 'a' && keysymToUnicode('/') == '/' && keysymToUnicode(0xE9) == 0xE9);

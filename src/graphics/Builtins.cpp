@@ -37,6 +37,8 @@ const std::vector<Signature>& signatures() {
         {"gfx_rect_alpha", "draw_rect_alpha", "void", {{"int","x"},{"int","y"},{"int","width"},{"int","height"},{"int","color"},{"int","alpha"}}, "Полупрозрачный прямоугольник: alpha 0 — не виден, 255 — непрозрачный. Для затемнения фона под диалогом."},
         {"gfx_width", "window_width", "int", {}, "Ширина области рисования окна в пикселях."},
         {"gfx_height", "window_height", "int", {}, "Высота области рисования окна в пикселях."},
+        {"gfx_clip_begin", "clip_begin", "void", {{"int","x"},{"int","y"},{"int","width"},{"int","height"}}, "Дальше рисование и щелчки по элементам интерфейса ограничены прямоугольником (внутри уже открытого). Сбрасывается в начале кадра."},
+        {"gfx_clip_end", "clip_end", "void", {}, "Возвращает прямоугольник рисования, действовавший до clip_begin."},
         {"gfx_ui_layer_begin", "ui_layer_begin", "void", {{"bool","modal"}}, "Начинает слой интерфейса поверх нарисованного раньше. Модальный слой отключает все элементы ниже него: клики и ввод до них не доходят."},
         {"gfx_ui_layer_end", "ui_layer_end", "void", {}, "Закрывает слой, начатый ui_layer_begin."},
         {"gfx_ui_hover", "ui_hover", "bool", {{"string","id"},{"int","x"},{"int","y"},{"int","width"},{"int","height"}}, "Регистрирует элемент интерфейса и возвращает true, если мышь над ним и его не закрывает элемент выше или модальный слой."},
@@ -45,6 +47,10 @@ const std::vector<Signature>& signatures() {
         {"gfx_ui_focused", "ui_focused", "bool", {{"string","id"}}, "Есть ли у элемента фокус клавиатуры."},
         {"gfx_ui_focus", "ui_focus", "void", {{"string","id"}}, "Передаёт фокус клавиатуры элементу; пустая строка снимает фокус."},
         {"gfx_ui_typing", "ui_typing", "bool", {}, "Идёт ли ввод в поле: пока true, горячие клавиши-буквы приложения обрабатывать не стоит."},
+        {"gfx_ui_drag", "ui_drag", "bool", {{"string","id"},{"int","x"},{"int","y"},{"int","width"},{"int","height"}}, "Элемент, который тянут мышью: true от нажатия на нём до отпускания кнопки, даже если мышь ушла за его край. Пока его тянут, другие элементы не подсвечиваются."},
+        {"gfx_ui_drag_x", "ui_drag_x", "int", {}, "На каком расстоянии от левого края перетаскиваемого элемента его схватили."},
+        {"gfx_ui_drag_y", "ui_drag_y", "int", {}, "На каком расстоянии от верхнего края перетаскиваемого элемента его схватили."},
+        {"gfx_ui_wheel", "ui_wheel", "int", {{"string","id"},{"int","x"},{"int","y"},{"int","width"},{"int","height"}}, "Поворот колеса для прокручиваемой области: достаётся самой внутренней области под мышью, не закрытой модальным окном или слоем выше; остальным 0."},
         {"gfx_rgb", "rgb", "int", {{"int","red"},{"int","green"},{"int","blue"}}, "Создать цвет 0xRRGGBB. Каждый канал должен быть в диапазоне 0..255."}
     };
     return result;
@@ -112,6 +118,12 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     if (name == "gfx_ui_focused") return flag(ui.focused(args[0].value));
     if (name == "gfx_ui_focus") { ui.setFocus(args[0].value); return {"void", ""}; }
     if (name == "gfx_ui_typing") return flag(ui.typing());
+    if (name == "gfx_ui_drag") return flag(ui.drag(id(0), integer(1), integer(2), integer(3), integer(4), *window));
+    if (name == "gfx_ui_drag_x") return {"int", Text::integer(ui.dragX())};
+    if (name == "gfx_ui_drag_y") return {"int", Text::integer(ui.dragY())};
+    if (name == "gfx_ui_wheel") return {"int", Text::integer(ui.wheel(id(0), integer(1), integer(2), integer(3), integer(4), *window))};
+    if (name == "gfx_clip_begin") { window->surface().pushClip(integer(0), integer(1), integer(2), integer(3)); return {"void", ""}; }
+    if (name == "gfx_clip_end") { window->surface().popClip(); return {"void", ""}; }
     if (name == "gfx_clear") window->surface().clear(color(0));
     else if (name == "gfx_rect") window->surface().rectangle(integer(0), integer(1), integer(2), integer(3), color(4));
     else if (name == "gfx_circle") window->surface().circle(integer(0), integer(1), integer(2), color(3));
