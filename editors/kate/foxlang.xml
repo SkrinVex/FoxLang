@@ -39,6 +39,7 @@
       <item>abs</item>
       <item>append_file</item>
       <item>body</item>
+      <item>ceil</item>
       <item>clamp</item>
       <item>clamp01</item>
       <item>clear</item>
@@ -48,6 +49,7 @@
       <item>color</item>
       <item>connect_tcp</item>
       <item>contains</item>
+      <item>cos</item>
       <item>debug</item>
       <item>dns_lookup</item>
       <item>draw_circle</item>
@@ -58,6 +60,7 @@
       <item>env_get</item>
       <item>env_required</item>
       <item>error</item>
+      <item>floor</item>
       <item>fox</item>
       <item>frame_delta</item>
       <item>get</item>
@@ -90,6 +93,7 @@
       <item>httpget</item>
       <item>httppost</item>
       <item>httpput</item>
+      <item>hypot</item>
       <item>info</item>
       <item>input</item>
       <item>json_escape</item>
@@ -99,6 +103,7 @@
       <item>kbhit</item>
       <item>key_down</item>
       <item>key_pressed</item>
+      <item>length</item>
       <item>listen</item>
       <item>listen_tls</item>
       <item>log_debug</item>
@@ -115,8 +120,10 @@
       <item>open_window</item>
       <item>path</item>
       <item>post</item>
+      <item>pow</item>
       <item>present_window</item>
       <item>print</item>
+      <item>radians</item>
       <item>random</item>
       <item>read_file</item>
       <item>readfile</item>
@@ -141,9 +148,12 @@
       <item>server_stop</item>
       <item>set</item>
       <item>show_cursor</item>
+      <item>sin</item>
       <item>size</item>
       <item>sleep_ms</item>
+      <item>sqrt</item>
       <item>str_contains</item>
+      <item>str_length</item>
       <item>str_replace</item>
       <item>str_split</item>
       <item>str_to_int</item>

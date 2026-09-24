@@ -196,6 +196,16 @@ void SemanticAnalyzer::addBuiltins() {
             " двух чисел. Возвращает int для двух int, иначе float.");
     addFn("clamp", "float", {{"number", "value"}, {"number", "min"}, {"number", "max"}},
         "Ограничить число заданным диапазоном. Переставляет границы, если min > max.");
+    addFn("sqrt", "float", {{"number", "value"}},
+        "Квадратный корень числа. Отрицательный аргумент — ошибка выполнения.");
+    addFn("pow", "float", {{"number", "base"}, {"number", "exponent"}},
+        "Возведение в степень. Результат вне диапазона float — ошибка выполнения.");
+    addFn("sin", "float", {{"number", "radians"}}, "Синус угла, заданного в радианах.");
+    addFn("cos", "float", {{"number", "radians"}}, "Косинус угла, заданного в радианах.");
+    addFn("floor", "float", {{"number", "value"}}, "Округление вниз, к меньшему числу.");
+    addFn("ceil", "float", {{"number", "value"}}, "Округление вверх, к большему числу.");
+    addFn("str_length", "int", {{"string", "text"}},
+        "Число символов строки. size() для строки считает байты UTF-8, а не символы.");
     addFn("time_ms", "string", {}, "UNIX-время в миллисекундах в виде строки.");
     addFn("term_clear", "void", {}, "Очистить терминал и переместить курсор в начало ANSI-последовательностью.");
     addFn("term_home", "void", {}, "Переместить курсор терминала в начало.");
@@ -374,6 +384,13 @@ void SemanticAnalyzer::loadModuleSymbols(const std::string& moduleName, SourceRa
             "**Возвращает:** `int`\n\n"
             "**Пример:**\n```foxlang\nint port = to_int(port_string);\n```");
 
+        addFn("length", "int", {{"string", "text"}},
+            "Число символов строки. Встроенная `size(text)` считает байты UTF-8, "
+            "поэтому для кириллицы и эмодзи значения различаются.\n\n"
+            "**Параметры:**\n- `text`: строка\n\n"
+            "**Возвращает:** `int`\n\n"
+            "**Пример:**\n```foxlang\nint n = length(\"Лисий\"); // 5, а size() даст 10\n```");
+
         addFn("strtoint", "int", {{"string", "text"}},
             "Псевдоним для `to_int`: преобразовать строку в целое число `int`.\n\n"
             "**Параметры:**\n- `text`: строка с числом\n\n"
@@ -397,6 +414,18 @@ void SemanticAnalyzer::loadModuleSymbols(const std::string& moduleName, SourceRa
             "**Параметры:**\n- `a`: первое число\n- `b`: второе число\n\n"
             "**Возвращает:** `int`\n\n"
             "**Пример:**\n```foxlang\nint m = max_int(10, 20); // 20\n```");
+
+        addFn("hypot", "float", {{"float", "x"}, {"float", "y"}},
+            "Длина вектора: корень из суммы квадратов катетов.\n\n"
+            "**Параметры:**\n- `x`: первая составляющая\n- `y`: вторая составляющая\n\n"
+            "**Возвращает:** `float`\n\n"
+            "**Пример:**\n```foxlang\nfloat distance = hypot(bx - px, by - py);\n```");
+
+        addFn("radians", "float", {{"float", "degrees"}},
+            "Перевести градусы в радианы, которых ждут `sin` и `cos`.\n\n"
+            "**Параметры:**\n- `degrees`: угол в градусах\n\n"
+            "**Возвращает:** `float`\n\n"
+            "**Пример:**\n```foxlang\nfloat x = cx + cos(radians(45.0)) * radius;\n```");
 
     } else if (moduleName == "net") {
         addFn("connect_tcp", "int", {{"string", "host"}, {"int", "port"}},

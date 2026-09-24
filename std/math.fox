@@ -10,3 +10,11 @@ int min_int(int a, int b) {
 int max_int(int a, int b) {
     return max(a, b);
 }
+
+float hypot(float x, float y) {
+    return sqrt(x * x + y * y);
+}
+
+float radians(float degrees) {
+    return degrees * 0.017453292519943295;
+}

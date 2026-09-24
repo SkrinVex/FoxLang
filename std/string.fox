@@ -14,3 +14,7 @@ int to_int(string text) {
 int strtoint(string text) {
     return str_to_int(text);
 }
+
+int length(string text) {
+    return str_length(text);
+}

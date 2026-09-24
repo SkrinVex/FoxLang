@@ -387,6 +387,7 @@ bool isBuiltin(const std::string& name) {
     static const std::unordered_set<std::string> builtins = {
         "print", "input", "getch", "kbhit", "wait", "round", "random",
         "abs", "min", "max", "clamp", "time_ms", "fox", "size",
+        "sqrt", "pow", "sin", "cos", "floor", "ceil", "str_length",
         "term_clear", "term_home", "term_write", "term_goto",
         "term_hide_cursor", "term_show_cursor", "term_color", "term_reset",
         "tcp_connect", "tcp_send", "tcp_recv", "tcp_close", "dns_lookup",
@@ -477,6 +478,33 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
         double hi = toNumber(args[2], "clamp() upper bound");
         if (lo > hi) std::swap(lo, hi);
         return {"float", formatNumber(std::max(lo, std::min(v, hi)))};
+    }
+
+    if (args.size() == 1 && (name == "sqrt" || name == "floor" || name == "ceil" || name == "sin" || name == "cos")) {
+        double value = toNumber(args[0], name + "() argument");
+        if (name == "sqrt" && value < 0)
+            throw std::runtime_error("Runtime Error: sqrt() of a negative number: " + args[0].value);
+        double result = name == "sqrt" ? std::sqrt(value) :
+                        name == "floor" ? std::floor(value) :
+                        name == "ceil" ? std::ceil(value) :
+                        name == "sin" ? std::sin(value) : std::cos(value);
+        return {"float", formatNumber(result)};
+    }
+
+    if (name == "pow" && args.size() == 2) {
+        double result = std::pow(toNumber(args[0], "pow() base"), toNumber(args[1], "pow() exponent"));
+        if (!std::isfinite(result))
+            throw std::runtime_error("Runtime Error: pow() result is out of the float range");
+        return {"float", formatNumber(result)};
+    }
+
+    if (name == "str_length" && args.size() == 1) {
+        if (args[0].type != "string") throw std::runtime_error("str_length() requires string");
+        // Characters, not bytes: a UTF-8 continuation byte never starts a character.
+        long long characters = 0;
+        for (unsigned char byte : args[0].value)
+            if ((byte & 0xc0) != 0x80) ++characters;
+        return {"int", std::to_string(characters)};
     }
 
     if (name == "time_ms" && args.empty()) {
