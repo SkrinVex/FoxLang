@@ -5,21 +5,29 @@ on:
   push:
     branches: [master]
 
+concurrency:
+  group: foxlang-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   portable-linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
       - uses: docker/setup-buildx-action@v3
+      - name: Install native-window test dependencies
+        run: sudo apt-get update && sudo apt-get install -y xvfb libx11-6
       - name: Build static musl binaries and run CTest inside Alpine
         run: docker buildx build --target portable --output type=local,dest=build-portable .
       - name: Verify no shared libraries and run standalone tests on Ubuntu
-        run: python3 tests/standalone/test_portable_linux.py build-portable/foxlang
+        run: xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/foxlang
 
   desktop:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -38,6 +46,10 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Install Linux graphics development and test packages
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxcb1-dev libxau-dev libxdmcp-dev xvfb libx11-6
+
       - name: Configure CMake
         run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
@@ -48,7 +60,15 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure -LE standalone
 
       - name: Build and run standalone executables in clean temporary directories
-        run: ctest --test-dir build -C Release --output-on-failure -L standalone
+        shell: bash
+        env:
+          FOXLANG_REQUIRE_GRAPHICS_TESTS: '1'
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a ctest --test-dir build -C Release --output-on-failure -L standalone
+          else
+            ctest --test-dir build -C Release --output-on-failure -L standalone
+          fi
 
       - name: Verify Version and Help
         shell: bash

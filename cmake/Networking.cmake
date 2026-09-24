@@ -73,6 +73,12 @@ function(foxlang_networking)
         file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/licenses/musl.COPYRIGHT" musl_license)
         string(APPEND notices "\nPortable Linux musl runtime\nSource: https://git.musl-libc.org/cgit/musl/\n${musl_license}")
     endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        foreach(library libxcb libxau libxdmcp libbsd libmd)
+            file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/licenses/${library}.COPYING" graphics_license)
+            string(APPEND notices "\nLinux native graphics dependency: ${library}\n${graphics_license}")
+        endforeach()
+    endif()
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/NetworkLicenses.h.in"
         "#pragma once\ninline const char* networkLicenses() { return R\"FOXLICENSE(${notices})FOXLICENSE\"; }\n")
     configure_file("${CMAKE_CURRENT_BINARY_DIR}/generated/NetworkLicenses.h.in"

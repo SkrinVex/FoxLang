@@ -32,6 +32,6 @@ tests = Path(__file__).resolve().parent
 for case in ("hello", "cli", "modules", "unicode_json", "environment", "errors", "corruption",
              "http_client", "http_server", "tcp"):
     subprocess.run([sys.executable, str(tests / "test_standalone.py"), str(binary), case], check=True, timeout=90)
-for script in ("test_tls.py", "test_https_server.py"):
+for script in ("test_tls.py", "test_https_server.py", "test_graphics.py"):
     subprocess.run([sys.executable, str(tests / script), str(binary)], check=True, timeout=90)
 print("STATIC_LINUX_CROSS_LIBC_OK")

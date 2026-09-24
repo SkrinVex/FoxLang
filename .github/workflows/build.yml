@@ -39,6 +39,9 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Install Linux graphics development packages
+        run: sudo apt-get update && sudo apt-get install -y libxcb1-dev libxau-dev libxdmcp-dev
+
       - name: Verify source version
         run: |
           cmake -B build-check -S . -DCMAKE_BUILD_TYPE=Release
@@ -53,10 +56,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      - name: Install native-window test dependencies
+        run: sudo apt-get update && sudo apt-get install -y xvfb libx11-6
       - name: Build Linux binary and run tests
         run: |
           docker buildx build --target portable --output type=local,dest=build-portable .
-          python3 tests/standalone/test_portable_linux.py build-portable/foxlang
+          xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/foxlang
           cp build-portable/foxlang foxlang.bin
           cp build-portable/foxlang-lsp foxlang-lsp.bin
       - name: Build installable Linux package and editor assets

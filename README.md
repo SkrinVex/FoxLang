@@ -68,6 +68,8 @@ FoxLang runtime получателю не нужны. Сам `foxlang build` т�
 `foxlang build hello.fox` создаёт `hello` (Linux) или `hello.exe` (Windows)
 в текущем каталоге. Поддерживается `--output`; существующий выходной файл
 не перезаписывается. Linux создаёт Linux executable, Windows — Windows executable.
+Прямой сборки Windows `.exe` командой Linux FoxLang пока нет. Для Windows запускайте
+упаковку Windows-версией FoxLang, например в Windows VM или GitHub Actions.
 
 Это **упаковка со встроенным интерпретатором**, а не AOT-компиляция исходника
 непосредственно в машинный код. Стандартная библиотека встроена в FoxLang;
@@ -88,7 +90,7 @@ Linux-пакет собирается статически на musl, чтобы
 glibc/musl у получателя. Обычная локальная CMake-сборка может сохранять зависимости
 от libc/libm. Linux и Windows по-прежнему получают разные executable для своей ОС.
 
-Подробности: [standalone и ограничения](docs/STANDALONE.md),
+Подробности: [руководство по standalone на русском](docs/STANDALONE.md),
 [полная документация языка](DOCUMENTATION.md).
 
 ## Платформы и проверки
@@ -121,6 +123,7 @@ Wine/MinGW не заменяют проверку на Windows runner.
 - Уровневое логирование (`debug`, `info`, `warn`, `error`, `off`).
 - Файловый ввод-вывод (`read_file`, `write_file`, `append_file`).
 - Терминальный/TUI API (ANSI-цвета, позиционирование курсора, очистка).
+- [Нативная 2D-графика](docs/GRAPHICS.md): окно, фигуры, русский пиксельный шрифт, клавиатура и мышь через `using graphics;` (новое API текущей ветки, отсутствует в ранее выпущенном архиве 5.6.0).
 - Сетевой клиент (DNS, TCP-сокеты, HTTP GET/POST/PUT/DELETE).
 - HTTP/webhook-сервер на Linux и Windows (`get`, `post`, `body`, `method`, `path`, `respond`, `listen`, `server_stop`).
 - Независимая C++17 библиотека ядра (`foxlang_core`) для встраивания в приложения и тесты.
@@ -131,6 +134,9 @@ Wine/MinGW не заменяют проверку на Windows runner.
 ## Сборка и тестирование (CMake)
 
 Проект использует **CMake 3.18+**, компиляторы C и C++17 и **CTest** для автоматического запуска регрессионных и модульных тестов.
+
+Для сборки на Linux также нужны pkg-config и заголовки XCB. На Debian/Ubuntu:
+`sudo apt-get install pkg-config libxcb1-dev libxau-dev libxdmcp-dev`.
 
 ### Быстрая сборка
 

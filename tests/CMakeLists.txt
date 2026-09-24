@@ -1,4 +1,8 @@
 # Native unit tests
+add_executable(test_graphics unit/test_graphics.cpp)
+target_link_libraries(test_graphics PRIVATE foxlang_core)
+add_test(NAME unit_graphics COMMAND test_graphics)
+
 add_executable(test_lexer unit/test_lexer.cpp)
 target_link_libraries(test_lexer PRIVATE foxlang_core)
 add_test(NAME unit_lexer COMMAND test_lexer)
@@ -43,6 +47,9 @@ add_executable(test_bundle unit/test_bundle.cpp)
 target_link_libraries(test_bundle PRIVATE foxlang_bundle)
 add_test(NAME standalone_bundle_format COMMAND test_bundle $<TARGET_FILE:foxlang>)
 set_tests_properties(standalone_bundle_format PROPERTIES LABELS standalone)
+add_test(NAME standalone_graphics
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_graphics.py $<TARGET_FILE:foxlang>)
+set_tests_properties(standalone_graphics PROPERTIES TIMEOUT 90 LABELS standalone SKIP_RETURN_CODE 77)
 set(STANDALONE_TESTS hello cli modules unicode_json environment errors corruption http_client http_server tcp)
 foreach(T IN LISTS STANDALONE_TESTS)
     add_test(NAME standalone_${T}
