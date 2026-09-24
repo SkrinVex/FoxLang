@@ -1,0 +1,62 @@
+// FoxLang regression: float precision, short-circuit, scope isolation, array reuse
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        string f = env_required("__ASSERT_FAIL__");
+    }
+}
+
+// 1. Float operations keep their precision instead of rounding to six decimals
+float third = 1.0 / 3.0;
+assert_true(third * 3.0 == 1.0, "float round trip through multiplication");
+
+float shrunk = 1.0;
+int step = 0;
+while (step < 3) {
+    shrunk = shrunk / 3.0;
+    step++;
+}
+assert_true(shrunk * 27.0 == 1.0, "repeated division keeps precision");
+
+// 2. Logical operators short-circuit
+int zero = 0;
+bool guarded = zero != 0 && 10 / zero > 1;
+assert_true(!guarded, "&& does not evaluate the right side");
+bool shortcut = zero == 0 || 10 / zero > 1;
+assert_true(shortcut, "|| does not evaluate the right side");
+
+// 3. A function reads globals, not the locals of whoever called it
+global int shared_value = 7;
+
+int read_shared() {
+    return shared_value;
+}
+
+int call_with_shadow() {
+    int shared_value = 99;
+    return read_shared();
+}
+
+assert_true(call_with_shadow() == 7, "function ignores caller local of the same name");
+
+// 4. Arrays declared inside a loop stay usable after re-declaration
+int total = 0;
+int turn = 0;
+while (turn < 50) {
+    array scratch 4;
+    set(scratch, 0, turn);
+    total += get(scratch, 0);
+    turn++;
+}
+assert_true(total == 1225, "array re-declared in a loop keeps working");
+
+// 5. Arrays passed to functions still resolve
+int first_of(array values) {
+    return get(values, 0);
+}
+
+array shared_array 3;
+set(shared_array, 0, 42);
+assert_true(first_of(shared_array) == 42, "array argument resolves in the callee");
+
+print("SEMANTICS_OK");

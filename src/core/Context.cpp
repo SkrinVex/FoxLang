@@ -1,8 +1,41 @@
 #include "foxlang/Context.h"
+#include "foxlang/AST.h"
+#include "foxlang/Runtime.h"
+#include <algorithm>
+#include <atomic>
 #include <string>
 #include <stdexcept>
 
 namespace foxlang {
+
+Context::~Context() { releaseArrays(); }
+
+// A loop body is not a scope in FoxLang, so re-declaring an array in one used to
+// strand the previous buffer in the root context until the program ended.
+std::string Context::declareArray(const std::string& name, size_t size) {
+    static std::atomic<unsigned long long> counter{0};
+    Context* root = getRoot();
+    auto existing = variables.find(name);
+    if (existing != variables.end() && existing->second.type == "array") {
+        auto owned = std::find(ownedArrays.begin(), ownedArrays.end(), existing->second.value);
+        if (owned != ownedArrays.end()) {
+            root->arrays.erase(*owned);
+            ownedArrays.erase(owned);
+        }
+    }
+    std::string id = "__arr_" + std::to_string(counter++);
+    root->arrays[id] = std::vector<Value>(size, {"int", "0"});
+    ownedArrays.push_back(id);
+    defineVar(name, "array", {"array", id});
+    return id;
+}
+
+void Context::releaseArrays() {
+    if (ownedArrays.empty()) return;
+    Context* root = getRoot();
+    for (const auto& id : ownedArrays) root->arrays.erase(id);
+    ownedArrays.clear();
+}
 
 bool Context::exists(const std::string& name) const {
     if (variables.count(name) || arrays.count(name)) return true;
@@ -59,11 +92,12 @@ void Context::setVar(const std::string& name, Value val) {
                 val.type = "float";
             } else if (it->second.type == "int" && val.type == "float") {
                 val.type = "int";
-                val.value = std::to_string(static_cast<int>(std::stod(val.value)));
+                narrowToInt(val, "variable", name);
             } else {
                 throw std::runtime_error("Type Error: Cannot assign value of type '" + val.type + "' to variable '" + name + "' of type '" + it->second.type + "'");
             }
         }
+        if (it->second.type == "int") narrowToInt(val, "variable", name);
         it->second.value = val.value;
         return;
     }

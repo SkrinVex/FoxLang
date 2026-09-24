@@ -102,6 +102,7 @@ set(REGRESSION_TESTS
     test_json_advanced
     test_files
     test_env
+    test_semantics
 )
 
 foreach(T ${REGRESSION_TESTS})

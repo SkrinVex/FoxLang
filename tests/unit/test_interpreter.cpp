@@ -160,6 +160,89 @@ int main() {
         TEST_ASSERT(resFile.errorMessage.find("could not open file") != std::string::npos);
     }
 
+    // 11. Float arithmetic keeps full double precision between operations
+    {
+        foxlang::Interpreter interp;
+        auto res = interp.runSource("float third = 1.0 / 3.0; float back = third * 3.0; float sum = 0.1 + 0.2;");
+        TEST_ASSERT(res.success);
+        TEST_ASSERT(interp.getGlobal("third").value == "0.3333333333333333");
+        TEST_ASSERT(interp.getGlobal("back").value == "1");
+        TEST_ASSERT(interp.getGlobal("sum").value == "0.30000000000000004");
+    }
+
+    // 12. int stays inside its range instead of wrapping or leaking std::stoi
+    {
+        foxlang::Interpreter interp;
+        auto tooBig = interp.runSource("int big = 3000000000;");
+        TEST_ASSERT(!tooBig.success);
+        TEST_ASSERT(tooBig.errorMessage.find("does not fit in int") != std::string::npos);
+
+        auto overflow = interp.runSource("int a = 2000000000; int b = a + a;");
+        TEST_ASSERT(!overflow.success);
+        TEST_ASSERT(overflow.errorMessage.find("int overflow") != std::string::npos);
+    }
+
+    // 13. Runtime errors name the line they happened on
+    {
+        foxlang::Interpreter interp;
+        auto res = interp.runSource("int ok = 1;\nint bad = 10 / 0;");
+        TEST_ASSERT(!res.success);
+        TEST_ASSERT(res.errorMessage.find("[line 2]") != std::string::npos);
+    }
+
+    // 14. Runaway recursion is an error, not a stack overflow
+    {
+        foxlang::Interpreter interp;
+        auto res = interp.runSource("int forever(int n) { return forever(n + 1); } int r = forever(0);");
+        TEST_ASSERT(!res.success);
+        TEST_ASSERT(res.errorMessage.find("call depth limit") != std::string::npos);
+    }
+
+    // 15. Functions see globals, never the caller's locals
+    {
+        foxlang::Interpreter interp;
+        const char* code = R"(
+            global int shared = 7;
+            int readShared() { return shared; }
+            int caller() { int shared = 99; return readShared(); }
+            int seen = caller();
+        )";
+        auto res = interp.runSource(code);
+        TEST_ASSERT(res.success);
+        TEST_ASSERT(interp.getGlobal("seen").value == "7");
+
+        auto leak = interp.runSource(
+            "int reader() { return hidden; } int owner() { int hidden = 1; return reader(); } int x = owner();");
+        TEST_ASSERT(!leak.success);
+        TEST_ASSERT(leak.errorMessage.find("Variable 'hidden' not found") != std::string::npos);
+    }
+
+    // 16. Array buffers are released with their scope and on re-declaration
+    {
+        foxlang::Interpreter interp;
+        auto res = interp.runSource(R"(
+            void churn() { array tmp 16; set(tmp, 0, 1); }
+            void loop() { int i = 0; while (i < 500) { array local 16; churn(); i++; } }
+            loop();
+        )");
+        TEST_ASSERT(res.success);
+        TEST_ASSERT(interp.getContext().arrays.empty());
+
+        auto kept = interp.runSource("array survivor 4; set(survivor, 0, 5);");
+        TEST_ASSERT(kept.success);
+        TEST_ASSERT(interp.getContext().arrays.size() == 1);
+    }
+
+    // 17. && and || stop before evaluating the right side
+    {
+        foxlang::Interpreter interp;
+        auto res = interp.runSource(
+            "int zero = 0; bool guarded = zero != 0 && 10 / zero > 1; bool other = zero == 0 || 10 / zero > 1;");
+        TEST_ASSERT(res.success);
+        TEST_ASSERT(interp.getGlobal("guarded").value == "false");
+        TEST_ASSERT(interp.getGlobal("other").value == "true");
+    }
+
     std::cout << "TEST_INTERPRETER_OK" << std::endl;
     return 0;
 }

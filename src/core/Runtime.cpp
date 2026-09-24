@@ -6,6 +6,8 @@
 #include <fstream>
 #include <sstream>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <random>
 #include <chrono>
 #include <thread>
@@ -18,11 +20,64 @@
 namespace foxlang {
 namespace runtime {
 
+// Shortest text that reads back as the same double. std::to_string keeps only six
+// decimals, so every float operation used to lose precision when its result was stored.
 std::string formatNumber(double val) {
-    std::string s = std::to_string(val);
-    s.erase(s.find_last_not_of('0') + 1, std::string::npos);
-    if (!s.empty() && s.back() == '.') s.pop_back();
-    return s;
+    if (!std::isfinite(val)) throw std::runtime_error("Runtime Error: float result is not a finite number");
+    char buffer[40];
+    // 15 significant digits is the widest precision that still prints short values short,
+    // so at most three attempts are needed to find the shortest exact text.
+    for (int digits = 15; digits < 17; ++digits) {
+        std::snprintf(buffer, sizeof(buffer), "%.*g", digits, val);
+        if (std::strtod(buffer, nullptr) == val) return buffer;
+    }
+    std::snprintf(buffer, sizeof(buffer), "%.17g", val);
+    return buffer;
+}
+
+bool tryNumber(const Value& value, double& out) {
+    const std::string& text = value.value;
+    char* end = nullptr;
+    double result = std::strtod(text.c_str(), &end);
+    if (text.empty() || end != text.c_str() + text.size() || !std::isfinite(result)) return false;
+    out = result;
+    return true;
+}
+
+bool tryInt(const Value& value, long long& out) {
+    const std::string& text = value.value;
+    char* end = nullptr;
+    long long result = std::strtoll(text.c_str(), &end, 10);
+    if (text.empty() || end != text.c_str() + text.size() ||
+        result < -2147483648LL || result > 2147483647LL) return false;
+    out = result;
+    return true;
+}
+
+double toNumber(const Value& value, const std::string& what) {
+    double result = 0;
+    if (!tryNumber(value, result))
+        throw std::runtime_error("Type Error: " + what + " is not a number: '" + value.value + "'");
+    return result;
+}
+
+int toInt(const Value& value, const std::string& what) {
+    double number = toNumber(value, what);
+    if (number < -2147483648.0 || number > 2147483647.0)
+        throw std::runtime_error("Runtime Error: " + what + " does not fit in int: '" + value.value +
+                                 "' (int holds -2147483648..2147483647)");
+    return static_cast<int>(number);
+}
+
+std::string intText(const Value& value, const std::string& what) {
+    return std::to_string(toInt(value, what));
+}
+
+std::string intResult(long long result, const std::string& op) {
+    if (result < -2147483648LL || result > 2147483647LL)
+        throw std::runtime_error("Runtime Error: int overflow in '" + op + "': result " + std::to_string(result) +
+                                 " is outside -2147483648..2147483647");
+    return std::to_string(result);
 }
 
 int getLogLevelThreshold() {
@@ -379,19 +434,21 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     }
 
     if (name == "wait" && args.size() == 1) {
-        int milliseconds = std::stoi(args[0].value);
+        int milliseconds = toInt(args[0], "wait() milliseconds");
         std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
         return {"void", ""};
     }
 
     if (name == "round" && args.size() == 1) {
-        double val = std::stod(args[0].value);
-        return {"int", std::to_string(static_cast<int>(std::round(val)))};
+        double val = std::round(toNumber(args[0], "round() argument"));
+        return {"int", intResult(static_cast<long long>(val), "round")};
     }
 
     if (name == "random" && args.size() == 2) {
-        int min = std::stoi(args[0].value);
-        int max = std::stoi(args[1].value);
+        int min = toInt(args[0], "random() lower bound");
+        int max = toInt(args[1], "random() upper bound");
+        if (min > max) throw std::runtime_error("Runtime Error: random() lower bound " + std::to_string(min) +
+                                                " is greater than upper bound " + std::to_string(max));
         static std::random_device rd;
         static std::mt19937 gen(rd());
         std::uniform_int_distribution<> dis(min, max);
@@ -400,24 +457,24 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
 
     if (name == "abs" && args.size() == 1) {
         const Value& v = args[0];
-        double n = std::stod(v.value);
-        if (v.type == "int") return {"int", std::to_string(std::abs(static_cast<int>(n)))};
+        double n = toNumber(v, "abs() argument");
+        if (v.type == "int") return {"int", intResult(std::llabs(static_cast<long long>(n)), "abs")};
         return {"float", formatNumber(std::fabs(n))};
     }
 
     if ((name == "min" || name == "max") && args.size() == 2) {
         const Value& a = args[0];
         const Value& b = args[1];
-        double av = std::stod(a.value), bv = std::stod(b.value);
+        double av = toNumber(a, name + "() first argument"), bv = toNumber(b, name + "() second argument");
         double out = (name == "min") ? std::min(av, bv) : std::max(av, bv);
-        if (a.type == "int" && b.type == "int") return {"int", std::to_string(static_cast<int>(out))};
+        if (a.type == "int" && b.type == "int") return {"int", intResult(static_cast<long long>(out), name)};
         return {"float", formatNumber(out)};
     }
 
     if (name == "clamp" && args.size() == 3) {
-        double v = std::stod(args[0].value);
-        double lo = std::stod(args[1].value);
-        double hi = std::stod(args[2].value);
+        double v = toNumber(args[0], "clamp() value");
+        double lo = toNumber(args[1], "clamp() lower bound");
+        double hi = toNumber(args[2], "clamp() upper bound");
         if (lo > hi) std::swap(lo, hi);
         return {"float", formatNumber(std::max(lo, std::min(v, hi)))};
     }

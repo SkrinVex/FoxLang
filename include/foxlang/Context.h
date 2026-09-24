@@ -34,7 +34,15 @@ struct Context {
     std::map<std::string, Value> variables;
     std::map<std::string, std::shared_ptr<Node>> functions;
     std::map<std::string, std::vector<Value>> arrays;
+    // Array buffers live in the root context, so ids stay valid when an array is
+    // passed to a function. This scope owns the ones declared in it and frees them.
+    std::vector<std::string> ownedArrays;
     std::shared_ptr<graphics::Window> graphics;
+
+    Context() = default;
+    ~Context();
+    Context(const Context&) = delete;
+    Context& operator=(const Context&) = delete;
 
     bool exists(const std::string& name) const;
     Value getVar(const std::string& name) const;
@@ -47,6 +55,9 @@ struct Context {
 
     void defineVar(const std::string& name, const std::string& type, const Value& value);
     void setVar(const std::string& name, Value val);
+
+    std::string declareArray(const std::string& name, size_t size);
+    void releaseArrays();
 };
 
 } // namespace foxlang

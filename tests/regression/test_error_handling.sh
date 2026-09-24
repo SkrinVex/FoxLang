@@ -50,10 +50,18 @@ run_expect_fail "array arr 2; int x = get(arr, -1);" "Array index out of bounds"
 # 7. Type mismatch assignment
 run_expect_fail "int a = 5; a = \"text\";" "Type Error" "assigning string to int variable"
 
-# 8. Break outside loop in global scope
+# 8. Numeric limits and hardening
+run_expect_fail "int big = 3000000000;" "does not fit in int" "int literal out of range"
+run_expect_fail "int a = 2000000000; int b = a + a;" "int overflow" "int addition overflow"
+run_expect_fail "int forever(int n) { return forever(n + 1); } int r = forever(0);" "call depth limit" "runaway recursion"
+run_expect_fail "if (1) { print(\"yes\"); }" "condition must be bool" "non-bool condition"
+run_expect_fail "int reader() { return hidden; } int owner() { int hidden = 1; return reader(); } int x = owner();" "Variable 'hidden' not found" "callee cannot see caller locals"
+run_expect_fail "int z = 10 / 0;" "\[line 1\]" "runtime error carries its line"
+
+# 9. Break outside loop in global scope
 run_expect_fail "break;" "break" "break outside loop in global scope"
 
-# 9. Non-existent file
+# 10. Non-existent file
 set +e
 out=$("$FOXLANG_BIN" "/path/to/definitely_not_existing_file_999.fox" 2>&1)
 status=$?
