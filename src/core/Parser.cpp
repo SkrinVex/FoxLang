@@ -106,7 +106,7 @@ void Parser::synchronize() {
             case TokenType::VOID_KW: case TokenType::ARRAY: case TokenType::IF: case TokenType::WHILE:
             case TokenType::FOR: case TokenType::RETURN: case TokenType::SWITCH: case TokenType::GLOBAL:
             case TokenType::INCLUDE: case TokenType::USING: case TokenType::MAP_KW: case TokenType::FUNC_KW:
-            case TokenType::STRUCT:
+            case TokenType::STRUCT: case TokenType::CONST_KW: case TokenType::ENUM:
             case TokenType::TRY: case TokenType::THROW:
                 return;
             default:
@@ -196,6 +196,25 @@ std::unique_ptr<Node> Parser::statement() {
             imports.push_back({name, true});
             return at(std::move(node), start, previousEnd());
         }
+        case TokenType::CONST_KW: {
+            // const int MAX = 10;  the name cannot be assigned again.
+            ++pos;
+            if (!isType() || check(TokenType::VOID_KW))
+                fail("expected a type after 'const'");
+            size_t typeAt = pos;
+            auto node = declaration(false);
+            if (auto* variable = dynamic_cast<VarDeclNode*>(node.get())) {
+                if (!variable->expr) fail("a constant needs a value: const " + tokens[typeAt].value + " " + variable->name + " = ...;");
+                variable->constant = true;
+            } else if (auto* list = dynamic_cast<ArrayDeclNode*>(node.get())) {
+                if (!list->initializer) fail("a constant needs a value: const array " + list->name + " = [...];");
+                list->constant = true;
+            } else {
+                fail("'const' applies to variables, not functions");
+            }
+            node->range.start = start;
+            return node;
+        }
         case TokenType::GLOBAL:
             ++pos;
             if (!isType() || check(TokenType::VOID_KW)) fail("expected a variable type after 'global'");
@@ -206,6 +225,8 @@ std::unique_ptr<Node> Parser::statement() {
             return declaration(false);
         case TokenType::STRUCT:
             return structDefinition();
+        case TokenType::ENUM:
+            return enumDefinition();
         case TokenType::TRY:
             return tryStatement();
         case TokenType::THROW: {
@@ -300,6 +321,45 @@ std::unique_ptr<Node> Parser::structDefinition() {
         node->type->defaults.push_back(std::move(initial));
         node->fieldRanges.push_back(field.range);
     }
+    consume(TokenType::RBRACE);
+    return at(std::move(node), start, previousEnd());
+}
+
+// enum Name { First, Second = 5, Third = "third" }
+std::unique_ptr<Node> Parser::enumDefinition() {
+    SourcePosition start = peek().range.start;
+    consume(TokenType::ENUM);
+    Token name = consume(TokenType::IDENTIFIER);
+    auto node = std::make_unique<EnumDefNode>();
+    node->type = std::make_shared<StructType>();
+    node->type->name = name.value;
+    node->type->isEnum = true;
+    node->type->fields = {FuncParam("string", "name"), FuncParam("", "value")};
+    node->type->defaults.resize(2);
+    node->nameRange = name.range;
+    consume(TokenType::LBRACE);
+    long long next = 0;
+    while (!check(TokenType::RBRACE)) {
+        if (check(TokenType::END)) fail("expected '}' to close the enum");
+        Token member = consume(TokenType::IDENTIFIER);
+        for (const auto& existing : node->members)
+            if (existing.name == member.value) fail("'" + member.value + "' is declared twice in enum '" + name.value + "'");
+        Value value = Value::integer(next);
+        if (match(TokenType::ASSIGN)) {
+            bool negative = match(TokenType::MINUS);
+            if (check(TokenType::NUMBER) && peek().value.find('.') == std::string::npos) {
+                value = Value::integer(std::stoll(tokens[pos++].value) * (negative ? -1 : 1));
+            } else if (check(TokenType::STRING_LITERAL) && !negative) {
+                value = Value::string(tokens[pos++].value);
+            } else {
+                fail("an enum value must be a whole number or a string");
+            }
+        }
+        if (value.isInt()) next = value.asInt() + 1;
+        node->members.push_back({member.value, value, member.range});
+        if (!match(TokenType::COMMA)) break;
+    }
+    if (node->members.empty()) fail("an enum needs at least one value");
     consume(TokenType::RBRACE);
     return at(std::move(node), start, previousEnd());
 }

@@ -230,7 +230,11 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
         [](Call& c) { return boolean(mapOf(c, 0).find(keyText(c, 1)) >= 0); });
     add({"remove_key", "bool", {{"map", "items"}, {"any", "key"}}, 2, false, "",
          "Удаляет ключ из словаря. `true`, если ключ был."},
-        [](Call& c) { return boolean(mapOf(c, 0).erase(keyText(c, 1))); });
+        [](Call& c) {
+            Object& map = mapOf(c, 0);
+            if (map.frozen) throw std::runtime_error("Runtime Error: the values of an enum cannot be changed");
+            return boolean(map.erase(keyText(c, 1)));
+        });
     add({"get_or", "any", {{"any", "items"}, {"any", "key"}, {"any", "default"}}, 3, false, "",
          "Значение словаря по ключу или элемент массива по индексу, а если его нет — `default`.\n\n"
          "```foxlang\nint port = get_or(config, \"port\", 8080);\n```"},

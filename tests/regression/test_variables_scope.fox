@@ -72,4 +72,25 @@ for (int i = 0; i < 3; i++) {
 }
 assert_true(sum == 17, "for body and loop variable stay inside the loop");
 
+// Constants: the name cannot change, the contents of a container can
+const int LIMIT = 3;
+const array SEEN = [1];
+push(SEEN, 2);
+assert_true(LIMIT == 3 && size(SEEN) == 2, "a constant is read like a variable");
+void read_limit_in_lambda() {
+    const string word = "fox";
+    func read = () => word + LIMIT;
+    assert_true(read() == "fox3", "lambdas read constants");
+}
+read_limit_in_lambda();
+string const_error = "";
+void change_global(value) { LIMIT = value; }
+try { change_global(4); } catch (e) { const_error = e; }
+assert_true(str_contains(const_error, "'LIMIT' is a constant"), "a global constant cannot be assigned: " + const_error);
+const_error = "";
+void bump_global(value) { LIMIT++; }
+try { bump_global(1); } catch (e) { const_error = e; }
+assert_true(str_contains(const_error, "'LIMIT' is a constant"), "nor incremented: " + const_error);
+assert_true(LIMIT == 3, "the constant kept its value");
+
 print("VARIABLES_SCOPE_OK");

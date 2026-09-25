@@ -149,6 +149,14 @@ with tempfile.TemporaryDirectory(prefix='fox-lsp-') as directory:
     labels = [item['label'] for item in listed]
     assert 'hypot' in labels and 'PI' in labels and 'print' not in labels, labels
 
+    # After an enum's name, its values.
+    colors = 'enum Color { Red, Green }\nColor c = Color.'
+    colors_uri = uri(root / 'colors.fox')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': colors_uri, 'languageId': 'fox', 'version': 1, 'text': colors}})
+    listed = server.request('textDocument/completion', {'textDocument': {'uri': colors_uri},
+                                                        'position': {'line': 1, 'character': 16}})['result']
+    assert [item['label'] for item in listed] == ['Red', 'Green'], listed
+
     server.request('shutdown', None)
     server.notify('exit', None)
     server.process.wait(timeout=10)

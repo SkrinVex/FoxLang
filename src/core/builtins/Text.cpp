@@ -103,6 +103,7 @@ std::string toJson(const Value& value, int depth = 0) {
     if (value.isString()) return "\"" + jsonEscape(value.str()).str() + "\"";
     if (value.isNumber() || value.isBool()) return value.text();
     if (value.isVoid()) return "null";
+    if (value.is(Value::Kind::Struct) && value.ref()->structType->isEnum) return toJson(value.ref()->items[0]);
     if (!value.ref() || value.isFunction())
         throw std::runtime_error("Type Error: json_value() cannot convert '" + value.typeName() + "'");
     if (depth > 64) throw std::runtime_error("Runtime Error: json_value() nesting is too deep");

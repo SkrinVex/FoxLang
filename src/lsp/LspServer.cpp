@@ -130,6 +130,7 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
                 else if (ci.kind == "Variable") kindVal = 6;
                 else if (ci.kind == "Type") kindVal = 7;
                 else if (ci.kind == "Module") kindVal = 9;
+                else if (ci.kind == "EnumMember") kindVal = 20;
                 LspCompletionItem lci;
                 lci.label = ci.label;
                 lci.kind = kindVal;
@@ -341,6 +342,9 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
                 int kindVal = 13; // Variable
                 if (ds.kind == "Function") kindVal = 12;
                 else if (ds.kind == "Module") kindVal = 2;
+                else if (ds.kind == "Struct") kindVal = 23;
+                else if (ds.kind == "Enum") kindVal = 10;
+                else if (ds.kind == "Method") kindVal = 6;
                 LspDocumentSymbol lds;
                 lds.name = ds.name;
                 lds.kind = kindVal;

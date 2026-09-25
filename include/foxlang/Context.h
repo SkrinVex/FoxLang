@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <memory>
 #include <iosfwd>
@@ -186,6 +187,7 @@ struct StructType {
     std::string name;
     std::vector<FuncParam> fields;
     std::vector<std::shared_ptr<Node>> defaults; // an initial value per field, or null
+    bool isEnum = false; // an enum: fields name and value; its values are fixed objects
     // Methods by name: FoxLang functions (FuncDefNode) whose first parameter is `this`.
     std::unordered_map<std::string, std::shared_ptr<const Node>> methods;
     // What each field's type holds, worked out when the first value is built, and the
@@ -210,6 +212,7 @@ struct Object {
     Object& operator=(const Object&) = delete;
     Kind kind;
     unsigned refs = 0; // the values naming this container
+    bool frozen = false; // an enum's values and its map of them cannot be changed
     // Array: the elements. Struct: the fields in declaration order.
     std::vector<Value> items;
     // Map: keys in insertion order, items[i] belongs to keys[i].
@@ -255,6 +258,7 @@ struct Context {
     std::map<std::string, Value> variables;
     // Globals declared with a type T?: an assignment converts to it and may store null.
     std::unordered_map<std::string, std::string> nullableGlobals;
+    std::set<std::string> constants; // globals declared const
     std::map<std::string, std::shared_ptr<Node>> functions;
     // Functions replaced by a definition with another body: their code may still be
     // running, so it is kept until the functions are cleared.

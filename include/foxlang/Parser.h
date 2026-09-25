@@ -46,6 +46,7 @@ private:
     std::unique_ptr<Node> switchStatement();
     std::unique_ptr<Node> ifStatement();
     std::unique_ptr<Node> structDefinition();
+    std::unique_ptr<Node> enumDefinition();
     std::unique_ptr<Node> tryStatement();
     // [index] and .field after a value, any number of times.
     std::unique_ptr<Node> postfix(std::unique_ptr<Node> node, SourcePosition start);

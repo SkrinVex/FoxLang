@@ -129,7 +129,7 @@ namespace {
 // A container that holds itself (a[0] = a) is copied once, not forever.
 Value copyOf(const Value& value, std::map<const Object*, Value>& copies) {
     const Object* original = value.ref();
-    if (!original || value.isFunction()) return value; // a function is not copied
+    if (!original || value.isFunction() || original->frozen) return value; // a function or an enum value is not copied
     auto done = copies.find(original);
     if (done != copies.end()) return done->second;
     Value result = Value::container(value.kind());

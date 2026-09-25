@@ -186,6 +186,8 @@ std::string SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, Sou
             members.push_back(s);
         } else if (auto* type = dynamic_cast<const StructDefNode*>(stmt.get())) {
             declareStruct(type, uri, functionComment(source, stmt->range.start.line));
+        } else if (auto* enumeration = dynamic_cast<const EnumDefNode*>(stmt.get())) {
+            declareEnum(enumeration, uri, functionComment(source, stmt->range.start.line));
         } else if (dynamic_cast<const VarDeclNode*>(stmt.get()) || dynamic_cast<const ArrayDeclNode*>(stmt.get())) {
             auto* var = dynamic_cast<const VarDeclNode*>(stmt.get());
             auto* arr = dynamic_cast<const ArrayDeclNode*>(stmt.get());
@@ -193,6 +195,7 @@ std::string SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, Sou
             s.name = var ? var->name : arr->name;
             s.type = var ? var->type : "array";
             s.kind = SymbolKind::Variable;
+            s.constant = var ? var->constant : arr->constant;
             s.declRange = var ? var->nameRange : arr->nameRange;
             s.fileUri = uri;
             s.documentation = functionComment(source, stmt->range.start.line);
@@ -244,6 +247,10 @@ void SemanticAnalyzer::analyze(const BlockNode* root) {
             declareStruct(type, currentFile, "");
             continue;
         }
+        if (auto* enumeration = dynamic_cast<const EnumDefNode*>(stmt.get())) {
+            declareEnum(enumeration, currentFile, "");
+            continue;
+        }
         if (auto* use = dynamic_cast<const UsingNode*>(stmt.get())) {
             // An alias is a global name: function bodies above the line see it too.
             if (!use->alias.empty())
@@ -257,10 +264,12 @@ void SemanticAnalyzer::analyze(const BlockNode* root) {
             sym.name = var->name;
             sym.type = var->type;
             sym.declRange = var->nameRange;
+            sym.constant = var->constant;
         } else if (auto* arr = dynamic_cast<const ArrayDeclNode*>(stmt.get())) {
             sym.name = arr->name;
             sym.type = "array";
             sym.declRange = arr->nameRange;
+            sym.constant = arr->constant;
         } else {
             continue;
         }
@@ -305,6 +314,7 @@ void SemanticAnalyzer::visitNode(const Node* node) {
         visitNode(un->operand.get());
     } else if (auto* inc = dynamic_cast<const PostIncNode*>(node)) {
         checkVariable(inc->name, inc->range);
+        checkWritable(inc->name, inc->range);
     } else if (auto* arr = dynamic_cast<const ArrayDeclNode*>(node)) {
         visitArrayDecl(arr);
     } else if (auto* lambda = dynamic_cast<const LambdaNode*>(node)) {
@@ -333,6 +343,8 @@ void SemanticAnalyzer::visitNode(const Node* node) {
         }
     } else if (auto* type = dynamic_cast<const StructDefNode*>(node)) {
         visitStructDef(type);
+    } else if (auto* enumeration = dynamic_cast<const EnumDefNode*>(node)) {
+        visitEnumDef(enumeration);
     } else if (auto* guarded = dynamic_cast<const TryNode*>(node)) {
         visitTry(guarded);
     } else if (auto* raise = dynamic_cast<const ThrowNode*>(node)) {
@@ -458,6 +470,44 @@ void SemanticAnalyzer::declareStruct(const StructDefNode* node, const std::strin
     rootScope->symbols[sym.name] = sym;
 }
 
+void SemanticAnalyzer::declareEnum(const EnumDefNode* node, const std::string& uri, const std::string& documentation) {
+    Symbol sym;
+    sym.name = node->type->name;
+    sym.type = node->type->name;
+    sym.kind = SymbolKind::Type;
+    sym.isEnum = true;
+    sym.constant = true;
+    sym.params = node->type->fields;
+    sym.returnType = node->type->name;
+    sym.declRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
+    sym.fileUri = uri;
+    std::string shape = "enum " + sym.name + " {";
+    for (size_t i = 0; i < node->members.size(); ++i) {
+        const auto& member = node->members[i];
+        Symbol value;
+        value.name = member.name;
+        value.type = sym.name;
+        value.kind = SymbolKind::Variable;
+        value.constant = true;
+        value.declRange = member.range;
+        value.fileUri = uri;
+        std::string shown = member.value.isString() ? "\"" + member.value.str() + "\"" : member.value.text();
+        value.documentation = sym.name + "." + member.name + " = " + shown;
+        shape += std::string(i ? ", " : " ") + member.name;
+        sym.methods.push_back(std::move(value));
+    }
+    sym.documentation = (documentation.empty() ? "" : documentation + "\n\n") + shape + " }";
+    rootScope->symbols[sym.name] = sym;
+}
+
+void SemanticAnalyzer::visitEnumDef(const EnumDefNode* node) {
+    declareEnum(node, currentFile, "");
+    const Symbol& sym = rootScope->symbols[node->type->name];
+    symbolRefs.push_back({sym.declRange, sym});
+    documentSymbols.push_back({node->type->name, "Enum", node->range, sym.declRange, {}});
+    for (const auto& value : sym.methods) symbolRefs.push_back({value.declRange, value});
+}
+
 void SemanticAnalyzer::visitStructDef(const StructDefNode* node) {
     declareStruct(node, currentFile, "");
     const Symbol& sym = rootScope->symbols[node->type->name];
@@ -544,6 +594,15 @@ void SemanticAnalyzer::visitMethodCall(const MethodCallNode* node) {
 void SemanticAnalyzer::visitField(const FieldNode* node) {
     visitNode(node->base.get());
     const Symbol* named = variableOf(node->base.get());
+    if (named && named->kind == SymbolKind::Type && named->isEnum) {
+        for (const auto& value : named->methods) {
+            if (value.name != node->name) continue;
+            symbolRefs.push_back({node->nameRange, value});
+            return;
+        }
+        diagnostics.push_back({DiagnosticSeverity::Error, "Enum '" + named->name + "' has no value '" + node->name + "'", node->nameRange});
+        return;
+    }
     if (named && named->kind == SymbolKind::Module) {
         for (const auto& member : named->methods) {
             if (member.name != node->name) continue;
@@ -609,7 +668,8 @@ void SemanticAnalyzer::visitVarDecl(const VarDeclNode* node) {
     sym.type = node->type;
     sym.kind = SymbolKind::Variable;
     sym.declRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
-    sym.documentation = (node->global ? "global " : "") + node->type + " " + node->name;
+    sym.constant = node->constant;
+    sym.documentation = std::string(node->global ? "global " : "") + (node->constant ? "const " : "") + node->type + " " + node->name;
     sym.fileUri = currentFile;
     addSymbol(node->global ? rootScope.get() : currentScope, sym, sym.declRange, !node->global);
     if (recursive) visitNode(node->expr.get());
@@ -630,10 +690,22 @@ void SemanticAnalyzer::checkVariable(const std::string& name, SourceRange range)
     }
 }
 
+void SemanticAnalyzer::checkWritable(const std::string& name, SourceRange range) {
+    const Symbol* variable = currentScope->find(name);
+    if ((!variable || variable->kind == SymbolKind::Builtin || variable->kind == SymbolKind::Function) &&
+        !currentFuncReturnType.empty()) {
+        auto global = fileGlobals.find(name);
+        if (global != fileGlobals.end()) variable = &global->second;
+    }
+    if (variable && variable->constant)
+        diagnostics.push_back({DiagnosticSeverity::Error, "'" + name + "' is a constant and cannot be changed", range});
+}
+
 void SemanticAnalyzer::visitVarAssign(const VarAssignNode* node) {
     if (node->expr) visitNode(node->expr.get());
     SourceRange where = node->nameRange.start.line > 0 ? node->nameRange : node->range;
     checkVariable(node->name, where);
+    checkWritable(node->name, where);
     if (dynamic_cast<const NullNode*>(node->expr.get())) {
         const Symbol* variable = currentScope->find(node->name);
         if (!variable && !currentFuncReturnType.empty()) {
@@ -812,7 +884,8 @@ void SemanticAnalyzer::visitArrayDecl(const ArrayDeclNode* node) {
     sym.type = "array";
     sym.kind = SymbolKind::Variable;
     sym.declRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
-    sym.documentation = "array " + node->name;
+    sym.constant = node->constant;
+    sym.documentation = std::string(node->constant ? "const " : "") + "array " + node->name;
     sym.fileUri = currentFile;
     addSymbol(node->global ? rootScope.get() : currentScope, sym, sym.declRange, !node->global);
 }
@@ -1035,7 +1108,7 @@ std::vector<CompletionItem> SemanticAnalyzer::getMemberCompletions(const std::st
     for (const auto& ref : symbolRefs) {
         const Symbol& symbol = ref.symbol;
         if (symbol.name != name || (symbol.kind != SymbolKind::Variable && symbol.kind != SymbolKind::Parameter &&
-                                    symbol.kind != SymbolKind::Module)) continue;
+                                    symbol.kind != SymbolKind::Module && !symbol.isEnum)) continue;
         SourcePosition at = ref.range.start;
         bool before = at.line < line || (at.line == line && at.column <= col);
         bool later = at.line > best.line || (at.line == best.line && at.column >= best.column);
@@ -1046,6 +1119,10 @@ std::vector<CompletionItem> SemanticAnalyzer::getMemberCompletions(const std::st
     }
     std::vector<CompletionItem> items;
     if (!variable) return items;
+    if (variable->isEnum && variable->kind == SymbolKind::Type) {
+        for (const auto& value : variable->methods) items.push_back({value.name, "EnumMember", value.documentation, ""});
+        return items;
+    }
     if (variable->kind == SymbolKind::Module) {
         for (const auto& member : variable->methods)
             items.push_back({member.name, member.kind == SymbolKind::Function ? "Function" : "Variable",
@@ -1105,6 +1182,10 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         {"func", "(type) func", "Функция как значение: лямбда `(int x) => x * 2`, имя функции или встроенной функции. "
             "Переменную типа `func` вызывают как функцию.\n\n```foxlang\nfunc twice = (int x) => x * 2;\nprint(twice(21));\n```"},
         {"true", "(keyword) true", "Логическая истина."},
+        {"enum", "(keyword) enum Name { A, B, C }", "Перечисление: тип с фиксированным набором значений `Name.A`, у каждого есть "
+            "`.name` и `.value`.\n\n```foxlang\nenum Color { Red, Green, Blue }\nColor c = Color.Green;\n```"},
+        {"const", "(keyword) const type name = value;", "Константа: имя, которое нельзя присвоить заново. "
+            "Содержимое массива, словаря или структуры менять можно.\n\n```foxlang\nconst int MAX_USERS = 100;\n```"},
         {"null", "(keyword) null", "«Нет значения». Хранится только в переменных, параметрах, полях и результатах типа `T?`: "
             "`string? nick = null;`. `a ?? b` — `a`, если оно не `null`, иначе `b`; `user?.name` — `null` вместо ошибки, когда `user` — `null`."},
         {"this", "(keyword) this", "Внутри метода структуры — значение, у которого метод вызван: `this.x`."},

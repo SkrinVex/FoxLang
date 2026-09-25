@@ -29,6 +29,8 @@ struct Symbol {
     std::string returnType;        // If function
     std::string documentation;     // Description for hover/completion
     std::string fileUri;           // URI or path of declaration
+    bool constant = false;         // a variable declared const, or an enum's name
+    bool isEnum = false;           // a Type that is an enum: its values are in methods
     std::vector<Symbol> methods;   // If a struct: its methods, without the `this` parameter;
                                    // if a module alias (using math as m): the module's functions and variables
 };
@@ -197,9 +199,12 @@ private:
     void visitInclude(const IncludeNode* node);
     void declareStruct(const StructDefNode* node, const std::string& uri, const std::string& documentation);
     void visitStructDef(const StructDefNode* node);
+    void declareEnum(const EnumDefNode* node, const std::string& uri, const std::string& documentation);
+    void visitEnumDef(const EnumDefNode* node);
     void visitTry(const TryNode* node);
     void checkType(const std::string& type, SourceRange range);
     void checkVariable(const std::string& name, SourceRange range);
+    void checkWritable(const std::string& name, SourceRange range);
     void addSymbol(Scope* scope, const Symbol& symbol, SourceRange nameRange, bool warnOnRedeclaration);
 
     void enterScope();

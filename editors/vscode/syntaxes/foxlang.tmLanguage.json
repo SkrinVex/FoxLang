@@ -111,11 +111,11 @@
           }
         },
         {
-          "match": "\\b(global)\\b",
+          "match": "\\b(global|const)\\b",
           "name": "storage.modifier.fox"
         },
         {
-          "match": "\\b(struct)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+          "match": "\\b(struct|enum)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
           "captures": {
             "1": { "name": "storage.type.struct.fox" },
             "2": { "name": "entity.name.type.struct.fox" }

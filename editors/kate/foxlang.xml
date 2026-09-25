@@ -27,7 +27,9 @@
     </list>
     <list name="modifiers">
       <item>global</item>
+      <item>const</item>
       <item>struct</item>
+      <item>enum</item>
     </list>
     <list name="types">
       <item>int</item>

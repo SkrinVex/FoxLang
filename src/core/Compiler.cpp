@@ -24,7 +24,8 @@ enum class Part { Body, Handler, Finally, Rescue };
 bool isDeclaration(const Node* node) {
     return dynamic_cast<const FuncDefNode*>(node) || dynamic_cast<const VarDeclNode*>(node) ||
            dynamic_cast<const ArrayDeclNode*>(node) || dynamic_cast<const UsingNode*>(node) ||
-           dynamic_cast<const IncludeNode*>(node) || dynamic_cast<const StructDefNode*>(node);
+           dynamic_cast<const IncludeNode*>(node) || dynamic_cast<const StructDefNode*>(node) ||
+           dynamic_cast<const EnumDefNode*>(node);
 }
 
 bool isComparison(runtime::Operator op) {
@@ -70,6 +71,7 @@ public:
     std::string outside;
     const std::vector<bool>* boxedSlots = nullptr; // the frame's slots that lambdas capture
     const std::vector<std::string>* slotTypes = nullptr; // the declared type of each slot
+    const std::vector<bool>* slotConstants = nullptr;    // the slots declared const
 
     Compiler(Proto& proto, bool debug, bool function) : p(proto), debug(debug), function(function) {
         next = p.slots;
@@ -108,7 +110,9 @@ public:
         int outerLine = line;
         for (auto& stmt : program.stmts) {
             auto* declaration = dynamic_cast<Declaration*>(stmt.get());
-            if (!declaration || !(dynamic_cast<FuncDefNode*>(declaration) || dynamic_cast<StructDefNode*>(declaration))) continue;
+            if (!declaration || !(dynamic_cast<FuncDefNode*>(declaration) || dynamic_cast<StructDefNode*>(declaration) ||
+                                  dynamic_cast<EnumDefNode*>(declaration)))
+                continue;
             line = stmt->range.start.line;
             p.declarations.push_back(declaration);
             emit(Op::Declare, 0, static_cast<int>(p.declarations.size()) - 1, 1);
@@ -210,6 +214,7 @@ public:
         Compiler inner(*proto, debug, true);
         inner.boxedSlots = &node.layout->boxed;
         inner.slotTypes = &node.layout->types;
+        inner.slotConstants = &node.layout->constants;
         inner.line = node.range.start.line;
         inner.boxParameters(node.params.size());
         inner.block(*node.body, false, true);
@@ -407,6 +412,14 @@ private:
 
     // A local variable read and written in its own register: not captured by a lambda.
     bool isSlot(const VarRef& ref) const { return ref.slot >= 0 && !boxed(ref.slot); }
+    bool constantVariable(const VarRef& ref) const {
+        if (ref.slot >= 0 && slotConstants && static_cast<size_t>(ref.slot) < slotConstants->size())
+            return (*slotConstants)[static_cast<size_t>(ref.slot)];
+        if (ref.slot == VarRef::captured && ref.capture >= 0 && static_cast<size_t>(ref.capture) < p.captures.size())
+            return p.captures[static_cast<size_t>(ref.capture)].constant;
+        return false;
+    }
+
     // The declared type of a local or captured variable, "" when unknown.
     std::string declaredType(const VarRef& ref) const {
         if (ref.slot >= 0 && slotTypes && static_cast<size_t>(ref.slot) < slotTypes->size())
@@ -642,6 +655,10 @@ private:
 
     // name++ / name--; dest < 0 when the old value is not needed.
     void increment(PostIncNode& node, int dest) {
+        if (constantVariable(node.ref)) {
+            fail("Runtime Error: '" + node.name + "' is a constant and cannot be changed");
+            return;
+        }
         int step = stringConstant(node.name) * 2 + (node.delta > 0 ? 1 : 0);
         if (node.ref.slot >= 0 && boxed(node.ref.slot))
             emit(Op::IncrementRef, dest, node.ref.slot, step, 0);
@@ -685,6 +702,7 @@ private:
         }
         int site = globalSite(node.name, node.global);
         if (isNullable(node.type)) p.globals[static_cast<size_t>(site)].nullable = node.type;
+        if (node.constant) p.globals[static_cast<size_t>(site)].declaresConstant = true;
         if (!node.global) emit(Op::DefineGlobal, -1, site, 1);
         int reg = temp();
         if (node.expr) into(*node.expr, reg);
@@ -701,6 +719,7 @@ private:
         }
         bool slotted = isSlotted(node.slot);
         int site = slotted ? -1 : globalSite(node.name, node.global);
+        if (!slotted && node.constant) p.globals[static_cast<size_t>(site)].declaresConstant = true;
         if (!slotted && !node.global) emit(Op::DefineGlobal, -1, site, 1);
         auto store = [&](int reg) {
             if (node.initializer) {
@@ -725,6 +744,10 @@ private:
     bool isSlotted(int slot) const { return slot >= 0; }
 
     void assignment(VarAssignNode& node) {
+        if (constantVariable(node.ref)) {
+            fail("Runtime Error: '" + node.name + "' is a constant and cannot be changed");
+            return;
+        }
         int reg = temp();
         into(*node.expr, reg);
         std::string type = declaredType(node.ref);
@@ -1059,6 +1082,7 @@ std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug) 
     Compiler compiler(*proto, debug, true);
     compiler.boxedSlots = &body->layout->boxed;
     compiler.slotTypes = &body->layout->types;
+    compiler.slotConstants = &body->layout->constants;
     compiler.boxParameters(function.params.size());
     compiler.block(*body, false, true);
     compiler.end(body->range.end.line);
@@ -1078,6 +1102,7 @@ std::shared_ptr<Proto> compileStatements(BlockNode& statements, const std::strin
     compiler.outside = outside;
     compiler.boxedSlots = &statements.layout->boxed;
     compiler.slotTypes = &statements.layout->types;
+    compiler.slotConstants = &statements.layout->constants;
     compiler.topLevel(statements, Unit::Module);
     compiler.end(statements.range.end.line);
     compiler.epilogue();

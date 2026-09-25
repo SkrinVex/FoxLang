@@ -9,6 +9,8 @@
 "break" @keyword
 "continue" @keyword
 "struct" @keyword
+"const" @keyword
+"enum" @keyword
 
 ((identifier) @keyword
   (#match? @keyword "^(try|catch|finally|throw|in)$"))

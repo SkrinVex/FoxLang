@@ -189,6 +189,7 @@ std::string display(const Value& value) {
         return out + "]";
     }
     bool isStruct = object.kind == Object::Kind::Struct;
+    if (isStruct && object.structType->isEnum) return object.items[0].str(); // Color.Red shows as Red
     out = isStruct ? object.structType->name + "{" : "{";
     for (size_t i = 0; i < object.items.size(); ++i) {
         if (i > 0) out += ", ";
@@ -205,7 +206,12 @@ Value zeroValue(const std::string& type, Context& ctx) {
     if (type == "bool") return Value::boolean(false);
     if (type == "array") return makeArray({});
     if (type == "map") return makeMap();
-    if (auto structType = ctx.getStruct(type)) return construct(*structType, {}, ctx);
+    if (auto structType = ctx.getStruct(type)) {
+        if (!structType->isEnum) return construct(*structType, {}, ctx);
+        // An enum starts at its first value.
+        const Value& values = ctx.getRoot()->variables[type];
+        if (values.is(Value::Kind::Map) && !values.ref()->items.empty()) return values.ref()->items[0];
+    }
     if (type == "func") throw std::runtime_error("Type Error: a func has no empty value; give it a function or declare it func?");
     throw std::runtime_error("Type Error: unknown type '" + type + "'");
 }
@@ -228,6 +234,8 @@ Value construct(const StructType& type, std::vector<Value> args, Context& ctx) {
 }
 
 Value construct(const std::shared_ptr<const StructType>& type, Value* args, size_t count, Context& ctx) {
+    if (type->isEnum)
+        throw std::runtime_error("Type Error: '" + type->name + "' is an enum: its values are " + type->name + ".<name>, not built by a call");
     const auto& fields = type->fields;
     if (count > fields.size())
         throw std::runtime_error("Runtime Error: struct '" + type->name + "' has " + std::to_string(fields.size()) +

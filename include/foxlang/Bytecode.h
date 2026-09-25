@@ -110,6 +110,8 @@ struct Conversion {
 struct GlobalSite {
     std::string name;
     std::string nullable; // a declaration of type T?: later assignments may store null
+    bool declaresConstant = false; // this site defines a const global
+    bool constant = false;         // the global it found is a constant: writes fail
     // Code compiled for a scope (the debugger's console, a field's default value) finds
     // the name through that scope: its blocks, the paused function's slots, the globals.
     bool byName = false;

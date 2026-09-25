@@ -65,6 +65,7 @@ void Interpreter::reset() {
     globalContext.server.reset();
     globalContext.variables.clear();
     globalContext.nullableGlobals.clear();
+    globalContext.constants.clear();
     ++globalContext.generation;
     globalContext.functions.clear();
     globalContext.retired.clear();

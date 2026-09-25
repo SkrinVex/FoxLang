@@ -919,7 +919,7 @@ print(square(4));</pre>
   }
 
   // FoxLang highlighting for the code samples.
-  var keywords = /^(int|float|string|bool|void|array|map|func|in|struct|if|else|while|for|return|using|include|try|catch|finally|throw|true|false|null|this|break|continue)$/;
+  var keywords = /^(int|float|string|bool|void|array|map|func|in|struct|const|enum|if|else|while|for|return|using|include|try|catch|finally|throw|true|false|null|this|break|continue)$/;
   function escapeHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   document.querySelectorAll("pre[data-fox]").forEach(function (pre) {
     var src = pre.textContent, out = "", i = 0;

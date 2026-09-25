@@ -130,6 +130,7 @@ FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root, Context& scope) {
     }
     auto found = root.variables.find(site.name);
     if (found == root.variables.end()) notFound(site.name);
+    site.constant = !root.constants.empty() && root.constants.count(site.name) > 0;
     site.cached = &found->second;
     site.root = &root;
     site.generation = root.generation;
@@ -156,6 +157,7 @@ FOXLANG_APART Value* lookUpValue(GlobalSite& site, Context& root, Context& scope
     if (!site.byName) {
         auto found = root.variables.find(site.name);
         if (found != root.variables.end()) {
+            site.constant = !root.constants.empty() && root.constants.count(site.name) > 0;
             site.cached = &found->second;
             site.root = &root;
             site.generation = root.generation;
@@ -217,6 +219,8 @@ FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& a
     for (size_t i = 0; i < path.steps.size(); ++i) {
         const auto& step = path.steps[i];
         bool last = i + 1 == path.steps.size();
+        if (at->ref() && at->ref()->frozen)
+            throw std::runtime_error("Runtime Error: the values of an enum cannot be changed");
         at = step.field ? &runtime::member(*at, step.name, last && create, last ? &declared : nullptr)
                         : &runtime::element(*at, R[step.key], last && create);
     }
@@ -546,9 +550,14 @@ FOXLANG_APART void defineGlobal(const GlobalSite& site, Context& root, Context& 
         if (owner.variables.count(site.name)) alreadyDeclared(site.name);
     } else {
         owner.variables[site.name] = std::move(*value);
+        if (site.declaresConstant) owner.constants.insert(site.name);
         if (!site.nullable.empty()) owner.nullableGlobals[site.name] = site.nullable;
         else if (!owner.nullableGlobals.empty()) owner.nullableGlobals.erase(site.name);
     }
+}
+
+[[noreturn]] FOXLANG_COLD void constantChanged(const std::string& name) {
+    throw std::runtime_error("Runtime Error: '" + name + "' is a constant and cannot be changed");
 }
 
 FOXLANG_APART void setGlobal(GlobalSite& site, Context& root, Context& scope, Value& value) {
@@ -665,6 +674,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                     case Op::SetGlobal: {
                         GlobalSite& site = proto.globals[static_cast<size_t>(in.b)];
                         Value& target = *global(site, root, scope);
+                        if (site.constant) constantChanged(site.name);
                         Value& value = R[in.a];
                         if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
                         else setGlobal(site, root, scope, value);
@@ -869,7 +879,9 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                     }
                     case Op::IncrementGlobal: {
                         GlobalSite& site = proto.globals[static_cast<size_t>(in.b)];
-                        incrementSlow(in.a >= 0 ? &R[in.a] : nullptr, *global(site, root, scope), in.c ? 1 : -1, site.name);
+                        Value& target = *global(site, root, scope);
+                        if (site.constant) constantChanged(site.name);
+                        incrementSlow(in.a >= 0 ? &R[in.a] : nullptr, target, in.c ? 1 : -1, site.name);
                         break;
                     }
 

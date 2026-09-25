@@ -15,7 +15,7 @@ constexpr Keyword keywords[] = {
     {"break", TokenType::BREAK}, {"continue", TokenType::CONTINUE}, {"return", TokenType::RETURN},
     {"global", TokenType::GLOBAL}, {"include", TokenType::INCLUDE}, {"using", TokenType::USING},
     {"map", TokenType::MAP_KW}, {"func", TokenType::FUNC_KW}, {"struct", TokenType::STRUCT}, {"try", TokenType::TRY},
-    {"catch", TokenType::CATCH}, {"finally", TokenType::FINALLY}, {"throw", TokenType::THROW},
+    {"catch", TokenType::CATCH}, {"finally", TokenType::FINALLY}, {"throw", TokenType::THROW}, {"const", TokenType::CONST_KW}, {"enum", TokenType::ENUM},
 };
 }
 
@@ -23,7 +23,7 @@ const char* const* keywordList() {
     static const char* const list[] = {
         "if", "else", "while", "for", "switch", "case", "default", "break", "continue", "return",
         "using", "include", "global", "int", "float", "string", "bool", "void", "true", "false", "null", "array",
-        "map", "func", "struct", "try", "catch", "finally", "throw", nullptr};
+        "map", "func", "struct", "try", "catch", "finally", "throw", "const", "enum", nullptr};
     return list;
 }
 
@@ -98,6 +98,8 @@ const char* tokenTypeName(TokenType type) {
         case TokenType::CATCH: return "'catch'";
         case TokenType::FINALLY: return "'finally'";
         case TokenType::THROW: return "'throw'";
+        case TokenType::CONST_KW: return "'const'";
+        case TokenType::ENUM: return "'enum'";
         case TokenType::IDENTIFIER: return "identifier";
         case TokenType::END: return "end of file";
         case TokenType::ERROR: return "invalid character";

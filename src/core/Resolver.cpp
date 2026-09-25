@@ -19,13 +19,14 @@ public:
     void push() { scopes_.emplace_back(); }
     void pop() { scopes_.pop_back(); }
 
-    int declare(const std::string& name, const std::string& type, bool* duplicate = nullptr) {
+    int declare(const std::string& name, const std::string& type, bool* duplicate = nullptr, bool constant = false) {
         auto& scope = scopes_.back();
         if (duplicate && scope.count(name)) *duplicate = true;
         int slot = static_cast<int>(layout_.names.size());
         layout_.names.push_back(name);
         layout_.boxed.push_back(false);
         layout_.types.push_back(type);
+        layout_.constants.push_back(constant);
         scope[name] = slot;
         return slot;
     }
@@ -45,10 +46,13 @@ public:
         if (outer.slot >= 0) {
             // The variable now lives in a box that the function and the lambda share.
             parent_->layout_.boxed[static_cast<size_t>(outer.slot)] = true;
-            return capture(false, outer.slot, name, parent_->layout_.types[static_cast<size_t>(outer.slot)]);
+            size_t slot = static_cast<size_t>(outer.slot);
+            return capture(false, outer.slot, name, parent_->layout_.types[slot], parent_->layout_.constants[slot]);
         }
-        if (outer.slot == VarRef::captured)
-            return capture(true, outer.capture, name, (*parent_->captures_)[static_cast<size_t>(outer.capture)].type);
+        if (outer.slot == VarRef::captured) {
+            const Capture& from = (*parent_->captures_)[static_cast<size_t>(outer.capture)];
+            return capture(true, outer.capture, name, from.type, from.constant);
+        }
         return outer;
     }
 
@@ -63,7 +67,7 @@ private:
     std::vector<Capture>* captures_;
     std::vector<std::unordered_map<std::string, int>> scopes_;
 
-    VarRef capture(bool fromCapture, int index, const std::string& name, const std::string& type) {
+    VarRef capture(bool fromCapture, int index, const std::string& name, const std::string& type, bool constant) {
         VarRef ref;
         ref.slot = VarRef::captured;
         for (size_t i = 0; i < captures_->size(); ++i) {
@@ -73,7 +77,7 @@ private:
                 return ref;
             }
         }
-        captures_->push_back({fromCapture, index, name, type});
+        captures_->push_back({fromCapture, index, name, type, constant});
         ref.capture = static_cast<int>(captures_->size()) - 1;
         return ref;
     }
@@ -112,17 +116,17 @@ void Resolver::visit(Node* node) {
         bool local = !n->global && !topLevel();
         if (local && n->kind == Value::Kind::Function && dynamic_cast<LambdaNode*>(n->expr.get())) {
             // func f = (n) => ... f(n - 1): a lambda may call itself by its variable.
-            n->slot = declare(n->name, n->type, &n->duplicate);
+            n->slot = declare(n->name, n->type, &n->duplicate, n->constant);
             visit(n->expr.get());
         } else {
             // The initializer sees the names before this one: `int x = x + 1;` reads an outer x.
             visit(n->expr.get());
-            if (local) n->slot = declare(n->name, n->type, &n->duplicate);
+            if (local) n->slot = declare(n->name, n->type, &n->duplicate, n->constant);
         }
     } else if (auto* n = dynamic_cast<ArrayDeclNode*>(node)) {
         visit(n->sizeNode.get());
         visit(n->initializer.get());
-        if (!n->global && !topLevel()) n->slot = declare(n->name, "array", &n->duplicate);
+        if (!n->global && !topLevel()) n->slot = declare(n->name, "array", &n->duplicate, n->constant);
     } else if (auto* n = dynamic_cast<ForNode*>(node)) {
         push();
         n->firstSlot = size();

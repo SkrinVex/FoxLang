@@ -359,6 +359,19 @@ int main() {
         TEST_ASSERT(mentions(wrong, "Parameter 's' of 'f' has type string and cannot be null"));
     }
 
+    // 16d. Constants and enums
+    {
+        foxlang::SemanticAnalyzer analyzer;
+        analyze("print(Color.Green);\nenum Color { Red, Green = 5 }\nconst int MAX = 2;\nconst array ITEMS = [1];\n"
+                "push(ITEMS, 2);\nColor c = Color.Red;\nprint(c.name, c.value, MAX);", analyzer);
+        TEST_ASSERT(analyzer.getDiagnostics().empty());
+        foxlang::SemanticAnalyzer wrong;
+        analyze("enum Color { Red }\nconst int MAX = 2;\nMAX = 3;\nvoid f() { MAX++; }\nprint(Color.Pink);\nColor = 1;", wrong);
+        TEST_ASSERT(mentions(wrong, "'MAX' is a constant and cannot be changed"));
+        TEST_ASSERT(mentions(wrong, "Enum 'Color' has no value 'Pink'"));
+        TEST_ASSERT(mentions(wrong, "'Color' is a constant and cannot be changed"));
+    }
+
     // 17. Unknown modules are reported as warnings
     {
         foxlang::SemanticAnalyzer analyzer;

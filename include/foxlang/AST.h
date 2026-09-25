@@ -46,6 +46,7 @@ struct FrameLayout {
     std::vector<std::string> names;
     std::vector<bool> boxed;
     std::vector<std::string> types; // declared type per slot; "" when it takes any value
+    std::vector<bool> constants;    // declared const
 };
 
 // Where a lambda's captured variable comes from, in the function that creates it: one
@@ -55,6 +56,7 @@ struct Capture {
     int index = 0;
     std::string name;
     std::string type; // the variable's declared type
+    bool constant = false;
 };
 
 // A bool is the only thing a condition may be; an int used to silently count as false.
@@ -227,6 +229,7 @@ struct VarDeclNode : Node {
     std::unique_ptr<Node> expr;
     SourceRange nameRange;
     bool global = false;
+    bool constant = false;  // const int MAX = 10;
     int slot = VarRef::byName;
     bool duplicate = false; // declared twice in one scope: an error when it runs
     Value::Kind kind;       // what `type` holds, looked up once
@@ -275,6 +278,7 @@ struct ArrayDeclNode : Node {
     std::unique_ptr<Node> initializer;
     SourceRange nameRange;
     bool global = false;
+    bool constant = false;
     int slot = VarRef::byName;
     bool duplicate = false;
     ArrayDeclNode(std::string n, std::unique_ptr<Node> s, std::unique_ptr<Node> init = nullptr, SourceRange nr = {})
@@ -322,6 +326,21 @@ struct StructDefNode : Declaration {
     SourceRange nameRange;
     std::vector<SourceRange> fieldRanges;
     std::vector<std::shared_ptr<FuncDefNode>> methods; // also in type->methods, in source order
+    void declare(Context& root) override;
+    bool exists(const Context& root) const override { return root.structs.count(type->name) > 0; }
+};
+
+// enum Color { Red, Green, Blue }  enum Status { Active = "active", Blocked = "blocked" }
+// Color.Red is a fixed value of type Color: .name is "Red", .value 0 (or the given one).
+struct EnumDefNode : Declaration {
+    std::shared_ptr<StructType> type; // fields name and value, isEnum
+    SourceRange nameRange;
+    struct Member {
+        std::string name;
+        Value value;
+        SourceRange range;
+    };
+    std::vector<Member> members;
     void declare(Context& root) override;
     bool exists(const Context& root) const override { return root.structs.count(type->name) > 0; }
 };

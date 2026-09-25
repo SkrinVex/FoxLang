@@ -40,4 +40,25 @@ void StructDefNode::declare(Context& root) {
     root.getRoot()->structs[type->name] = type;
 }
 
+void EnumDefNode::declare(Context& context) {
+    Context& root = *context.getRoot();
+    auto existing = root.structs.find(type->name);
+    if (existing != root.structs.end() && existing->second == type && root.variables.count(type->name)) return;
+    root.structs[type->name] = type;
+    // The name of the enum is a constant map of its values: Color.Red, for (name, c in Color).
+    Value values = runtime::makeMap();
+    for (const auto& member : members) {
+        Value item = Value::container(Value::Kind::Struct);
+        Object& object = *item.ref();
+        object.structType = type;
+        object.items = {Value::string(member.name), member.value};
+        object.frozen = true;
+        values.ref()->slot(member.name) = std::move(item);
+    }
+    values.ref()->frozen = true;
+    root.variables[type->name] = std::move(values);
+    root.constants.insert(type->name);
+    ++root.generation;
+}
+
 } // namespace foxlang

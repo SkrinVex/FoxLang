@@ -137,6 +137,7 @@ set(REGRESSION_TESTS
     test_lambdas
     test_methods
     test_null
+    test_enums
 )
 
 foreach(T ${REGRESSION_TESTS})
