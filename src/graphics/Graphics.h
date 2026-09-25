@@ -1,4 +1,5 @@
 #pragma once
+#include "Image.h"
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -21,6 +22,9 @@ public:
     void line(int x1, int y1, int x2, int y2, uint32_t color);
     void frame(int x, int y, int width, int height, int thickness, uint32_t color);
     void ring(int x, int y, int radius, int thickness, uint32_t color);
+    // The part (sx, sy, sw, sh) of a picture stretched over (x, y, width, height), its own
+    // transparency mixed in and the whole scaled by opacity 0..255.
+    void image(const Image& picture, int sx, int sy, int sw, int sh, int x, int y, int width, int height, int opacity);
     // Width in pixels of the widest line of text drawn at this scale.
     static int textWidth(const std::string& text, int scale);
     int width() const { return width_; }
@@ -145,6 +149,12 @@ public:
     void focusEvent(bool focused);
     void mouseEvent(int x, int y) { mouseX_ = x; mouseY_ = y; }
     void closeEvent() { open_ = false; }
+    // The drawing area follows the window when the user may resize it.
+    void setResizable(bool resizable);
+    void setSize(int width, int height);
+    void sizeEvent(int width, int height) { pendingWidth_ = width; pendingHeight_ = height; }
+    // True in the frame after the window changed size.
+    bool resized() const { return resized_; }
 private:
     struct Native;
     Surface surface_;
@@ -159,7 +169,9 @@ private:
     bool doubleClick_ = false;
     std::chrono::steady_clock::time_point lastClick_{};
     int lastClickX_ = -1000, lastClickY_ = -1000;
-    bool open_ = true, focused_ = false;
+    bool open_ = true, focused_ = false, resized_ = false;
+    int pendingWidth_ = 0, pendingHeight_ = 0;
+    void applySize(int width, int height);
     int mouseX_ = 0, mouseY_ = 0;
     double delta_ = 1.0 / 60.0;
     std::chrono::steady_clock::time_point lastPoll_ = std::chrono::steady_clock::now();

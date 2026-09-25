@@ -216,6 +216,36 @@ void Surface::ring(int x, int y, int radius, int thickness, uint32_t color) {
             if (d <= outer && (d > inner || thickness > radius)) pixels_[size_t(row) * width_ + size_t(col)] = color & 0xffffff;
         }
 }
+void Surface::image(const Image& picture, int sx, int sy, int sw, int sh, int x, int y, int width, int height, int opacity) {
+    if (sw <= 0 || sh <= 0 || width <= 0 || height <= 0 || opacity <= 0) return;
+    if (sx < 0 || sy < 0 || int64_t(sx) + sw > picture.width || int64_t(sy) + sh > picture.height)
+        throw std::runtime_error("Graphics Error: the part of the image is outside it");
+    Clip area = clip();
+    int left = static_cast<int>(std::max<int64_t>(area.left, x)), top = static_cast<int>(std::max<int64_t>(area.top, y));
+    int right = static_cast<int>(std::min<int64_t>(area.right, int64_t(x) + width));
+    int bottom = static_cast<int>(std::min<int64_t>(area.bottom, int64_t(y) + height));
+    for (int row = top; row < bottom; ++row) {
+        int from = sy + static_cast<int>((int64_t(row - y) * sh) / height);
+        const uint32_t* source = picture.pixels.data() + size_t(from) * picture.width;
+        uint32_t* target = pixels_.data() + size_t(row) * width_;
+        for (int col = left; col < right; ++col) {
+            uint32_t color = source[sx + static_cast<int>((int64_t(col - x) * sw) / width)];
+            uint32_t alpha = ((color >> 24) * uint32_t(opacity) + 127) / 255;
+            if (alpha == 0) continue;
+            if (alpha == 255) {
+                target[col] = color & 0xffffff;
+                continue;
+            }
+            uint32_t under = target[col];
+            auto mix = [&](int shift) {
+                uint32_t a = (under >> shift) & 255, b = (color >> shift) & 255;
+                return ((a * (255 - alpha) + b * alpha + 127) / 255) << shift;
+            };
+            target[col] = mix(16) | mix(8) | mix(0);
+        }
+    }
+}
+
 int Surface::textWidth(const std::string& value, int scale) {
     if (scale < 1 || scale > 32) throw std::runtime_error("Graphics Error: text scale must be 1..32");
     int64_t widest = 0, current = 0;

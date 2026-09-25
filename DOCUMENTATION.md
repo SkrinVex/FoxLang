@@ -816,6 +816,14 @@ print(page);
 `gfx_ui_drag(string id, int x, int y, int width, int height)`, `gfx_ui_drag_x()`, `gfx_ui_drag_y()`,
 `gfx_ui_wheel(string id, int x, int y, int width, int height)`,
 `gfx_clip_begin(int x, int y, int width, int height)`, `gfx_clip_end()`.
+Картинки и размер окна: `gfx_image_load(string path)`, `gfx_image_width(int image)`,
+`gfx_image_height(int image)`, `gfx_image_pixel(int image, int x, int y)`,
+`gfx_image_alpha(int image, int x, int y)`,
+`gfx_image_draw(int image, int x, int y, int width, int height, int opacity)`,
+`gfx_image_draw_part(int image, int source_x, int source_y, int source_width, int source_height, int x, int y, int width, int height)`,
+`gfx_image_free(int image)`, `gfx_resizable(bool resizable)`, `gfx_set_size(int width, int height)`, `gfx_resized()`.
+Звук (основа модуля [`sound`](#using-sound)): `sound_play(string path)`,
+`sound_tone(float frequency, int milliseconds, float volume)`, `sound_stop()`.
 Обычно их вызывают через модуль с понятными именами.
 
 ---
@@ -1051,8 +1059,33 @@ reset_color();
 `text_width(string text, int scale)`, `draw_rect_alpha(int x, int y, int width, int height, int color, int alpha)`,
 `window_width()`, `window_height()`, `text_input()`, `key_repeat(string key)`,
 `mouse_wheel()`, `double_clicked()`, `clipboard_text()`, `set_clipboard_text(string text)`,
-`clip_begin(int x, int y, int width, int height)`, `clip_end()`.
+`clip_begin(int x, int y, int width, int height)`, `clip_end()`,
+`set_window_resizable(bool resizable)`, `set_window_size(int width, int height)`, `window_resized()`,
+`load_image(string path)`, `image_width(int image)`, `image_height(int image)`,
+`image_pixel(int image, int x, int y)`, `image_alpha(int image, int x, int y)`,
+`draw_image(int image, int x, int y)`, `draw_image_scaled(int image, int x, int y, int width, int height)`,
+`draw_image_alpha(int image, int x, int y, int opacity)`,
+`draw_image_part(int image, int source_x, int source_y, int source_width, int source_height, int x, int y, int width, int height)`,
+`free_image(int image)`.
 Подробности и пример — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
+
+### using sound;
+
+Звук, который играет, не останавливая программу. Функции возвращают `false`, если
+звук запустить не удалось (нет файла, звуковой системы или проигрывателя), и не
+прерывают программу.
+
+| Функция | Описание |
+|---|---|
+| `play_sound(string path) -> bool` | проигрывает файл WAV (в Linux — и другие форматы, которые понимает проигрыватель) |
+| `play_tone(float frequency, int milliseconds, float volume) -> bool` | тон 20..20000 Гц, 1..60000 мс, громкость 0..1 |
+| `beep(float frequency, int milliseconds) -> bool` | тон средней громкости |
+| `stop_sounds() -> void` | останавливает все звуки программы |
+
+В Windows звук идёт через системный `PlaySound` (одновременно звучит один звук, новый
+прерывает прежний). В Linux файл получает проигрыватель рабочего стола — `pw-play`,
+`paplay` или `aplay`, какой найдётся, — поэтому звуки могут накладываться; свой
+проигрыватель задаёт переменная окружения `FOXLANG_SOUND_PLAYER`.
 
 ### using ui;
 
@@ -1483,9 +1516,52 @@ CMake. Аргументы командной строки приложения �
 ## 20. Нативная графика
 
 `using graphics;` открывает нативное окно (X11/XWayland на Linux, Win32/GDI на
-Windows) с программным 2D-рисованием, встроенным пиксельным шрифтом с кириллицей,
-вводом текста, клавиатурой, мышью с колесом и буфером обмена. Браузер и графические
-ресурсы не нужны. Модуль `ui` добавляет кнопки, поля ввода и модальные окна.
+Windows) с программным 2D-рисованием, картинками PNG и BMP, встроенным пиксельным
+шрифтом с кириллицей, вводом текста, клавиатурой, мышью с колесом и буфером обмена.
+Окно может менять размер. Браузер и сторонние библиотеки не нужны. Модуль `ui`
+добавляет кнопки, поля ввода, прокрутку и модальные окна, `sound` — звук.
+
+**Картинки.** `load_image` читает PNG (все виды, в том числе с прозрачностью,
+палитрой и чересстрочные) или BMP и возвращает номер картинки; окно для этого не
+нужно, так что картинки удобно загрузить заранее. `draw_image` рисует картинку с её
+прозрачностью, `draw_image_scaled` растягивает, `draw_image_alpha` делает её
+полупрозрачной целиком, а `draw_image_part` рисует часть — кадр спрайта или плитку из
+атласа. `image_pixel` и `image_alpha` читают пиксель, например для карты столкновений.
+
+**Размер окна.** `set_window_resizable(true)` разрешает менять размер окна мышью,
+`set_window_size` меняет его из программы. В кадре после изменения
+`window_resized()` истинно, а `window_width()` и `window_height()` возвращают новый
+размер — самое время заново расставить элементы.
+
+```cpp
+using graphics;
+using sound;
+
+open_window(480, 320, "Лисья игра");
+set_window_resizable(true);
+int x = 40;
+while (window_poll()) {
+    if (key_pressed("ESCAPE")) {
+        break;
+    }
+    if (key_down("RIGHT")) {
+        x += 3;
+    }
+    if (key_pressed("SPACE")) {
+        beep(660, 80);
+    }
+    clear_window(rgb(30, 60, 90));
+    draw_rect(0, window_height() - 40, window_width(), 40, rgb(60, 140, 60));
+    draw_circle(x, window_height() - 60, 20, rgb(255, 140, 0));
+    present_window();
+    wait(16);
+}
+close_window();
+```
+
+Картинку загружают так: `int hero = load_image("hero.png");`, рисуют —
+`draw_image(hero, x, y);`, кадр 32×32 из атласа —
+`draw_image_part(hero, frame * 32, 0, 32, 32, x, y, 32, 32);`.
 
 ```cpp
 using graphics;

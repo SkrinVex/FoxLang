@@ -93,6 +93,28 @@ int main() {
     bool unbalanced = false;
     try { pixels.popClip(); } catch (const std::runtime_error&) { unbalanced = true; }
     CHECK(unbalanced);
+    // Pictures: stretched by nearest pixel, their alpha and the opacity mixed in, clipped
+    {
+        foxlang::graphics::Image picture;
+        picture.width = 2;
+        picture.height = 1;
+        picture.pixels = {0xFFFF0000u, 0x800000FFu}; // opaque red, half-transparent blue
+        Surface canvas(8, 4);
+        canvas.clear(0x000000);
+        canvas.image(picture, 0, 0, 2, 1, 0, 0, 8, 2, 255);
+        CHECK(canvas.pixels()[0] == 0xFF0000 && canvas.pixels()[3] == 0xFF0000 && canvas.pixels()[8 + 3] == 0xFF0000);
+        CHECK(canvas.pixels()[4] == 0x000080 && canvas.pixels()[2 * 8] == 0);
+        canvas.clear(0xFFFFFF);
+        canvas.image(picture, 0, 0, 1, 1, 0, 0, 1, 1, 0);
+        CHECK(canvas.pixels()[0] == 0xFFFFFF);
+        canvas.pushClip(1, 0, 1, 1);
+        canvas.image(picture, 0, 0, 1, 1, 0, 0, 4, 1, 255);
+        CHECK(canvas.pixels()[0] == 0xFFFFFF && canvas.pixels()[1] == 0xFF0000 && canvas.pixels()[2] == 0xFFFFFF);
+        canvas.popClip();
+        bool outside = false;
+        try { canvas.image(picture, 1, 0, 2, 1, 0, 0, 1, 1, 255); } catch (const std::runtime_error&) { outside = true; }
+        CHECK(outside);
+    }
     // X11 keysyms a Russian layout sends become Cyrillic text
     using foxlang::graphics::keysymToUnicode;
     CHECK(keysymToUnicode('a') == 'a' && keysymToUnicode('/') == '/' && keysymToUnicode(0xE9) == 0xE9);

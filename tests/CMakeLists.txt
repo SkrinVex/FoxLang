@@ -58,6 +58,15 @@ set_tests_properties(standalone_bundle_format PROPERTIES LABELS standalone)
 add_test(NAME standalone_graphics
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_graphics.py $<TARGET_FILE:foxlang>)
 set_tests_properties(standalone_graphics PROPERTIES TIMEOUT 90 LABELS standalone SKIP_RETURN_CODE 77)
+add_test(NAME images
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_images.py $<TARGET_FILE:foxlang>)
+set_tests_properties(images PROPERTIES TIMEOUT 120 LABELS standalone)
+add_test(NAME window_size
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_window_size.py $<TARGET_FILE:foxlang>)
+set_tests_properties(window_size PROPERTIES TIMEOUT 90 LABELS standalone SKIP_RETURN_CODE 77)
+add_test(NAME sound
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_sound.py $<TARGET_FILE:foxlang>)
+set_tests_properties(sound PROPERTIES TIMEOUT 60 LABELS standalone)
 add_test(NAME debug_adapter
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_debugger.py $<TARGET_FILE:foxlang>)
 set_tests_properties(debug_adapter PROPERTIES TIMEOUT 120 LABELS standalone)

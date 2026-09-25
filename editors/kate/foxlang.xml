@@ -59,6 +59,7 @@
       <item>assert_equal</item>
       <item>atan</item>
       <item>atan2</item>
+      <item>beep</item>
       <item>body</item>
       <item>ceil</item>
       <item>clamp</item>
@@ -88,6 +89,10 @@
       <item>download</item>
       <item>draw_circle</item>
       <item>draw_frame</item>
+      <item>draw_image</item>
+      <item>draw_image_alpha</item>
+      <item>draw_image_part</item>
+      <item>draw_image_scaled</item>
       <item>draw_line</item>
       <item>draw_rect</item>
       <item>draw_rect_alpha</item>
@@ -114,6 +119,7 @@
       <item>format_bytes</item>
       <item>format_time</item>
       <item>frame_delta</item>
+      <item>free_image</item>
       <item>free_space</item>
       <item>fs_copy</item>
       <item>fs_exists</item>
@@ -149,6 +155,14 @@
       <item>gfx_focused</item>
       <item>gfx_frame</item>
       <item>gfx_height</item>
+      <item>gfx_image_alpha</item>
+      <item>gfx_image_draw</item>
+      <item>gfx_image_draw_part</item>
+      <item>gfx_image_free</item>
+      <item>gfx_image_height</item>
+      <item>gfx_image_load</item>
+      <item>gfx_image_pixel</item>
+      <item>gfx_image_width</item>
       <item>gfx_line</item>
       <item>gfx_mouse_x</item>
       <item>gfx_mouse_y</item>
@@ -159,9 +173,12 @@
       <item>gfx_rect</item>
       <item>gfx_rect_alpha</item>
       <item>gfx_repeat</item>
+      <item>gfx_resizable</item>
+      <item>gfx_resized</item>
       <item>gfx_rgb</item>
       <item>gfx_ring</item>
       <item>gfx_set_clipboard</item>
+      <item>gfx_set_size</item>
       <item>gfx_text</item>
       <item>gfx_text_input</item>
       <item>gfx_text_width</item>
@@ -197,6 +214,10 @@
       <item>http_request</item>
       <item>http_status</item>
       <item>hypot</item>
+      <item>image_alpha</item>
+      <item>image_height</item>
+      <item>image_pixel</item>
+      <item>image_width</item>
       <item>includes</item>
       <item>index_of</item>
       <item>info</item>
@@ -235,6 +256,7 @@
       <item>list_dir</item>
       <item>listen</item>
       <item>listen_tls</item>
+      <item>load_image</item>
       <item>log</item>
       <item>log10</item>
       <item>log_debug</item>
@@ -278,6 +300,8 @@
       <item>path_stem</item>
       <item>permissions</item>
       <item>platform</item>
+      <item>play_sound</item>
+      <item>play_tone</item>
       <item>pop</item>
       <item>post</item>
       <item>pow</item>
@@ -353,6 +377,8 @@
       <item>set_env</item>
       <item>set_header</item>
       <item>set_permissions</item>
+      <item>set_window_resizable</item>
+      <item>set_window_size</item>
       <item>show_cursor</item>
       <item>sign</item>
       <item>sin</item>
@@ -360,11 +386,15 @@
       <item>sleep_ms</item>
       <item>slice</item>
       <item>sort</item>
+      <item>sound_play</item>
+      <item>sound_stop</item>
+      <item>sound_tone</item>
       <item>split</item>
       <item>sqrt</item>
       <item>starts_with</item>
       <item>static_files</item>
       <item>stop_server</item>
+      <item>stop_sounds</item>
       <item>str_contains</item>
       <item>str_ends_with</item>
       <item>str_index_of</item>
@@ -439,6 +469,7 @@
       <item>window_focused</item>
       <item>window_height</item>
       <item>window_poll</item>
+      <item>window_resized</item>
       <item>window_width</item>
       <item>write</item>
       <item>write_file</item>

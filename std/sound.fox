@@ -1,0 +1,24 @@
+//! Звук: файлы WAV и тоны, которые играют, не останавливая программу. В Windows звук
+//! идёт через системный PlaySound, в Linux — через проигрыватель рабочего стола
+//! (pw-play, paplay или aplay; свой можно указать переменной FOXLANG_SOUND_PLAYER).
+//! Функции возвращают `false`, если звук запустить не удалось, и не прерывают программу.
+
+/// Начинает проигрывать файл WAV (в Linux — и другие форматы, которые понимает проигрыватель).
+///
+/// ```foxlang
+/// play_sound("sounds/jump.wav");
+/// ```
+bool play_sound(string path) { return sound_play(path); }
+
+/// Тон заданной частоты в герцах и длительности в миллисекундах с громкостью 0..1.
+///
+/// ```foxlang
+/// play_tone(440, 200, 0.5); // «ля» первой октавы на 0.2 секунды
+/// ```
+bool play_tone(float frequency, int milliseconds, float volume) { return sound_tone(frequency, milliseconds, volume); }
+
+/// Тон средней громкости.
+bool beep(float frequency, int milliseconds) { return sound_tone(frequency, milliseconds, 0.5); }
+
+/// Останавливает все звуки программы.
+void stop_sounds() { sound_stop(); }

@@ -31,3 +31,18 @@ int window_width() { return gfx_width(); }
 int window_height() { return gfx_height(); }
 void clip_begin(int x, int y, int width, int height) { gfx_clip_begin(x, y, width, height); }
 void clip_end() { gfx_clip_end(); }
+void set_window_resizable(bool resizable) { gfx_resizable(resizable); }
+void set_window_size(int width, int height) { gfx_set_size(width, height); }
+bool window_resized() { return gfx_resized(); }
+int load_image(string path) { return gfx_image_load(path); }
+int image_width(int image) { return gfx_image_width(image); }
+int image_height(int image) { return gfx_image_height(image); }
+void draw_image(int image, int x, int y) { gfx_image_draw(image, x, y, gfx_image_width(image), gfx_image_height(image), 255); }
+void draw_image_scaled(int image, int x, int y, int width, int height) { gfx_image_draw(image, x, y, width, height, 255); }
+void draw_image_alpha(int image, int x, int y, int opacity) { gfx_image_draw(image, x, y, gfx_image_width(image), gfx_image_height(image), opacity); }
+void draw_image_part(int image, int source_x, int source_y, int source_width, int source_height, int x, int y, int width, int height) {
+    gfx_image_draw_part(image, source_x, source_y, source_width, source_height, x, y, width, height);
+}
+int image_pixel(int image, int x, int y) { return gfx_image_pixel(image, x, y); }
+int image_alpha(int image, int x, int y) { return gfx_image_alpha(image, x, y); }
+void free_image(int image) { gfx_image_free(image); }

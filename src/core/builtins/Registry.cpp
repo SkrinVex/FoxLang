@@ -35,6 +35,7 @@ struct Registry {
         addFileBuiltins(builtins);
         addNetworkBuiltins(builtins);
         addGraphicsBuiltins(builtins);
+        addSoundBuiltins(builtins);
         for (size_t i = 0; i < builtins.size(); ++i) {
             const auto& spec = builtins[i].spec;
             if (!index.emplace(spec.name, i).second)

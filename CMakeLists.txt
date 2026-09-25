@@ -63,9 +63,11 @@ add_library(foxlang_core STATIC
     src/core/builtins/System.cpp
     src/core/builtins/Files.cpp
     src/core/builtins/NetworkBuiltins.cpp
+    src/core/builtins/Sound.cpp
     src/graphics/Surface.cpp
     src/graphics/Window.cpp
     src/graphics/Ui.cpp
+    src/graphics/Image.cpp
     src/graphics/Builtins.cpp
 )
 
@@ -79,7 +81,7 @@ include(cmake/Networking.cmake)
 include(cmake/Graphics.cmake)
 if(WIN32)
     # ShellExecuteW opens files with their default application (os_open).
-    target_link_libraries(foxlang_core PRIVATE shell32)
+    target_link_libraries(foxlang_core PRIVATE shell32 winmm)
 endif()
 
 # FoxLang CLI executable

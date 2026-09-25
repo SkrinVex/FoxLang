@@ -140,6 +140,10 @@ struct Window::Native {
                 return 0;
             case WM_CAPTURECHANGED:
                 self->owner.keyEvent(1, false); self->owner.keyEvent(2, false); return 0;
+            case WM_SIZE:
+                if (wparam != SIZE_MINIMIZED && LOWORD(lparam) > 0 && HIWORD(lparam) > 0)
+                    self->owner.sizeEvent(LOWORD(lparam), HIWORD(lparam));
+                return 0;
             case WM_ERASEBKGND: return 1;
             case WM_PAINT: {
                 PAINTSTRUCT ps{};
@@ -180,6 +184,21 @@ struct Window::Native {
         if (!hwnd) fail("cannot create Win32 window");
         ShowWindow(hwnd, SW_SHOW);
         UpdateWindow(hwnd);
+    }
+    void resizeBuffers() {
+        bitmap.bmiHeader.biWidth = owner.surface().width();
+        bitmap.bmiHeader.biHeight = -owner.surface().height();
+    }
+    void setResizable(bool resizable) {
+        LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        style = resizable ? (style | WS_THICKFRAME | WS_MAXIMIZEBOX) : (style & ~LONG_PTR(WS_THICKFRAME | WS_MAXIMIZEBOX));
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style);
+        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+    void setSize(int width, int height) {
+        RECT rect{0, 0, width, height};
+        AdjustWindowRect(&rect, static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_STYLE)), FALSE);
+        SetWindowPos(hwnd, nullptr, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
     void poll() {
         MSG message;
@@ -462,6 +481,9 @@ struct Window::Native {
                 else if ((e->detail == 4 || e->detail == 5) && type == XCB_BUTTON_PRESS) owner.wheelEvent(e->detail == 4 ? 1 : -1);
             } else if (type == XCB_MOTION_NOTIFY) {
                 auto* e = reinterpret_cast<xcb_motion_notify_event_t*>(event); owner.mouseEvent(e->event_x, e->event_y);
+            } else if (type == XCB_CONFIGURE_NOTIFY) {
+                auto* e = reinterpret_cast<xcb_configure_notify_event_t*>(event);
+                if (e->window == window && e->width > 0 && e->height > 0) owner.sizeEvent(e->width, e->height);
             } else if (type == XCB_FOCUS_IN) owner.focusEvent(true);
             else if (type == XCB_FOCUS_OUT) owner.focusEvent(false);
             else if (type == XCB_MAPPING_NOTIFY) { refreshKeys(); owner.focusEvent(owner.focused()); }
@@ -475,6 +497,41 @@ struct Window::Native {
             else if (type == 0) fail("X11 reported an asynchronous protocol error");
         }
         if (xcb_connection_has_error(connection)) fail("X11 connection lost");
+    }
+    bool resizable = false;
+    void sizeHints(int width, int height) {
+        uint32_t hints[18]{};
+        hints[0] = (1 << 4) | (1 << 5); // minimum and maximum size
+        hints[5] = static_cast<uint32_t>(resizable ? 64 : width);
+        hints[6] = static_cast<uint32_t>(resizable ? 64 : height);
+        hints[7] = static_cast<uint32_t>(resizable ? 4096 : width);
+        hints[8] = static_cast<uint32_t>(resizable ? 4096 : height);
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NORMAL_HINTS, XCB_ATOM_WM_SIZE_HINTS, 32, 18, hints);
+        xcb_flush(connection);
+    }
+    void setResizable(bool on) {
+        resizable = on;
+        sizeHints(owner.surface().width(), owner.surface().height());
+    }
+    void setSize(int width, int height) {
+        if (!resizable) sizeHints(width, height);
+        uint32_t size[] = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+        xcb_configure_window(connection, window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, size);
+        xcb_flush(connection);
+    }
+    // The back buffer and the upload rows follow the new drawing area.
+    void resizeBuffers() {
+        int width = owner.surface().width(), height = owner.surface().height();
+        uint8_t pad = 0;
+        for (auto formats = xcb_setup_pixmap_formats_iterator(xcb_get_setup(connection)); formats.rem; xcb_format_next(&formats))
+            if (formats.data->depth == depth) pad = formats.data->scanline_pad;
+        stride = ((size_t(width) * bits + pad - 1) / pad) * (pad / 8);
+        size_t requestBytes = size_t(xcb_get_maximum_request_length(connection)) * 4;
+        rowsPerRequest = std::max<size_t>(1, (requestBytes - 64) / stride);
+        image.assign(stride * size_t(height), 0);
+        if (back) xcb_free_pixmap(connection, back);
+        back = xcb_generate_id(connection);
+        xcb_create_pixmap(connection, depth, back, window, static_cast<uint16_t>(width), static_cast<uint16_t>(height));
     }
     static uint32_t channel(uint32_t value, uint32_t mask) {
         unsigned shift = 0;
@@ -525,11 +582,32 @@ bool Window::poll() {
     delta_ = std::clamp(std::chrono::duration<double>(now - lastPoll_).count(), 0.0, 0.1);
     lastPoll_ = now;
     native_->poll();
+    resized_ = false;
+    if (pendingWidth_ > 0 && pendingHeight_ > 0) {
+        applySize(pendingWidth_, pendingHeight_);
+        pendingWidth_ = pendingHeight_ = 0;
+    }
     surface_.resetClip();
     ui_.beginFrame(*this);
     return open_;
 }
 void Window::present() { if (open_) native_->present(); }
+void Window::applySize(int width, int height) {
+    width = std::clamp(width, 64, 4096);
+    height = std::clamp(height, 64, 4096);
+    if (int64_t(width) * height > 8388608) height = static_cast<int>(8388608 / width);
+    if (width == surface_.width() && height == surface_.height()) return;
+    surface_ = Surface(width, height);
+    native_->resizeBuffers();
+    resized_ = true;
+}
+void Window::setResizable(bool resizable) { native_->setResizable(resizable); }
+void Window::setSize(int width, int height) {
+    if (width < 64 || height < 64 || width > 4096 || height > 4096 || int64_t(width) * height > 8388608)
+        fail("window size must be 64..4096 on each side and at most 8388608 pixels");
+    native_->setSize(width, height);
+    applySize(width, height);
+}
 void Window::keyEvent(int key, bool down) {
     if (key <= 0 || key >= 256) return;
     if (down) {

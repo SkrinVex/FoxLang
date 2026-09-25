@@ -342,7 +342,7 @@ int main() {
     // 18. Every standard module describes itself
     {
         const auto& modules = foxlang::standardModules();
-        TEST_ASSERT(modules.size() == 15);
+        TEST_ASSERT(modules.size() == 16);
         for (const auto& module : modules) TEST_ASSERT(!module.documentation.empty());
     }
 

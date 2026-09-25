@@ -52,5 +52,6 @@ void addSystemBuiltins(std::vector<Builtin>& out);
 void addFileBuiltins(std::vector<Builtin>& out);
 void addNetworkBuiltins(std::vector<Builtin>& out);
 void addGraphicsBuiltins(std::vector<Builtin>& out);
+void addSoundBuiltins(std::vector<Builtin>& out);
 
 } // namespace foxlang::runtime

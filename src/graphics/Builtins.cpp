@@ -1,10 +1,13 @@
 #include "Builtins.h"
 #include "Graphics.h"
 #include "foxlang/Runtime.h"
+#include "foxlang/Platform.h"
 #include "../core/builtins/Builtin.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <fstream>
+#include <sstream>
 #include <stdexcept>
 
 namespace foxlang::graphics {
@@ -37,6 +40,17 @@ const std::vector<Signature>& signatures() {
         {"gfx_rect_alpha", "draw_rect_alpha", "void", {{"int","x"},{"int","y"},{"int","width"},{"int","height"},{"int","color"},{"int","alpha"}}, "Полупрозрачный прямоугольник: alpha 0 — не виден, 255 — непрозрачный. Для затемнения фона под диалогом."},
         {"gfx_width", "window_width", "int", {}, "Ширина области рисования окна в пикселях."},
         {"gfx_height", "window_height", "int", {}, "Высота области рисования окна в пикселях."},
+        {"gfx_resizable", "set_window_resizable", "void", {{"bool","resizable"}}, "Разрешает (true) или запрещает менять размер окна мышью. Размер области рисования следует за окном: 64..4096 точек по каждой оси."},
+        {"gfx_set_size", "set_window_size", "void", {{"int","width"},{"int","height"}}, "Меняет размер окна и области рисования: 64..4096 по каждой оси, не более 8388608 пикселей."},
+        {"gfx_resized", "window_resized", "bool", {}, "Изменился ли размер окна с прошлого кадра — пора заново расставить элементы."},
+        {"gfx_image_load", "load_image", "int", {{"string","path"}}, "Загружает картинку PNG или BMP и возвращает её номер для рисования. Окно не требуется. Поддерживаются все виды PNG, в том числе с прозрачностью."},
+        {"gfx_image_width", "image_width", "int", {{"int","image"}}, "Ширина загруженной картинки в пикселях."},
+        {"gfx_image_height", "image_height", "int", {{"int","image"}}, "Высота загруженной картинки в пикселях."},
+        {"gfx_image_draw", "draw_image_scaled", "void", {{"int","image"},{"int","x"},{"int","y"},{"int","width"},{"int","height"},{"int","opacity"}}, "Рисует картинку в прямоугольнике (растягивая по ближайшему пикселю) с её прозрачностью и общей непрозрачностью 0..255."},
+        {"gfx_image_draw_part", "draw_image_part", "void", {{"int","image"},{"int","source_x"},{"int","source_y"},{"int","source_width"},{"int","source_height"},{"int","x"},{"int","y"},{"int","width"},{"int","height"}}, "Рисует часть картинки — кадр спрайта или плитку атласа — в прямоугольнике окна."},
+        {"gfx_image_pixel", "image_pixel", "int", {{"int","image"},{"int","x"},{"int","y"}}, "Цвет пикселя картинки как rgb(r, g, b) — например, для карты столкновений."},
+        {"gfx_image_alpha", "image_alpha", "int", {{"int","image"},{"int","x"},{"int","y"}}, "Непрозрачность пикселя картинки: 0 — прозрачный, 255 — сплошной."},
+        {"gfx_image_free", "free_image", "void", {{"int","image"}}, "Освобождает память картинки; её номер больше не действует."},
         {"gfx_clip_begin", "clip_begin", "void", {{"int","x"},{"int","y"},{"int","width"},{"int","height"}}, "Дальше рисование и щелчки по элементам интерфейса ограничены прямоугольником (внутри уже открытого). Сбрасывается в начале кадра."},
         {"gfx_clip_end", "clip_end", "void", {}, "Возвращает прямоугольник рисования, действовавший до clip_begin."},
         {"gfx_ui_layer_begin", "ui_layer_begin", "void", {{"bool","modal"}}, "Начинает слой интерфейса поверх нарисованного раньше. Модальный слой отключает все элементы ниже него: клики и ввод до них не доходят."},
@@ -75,6 +89,42 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
         return static_cast<uint32_t>(value);
     };
     auto& window = context.getRoot()->graphics;
+    // Pictures live apart from the window: they can be loaded before it opens.
+    static std::vector<std::shared_ptr<Image>> images;
+    auto picture = [&](size_t i) -> Image& {
+        int handle = integer(i);
+        if (handle < 1 || size_t(handle) > images.size() || !images[size_t(handle) - 1])
+            throw std::runtime_error("Graphics Error: " + std::to_string(handle) + " is not a loaded image");
+        return *images[size_t(handle) - 1];
+    };
+    if (name == "gfx_image_load") {
+        std::ifstream file(platform::pathFromUtf8(args[0].value.str()), std::ios::binary);
+        if (!file) throw std::runtime_error("Graphics Error: cannot open image '" + args[0].value.str() + "'");
+        std::stringstream bytes;
+        bytes << file.rdbuf();
+        auto image = std::make_shared<Image>(decodeImage(bytes.str()));
+        for (size_t slot = 0; slot < images.size(); ++slot)
+            if (!images[slot]) {
+                images[slot] = image;
+                return {"int", Text::integer(static_cast<long long>(slot + 1))};
+            }
+        images.push_back(image);
+        return {"int", Text::integer(static_cast<long long>(images.size()))};
+    }
+    if (name == "gfx_image_width") return {"int", Text::integer(picture(0).width)};
+    if (name == "gfx_image_height") return {"int", Text::integer(picture(0).height)};
+    if (name == "gfx_image_pixel" || name == "gfx_image_alpha") {
+        Image& image = picture(0);
+        int x = integer(1), y = integer(2);
+        if (x < 0 || y < 0 || x >= image.width || y >= image.height) throw std::runtime_error("Graphics Error: pixel is outside the image");
+        uint32_t color = image.pixels[size_t(y) * image.width + x];
+        return {"int", Text::integer(name == "gfx_image_pixel" ? color & 0xFFFFFF : color >> 24)};
+    }
+    if (name == "gfx_image_free") {
+        picture(0);
+        images[size_t(integer(0)) - 1].reset();
+        return {"void", ""};
+    }
     if (name == "gfx_rgb") {
         int r = integer(0), g = integer(1), b = integer(2);
         if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) throw std::runtime_error("Graphics Error: RGB channels must be 0..255");
@@ -122,6 +172,20 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     if (name == "gfx_ui_drag_x") return {"int", Text::integer(ui.dragX())};
     if (name == "gfx_ui_drag_y") return {"int", Text::integer(ui.dragY())};
     if (name == "gfx_ui_wheel") return {"int", Text::integer(ui.wheel(id(0), integer(1), integer(2), integer(3), integer(4), *window))};
+    if (name == "gfx_resizable") { window->setResizable(args[0].value == "true"); return {"void", ""}; }
+    if (name == "gfx_set_size") { window->setSize(integer(0), integer(1)); return {"void", ""}; }
+    if (name == "gfx_resized") return flag(window->resized());
+    if (name == "gfx_image_draw") {
+        long long opacity = integer(5);
+        if (opacity < 0 || opacity > 255) throw std::runtime_error("Graphics Error: opacity must be 0..255");
+        Image& image = picture(0);
+        window->surface().image(image, 0, 0, image.width, image.height, integer(1), integer(2), integer(3), integer(4), static_cast<int>(opacity));
+        return {"void", ""};
+    }
+    if (name == "gfx_image_draw_part") {
+        window->surface().image(picture(0), integer(1), integer(2), integer(3), integer(4), integer(5), integer(6), integer(7), integer(8), 255);
+        return {"void", ""};
+    }
     if (name == "gfx_clip_begin") { window->surface().pushClip(integer(0), integer(1), integer(2), integer(3)); return {"void", ""}; }
     if (name == "gfx_clip_end") { window->surface().popClip(); return {"void", ""}; }
     if (name == "gfx_clear") window->surface().clear(color(0));
