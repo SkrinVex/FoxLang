@@ -835,7 +835,6 @@ JsonValue Session::setVariable(const JsonValue& arguments) {
             if (childName(object, i) == name) index = i;
         if (index >= object.items.size()) throw std::runtime_error("Нет такого элемента");
         if (object.kind == Object::Kind::Struct) runtime::coerce(object.structType->fields[index].type, value, "поле '" + name + "'");
-        runtime::own(value);
         object.items[index] = value;
         return variable(name, object.items[index]);
     }

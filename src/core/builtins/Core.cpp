@@ -21,12 +21,8 @@ std::mt19937& generator() {
 }
 
 // Arrays print as [a, b, c]; their internal id means nothing to a reader.
-// A value stored into a container becomes the container's own copy.
-Value stored(const Value& value) {
-    Value copy = value;
-    own(copy);
-    return copy;
-}
+// Arrays, maps and structs go into a container as they are, shared like everywhere else.
+Value stored(const Value& value) { return value; }
 
 Object& mapOf(Call& call, size_t index) {
     const Value& value = call.at(index);
@@ -227,7 +223,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
          "Значения словаря в порядке добавления ключей."},
         [](Call& c) {
             std::vector<Value> out;
-            for (const auto& item : mapOf(c, 0).items) out.push_back(deepCopy(item));
+            for (const auto& item : mapOf(c, 0).items) out.push_back(item);
             return makeArray(std::move(out));
         });
     add({"has", "bool", {{"map", "items"}, {"any", "key"}}, 2, false, "",
@@ -252,6 +248,12 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             }
             throw std::runtime_error("Type Error: get_or() needs a map or an array, got '" + items.type + "'");
         });
+
+    add({"copy", "any", {{"any", "value"}}, 1, false, "",
+         "Полная копия массива, словаря или структуры вместе со всем, что в них вложено. Присваивание `b = a` "
+         "не копирует: обе переменные смотрят на один контейнер. Числа и строки возвращаются как есть.\n\n"
+         "```foxlang\narray backup = copy(items);\npush(items, 4); // backup не изменился\n```"},
+        [](Call& c) { return deepCopy(c.at(0)); });
 
     // Types and conversions
     add({"type_of", "string", {{"any", "value"}}, 1, false, "",

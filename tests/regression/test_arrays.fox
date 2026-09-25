@@ -54,16 +54,20 @@ array letters = str_split("Лис🦊", "");
 assert_true(size(letters) == 4 && letters[3] == "🦊", "empty delimiter splits characters, not bytes");
 assert_true(str_join(parts, "+") == "a+b+c", "str_join");
 
-// 5. Arrays are passed by reference and assigned by copy
+// 5. Arrays are shared: by assignment and by passing to a function; copy() copies
 void fill_first(array items, int value) {
     items[0] = value;
 }
 fill_first(primes, 11);
 assert_true(primes[0] == 11, "a function changes the caller's array");
-array copy = [0];
-copy = primes;
-copy[1] = 100;
-assert_true(primes[1] == 3 && copy[1] == 100 && size(copy) == 4, "assignment copies elements");
+array same = [0];
+same = primes;
+same[1] = 100;
+assert_true(primes[1] == 100 && size(same) == 4, "assignment shares the array");
+array separate = copy(primes);
+separate[1] = 3;
+assert_true(primes[1] == 100 && separate[1] == 3, "copy() is independent");
+primes[1] = 3;
 
 // 6. Functions return arrays that outlive the function's scope
 array squares(int count) {

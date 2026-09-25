@@ -2,6 +2,7 @@
 #include "foxlang/AST.h"
 #include "foxlang/Runtime.h"
 #include <algorithm>
+#include <map>
 #include <ostream>
 #include <string>
 #include <stdexcept>
@@ -85,29 +86,47 @@ Value makeArray(std::vector<Value> items) {
 
 Value makeMap() { return {"map", "", std::make_shared<Object>(Object::Kind::Map)}; }
 
-Value deepCopy(const Value& value) {
+namespace {
+
+// A container that holds itself (a[0] = a) is copied once, not forever.
+Value copyOf(const Value& value, std::map<const Object*, std::shared_ptr<Object>>& copies) {
     if (!value.ref) return value;
+    auto done = copies.find(value.ref.get());
+    if (done != copies.end()) return {value.type, value.value, done->second};
     auto copy = std::make_shared<Object>(value.ref->kind);
+    copies[value.ref.get()] = copy;
     copy->keys = value.ref->keys;
     copy->structType = value.ref->structType;
     copy->items.reserve(value.ref->items.size());
-    for (const auto& item : value.ref->items) copy->items.push_back(deepCopy(item));
+    for (const auto& item : value.ref->items) copy->items.push_back(copyOf(item, copies));
     return {value.type, value.value, std::move(copy)};
 }
 
-void own(Value& value) {
-    // Nothing else refers to a temporary, so it can be stored without a copy.
-    if (value.ref && value.ref.use_count() > 1) value = deepCopy(value);
-}
-
-bool deepEqual(const Value& a, const Value& b) {
+// Two containers that are being compared already, higher up, count as equal there.
+bool equalTo(const Value& a, const Value& b, std::vector<std::pair<const Object*, const Object*>>& open) {
     if (a.type != b.type) return false;
     if (!a.ref || !b.ref) return !a.ref && !b.ref && a.value == b.value;
     if (a.ref == b.ref) return true;
+    std::pair<const Object*, const Object*> pair{a.ref.get(), b.ref.get()};
+    if (std::find(open.begin(), open.end(), pair) != open.end()) return true;
     if (a.ref->keys != b.ref->keys || a.ref->items.size() != b.ref->items.size()) return false;
-    for (size_t i = 0; i < a.ref->items.size(); ++i)
-        if (!deepEqual(a.ref->items[i], b.ref->items[i])) return false;
-    return true;
+    open.push_back(pair);
+    bool equal = true;
+    for (size_t i = 0; equal && i < a.ref->items.size(); ++i) equal = equalTo(a.ref->items[i], b.ref->items[i], open);
+    open.pop_back();
+    return equal;
+}
+
+} // namespace
+
+Value deepCopy(const Value& value) {
+    std::map<const Object*, std::shared_ptr<Object>> copies;
+    return copyOf(value, copies);
+}
+
+bool deepEqual(const Value& a, const Value& b) {
+    std::vector<std::pair<const Object*, const Object*>> open;
+    return equalTo(a, b, open);
 }
 
 } // namespace runtime
@@ -153,8 +172,7 @@ void Context::setVar(const std::string& name, Value val) {
         // The usual case, a value of the variable's own type, needs no conversion.
         bool sameType = target.type == val.type && (val.type != "int" || val.value.isInteger());
         if (!sameType) runtime::coerce(target.type, val, "variable '" + name + "'");
-        // A container assigned to a variable becomes its own copy.
-        runtime::own(val);
+        // Arrays, maps and structs are shared: the variable names the same container.
         target.value = std::move(val.value);
         target.ref = std::move(val.ref);
         return;

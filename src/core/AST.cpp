@@ -58,12 +58,12 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
         throw std::runtime_error("Runtime Error: function '" + name + "' expects " + std::to_string(params.size()) +
                                  " arguments, got " + std::to_string(args.size()));
 
-    // Lexical scope: a function sees globals, never the caller's locals. The scope is
-    // gone before the result is checked, so a returned local is no longer shared.
+    // Lexical scope: a function sees globals, never the caller's locals. The scope ends
+    // before the result is checked, so the function's locals are gone by then.
     auto scope = std::make_unique<Context>();
     scope->parent = caller.getRoot();
     scope->interpreter = caller.interpreter;
-    // Arrays, maps and structs are passed by reference: the function may change them.
+    // Arrays, maps and structs are shared with the caller: the function may change them.
     for (size_t i = 0; i < params.size(); ++i) {
         const auto& param = params[i];
         runtime::coerce(param.type, args[i], "parameter '" + param.name + "' of '" + name + "'");
@@ -107,8 +107,6 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
     if (result.type == "void")
         throw std::runtime_error("Runtime Error: function '" + name + "' must return " + returnType + " but ended without a value");
     runtime::coerce(returnType, result, "return value of '" + name + "'");
-    // A container that is still someone else's (a global, a parameter) leaves as a copy.
-    runtime::own(result);
     return result;
 }
 
@@ -160,7 +158,6 @@ Value VarDeclNode::eval(Context& ctx) {
         throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
     Value val = expr ? expr->eval(ctx) : runtime::zeroValue(type, ctx);
     runtime::coerce(type, val, std::string(global ? "global variable '" : "variable '") + name + "'");
-    runtime::own(val);
     scope.defineVar(name, type, val);
     return {"void", ""};
 }
@@ -324,7 +321,6 @@ Value ArrayDeclNode::eval(Context& ctx) {
     if (initializer) {
         value = initializer->eval(ctx);
         runtime::coerce("array", value, "initializer of array '" + name + "'");
-        runtime::own(value);
     } else {
         long long size = sizeNode ? intArg(sizeNode->eval(ctx), "size of array", name) : 0;
         if (size < 0) throw std::runtime_error("Runtime Error: Array size cannot be negative");
@@ -339,7 +335,6 @@ Value ArrayLiteralNode::eval(Context& ctx) {
     items.reserve(elements.size());
     for (auto& element : elements) {
         items.push_back(element->eval(ctx));
-        runtime::own(items.back());
     }
     return runtime::makeArray(std::move(items));
 }
@@ -441,7 +436,6 @@ Value SetNode::eval(Context& ctx) {
     }
     // A struct field keeps its declared type; elements and map values take any value.
     if (declared) runtime::coerce(*declared, assigned, "field '" + static_cast<FieldNode*>(target.get())->name + "'");
-    runtime::own(assigned);
     slot = std::move(assigned);
     return {"void", ""};
 }
@@ -451,7 +445,6 @@ Value MapLiteralNode::eval(Context& ctx) {
     for (auto& entry : entries) {
         std::string key = keyOf(entry.first->eval(ctx));
         Value value = entry.second->eval(ctx);
-        runtime::own(value);
         map.ref->slot(key) = std::move(value);
     }
     return map;

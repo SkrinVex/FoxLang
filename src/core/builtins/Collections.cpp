@@ -78,7 +78,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
             size_t from = bound(c, 1, items.size());
             size_t to = c.has(2) ? bound(c, 2, items.size()) : items.size();
             std::vector<Value> part;
-            for (size_t i = from; i < to; ++i) part.push_back(deepCopy(items[i]));
+            for (size_t i = from; i < to; ++i) part.push_back(items[i]);
             return makeArray(std::move(part));
         });
 }

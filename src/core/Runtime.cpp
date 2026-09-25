@@ -142,12 +142,14 @@ Text intResult(long long result, const std::string& op) {
 
 std::string display(const Value& value) {
     if (!value.ref) return value.value.str();
-    thread_local int depth = 0;
-    if (depth > 32) return "...";
+    // A container inside itself (a[0] = a) is shown as [...] instead of forever.
+    thread_local std::vector<const Object*> open;
+    if (std::find(open.begin(), open.end(), value.ref.get()) != open.end() || open.size() > 64)
+        return value.ref->kind == Object::Kind::Array ? "[...]" : "{...}";
     struct Nest {
-        Nest() { ++depth; }
-        ~Nest() { --depth; }
-    } nest;
+        explicit Nest(const Object* object) { open.push_back(object); }
+        ~Nest() { open.pop_back(); }
+    } nest(value.ref.get());
     const Object& object = *value.ref;
     std::string out;
     if (object.kind == Object::Kind::Array) {
@@ -192,7 +194,6 @@ Value construct(const StructType& type, std::vector<Value> args, Context& ctx) {
         else if (i < type.defaults.size() && type.defaults[i]) value = type.defaults[i]->eval(ctx);
         else value = zeroValue(field.type, ctx);
         coerce(field.type, value, "field '" + field.name + "' of '" + type.name + "'");
-        own(value);
         object->items.push_back(std::move(value));
     }
     return {type.name, "", std::move(object)};

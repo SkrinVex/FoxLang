@@ -161,9 +161,7 @@ struct Context {
 namespace runtime {
 Value makeArray(std::vector<Value> items);
 Value makeMap();
-// A container stored somewhere new owns its contents: a value that is still shared
-// (a variable, an element of another container) is copied, a temporary is taken as is.
-void own(Value& value);
+// A new container with the same contents, nested containers copied too (copy()).
 Value deepCopy(const Value& value);
 bool deepEqual(const Value& a, const Value& b);
 } // namespace runtime

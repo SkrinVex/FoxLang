@@ -23,15 +23,19 @@ map numbered = {};
 numbered[7] = "seven";
 check(numbered["7"] == "seven", "int keys are text");
 
-// --- Copy on assignment, sharing with functions
+// --- Sharing on assignment and with functions; copy() makes an independent copy
 map original = {"list": [1, 2]};
-map copy = original;
-copy["list"][0] = 100;
-check(original["list"][0] == 1 && copy["list"][0] == 100, "assignment copies nested containers");
+map alias = original;
+alias["list"][0] = 100;
+check(original["list"][0] == 100, "assignment shares the map");
+map separate = copy(original);
+separate["list"][0] = 5;
+check(original["list"][0] == 100 && separate["list"][0] == 5, "copy() copies nested containers");
+original["list"][0] = 1;
 void grow(map target) { target["added"] = true; }
 grow(original);
-check(has(original, "added"), "a function changes the map it was given");
-check(original != copy && copy == copy, "maps compare by contents");
+check(has(original, "added") && has(alias, "added"), "a function changes the map it was given");
+check(original != separate && separate == separate, "maps compare by contents");
 map twin = {"list": [1, 2], "added": true};
 check(original == twin, "equal contents are equal");
 
@@ -58,20 +62,24 @@ push(u.tags, "dev");
 u.extra["team"] = "core";
 check(u.age == 31 && u.home.x == 10 && size(u.tags) == 2 && u.extra.team == "core", "nested fields");
 check("" + p == "Point{x: 1, y: 5}", "struct text");
-User v = u;
+User shared = u;
+shared.age = 40;
+check(u.age == 40, "struct assignment shares");
+u.age = 31;
+User v = copy(u);
 v.name = "Bob";
-check(u.name == "Ann", "struct assignment copies");
+check(u.name == "Ann", "copy() of a struct is independent");
 array users = [u, v];
 users[1].tags[0] = "guest";
-check(users[1].tags[0] == "guest" && v.tags[0] == "admin", "structs inside arrays are copies");
+check(v.tags[0] == "guest" && u.tags[0] == "admin", "an array holds the structs themselves");
 User birthday(User who) {
     who.age += 1;
     return who;
 }
 User older = birthday(u);
-check(older.age == 32 && u.age == 32, "struct parameters are shared, results are copies");
+check(older.age == 32 && u.age == 32, "struct parameters are shared");
 older.age = 50;
-check(u.age == 32, "returned struct does not alias the argument");
+check(u.age == 50, "the returned struct is the same struct");
 
 bool typed = false;
 try {
@@ -87,7 +95,10 @@ grid[1][0] = 30;
 check(grid[1][0] == 30 && size(grid[0]) == 2, "nested array write");
 array row = grid[0];
 row[0] = 99;
-check(grid[0][0] == 1, "element copy is independent");
+check(grid[0][0] == 99, "an element is the nested array itself");
+array loop = [1];
+push(loop, loop);
+check("" + loop == "[1, [...]]" && loop == loop && size(copy(loop)[1]) == 2, "a container inside itself");
 check([1, [2, 3]] == [1, [2, 3]] && [1] != [2], "arrays compare by contents");
 
 // --- JSON
