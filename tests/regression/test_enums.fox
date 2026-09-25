@@ -1,0 +1,70 @@
+// FoxLang regression: enums
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+// 1. Values, names and numbers; an enum is usable above its declaration
+assert_true(Light.Yellow.value == 1, "an enum is declared before its line");
+enum Light { Red, Yellow, Green }
+enum Status { Active = "active", Blocked = "blocked" }
+enum Code { Ok = 200, Created, NotFound = 404, Minus = -1 }
+
+Light now = Light.Green;
+assert_true(now.name == "Green" && now.value == 2, "name and value");
+assert_true("${now}" == "Green" && to_string(now) == "Green", "shown by name");
+assert_true(type_of(now) == "Light", "type_of is the enum's name");
+assert_true(Status.Blocked.value == "blocked", "a string value");
+assert_true(Code.Created.value == 201 && Code.Minus.value == -1, "numbering continues after a given value");
+
+// 2. Equality, switch, iteration
+assert_true(now == Light.Green && now != Light.Red, "equality");
+string action(Light light) {
+    switch (light) {
+        case Light.Red: return "stop";
+        case Light.Yellow: return "wait";
+        default: return "go";
+    }
+}
+assert_true(action(Light.Red) == "stop" && action(now) == "go", "switch over an enum");
+array names;
+for (name, item in Light) {
+    push(names, name + "=" + item.value);
+}
+assert_true(names == ["Red=0", "Yellow=1", "Green=2"], "an enum's values in order");
+assert_true(size(Light) == 3, "size of an enum");
+
+// 3. As a type of fields, results and nullable values
+struct Lamp {
+    string room;
+    Light state;
+}
+Lamp lamp = Lamp("kitchen");
+assert_true(lamp.state == Light.Red, "an enum field starts at the first value");
+lamp.state = Light.Yellow;
+assert_true(json_value(lamp) == "{\"room\":\"kitchen\",\"state\":\"Yellow\"}", "JSON has the name");
+Light next(Light light) {
+    if (light == Light.Green) { return Light.Red; }
+    if (light == Light.Red) { return Light.Yellow; }
+    return Light.Green;
+}
+assert_true(next(Light.Green) == Light.Red && next(Light.Red) == Light.Yellow, "an enum result");
+Light? unknown = null;
+assert_true((unknown ?? Light.Yellow) == Light.Yellow, "a nullable enum");
+assert_true(copy(Light.Red) == Light.Red, "copy keeps the value");
+
+// 4. Errors
+string message = "";
+try { Light wrong = "Red"; } catch (e) { message = e; }
+assert_true(str_contains(message, "cannot hold a value of type 'string'"), "a string is not an enum value: " + message);
+try { Light.Red.value = 7; } catch (e) { message = e; }
+assert_true(str_contains(message, "cannot be changed"), "values are fixed: " + message);
+void rename_all(value) { Light = value; }
+try { rename_all(1); } catch (e) { message = e; }
+assert_true(str_contains(message, "'Light' is a constant"), "the enum's name is fixed: " + message);
+try { Light built = Light("x", 1); } catch (e) { message = e; }
+assert_true(str_contains(message, "is an enum"), "values are not built by a call: " + message);
+
+print("test_enums OK");

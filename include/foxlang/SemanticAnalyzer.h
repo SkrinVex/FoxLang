@@ -29,6 +29,10 @@ struct Symbol {
     std::string returnType;        // If function
     std::string documentation;     // Description for hover/completion
     std::string fileUri;           // URI or path of declaration
+    bool constant = false;         // a variable declared const, or an enum's name
+    bool isEnum = false;           // a Type that is an enum: its values are in methods
+    std::vector<Symbol> methods;   // If a struct: its methods, without the `this` parameter;
+                                   // if a module alias (using math as m): the module's functions and variables
 };
 
 struct Scope {
@@ -138,6 +142,8 @@ public:
     HoverInfo getHover(int line, int col, const std::string& code = "") const;
     DefinitionInfo getDefinition(int line, int col) const;
     std::vector<CompletionItem> getCompletions(int line, int col) const;
+    // Fields and methods after `name.`, when the type of the variable `name` is a struct.
+    std::vector<CompletionItem> getMemberCompletions(const std::string& name, int line, int col) const;
     std::vector<DocumentSymbolInfo> getDocumentSymbols() const;
     SignatureHelpResult getSignatureHelp(const std::string& code, int line, int col) const;
     const Symbol* findFunction(const std::string& name) const;
@@ -171,6 +177,11 @@ private:
     void visitBlock(const BlockNode* node);
     void declareFunction(const FuncDefNode* node);
     void visitFuncDef(const FuncDefNode* node);
+    void visitFunctionBody(const FuncDefNode* node, SourceRange declRange);
+    void visitMethodCall(const MethodCallNode* node);
+    void visitField(const FieldNode* node);
+    const Symbol* structOf(const Node* base);
+    const Symbol* variableOf(const Node* base);
     void visitVarDecl(const VarDeclNode* node);
     void visitVarAssign(const VarAssignNode* node);
     void visitFuncCall(const FuncCallNode* node);
@@ -179,6 +190,8 @@ private:
     void visitIf(const IfNode* node);
     void visitWhile(const WhileNode* node);
     void visitFor(const ForNode* node);
+    void visitForIn(const ForInNode* node);
+    void visitLambda(const LambdaNode* node);
     void visitSwitch(const SwitchNode* node);
     void visitBinOp(const BinOpNode* node);
     void visitArrayDecl(const ArrayDeclNode* node);
@@ -186,15 +199,21 @@ private:
     void visitInclude(const IncludeNode* node);
     void declareStruct(const StructDefNode* node, const std::string& uri, const std::string& documentation);
     void visitStructDef(const StructDefNode* node);
+    void declareEnum(const EnumDefNode* node, const std::string& uri, const std::string& documentation);
+    void visitEnumDef(const EnumDefNode* node);
     void visitTry(const TryNode* node);
     void checkType(const std::string& type, SourceRange range);
     void checkVariable(const std::string& name, SourceRange range);
+    void checkWritable(const std::string& name, SourceRange range);
     void addSymbol(Scope* scope, const Symbol& symbol, SourceRange nameRange, bool warnOnRedeclaration);
 
     void enterScope();
     void exitScope();
     void addBuiltins();
-    void loadModuleSymbols(const ModuleImport& request, SourceRange importRange, bool quiet = false);
+    // Returns the module's identity, or "" when it cannot be read.
+    std::string loadModuleSymbols(const ModuleImport& request, SourceRange importRange, bool quiet = false);
+    std::unordered_map<std::string, std::vector<Symbol>> moduleMembers; // by identity
+    Symbol aliasSymbol(const UsingNode* node, const std::string& identity);
 };
 
 } // namespace foxlang

@@ -11,26 +11,49 @@ namespace {
 
 class Resolver {
 public:
-    explicit Resolver(FrameLayout& layout) : layout_(layout) {}
+    // A lambda's resolver has the resolver of the code around it as `parent`: a name
+    // that is not the lambda's own is looked up there and becomes a capture.
+    Resolver(FrameLayout& layout, Resolver* parent = nullptr, std::vector<Capture>* captures = nullptr)
+        : layout_(layout), parent_(parent), captures_(captures) {}
 
     void push() { scopes_.emplace_back(); }
     void pop() { scopes_.pop_back(); }
 
-    int declare(const std::string& name, bool* duplicate = nullptr) {
+    int declare(const std::string& name, const std::string& type, bool* duplicate = nullptr, bool constant = false) {
         auto& scope = scopes_.back();
         if (duplicate && scope.count(name)) *duplicate = true;
         int slot = static_cast<int>(layout_.names.size());
         layout_.names.push_back(name);
+        layout_.boxed.push_back(false);
+        layout_.types.push_back(type);
+        layout_.constants.push_back(constant);
         scope[name] = slot;
         return slot;
     }
 
-    int lookup(const std::string& name) const {
+    VarRef find(const std::string& name) {
+        VarRef ref;
         for (auto scope = scopes_.rbegin(); scope != scopes_.rend(); ++scope) {
             auto found = scope->find(name);
-            if (found != scope->end()) return found->second;
+            if (found != scope->end()) {
+                ref.slot = found->second;
+                return ref;
+            }
         }
-        return VarRef::global;
+        ref.slot = VarRef::global;
+        if (!parent_) return ref;
+        VarRef outer = parent_->find(name);
+        if (outer.slot >= 0) {
+            // The variable now lives in a box that the function and the lambda share.
+            parent_->layout_.boxed[static_cast<size_t>(outer.slot)] = true;
+            size_t slot = static_cast<size_t>(outer.slot);
+            return capture(false, outer.slot, name, parent_->layout_.types[slot], parent_->layout_.constants[slot]);
+        }
+        if (outer.slot == VarRef::captured) {
+            const Capture& from = (*parent_->captures_)[static_cast<size_t>(outer.capture)];
+            return capture(true, outer.capture, name, from.type, from.constant);
+        }
+        return outer;
     }
 
     int size() const { return static_cast<int>(layout_.names.size()); }
@@ -40,7 +63,24 @@ public:
 
 private:
     FrameLayout& layout_;
+    Resolver* parent_;
+    std::vector<Capture>* captures_;
     std::vector<std::unordered_map<std::string, int>> scopes_;
+
+    VarRef capture(bool fromCapture, int index, const std::string& name, const std::string& type, bool constant) {
+        VarRef ref;
+        ref.slot = VarRef::captured;
+        for (size_t i = 0; i < captures_->size(); ++i) {
+            const Capture& existing = (*captures_)[i];
+            if (existing.fromCapture == fromCapture && existing.index == index) {
+                ref.capture = static_cast<int>(i);
+                return ref;
+            }
+        }
+        captures_->push_back({fromCapture, index, name, type, constant});
+        ref.capture = static_cast<int>(captures_->size()) - 1;
+        return ref;
+    }
 
     void block(BlockNode& block) {
         if (block.scoped) push();
@@ -49,6 +89,16 @@ private:
         block.endSlot = size();
         if (block.scoped) pop();
     }
+
+    void lambda(LambdaNode& node) {
+        node.layout = std::make_shared<FrameLayout>();
+        node.captures.clear();
+        Resolver inner(*node.layout, this, &node.captures);
+        inner.push();
+        for (const auto& param : node.params) inner.declare(param.name, param.type);
+        inner.visit(node.body.get());
+        inner.pop();
+    }
 };
 
 void Resolver::visit(Node* node) {
@@ -56,26 +106,42 @@ void Resolver::visit(Node* node) {
     if (auto* n = dynamic_cast<BlockNode*>(node)) {
         block(*n);
     } else if (auto* n = dynamic_cast<VarAccessNode*>(node)) {
-        n->ref.slot = lookup(n->name);
+        n->ref = find(n->name);
     } else if (auto* n = dynamic_cast<VarAssignNode*>(node)) {
         visit(n->expr.get());
-        n->ref.slot = lookup(n->name);
+        n->ref = find(n->name);
     } else if (auto* n = dynamic_cast<PostIncNode*>(node)) {
-        n->ref.slot = lookup(n->name);
+        n->ref = find(n->name);
     } else if (auto* n = dynamic_cast<VarDeclNode*>(node)) {
-        // The initializer sees the names before this one: `int x = x + 1;` reads an outer x.
-        visit(n->expr.get());
-        if (!n->global && !topLevel()) n->slot = declare(n->name, &n->duplicate);
+        bool local = !n->global && !topLevel();
+        if (local && n->kind == Value::Kind::Function && dynamic_cast<LambdaNode*>(n->expr.get())) {
+            // func f = (n) => ... f(n - 1): a lambda may call itself by its variable.
+            n->slot = declare(n->name, n->type, &n->duplicate, n->constant);
+            visit(n->expr.get());
+        } else {
+            // The initializer sees the names before this one: `int x = x + 1;` reads an outer x.
+            visit(n->expr.get());
+            if (local) n->slot = declare(n->name, n->type, &n->duplicate, n->constant);
+        }
     } else if (auto* n = dynamic_cast<ArrayDeclNode*>(node)) {
         visit(n->sizeNode.get());
         visit(n->initializer.get());
-        if (!n->global && !topLevel()) n->slot = declare(n->name, &n->duplicate);
+        if (!n->global && !topLevel()) n->slot = declare(n->name, "array", &n->duplicate, n->constant);
     } else if (auto* n = dynamic_cast<ForNode*>(node)) {
         push();
         n->firstSlot = size();
         visit(n->init.get());
         visit(n->condition.get());
         visit(n->step.get());
+        visit(n->body.get());
+        n->endSlot = size();
+        pop();
+    } else if (auto* n = dynamic_cast<ForInNode*>(node)) {
+        visit(n->iterable.get());
+        push();
+        n->firstSlot = size();
+        // The variables take consecutive slots: the loop fills them with one instruction.
+        for (auto& variable : n->variables) variable.slot = declare(variable.name, variable.type);
         visit(n->body.get());
         n->endSlot = size();
         pop();
@@ -97,13 +163,23 @@ void Resolver::visit(Node* node) {
         visit(n->body.get());
         if (n->handler) {
             push();
-            if (!n->errorName.empty()) n->errorSlot = declare(n->errorName);
+            if (!n->errorName.empty()) n->errorSlot = declare(n->errorName, "string");
             visit(n->handler.get());
             pop();
         }
         visit(n->cleanup.get());
     } else if (auto* n = dynamic_cast<FuncCallNode*>(node)) {
+        // A local variable of this name holds the function to call.
+        n->ref = find(n->name);
         for (auto& arg : n->args) visit(arg.get());
+    } else if (auto* n = dynamic_cast<MethodCallNode*>(node)) {
+        visit(n->base.get());
+        for (auto& arg : n->args) visit(arg.get());
+    } else if (auto* n = dynamic_cast<CallNode*>(node)) {
+        visit(n->callee.get());
+        for (auto& arg : n->args) visit(arg.get());
+    } else if (auto* n = dynamic_cast<LambdaNode*>(node)) {
+        lambda(*n);
     } else if (auto* n = dynamic_cast<ReturnNode*>(node)) {
         visit(n->expr.get());
     } else if (auto* n = dynamic_cast<BinOpNode*>(node)) {
@@ -126,6 +202,8 @@ void Resolver::visit(Node* node) {
             visit(entry.first.get());
             visit(entry.second.get());
         }
+    } else if (auto* n = dynamic_cast<InterpolationNode*>(node)) {
+        for (auto& part : n->parts) visit(part.get());
     } else if (auto* n = dynamic_cast<ThrowNode*>(node)) {
         visit(n->message.get());
     }
@@ -141,7 +219,7 @@ void resolveFunction(FuncDefNode& function) {
     auto layout = std::make_shared<FrameLayout>();
     Resolver resolver(*layout);
     resolver.push();
-    for (const auto& param : function.params) resolver.declare(param.name);
+    for (const auto& param : function.params) resolver.declare(param.name, param.type);
     resolver.visit(body);
     resolver.pop();
     body->layout = layout;
@@ -154,6 +232,12 @@ void resolveProgram(BlockNode& program) {
     // The top level declares globals; only blocks inside it get slots.
     resolver.visit(&program);
     program.layout = layout;
+}
+
+void resolveExpression(Node& expression) {
+    FrameLayout layout;
+    Resolver resolver(layout);
+    resolver.visit(&expression);
 }
 
 } // namespace foxlang

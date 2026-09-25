@@ -131,6 +131,32 @@ with tempfile.TemporaryDirectory(prefix='fox-lsp-') as directory:
     formatted = server.request('textDocument/formatting', {'textDocument': {'uri': doc_uri}, 'options': {'tabSize': 4, 'insertSpaces': True}})
     assert formatted['result'][0]['newText'] == 'int  x=1;\n\nif (x > 0) {\n    print(x);\n}\n', formatted
 
+    # After `name.` the completion lists the fields and methods of name's struct, even
+    # while the line is still unfinished.
+    shapes = 'struct Point {\n    int x;\n    int y;\n    float length() { return 1.0; }\n}\nPoint p = Point(1, 2);\np.'
+    shapes_uri = uri(root / 'shapes.fox')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': shapes_uri, 'languageId': 'fox', 'version': 1, 'text': shapes}})
+    listed = server.request('textDocument/completion', {'textDocument': {'uri': shapes_uri},
+                                                        'position': {'line': 6, 'character': 2}})['result']
+    assert sorted(item['label'] for item in listed) == ['length', 'x', 'y'], listed
+
+    # After a module alias, the module's functions and variables.
+    aliased = 'using math as m;\nfloat r = m.'
+    aliased_uri = uri(root / 'aliased.fox')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': aliased_uri, 'languageId': 'fox', 'version': 1, 'text': aliased}})
+    listed = server.request('textDocument/completion', {'textDocument': {'uri': aliased_uri},
+                                                        'position': {'line': 1, 'character': 12}})['result']
+    labels = [item['label'] for item in listed]
+    assert 'hypot' in labels and 'PI' in labels and 'print' not in labels, labels
+
+    # After an enum's name, its values.
+    colors = 'enum Color { Red, Green }\nColor c = Color.'
+    colors_uri = uri(root / 'colors.fox')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': colors_uri, 'languageId': 'fox', 'version': 1, 'text': colors}})
+    listed = server.request('textDocument/completion', {'textDocument': {'uri': colors_uri},
+                                                        'position': {'line': 1, 'character': 16}})['result']
+    assert [item['label'] for item in listed] == ['Red', 'Green'], listed
+
     server.request('shutdown', None)
     server.notify('exit', None)
     server.process.wait(timeout=10)

@@ -1,7 +1,9 @@
-// foxlang fmt and foxlang test: source layout and the built-in test runner.
+// foxlang fmt, foxlang test and foxlang disasm: source layout, the built-in test runner
+// and the bytecode listing.
 #include "Tools.h"
 #include "foxlang/FoxLang.h"
 #include "foxlang/Formatter.h"
+#include "foxlang/Bytecode.h"
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
@@ -131,7 +133,6 @@ int test(const std::vector<std::string>& arguments) {
             RunResult setup = interpreter.runFile(file);
             std::string failure = setup.success ? "" : setup.errorMessage;
             if (setup.success) {
-                runtime::StackGuard& guard = runtime::stackGuard();
                 try {
                     auto function = interpreter.getContext().getFunc(name);
                     static_cast<const FuncDefNode*>(function.get())->invoke({}, interpreter.getContext());
@@ -140,7 +141,6 @@ int test(const std::vector<std::string>& arguments) {
                 } catch (const std::exception& error) {
                     failure = runtime::locate(error.what(), file);
                 }
-                guard.flow = runtime::StackGuard::Flow::None;
             }
             double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
             std::ostringstream time;
@@ -158,6 +158,51 @@ int test(const std::vector<std::string>& arguments) {
     }
     std::cout << (passed + failed) << " tests: " << passed << " passed, " << failed << " failed" << std::endl;
     return failed > 0 ? 1 : 0;
+}
+
+namespace {
+
+// The functions defined anywhere in the code, in source order.
+void collectFunctions(Node* node, std::vector<FuncDefNode*>& out) {
+    if (!node) return;
+    if (auto* n = dynamic_cast<FuncDefNode*>(node)) {
+        out.push_back(n);
+        collectFunctions(n->body.get(), out);
+    } else if (auto* n = dynamic_cast<BlockNode*>(node)) {
+        for (auto& stmt : n->stmts) collectFunctions(stmt.get(), out);
+    } else if (auto* n = dynamic_cast<IfNode*>(node)) {
+        collectFunctions(n->thenB.get(), out);
+        collectFunctions(n->elseB.get(), out);
+    } else if (auto* n = dynamic_cast<WhileNode*>(node)) {
+        collectFunctions(n->body.get(), out);
+    } else if (auto* n = dynamic_cast<ForNode*>(node)) {
+        collectFunctions(n->body.get(), out);
+    } else if (auto* n = dynamic_cast<SwitchNode*>(node)) {
+        for (auto& item : n->cases) collectFunctions(item.second.get(), out);
+        collectFunctions(n->defaultCase.get(), out);
+    } else if (auto* n = dynamic_cast<TryNode*>(node)) {
+        collectFunctions(n->body.get(), out);
+        collectFunctions(n->handler.get(), out);
+        collectFunctions(n->cleanup.get(), out);
+    }
+}
+
+} // namespace
+
+int disassemble(const std::vector<std::string>& arguments) {
+    if (arguments.size() != 1) throw std::runtime_error("Usage: foxlang disasm <file.fox>");
+    fs::path path = platform::pathFromUtf8(arguments[0]);
+    Lexer lexer(readText(path));
+    Parser parser(lexer.tokenize(), arguments[0]);
+    auto program = parser.parseProgram();
+    bytecode::disassemble(*bytecode::compileProgram(*program, bytecode::Unit::Program, false), std::cout);
+    std::vector<FuncDefNode*> functions;
+    collectFunctions(program.get(), functions);
+    for (FuncDefNode* function : functions) {
+        std::cout << "\n";
+        bytecode::disassemble(*bytecode::compileFunction(*function, false), std::cout);
+    }
+    return 0;
 }
 
 } // namespace foxlang::cli

@@ -22,19 +22,25 @@ std::mt19937& generator() {
 
 // Arrays print as [a, b, c]; their internal id means nothing to a reader.
 // Arrays, maps and structs go into a container as they are, shared like everywhere else.
-Value stored(const Value& value) { return value; }
+// A value going into the array argument: converted to its element type when it has one.
+Value stored(Call& call, const Value& value) {
+    Value copy = value;
+    const Object* items = call.at(0).ref();
+    if (items && items->elementType) storeElement(*items, copy);
+    return copy;
+}
 
 Object& mapOf(Call& call, size_t index) {
     const Value& value = call.at(index);
-    if (value.type != "map" || !value.ref) throw std::runtime_error("Type Error: " + call.what(index) + " must be a map, got '" + value.type + "'");
-    return *value.ref;
+    if (!value.is(Value::Kind::Map)) throw std::runtime_error("Type Error: " + call.what(index) + " must be a map, got '" + value.typeName() + "'");
+    return *value.ref();
 }
 
 std::string keyText(Call& call, size_t index) {
     const Value& key = call.at(index);
-    if (key.type != "string" && key.type != "int")
-        throw std::runtime_error("Type Error: " + call.what(index) + " must be string or int, got '" + key.type + "'");
-    return key.value.str();
+    if (key.isString()) return key.str();
+    if (key.isInt()) return std::to_string(key.asInt());
+    throw std::runtime_error("Type Error: " + call.what(index) + " must be string or int, got '" + key.typeName() + "'");
 }
 
 size_t checkedIndex(Call& call, size_t argument, size_t size) {
@@ -54,16 +60,15 @@ std::string trimmed(const std::string& text) {
 bool parseNumber(const std::string& raw, double& out) {
     std::string text = trimmed(raw);
     if (text.empty()) return false;
-    Value probe{"string", text};
-    return tryNumber(probe, out);
+    return tryNumber(Value::string(text), out);
 }
 
 bool allIntegers(Call& call) {
-    return std::all_of(call.args.begin(), call.args.end(), [](const Value& v) { return v.type == "int"; });
+    return std::all_of(call.args.begin(), call.args.end(), [](const Value& v) { return v.isInt(); });
 }
 
 Value numberResult(Call& call, double result, const char* op) {
-    if (allIntegers(call)) return {"int", intResult(static_cast<long long>(result), op)};
+    if (allIntegers(call)) return intResult(static_cast<long long>(result), op);
     return real(result);
 }
 
@@ -125,10 +130,10 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
          "```foxlang\nint n = size(scores);\n```"},
         [](Call& c) {
             const Value& value = c.at(0);
-            if (value.type == "string") return integer(static_cast<long long>(value.value.length()));
-            if (value.type == "array") return integer(static_cast<long long>(c.array(0).size()));
-            if (value.type == "map") return integer(static_cast<long long>(value.ref->items.size()));
-            throw std::runtime_error("Type Error: size() requires an array, a map or a string, got '" + value.type + "'");
+            if (value.isString()) return integer(static_cast<long long>(value.str().length()));
+            if (value.is(Value::Kind::Array)) return integer(static_cast<long long>(c.array(0).size()));
+            if (value.is(Value::Kind::Map)) return integer(static_cast<long long>(value.ref()->items.size()));
+            throw std::runtime_error("Type Error: size() requires an array, a map or a string, got '" + value.typeName() + "'");
         });
     add({"get", "any", {{"array", "items"}, {"int", "index"}}, 2, false, "",
          "Элемент массива по индексу (с нуля). То же, что `items[index]`.\n\n```foxlang\nint first = get(scores, 0);\n```"},
@@ -140,7 +145,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
          "Записывает значение в элемент массива. То же, что `items[index] = value;`.\n\n```foxlang\nset(scores, 0, 100);\n```"},
         [](Call& c) {
             auto& items = c.array(0);
-            items[checkedIndex(c, 1, items.size())] = stored(c.at(2));
+            items[checkedIndex(c, 1, items.size())] = stored(c, c.at(2));
             return nothing();
         });
     add({"push", "void", {{"array", "items"}, {"any", "value"}}, 2, false, "",
@@ -148,7 +153,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
         [](Call& c) {
             auto& items = c.array(0);
             if (items.size() >= maxElements) throw std::runtime_error("Runtime Error: array is too large");
-            items.push_back(stored(c.at(1)));
+            items.push_back(stored(c, c.at(1)));
             return nothing();
         });
     add({"pop", "any", {{"array", "items"}}, 1, false, "",
@@ -166,7 +171,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             auto& items = c.array(0);
             size_t index = checkedIndex(c, 1, items.size() + 1);
             if (items.size() >= maxElements) throw std::runtime_error("Runtime Error: array is too large");
-            items.insert(items.begin() + static_cast<std::ptrdiff_t>(index), stored(c.at(2)));
+            items.insert(items.begin() + static_cast<std::ptrdiff_t>(index), stored(c, c.at(2)));
             return nothing();
         });
     add({"remove_at", "any", {{"array", "items"}, {"int", "index"}}, 2, false, "",
@@ -181,7 +186,16 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
     add({"resize", "void", {{"array", "items"}, {"int", "size"}}, 2, false, "",
          "Меняет размер массива. Новые элементы равны `0`, лишние отбрасываются."},
         [](Call& c) {
-            c.array(0).resize(c.amount(1, maxElements), {"int", Text::integer(0)});
+            const Object* items = c.at(0).ref();
+            size_t size = c.amount(1, maxElements);
+            auto& list = c.array(0);
+            if (!items || !items->elementType) {
+                list.resize(size, Value::integer(0));
+                return nothing();
+            }
+            if (size < list.size()) list.resize(size);
+            // Each new element its own zero value: array<Point> gets separate points.
+            while (list.size() < size) list.push_back(zeroValue(*items->elementType, c.ctx));
             return nothing();
         });
 
@@ -202,10 +216,10 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             const Value& actual = c.at(0);
             const Value& expected = c.at(1);
             double a = 0, b = 0;
-            bool numbers = (actual.type == "int" || actual.type == "float") && (expected.type == "int" || expected.type == "float");
+            bool numbers = actual.isNumber() && expected.isNumber();
             bool equal = numbers ? tryNumber(actual, a) && tryNumber(expected, b) && a == b : deepEqual(actual, expected);
             if (equal) return nothing();
-            auto shown = [](const Value& v) { return v.type == "string" ? "\"" + v.value.str() + "\"" : display(v); };
+            auto shown = [](const Value& v) { return v.isString() ? "\"" + v.str() + "\"" : display(v); };
             throw std::runtime_error("Assertion failed: " + (c.has(2) ? c.text(2) + ": " : std::string()) + "expected " +
                                      shown(expected) + ", got " + shown(actual));
         });
@@ -231,22 +245,26 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
         [](Call& c) { return boolean(mapOf(c, 0).find(keyText(c, 1)) >= 0); });
     add({"remove_key", "bool", {{"map", "items"}, {"any", "key"}}, 2, false, "",
          "Удаляет ключ из словаря. `true`, если ключ был."},
-        [](Call& c) { return boolean(mapOf(c, 0).erase(keyText(c, 1))); });
+        [](Call& c) {
+            Object& map = mapOf(c, 0);
+            if (map.frozen) throw std::runtime_error("Runtime Error: the values of an enum cannot be changed");
+            return boolean(map.erase(keyText(c, 1)));
+        });
     add({"get_or", "any", {{"any", "items"}, {"any", "key"}, {"any", "default"}}, 3, false, "",
          "Значение словаря по ключу или элемент массива по индексу, а если его нет — `default`.\n\n"
          "```foxlang\nint port = get_or(config, \"port\", 8080);\n```"},
         [](Call& c) {
             const Value& items = c.at(0);
-            if (items.type == "map" && items.ref) {
-                long at = items.ref->find(keyText(c, 1));
-                return at < 0 ? c.at(2) : items.ref->items[static_cast<size_t>(at)];
+            if (items.is(Value::Kind::Map)) {
+                long at = items.ref()->find(keyText(c, 1));
+                return at < 0 ? c.at(2) : items.ref()->items[static_cast<size_t>(at)];
             }
-            if (items.type == "array" && items.ref) {
+            if (items.is(Value::Kind::Array)) {
                 long long index = c.integer(1);
-                bool inside = index >= 0 && static_cast<unsigned long long>(index) < items.ref->items.size();
-                return inside ? items.ref->items[static_cast<size_t>(index)] : c.at(2);
+                bool inside = index >= 0 && static_cast<unsigned long long>(index) < items.ref()->items.size();
+                return inside ? items.ref()->items[static_cast<size_t>(index)] : c.at(2);
             }
-            throw std::runtime_error("Type Error: get_or() needs a map or an array, got '" + items.type + "'");
+            throw std::runtime_error("Type Error: get_or() needs a map or an array, got '" + items.typeName() + "'");
         });
 
     add({"copy", "any", {{"any", "value"}}, 1, false, "",
@@ -258,29 +276,29 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
     // Types and conversions
     add({"type_of", "string", {{"any", "value"}}, 1, false, "",
          "Имя типа значения: `int`, `float`, `string`, `bool`, `array`, `map` или имя структуры."},
-        [](Call& c) { return text(c.at(0).type); });
+        [](Call& c) { return text(c.at(0).typeName()); });
     add({"to_int", "int", {{"any", "value"}}, 1, false, "",
          "Преобразует в `int`: дробное число отбрасывает дробную часть, строка должна содержать число, "
          "`true`/`false` дают 1/0. Некорректная строка — ошибка выполнения, проверяйте её `is_number`.\n\n"
          "```foxlang\nint port = to_int(env_default(\"PORT\", \"8080\"));\n```"},
         [](Call& c) {
             const Value& value = c.at(0);
-            if (value.type == "bool") return integer(c.flag(0) ? 1 : 0);
-            if (value.type == "array") throw std::runtime_error("Type Error: to_int() cannot convert an array");
+            if (value.isBool()) return integer(c.flag(0) ? 1 : 0);
+            if (value.is(Value::Kind::Array)) throw std::runtime_error("Type Error: to_int() cannot convert an array");
             double number = 0;
-            if (value.type == "string" ? !parseNumber(value.value.str(), number) : !tryNumber(value, number))
-                throw std::runtime_error("Runtime Error: to_int() cannot convert '" + value.value.str() + "' to a number");
-            return Value{"int", intText(Value{"float", Text::real(std::trunc(number))}, "to_int() result")};
+            if (value.isString() ? !parseNumber(value.str(), number) : !tryNumber(value, number))
+                throw std::runtime_error("Runtime Error: to_int() cannot convert '" + value.text() + "' to a number");
+            return intValue(Value::real(std::trunc(number)), "to_int() result");
         });
     add({"to_float", "float", {{"any", "value"}}, 1, false, "",
          "Преобразует число, строку с числом или `bool` в `float`. Некорректная строка — ошибка выполнения."},
         [](Call& c) {
             const Value& value = c.at(0);
-            if (value.type == "bool") return real(c.flag(0) ? 1.0 : 0.0);
-            if (value.type == "array") throw std::runtime_error("Type Error: to_float() cannot convert an array");
+            if (value.isBool()) return real(c.flag(0) ? 1.0 : 0.0);
+            if (value.is(Value::Kind::Array)) throw std::runtime_error("Type Error: to_float() cannot convert an array");
             double number = 0;
-            if (value.type == "string" ? !parseNumber(value.value.str(), number) : !tryNumber(value, number))
-                throw std::runtime_error("Runtime Error: to_float() cannot convert '" + value.value.str() + "' to a number");
+            if (value.isString() ? !parseNumber(value.str(), number) : !tryNumber(value, number))
+                throw std::runtime_error("Runtime Error: to_float() cannot convert '" + value.text() + "' to a number");
             return real(number);
         });
     add({"to_string", "string", {{"any", "value"}}, 1, false, "",

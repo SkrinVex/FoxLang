@@ -1,0 +1,422 @@
+{
+ "after_return_line": {
+  "exit": 1,
+  "stderr": "FoxLang: after_return_line.fox:3: Runtime Error: Division by zero\n",
+  "stdout": ""
+ },
+ "arguments": {
+  "exit": 1,
+  "stderr": "FoxLang: arguments.fox:2: Runtime Error: function 'f' expects 1 arguments, got 2\n",
+  "stdout": ""
+ },
+ "array_size": {
+  "exit": 1,
+  "stderr": "FoxLang: array_size.fox:1: Runtime Error: Array size cannot be negative\n",
+  "stdout": ""
+ },
+ "bad_key": {
+  "exit": 1,
+  "stderr": "FoxLang: bad_key.fox:2: Type Error: a map key must be string or int, got 'float'\n",
+  "stdout": ""
+ },
+ "bad_literal_key": {
+  "exit": 1,
+  "stderr": "FoxLang: bad_literal_key.fox:1: Type Error: a map key must be string or int, got 'array'\n",
+  "stdout": ""
+ },
+ "block_scope": {
+  "exit": 1,
+  "stderr": "FoxLang: block_scope.fox:3: Runtime Error: Variable 'inner' not found!\n",
+  "stdout": ""
+ },
+ "builtin_count": {
+  "exit": 1,
+  "stderr": "FoxLang: builtin_count.fox:1: Runtime Error: size() expects 1 arguments, got 0\n",
+  "stdout": ""
+ },
+ "builtin_errors": {
+  "exit": 1,
+  "stderr": "FoxLang: builtin_errors.fox:1: Type Error: argument 'text' of str_upper() must be string, got 'int'\n",
+  "stdout": ""
+ },
+ "builtin_overlap": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "2\nroute / home\n1\n"
+ },
+ "catch_rethrow": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "again: Runtime Error: x\n"
+ },
+ "catch_scope": {
+  "exit": 1,
+  "stderr": "FoxLang: catch_scope.fox:2: Runtime Error: Variable 'e' not found!\n",
+  "stdout": "Runtime Error: x\n"
+ },
+ "compare_mixed": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "true true true false true true\n"
+ },
+ "compound_assign": {
+  "exit": 1,
+  "stderr": "FoxLang: compound_assign.fox:12: Runtime Error: int overflow in '+=': result 2147483648 is outside -2147483648..2147483647\n",
+  "stdout": "4\nx1\n"
+ },
+ "compound_types": {
+  "exit": 1,
+  "stderr": "FoxLang: compound_types.fox:8: Runtime Error: Division by zero\n",
+  "stdout": "6\n0.25\n"
+ },
+ "condition_after_body": {
+  "exit": 1,
+  "stderr": "FoxLang: condition_after_body.fox:2: Runtime Error: Division by zero\n",
+  "stdout": ""
+ },
+ "condition_type": {
+  "exit": 1,
+  "stderr": "FoxLang: condition_type.fox:2: Type Error: while condition must be bool, got 'int'\n",
+  "stdout": ""
+ },
+ "conditions_bool": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "yes\n0\n1\n2\n"
+ },
+ "container_ops": {
+  "exit": 1,
+  "stderr": "FoxLang: container_ops.fox:1: Type Error: operator '+' cannot be applied to an array\n",
+  "stdout": ""
+ },
+ "containers": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "[10, 7, 3] 3 3\n{x: 2, y: [9, 2], z: 3, w: 4} 2 2\nP{x: 2, y: 3, name: p} 3\n42\n{k: {inner: [5]}}\n[10, 7, 3, 4]\n[10, 7, 3, 4] [10, 7, 3, 4, 5]\none one two\n[0, 0, 0]\n[]\n"
+ },
+ "declared_types": {
+  "exit": 1,
+  "stderr": "FoxLang: declared_types.fox:7: Type Error: variable 'b' has type 'bool' and cannot hold a value of type 'int'\n",
+  "stdout": "3 3 5\n2\n"
+ },
+ "deep_recursion": {
+  "exit": 1,
+  "stderr": "FoxLang: deep_recursion.fox:1: Runtime Error: call depth limit reached in 'down' after N nested calls (recursion without a base case?)\n",
+  "stdout": ""
+ },
+ "deferred_include": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "loaded\n"
+ },
+ "error_in_catch": {
+  "exit": 1,
+  "stderr": "FoxLang: error_in_catch.fox:4: Runtime Error: Variable 'missing' not found!\n",
+  "stdout": ""
+ },
+ "error_in_finally_after_return": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "caught Runtime Error: in finally\n"
+ },
+ "exit_in_function": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "x\n"
+ },
+ "exit_in_try": {
+  "exit": 4,
+  "stderr": "",
+  "stdout": "a\nfinally on exit\n"
+ },
+ "field_type": {
+  "exit": 1,
+  "stderr": "FoxLang: field_type.fox:3: Type Error: field 'x' has type 'int' and cannot hold a value of type 'string'\n",
+  "stdout": ""
+ },
+ "finally_error_line": {
+  "exit": 1,
+  "stderr": "FoxLang: finally_error_line.fox:5: Runtime Error: Division by zero\n",
+  "stdout": "x\n"
+ },
+ "float_math": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "3 0.5 -3.5 -1.5 1 1.5\n20\n"
+ },
+ "for_condition": {
+  "exit": 1,
+  "stderr": "FoxLang: for_condition.fox:1: Type Error: for condition must be bool, got 'int'\n",
+  "stdout": ""
+ },
+ "function_break": {
+  "exit": 1,
+  "stderr": "FoxLang: function_break.fox:1: Runtime Error: 'break' outside of loop in function 'f'\n",
+  "stdout": "in\n"
+ },
+ "function_continue": {
+  "exit": 1,
+  "stderr": "FoxLang: function_continue.fox:1: Runtime Error: 'continue' outside of loop in function 'f'\n",
+  "stdout": "fin\n"
+ },
+ "functions_late": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "8\n"
+ },
+ "global_increment": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "3 2\n"
+ },
+ "global_keyword": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "7\n7\n"
+ },
+ "globals_and_locals": {
+  "exit": 1,
+  "stderr": "FoxLang: globals_and_locals.fox:6: Runtime Error: Variable 'hidden' not found!\n",
+  "stdout": "5\n"
+ },
+ "if_chain": {
+  "exit": 1,
+  "stderr": "FoxLang: if_chain.fox:5: Type Error: if condition must be bool, got 'string'\n",
+  "stdout": "A\nB\nC\n"
+ },
+ "in_function": {
+  "exit": 1,
+  "stderr": "FoxLang: in_function.fox:3: Runtime Error: Division by zero\n",
+  "stdout": "1\n"
+ },
+ "increment_errors": {
+  "exit": 1,
+  "stderr": "FoxLang: increment_errors.fox:2: Type Error: '++' needs an int or float variable, 'a' is array\n",
+  "stdout": ""
+ },
+ "index_errors": {
+  "exit": 1,
+  "stderr": "FoxLang: index_errors.fox:2: Runtime Error: Array index out of bounds: 5 (size 1)\n",
+  "stdout": ""
+ },
+ "literal_big": {
+  "exit": 1,
+  "stderr": "FoxLang: literal_big.fox:2: Runtime Error: variable 'y' does not fit in int: '3000000000' (int holds -2147483648..2147483647)\n",
+  "stdout": "3000000000\n"
+ },
+ "literal_huge": {
+  "exit": 1,
+  "stderr": "FoxLang: literal_huge.fox:2: Runtime Error: int literal '99999999999999999999' does not fit in int (int holds -2147483648..2147483647)\n",
+  "stdout": "1\n"
+ },
+ "loop_condition_later": {
+  "exit": 1,
+  "stderr": "FoxLang: loop_condition_later.fox:2: Runtime Error: limit\n",
+  "stdout": "0\n1\n"
+ },
+ "loops": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "19\n4\n-1\n0 0\n0 2\n1 0\n1 2\n"
+ },
+ "map_iteration": {
+  "exit": 1,
+  "stderr": "FoxLang: map_iteration.fox:4: Syntax Error: expected ';' but found '++'\n",
+  "stdout": ""
+ },
+ "map_missing": {
+  "exit": 1,
+  "stderr": "FoxLang: map_missing.fox:2: Runtime Error: map has no key 'nothing' (has(map, key) checks, get_or(map, key, default) reads safely)\n",
+  "stdout": ""
+ },
+ "module_using": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "007 true\n"
+ },
+ "nested_call_line": {
+  "exit": 1,
+  "stderr": "FoxLang: nested_call_line.fox:2: Runtime Error: deep\n",
+  "stdout": ""
+ },
+ "nested_try_return": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "inner\nouter\n1\ng 1\ng 2\ng 3\n3\n"
+ },
+ "not_bool": {
+  "exit": 1,
+  "stderr": "FoxLang: not_bool.fox:2: Type Error: operand of '!' must be bool, got 'int'\n",
+  "stdout": "false\n"
+ },
+ "not_found": {
+  "exit": 1,
+  "stderr": "FoxLang: not_found.fox:2: Runtime Error: Function 'non_existent_func' not found!\n",
+  "stdout": "1\n"
+ },
+ "overflow": {
+  "exit": 1,
+  "stderr": "FoxLang: overflow.fox:2: Runtime Error: int overflow in '++': result 2147483648 is outside -2147483648..2147483647\n",
+  "stdout": ""
+ },
+ "overflow_mul": {
+  "exit": 1,
+  "stderr": "FoxLang: overflow_mul.fox:2: Runtime Error: int overflow in '*': result 10000000000 is outside -2147483648..2147483647\n",
+  "stdout": ""
+ },
+ "param_types": {
+  "exit": 1,
+  "stderr": "FoxLang: param_types.fox:4: Type Error: parameter 'x' of 'g' has type 'int' and cannot hold a value of type 'string'\n",
+  "stdout": "2 2\n"
+ },
+ "postinc_expr": {
+  "exit": 1,
+  "stderr": "FoxLang: postinc_expr.fox:10: Type Error: '++' needs an int or float variable, 's' is string\n",
+  "stdout": "6 11\n7 12\n2.5\n"
+ },
+ "recursion": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "610\n"
+ },
+ "recursion_caught": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "stopped\nalive\n"
+ },
+ "redeclare": {
+  "exit": 1,
+  "stderr": "FoxLang: redeclare.fox:2: Runtime Error: Variable 'a' is already declared in this scope\n",
+  "stdout": ""
+ },
+ "redeclare_first": {
+  "exit": 1,
+  "stderr": "FoxLang: redeclare_first.fox:2: Runtime Error: Variable 'a' is already declared in this scope\n",
+  "stdout": ""
+ },
+ "redeclare_local": {
+  "exit": 1,
+  "stderr": "FoxLang: redeclare_local.fox:3: Runtime Error: Variable 'a' is already declared in this scope\n",
+  "stdout": ""
+ },
+ "redefine": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "1\n2\n3\n"
+ },
+ "return_from_switch": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "finally 0\none\nfinally 0\nfinally 1\ntwo at 1\nfinally 0\nfinally 1\nfinally 2\nfinally 3\nfinally 4\nfinally 5\nfinally 6\nfinally 7\nfinally 8\nfinally 9\nnone\n"
+ },
+ "return_types": {
+  "exit": 1,
+  "stderr": "FoxLang: return_types.fox:2: Runtime Error: function 'f' must return int but ended without a value\n",
+  "stdout": ""
+ },
+ "shadowing": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "3\n2\n1\n"
+ },
+ "short_circuit": {
+  "exit": 1,
+  "stderr": "FoxLang: short_circuit.fox:3: Type Error: right operand of '&&' must be bool, got 'int'\n",
+  "stdout": "false true\n"
+ },
+ "strings": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "a12.5true true true 7\n"
+ },
+ "strings_in_loops": {
+  "exit": 1,
+  "stderr": "FoxLang: strings_in_loops.fox:4: Runtime Error: Function 'split' not found!\n",
+  "stdout": "0,1,2,3,4,\n"
+ },
+ "struct_as_function": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "Pair{a: 1, b: 2} Pair{a: 3, b: 4}\nPair{a: 0, b: 2}\n"
+ },
+ "struct_cycle": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "[1, [...]] true 2\n"
+ },
+ "struct_default_call": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "S{a: 10, t: x} S{a: 5, t: x} 1\n"
+ },
+ "struct_default_error": {
+  "exit": 1,
+  "stderr": "FoxLang: struct_default_error.fox:5: Runtime Error: Division by zero\n",
+  "stdout": "before\n"
+ },
+ "struct_errors": {
+  "exit": 1,
+  "stderr": "FoxLang: struct_errors.fox:2: Runtime Error: struct 'P' has 1 fields, got 2 values\n",
+  "stdout": ""
+ },
+ "switch": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "one\ntwo\ntwo\nthree\ndefault\ndefault\ntext\nnumber\nat 0\nat 2\nfirst\nfalls\n1\n"
+ },
+ "throw_values": {
+  "exit": 1,
+  "stderr": "FoxLang: throw_values.fox:1: 42\n",
+  "stdout": ""
+ },
+ "top_break": {
+  "exit": 1,
+  "stderr": "FoxLang: top_break.fox:2: Runtime Error: 'break' outside of loop in global scope\n",
+  "stdout": "a\n"
+ },
+ "top_return": {
+  "exit": 1,
+  "stderr": "FoxLang: top_return.fox:2: Runtime Error: 'return' outside of a function\n",
+  "stdout": "before\n"
+ },
+ "try_catch": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "body\ncaught: Runtime Error: boom\nRuntime Error: Division by zero\nfinally\ncustom\n[1, 2]\nok\ncleanup\nbefore return\n1\n2\n1\ni 0\nf 0\nf 1\nf 2\ninner finally\nouter caught Runtime Error: inner\nRuntime Error: b Runtime Error: a\nc1\nRuntime Error: from finally\nunwind 1\nunwind 2\nunwind 3\nRuntime Error: bottom\nloop 1\nloop 2\nloop 3\nloop 4\nend\n"
+ },
+ "unary": {
+  "exit": 1,
+  "stderr": "FoxLang: unary.fox:3: Type Error: operand of unary '-' must be a number, got 'string'\n",
+  "stdout": "-5 5 -2147483648\n"
+ },
+ "uncaught_after_finally": {
+  "exit": 1,
+  "stderr": "FoxLang: uncaught_after_finally.fox:2: Runtime Error: escapes\n",
+  "stdout": "ran\n"
+ },
+ "undefined": {
+  "exit": 1,
+  "stderr": "FoxLang: undefined.fox:2: Runtime Error: Variable 'missing' not found!\n",
+  "stdout": ""
+ },
+ "void_return": {
+  "exit": 1,
+  "stderr": "FoxLang: void_return.fox:5: Type Error: return value of 'g' has type 'int' and cannot hold a value of type 'string'\n",
+  "stdout": "ok\n"
+ },
+ "while_condition_later": {
+  "exit": 1,
+  "stderr": "FoxLang: while_condition_later.fox:9: Type Error: while condition must be bool, got 'int'\n",
+  "stdout": "1\n2\n"
+ },
+ "zero_values": {
+  "exit": 1,
+  "stderr": "FoxLang: zero_values.fox:1: Syntax Error: expected '=' but found ';'\n",
+  "stdout": ""
+ },
+ "zero_values_ok": {
+  "exit": 0,
+  "stderr": "",
+  "stdout": "{} S{a: 0}\n"
+ }
+}

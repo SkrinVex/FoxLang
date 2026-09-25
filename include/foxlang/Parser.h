@@ -35,12 +35,19 @@ private:
     std::unique_ptr<BlockNode> parseBlock();
     std::unique_ptr<Node> simpleStatement();
     std::unique_ptr<Node> declaration(bool global);
-    std::unique_ptr<Node> arrayDeclaration(bool global, SourcePosition start);
+    std::unique_ptr<Node> arrayDeclaration(bool global, SourcePosition start, const std::string& type);
+    void checkContainerType(const std::string& type);
     std::unique_ptr<Node> functionDefinition(const std::string& returnType, const Token& name, SourcePosition start);
     std::unique_ptr<Node> forStatement();
+    // After `for (`: a for-in header, `x in`, `int x in`, `k, v in`, rather than a for (;;).
+    bool forInAhead() const;
+    bool lambdaAhead() const;
+    std::unique_ptr<Node> lambda(SourcePosition start);
+    std::unique_ptr<Node> forInStatement(SourcePosition start);
     std::unique_ptr<Node> switchStatement();
     std::unique_ptr<Node> ifStatement();
     std::unique_ptr<Node> structDefinition();
+    std::unique_ptr<Node> enumDefinition();
     std::unique_ptr<Node> tryStatement();
     // [index] and .field after a value, any number of times.
     std::unique_ptr<Node> postfix(std::unique_ptr<Node> node, SourcePosition start);
@@ -68,6 +75,7 @@ private:
     bool looksLikeFunction() const;
     SourcePosition previousEnd() const;
     [[noreturn]] void fail(const std::string& message) const;
+    [[noreturn]] void error(const std::string& message) const;
     void synchronize();
 };
 

@@ -1,0 +1,86 @@
+// FoxLang regression: struct methods, calls through fields and of any expression
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+// 1. Methods read and change the struct through `this`
+struct Point {
+    int x;
+    int y = 0;
+
+    float length() { return sqrt(this.x * this.x + this.y * this.y); }
+
+    void move(int dx, int dy) {
+        this.x += dx;
+        this.y += dy;
+    }
+
+    Point plus(Point other) { return Point(this.x + other.x, this.y + other.y); }
+
+    string show() { return "(${this.x}, ${this.y})"; }
+
+    string describe() { return "point " + this.show(); }
+}
+
+Point p = Point(3, 4);
+assert_true(p.length() == 5.0, "a method reads fields");
+p.move(1, 1);
+assert_true(p.x == 4 && p.y == 5, "a method changes the struct itself");
+assert_true(p.plus(Point(10, 10)).show() == "(14, 15)", "a method returns a struct of its type");
+assert_true(p.describe() == "point (4, 5)", "a method calls another method");
+
+// 2. Methods of values inside containers and passed to functions
+array points = [Point(1), Point(2)];
+for (item in points) {
+    item.move(10, 0);
+}
+assert_true(points[0].x == 11 && points[1].x == 12, "methods of array elements");
+void shift(Point target) { target.move(0, 7); }
+shift(p);
+assert_true(p.y == 12, "a method through a parameter");
+
+// 3. A function in a field or map key is called without `this`
+struct Button {
+    string label;
+    func on_click;
+}
+int clicks = 0;
+Button ok = Button("OK", () => { clicks++; });
+ok.on_click();
+ok.on_click();
+assert_true(clicks == 2, "a func field is called");
+map handlers = {"double": x => x * 2};
+assert_true(handlers.double(21) == 42, "a function in a map key");
+
+// 4. Calling the result of any expression
+func adder(int n) { return x => x + n; }
+assert_true(adder(1)(2) == 3, "a returned function is called directly");
+array steps = [x => x + 1, x => x * 10];
+assert_true(steps[1](4) == 40, "an array element is called");
+assert_true(handlers["double"](5) == 10, "an indexed map value is called");
+
+// 5. Hoisting: a struct with methods used above its declaration
+assert_true(Later(2).twice() == 4, "a struct with methods is declared before its line");
+struct Later {
+    int n;
+    int twice() { return this.n * 2; }
+}
+
+// 6. Errors
+string message = "";
+void call_missing(target) { target.nope(); }
+try { call_missing(p); } catch (e) { message = e; }
+assert_true(str_contains(message, "has no method 'nope'"), "missing method: " + message);
+void call_count(target, int value) { target.move(value); }
+try { call_count(p, 1); } catch (e) { message = e; }
+assert_true(str_contains(message, "method 'Point.move' expects 2 arguments, got 1"), "method arity: " + message);
+try { Button broken; } catch (e) { message = e; }
+assert_true(str_contains(message, "func has no empty value"), "a func field needs a value: " + message);
+void call_number(value) { value.go(); }
+try { call_number(5); } catch (e) { message = e; }
+assert_true(str_contains(message, "needs a struct or a map"), "a method of a number: " + message);
+
+print("test_methods OK");

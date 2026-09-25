@@ -69,16 +69,17 @@ const std::vector<Signature>& signatures() {
     };
     return result;
 }
-Value callBuiltin(const std::string& name, const std::vector<Value>& args, Context& context) {
+Value callBuiltin(const std::string& name, Arguments args, Context& context) {
     const auto& list = signatures();
     auto signature = std::find_if(list.begin(), list.end(), [&](const Signature& s) { return s.builtin == name; });
     if (signature == list.end() || args.size() != signature->params.size())
         throw std::runtime_error("Graphics Error: incorrect arguments for " + name);
     for (size_t i = 0; i < args.size(); ++i)
-        if (args[i].type != signature->params[i].type && !(signature->params[i].type == "int" && args[i].type == "float"))
+        if (args[i].typeName() != signature->params[i].type && !(signature->params[i].type == "int" && args[i].isFloat()))
             throw std::runtime_error("Graphics Error: invalid type for " + signature->params[i].name);
     auto integer = [&](size_t i) {
-        double number = std::stod(args[i].value);
+        double number = 0;
+        runtime::tryNumber(args[i], number);
         if (!std::isfinite(number) || number < std::numeric_limits<int>::min() || number > std::numeric_limits<int>::max())
             throw std::runtime_error("Graphics Error: numeric argument out of range");
         return static_cast<int>(number);
@@ -98,100 +99,100 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
         return *images[size_t(handle) - 1];
     };
     if (name == "gfx_image_load") {
-        std::ifstream file(platform::pathFromUtf8(args[0].value.str()), std::ios::binary);
-        if (!file) throw std::runtime_error("Graphics Error: cannot open image '" + args[0].value.str() + "'");
+        std::ifstream file(platform::pathFromUtf8(args[0].str()), std::ios::binary);
+        if (!file) throw std::runtime_error("Graphics Error: cannot open image '" + args[0].str() + "'");
         std::stringstream bytes;
         bytes << file.rdbuf();
         auto image = std::make_shared<Image>(decodeImage(bytes.str()));
         for (size_t slot = 0; slot < images.size(); ++slot)
             if (!images[slot]) {
                 images[slot] = image;
-                return {"int", Text::integer(static_cast<long long>(slot + 1))};
+                return Value::integer(static_cast<long long>(slot + 1));
             }
         images.push_back(image);
-        return {"int", Text::integer(static_cast<long long>(images.size()))};
+        return Value::integer(static_cast<long long>(images.size()));
     }
-    if (name == "gfx_image_width") return {"int", Text::integer(picture(0).width)};
-    if (name == "gfx_image_height") return {"int", Text::integer(picture(0).height)};
+    if (name == "gfx_image_width") return Value::integer(picture(0).width);
+    if (name == "gfx_image_height") return Value::integer(picture(0).height);
     if (name == "gfx_image_pixel" || name == "gfx_image_alpha") {
         Image& image = picture(0);
         int x = integer(1), y = integer(2);
         if (x < 0 || y < 0 || x >= image.width || y >= image.height) throw std::runtime_error("Graphics Error: pixel is outside the image");
         uint32_t color = image.pixels[size_t(y) * image.width + x];
-        return {"int", Text::integer(name == "gfx_image_pixel" ? color & 0xFFFFFF : color >> 24)};
+        return Value::integer(name == "gfx_image_pixel" ? color & 0xFFFFFF : color >> 24);
     }
     if (name == "gfx_image_free") {
         picture(0);
         images[size_t(integer(0)) - 1].reset();
-        return {"void", ""};
+        return Value();
     }
     if (name == "gfx_rgb") {
         int r = integer(0), g = integer(1), b = integer(2);
         if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) throw std::runtime_error("Graphics Error: RGB channels must be 0..255");
-        return {"int", Text::integer((r << 16) | (g << 8) | b)};
+        return Value::integer((r << 16) | (g << 8) | b);
     }
-    if (name == "gfx_close") { window.reset(); return {"void", ""}; }
-    if (name == "gfx_text_width") return {"int", Text::integer(Surface::textWidth(args[0].value, integer(1)))};
+    if (name == "gfx_close") { window.reset(); return Value(); }
+    if (name == "gfx_text_width") return Value::integer(Surface::textWidth(args[0].str(), integer(1)));
     if (name == "gfx_open") {
         if (window) throw std::runtime_error("Graphics Error: close the existing window before opening another");
-        window = std::make_shared<Window>(integer(0), integer(1), args[2].value);
-        return {"void", ""};
+        window = std::make_shared<Window>(integer(0), integer(1), args[2].str());
+        return Value();
     }
     if (!window) throw std::runtime_error("Graphics Error: call open_window first");
-    if (name == "gfx_poll") return {"bool", window->poll() ? "true" : "false"};
-    if (name == "gfx_delta") return {"float", runtime::realResult(window->delta())};
-    if (name == "gfx_mouse_x") return {"int", Text::integer(window->mouseX())};
-    if (name == "gfx_mouse_y") return {"int", Text::integer(window->mouseY())};
-    if (name == "gfx_focused") return {"bool", window->focused() ? "true" : "false"};
-    if (name == "gfx_down") return {"bool", window->keyDown(args[0].value) ? "true" : "false"};
-    if (name == "gfx_pressed") return {"bool", window->keyPressed(args[0].value) ? "true" : "false"};
-    auto flag = [](bool value) { return Value{"bool", value ? "true" : "false"}; };
+    if (name == "gfx_poll") return Value::boolean(window->poll());
+    if (name == "gfx_delta") return runtime::realResult(window->delta());
+    if (name == "gfx_mouse_x") return Value::integer(window->mouseX());
+    if (name == "gfx_mouse_y") return Value::integer(window->mouseY());
+    if (name == "gfx_focused") return Value::boolean(window->focused());
+    if (name == "gfx_down") return Value::boolean(window->keyDown(args[0].str()));
+    if (name == "gfx_pressed") return Value::boolean(window->keyPressed(args[0].str()));
+    auto flag = [](bool value) { return Value::boolean(value); };
     auto id = [&](size_t i) -> const std::string& {
-        if (args[i].value.str().empty()) throw std::runtime_error("Graphics Error: an interface element needs a non-empty id");
-        return args[i].value.str();
+        if (args[i].str().empty()) throw std::runtime_error("Graphics Error: an interface element needs a non-empty id");
+        return args[i].str();
     };
-    if (name == "gfx_repeat") return flag(window->keyRepeat(args[0].value));
-    if (name == "gfx_text_input") return {"string", window->text()};
-    if (name == "gfx_wheel") return {"int", Text::integer(window->wheel())};
+    if (name == "gfx_repeat") return flag(window->keyRepeat(args[0].str()));
+    if (name == "gfx_text_input") return Value::string(window->text());
+    if (name == "gfx_wheel") return Value::integer(window->wheel());
     if (name == "gfx_double_click") return flag(window->doubleClicked());
-    if (name == "gfx_clipboard") return {"string", window->clipboard()};
-    if (name == "gfx_set_clipboard") { window->setClipboard(args[0].value); return {"void", ""}; }
-    if (name == "gfx_width") return {"int", Text::integer(window->surface().width())};
-    if (name == "gfx_height") return {"int", Text::integer(window->surface().height())};
+    if (name == "gfx_clipboard") return Value::string(window->clipboard());
+    if (name == "gfx_set_clipboard") { window->setClipboard(args[0].str()); return Value(); }
+    if (name == "gfx_width") return Value::integer(window->surface().width());
+    if (name == "gfx_height") return Value::integer(window->surface().height());
     auto& ui = window->ui();
-    if (name == "gfx_ui_layer_begin") { ui.layerBegin(args[0].value == "true"); return {"void", ""}; }
-    if (name == "gfx_ui_layer_end") { ui.layerEnd(); return {"void", ""}; }
+    if (name == "gfx_ui_layer_begin") { ui.layerBegin(args[0].asBool()); return Value(); }
+    if (name == "gfx_ui_layer_end") { ui.layerEnd(); return Value(); }
     if (name == "gfx_ui_hover") return flag(ui.hover(id(0), integer(1), integer(2), integer(3), integer(4), *window));
     if (name == "gfx_ui_click") return flag(ui.click(id(0), integer(1), integer(2), integer(3), integer(4), *window));
     if (name == "gfx_ui_text")
-        return {"string", ui.text(id(0), integer(1), integer(2), integer(3), integer(4), args[5].value, integer(6), color(7), *window)};
-    if (name == "gfx_ui_focused") return flag(ui.focused(args[0].value));
-    if (name == "gfx_ui_focus") { ui.setFocus(args[0].value); return {"void", ""}; }
+        return Value::string(ui.text(id(0), integer(1), integer(2), integer(3), integer(4), args[5].str(), integer(6), color(7), *window));
+    if (name == "gfx_ui_focused") return flag(ui.focused(args[0].str()));
+    if (name == "gfx_ui_focus") { ui.setFocus(args[0].str()); return Value(); }
     if (name == "gfx_ui_typing") return flag(ui.typing());
     if (name == "gfx_ui_drag") return flag(ui.drag(id(0), integer(1), integer(2), integer(3), integer(4), *window));
-    if (name == "gfx_ui_drag_x") return {"int", Text::integer(ui.dragX())};
-    if (name == "gfx_ui_drag_y") return {"int", Text::integer(ui.dragY())};
-    if (name == "gfx_ui_wheel") return {"int", Text::integer(ui.wheel(id(0), integer(1), integer(2), integer(3), integer(4), *window))};
-    if (name == "gfx_resizable") { window->setResizable(args[0].value == "true"); return {"void", ""}; }
-    if (name == "gfx_set_size") { window->setSize(integer(0), integer(1)); return {"void", ""}; }
+    if (name == "gfx_ui_drag_x") return Value::integer(ui.dragX());
+    if (name == "gfx_ui_drag_y") return Value::integer(ui.dragY());
+    if (name == "gfx_ui_wheel") return Value::integer(ui.wheel(id(0), integer(1), integer(2), integer(3), integer(4), *window));
+    if (name == "gfx_resizable") { window->setResizable(args[0].asBool()); return Value(); }
+    if (name == "gfx_set_size") { window->setSize(integer(0), integer(1)); return Value(); }
     if (name == "gfx_resized") return flag(window->resized());
     if (name == "gfx_image_draw") {
         long long opacity = integer(5);
         if (opacity < 0 || opacity > 255) throw std::runtime_error("Graphics Error: opacity must be 0..255");
         Image& image = picture(0);
         window->surface().image(image, 0, 0, image.width, image.height, integer(1), integer(2), integer(3), integer(4), static_cast<int>(opacity));
-        return {"void", ""};
+        return Value();
     }
     if (name == "gfx_image_draw_part") {
         window->surface().image(picture(0), integer(1), integer(2), integer(3), integer(4), integer(5), integer(6), integer(7), integer(8), 255);
-        return {"void", ""};
+        return Value();
     }
-    if (name == "gfx_clip_begin") { window->surface().pushClip(integer(0), integer(1), integer(2), integer(3)); return {"void", ""}; }
-    if (name == "gfx_clip_end") { window->surface().popClip(); return {"void", ""}; }
+    if (name == "gfx_clip_begin") { window->surface().pushClip(integer(0), integer(1), integer(2), integer(3)); return Value(); }
+    if (name == "gfx_clip_end") { window->surface().popClip(); return Value(); }
     if (name == "gfx_clear") window->surface().clear(color(0));
     else if (name == "gfx_rect") window->surface().rectangle(integer(0), integer(1), integer(2), integer(3), color(4));
     else if (name == "gfx_circle") window->surface().circle(integer(0), integer(1), integer(2), color(3));
-    else if (name == "gfx_text") window->surface().text(integer(0), integer(1), args[2].value, integer(3), color(4));
+    else if (name == "gfx_text") window->surface().text(integer(0), integer(1), args[2].str(), integer(3), color(4));
     else if (name == "gfx_rect_alpha") {
         long long alpha = integer(5);
         if (alpha < 0 || alpha > 255) throw std::runtime_error("Graphics Error: alpha must be 0..255");
@@ -201,7 +202,7 @@ Value callBuiltin(const std::string& name, const std::vector<Value>& args, Conte
     else if (name == "gfx_frame") window->surface().frame(integer(0), integer(1), integer(2), integer(3), integer(4), color(5));
     else if (name == "gfx_ring") window->surface().ring(integer(0), integer(1), integer(2), integer(3), color(4));
     else if (name == "gfx_present") window->present();
-    return {"void", ""};
+    return Value();
 }
 } // namespace foxlang::graphics
 

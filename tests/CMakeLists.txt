@@ -50,6 +50,9 @@ add_test(NAME lsp_catalog COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_D
 set_tests_properties(lsp_catalog PROPERTIES TIMEOUT 30)
 add_test(NAME lsp_edits COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_lsp_edits.py $<TARGET_FILE:foxlang-lsp>)
 add_test(NAME cli_tools COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cli_tools.py $<TARGET_FILE:foxlang>)
+# Short programs with their exact output, errors and exit codes (test_programs.json).
+add_test(NAME programs COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_programs.py $<TARGET_FILE:foxlang>)
+set_tests_properties(programs PROPERTIES TIMEOUT 300 ENVIRONMENT "FOXLANG_HOME=${CMAKE_SOURCE_DIR}")
 # Every benchmark once on a tiny input: the programs run and all languages agree.
 add_test(NAME benchmarks_smoke
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/benchmarks/run.py --smoke --foxlang $<TARGET_FILE:foxlang>)
@@ -75,7 +78,7 @@ add_test(NAME debug_adapter
 set_tests_properties(debug_adapter PROPERTIES TIMEOUT 120 LABELS standalone)
 add_test(NAME ui_interaction
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_ui.py $<TARGET_FILE:foxlang>)
-set_tests_properties(ui_interaction PROPERTIES TIMEOUT 120 LABELS standalone SKIP_RETURN_CODE 77)
+set_tests_properties(ui_interaction PROPERTIES TIMEOUT 120 LABELS standalone SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
 set(STANDALONE_TESTS hello cli modules unicode_json environment errors corruption http_client http_server tcp)
 foreach(T IN LISTS STANDALONE_TESTS)
     add_test(NAME standalone_${T}
@@ -131,6 +134,11 @@ set(REGRESSION_TESTS
     test_semantics
     test_structures
     test_slots
+    test_lambdas
+    test_methods
+    test_null
+    test_enums
+    test_typed_containers
 )
 
 foreach(T ${REGRESSION_TESTS})

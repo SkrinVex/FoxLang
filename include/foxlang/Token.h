@@ -8,17 +8,24 @@ namespace foxlang {
 // program calls print, size or read_file exactly like a function it defined itself.
 enum class TokenType {
     NUMBER, STRING_LITERAL,
+    // A string with ${expression} parts: "a ${x} b ${y} c" is STRING_BEGIN("a "), the
+    // tokens of x, STRING_MIDDLE(" b "), the tokens of y, STRING_END(" c").
+    STRING_BEGIN, STRING_MIDDLE, STRING_END,
     PLUS, MINUS, STAR, SLASH, MOD, INC, DEC,
     LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET,
     SEMICOLON, COMMA, ASSIGN, DOT, COLON,
     EQ, NEQ, LT, GT, LTE, GTE, AND, OR, NOT,
     PLUS_ASSIGN, MINUS_ASSIGN, STAR_ASSIGN, SLASH_ASSIGN, MOD_ASSIGN,
 
-    INT_KW, FLOAT_KW, STRING_KW, BOOL_KW, VOID_KW, ARRAY, MAP_KW,
-    TRUE_KW, FALSE_KW,
+    INT_KW, FLOAT_KW, STRING_KW, BOOL_KW, VOID_KW, ARRAY, MAP_KW, FUNC_KW,
+    ARROW, // => of a lambda
+    QUESTION,          // ? after a type: string? name
+    QUESTION_QUESTION, // ?? : the left side unless it is null
+    QUESTION_DOT,      // ?. : a field or method, or null when the value is null
+    TRUE_KW, FALSE_KW, NULL_KW,
     WHILE, FOR, IF, ELSE, SWITCH, CASE, DEFAULT,
     INCLUDE, USING, RETURN, GLOBAL, BREAK, CONTINUE,
-    STRUCT, TRY, CATCH, FINALLY, THROW,
+    STRUCT, TRY, CATCH, FINALLY, THROW, CONST_KW, ENUM,
 
     IDENTIFIER,
     END, ERROR

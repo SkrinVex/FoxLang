@@ -22,6 +22,68 @@ std::unique_ptr<NodeType> at(std::unique_ptr<NodeType> node, SourcePosition star
 Parser::Parser(std::vector<Token> t, std::string curFile)
     : currentFile(std::move(curFile)), tokens(std::move(t)), file(runtime::internFile(currentFile)) {
     if (tokens.empty() || tokens.back().type != TokenType::END) tokens.push_back({TokenType::END, "", 1, 1});
+    // array<int> and map<string, int> are one type: the parts join the array or map token.
+    // `array` and `map` are keywords, never values, so a < after them opens the element type.
+    {
+        std::vector<Token> merged;
+        merged.reserve(tokens.size());
+        for (size_t i = 0; i < tokens.size(); ++i) {
+            Token token = tokens[i];
+            if ((token.type == TokenType::ARRAY || token.type == TokenType::MAP_KW) && i + 1 < tokens.size() &&
+                tokens[i + 1].type == TokenType::LT) {
+                std::string text = token.value;
+                int depth = 0;
+                size_t j = i + 1;
+                bool closed = false;
+                for (; j < tokens.size(); ++j) {
+                    const Token& part = tokens[j];
+                    if (part.type == TokenType::LT) ++depth;
+                    else if (part.type == TokenType::GT) --depth;
+                    else if (part.type != TokenType::COMMA && part.type != TokenType::QUESTION &&
+                             part.type != TokenType::IDENTIFIER && part.type != TokenType::INT_KW &&
+                             part.type != TokenType::FLOAT_KW && part.type != TokenType::STRING_KW &&
+                             part.type != TokenType::BOOL_KW && part.type != TokenType::ARRAY &&
+                             part.type != TokenType::MAP_KW && part.type != TokenType::FUNC_KW)
+                        break;
+                    text += part.value;
+                    if (depth == 0) {
+                        closed = true;
+                        break;
+                    }
+                }
+                if (closed) {
+                    token.value = text;
+                    token.range.end = tokens[j].range.end;
+                    merged.push_back(std::move(token));
+                    i = j;
+                    continue;
+                }
+            }
+            merged.push_back(std::move(token));
+        }
+        tokens = std::move(merged);
+    }
+    // `string?` is one type: the ? joins the type's token, so everything that looks for a
+    // type sees the same token kind as for `string`. A ? has no other use.
+    std::vector<Token> joined;
+    joined.reserve(tokens.size());
+    for (auto& token : tokens) {
+        if (token.type == TokenType::QUESTION && !joined.empty()) {
+            Token& type = joined.back();
+            bool typeToken = type.type == TokenType::IDENTIFIER || type.type == TokenType::INT_KW ||
+                             type.type == TokenType::FLOAT_KW || type.type == TokenType::STRING_KW ||
+                             type.type == TokenType::BOOL_KW || type.type == TokenType::ARRAY ||
+                             type.type == TokenType::MAP_KW || type.type == TokenType::FUNC_KW;
+            bool touching = type.range.end.line == token.range.start.line && type.range.end.column == token.range.start.column;
+            if (typeToken && touching && type.value.back() != '?') {
+                type.value += "?";
+                type.range.end = token.range.end;
+                continue;
+            }
+        }
+        joined.push_back(std::move(token));
+    }
+    tokens = std::move(joined);
 }
 
 const Token& Parser::peek(size_t offset) const {
@@ -32,6 +94,12 @@ bool Parser::match(TokenType type) {
     if (!check(type)) return false;
     ++pos;
     return true;
+}
+
+// A mistake in what was already read: the message says it all.
+void Parser::error(const std::string& message) const {
+    int line = pos > 0 ? tokens[pos - 1].line : peek().line;
+    throw SyntaxError("Syntax Error: " + message, line);
 }
 
 void Parser::fail(const std::string& message) const {
@@ -56,6 +124,7 @@ bool Parser::isTypeKeyword(size_t offset) const {
     switch (peek(offset).type) {
         case TokenType::INT_KW: case TokenType::FLOAT_KW: case TokenType::STRING_KW:
         case TokenType::BOOL_KW: case TokenType::VOID_KW: case TokenType::ARRAY: case TokenType::MAP_KW:
+        case TokenType::FUNC_KW:
             return true;
         default:
             return false;
@@ -83,7 +152,8 @@ void Parser::synchronize() {
             case TokenType::INT_KW: case TokenType::FLOAT_KW: case TokenType::STRING_KW: case TokenType::BOOL_KW:
             case TokenType::VOID_KW: case TokenType::ARRAY: case TokenType::IF: case TokenType::WHILE:
             case TokenType::FOR: case TokenType::RETURN: case TokenType::SWITCH: case TokenType::GLOBAL:
-            case TokenType::INCLUDE: case TokenType::USING: case TokenType::MAP_KW: case TokenType::STRUCT:
+            case TokenType::INCLUDE: case TokenType::USING: case TokenType::MAP_KW: case TokenType::FUNC_KW:
+            case TokenType::STRUCT: case TokenType::CONST_KW: case TokenType::ENUM:
             case TokenType::TRY: case TokenType::THROW:
                 return;
             default:
@@ -162,9 +232,35 @@ std::unique_ptr<Node> Parser::statement() {
                 fail("expected a module name after 'using'");
             std::string name = tokens[pos++].value;
             if (match(TokenType::DOT)) name += "." + consume(TokenType::IDENTIFIER).value;
+            auto node = std::make_unique<UsingNode>(name, currentFile);
+            if (check(TokenType::IDENTIFIER) && peek().value == "as") {
+                ++pos;
+                Token alias = consume(TokenType::IDENTIFIER);
+                node->alias = alias.value;
+                node->aliasRange = alias.range;
+            }
             consume(TokenType::SEMICOLON);
             imports.push_back({name, true});
-            return at(std::make_unique<UsingNode>(name, currentFile), start, previousEnd());
+            return at(std::move(node), start, previousEnd());
+        }
+        case TokenType::CONST_KW: {
+            // const int MAX = 10;  the name cannot be assigned again.
+            ++pos;
+            if (!isType() || check(TokenType::VOID_KW))
+                fail("expected a type after 'const'");
+            size_t typeAt = pos;
+            auto node = declaration(false);
+            if (auto* variable = dynamic_cast<VarDeclNode*>(node.get())) {
+                if (!variable->expr) error("a constant needs a value: const " + tokens[typeAt].value + " " + variable->name + " = ...;");
+                variable->constant = true;
+            } else if (auto* list = dynamic_cast<ArrayDeclNode*>(node.get())) {
+                if (!list->initializer) error("a constant needs a value: const array " + list->name + " = [...];");
+                list->constant = true;
+            } else {
+                error("'const' applies to variables, not functions");
+            }
+            node->range.start = start;
+            return node;
         }
         case TokenType::GLOBAL:
             ++pos;
@@ -172,9 +268,12 @@ std::unique_ptr<Node> Parser::statement() {
             return declaration(true);
         case TokenType::INT_KW: case TokenType::FLOAT_KW: case TokenType::STRING_KW:
         case TokenType::BOOL_KW: case TokenType::VOID_KW: case TokenType::ARRAY: case TokenType::MAP_KW:
+        case TokenType::FUNC_KW:
             return declaration(false);
         case TokenType::STRUCT:
             return structDefinition();
+        case TokenType::ENUM:
+            return enumDefinition();
         case TokenType::TRY:
             return tryStatement();
         case TokenType::THROW: {
@@ -226,7 +325,7 @@ std::unique_ptr<Node> Parser::statement() {
     return node;
 }
 
-// struct Name { type field; type field = default; }
+// struct Name { type field; type field = default; type method(params) { ... } }
 std::unique_ptr<Node> Parser::structDefinition() {
     SourcePosition start = peek().range.start;
     consume(TokenType::STRUCT);
@@ -238,11 +337,30 @@ std::unique_ptr<Node> Parser::structDefinition() {
     consume(TokenType::LBRACE);
     while (!check(TokenType::RBRACE)) {
         if (check(TokenType::END)) fail("expected '}' to close the struct");
-        if (!(isTypeKeyword() || check(TokenType::IDENTIFIER)) || check(TokenType::VOID_KW)) fail("expected a field type");
+        if (!(isTypeKeyword() || check(TokenType::IDENTIFIER))) fail("expected a field type");
+        SourcePosition memberStart = peek().range.start;
         std::string type = tokens[pos++].value;
         Token field = consume(TokenType::IDENTIFIER);
-        for (const auto& existing : node->type->fields)
-            if (existing.name == field.value) fail("field '" + field.value + "' is declared twice");
+        auto taken = [&](const std::string& member) {
+            for (const auto& existing : node->type->fields)
+                if (existing.name == member) return true;
+            return node->type->methods.count(member) > 0;
+        };
+        if (taken(field.value)) error("'" + field.value + "' is declared twice in struct '" + name.value + "'");
+        if (check(TokenType::LPAREN)) {
+            // A method: a function whose hidden first parameter `this` is the value it was called on.
+            auto parsed = functionDefinition(type, field, memberStart);
+            auto* definition = static_cast<FuncDefNode*>(parsed.get());
+            for (const auto& param : definition->params)
+                if (param.name == "this") error("a method's parameter cannot be named 'this'");
+            definition->params.insert(definition->params.begin(), FuncParam(name.value, "this"));
+            definition->name = name.value + "." + field.value; // for messages and the debugger's stack
+            std::shared_ptr<FuncDefNode> method(static_cast<FuncDefNode*>(parsed.release()));
+            node->type->methods[field.value] = method;
+            node->methods.push_back(method);
+            continue;
+        }
+        if (type == "void") error("a field cannot have type void");
         std::shared_ptr<Node> initial;
         if (match(TokenType::ASSIGN)) initial = expression();
         consume(TokenType::SEMICOLON);
@@ -250,6 +368,45 @@ std::unique_ptr<Node> Parser::structDefinition() {
         node->type->defaults.push_back(std::move(initial));
         node->fieldRanges.push_back(field.range);
     }
+    consume(TokenType::RBRACE);
+    return at(std::move(node), start, previousEnd());
+}
+
+// enum Name { First, Second = 5, Third = "third" }
+std::unique_ptr<Node> Parser::enumDefinition() {
+    SourcePosition start = peek().range.start;
+    consume(TokenType::ENUM);
+    Token name = consume(TokenType::IDENTIFIER);
+    auto node = std::make_unique<EnumDefNode>();
+    node->type = std::make_shared<StructType>();
+    node->type->name = name.value;
+    node->type->isEnum = true;
+    node->type->fields = {FuncParam("string", "name"), FuncParam("", "value")};
+    node->type->defaults.resize(2);
+    node->nameRange = name.range;
+    consume(TokenType::LBRACE);
+    long long next = 0;
+    while (!check(TokenType::RBRACE)) {
+        if (check(TokenType::END)) fail("expected '}' to close the enum");
+        Token member = consume(TokenType::IDENTIFIER);
+        for (const auto& existing : node->members)
+            if (existing.name == member.value) error("'" + member.value + "' is declared twice in enum '" + name.value + "'");
+        Value value = Value::integer(next);
+        if (match(TokenType::ASSIGN)) {
+            bool negative = match(TokenType::MINUS);
+            if (check(TokenType::NUMBER) && peek().value.find('.') == std::string::npos) {
+                value = Value::integer(std::stoll(tokens[pos++].value) * (negative ? -1 : 1));
+            } else if (check(TokenType::STRING_LITERAL) && !negative) {
+                value = Value::string(tokens[pos++].value);
+            } else {
+                error("an enum value must be a whole number or a string");
+            }
+        }
+        if (value.isInt()) next = value.asInt() + 1;
+        node->members.push_back({member.value, value, member.range});
+        if (!match(TokenType::COMMA)) break;
+    }
+    if (node->members.empty()) error("an enum needs at least one value");
     consume(TokenType::RBRACE);
     return at(std::move(node), start, previousEnd());
 }
@@ -312,10 +469,12 @@ std::unique_ptr<Node> Parser::simpleStatement() {
 std::unique_ptr<Node> Parser::declaration(bool global) {
     SourcePosition start = pos > 0 && global ? tokens[pos - 1].range.start : peek().range.start;
     if (check(TokenType::ARRAY)) {
-        ++pos;
-        return arrayDeclaration(global, start);
+        std::string type = tokens[pos++].value;
+        checkContainerType(type);
+        return arrayDeclaration(global, start, type);
     }
     std::string type = tokens[pos++].value;
+    checkContainerType(type);
     Token name = consume(TokenType::IDENTIFIER);
     if (check(TokenType::LPAREN)) {
         if (global) fail("expected '=' after the global variable name");
@@ -323,7 +482,7 @@ std::unique_ptr<Node> Parser::declaration(bool global) {
     }
     if (type == "void") fail("expected '(' after a void function name");
     // A map or a struct may start empty; a scalar needs its value.
-    bool container = type == "map" || tokens[pos - 2].type == TokenType::IDENTIFIER;
+    bool container = type.compare(0, 3, "map") == 0 || tokens[pos - 2].type == TokenType::IDENTIFIER || isNullable(type);
     std::unique_ptr<Node> value;
     if (!(container && check(TokenType::SEMICOLON))) {
         consume(TokenType::ASSIGN);
@@ -334,9 +493,24 @@ std::unique_ptr<Node> Parser::declaration(bool global) {
 }
 
 // array name size;  array name = value;  array name;  array name(params) { ... }
-std::unique_ptr<Node> Parser::arrayDeclaration(bool global, SourcePosition start) {
+// Element types are checked where they are written: map<string, T> only, and a known
+// type name inside.
+void Parser::checkContainerType(const std::string& type) {
+    std::string bare = isNullable(type) ? type.substr(0, type.size() - 1) : type;
+    if (bare.back() != '>') return;
+    if (bare.compare(0, 4, "map<") == 0 && bare.compare(0, 11, "map<string,") != 0)
+        error("map keys are text: write map<string, T>, not " + bare);
+    size_t open = bare.find('<');
+    std::string inner = bare.substr(open + 1, bare.size() - open - 2);
+    if (bare.compare(0, 4, "map<") == 0) inner = inner.substr(7);
+    if (inner.empty() || inner == "void" || (inner.find(',') != std::string::npos && inner.compare(0, 4, "map<") != 0))
+        error("unexpected element type in " + bare);
+    if (inner.back() == '>') checkContainerType(inner);
+}
+
+std::unique_ptr<Node> Parser::arrayDeclaration(bool global, SourcePosition start, const std::string& type) {
     Token name = consume(TokenType::IDENTIFIER);
-    if (!global && looksLikeFunction()) return functionDefinition("array", name, start);
+    if (!global && looksLikeFunction()) return functionDefinition(type, name, start);
     std::unique_ptr<ArrayDeclNode> node;
     if (match(TokenType::ASSIGN)) {
         node = std::make_unique<ArrayDeclNode>(name.value, nullptr, expression(), name.range);
@@ -346,6 +520,7 @@ std::unique_ptr<Node> Parser::arrayDeclaration(bool global, SourcePosition start
         node = std::make_unique<ArrayDeclNode>(name.value, expression(), nullptr, name.range);
     }
     node->global = global;
+    node->type = type;
     consume(TokenType::SEMICOLON);
     return at(std::move(node), start, previousEnd());
 }
@@ -356,7 +531,10 @@ std::unique_ptr<Node> Parser::functionDefinition(const std::string& returnType, 
     if (!check(TokenType::RPAREN)) {
         do {
             if (!(isTypeKeyword() || check(TokenType::IDENTIFIER)) || check(TokenType::VOID_KW)) fail("expected a parameter type");
-            std::string type = tokens[pos++].value;
+            // A parameter without a type takes any value: void get(string path, handler)
+            std::string type;
+            if (!(check(TokenType::IDENTIFIER) && (peek(1).type == TokenType::COMMA || peek(1).type == TokenType::RPAREN)))
+                type = tokens[pos++].value;
             Token name = consume(TokenType::IDENTIFIER);
             params.push_back({type, name.value, name.range});
         } while (match(TokenType::COMMA));
@@ -367,10 +545,52 @@ std::unique_ptr<Node> Parser::functionDefinition(const std::string& returnType, 
               start, previousEnd());
 }
 
+bool Parser::forInAhead() const {
+    size_t at = 0;
+    auto isIn = [&](size_t offset) { return peek(offset).type == TokenType::IDENTIFIER && peek(offset).value == "in"; };
+    auto variable = [&] {
+        bool typed = (isTypeKeyword(at) || peek(at).type == TokenType::IDENTIFIER) &&
+                     peek(at + 1).type == TokenType::IDENTIFIER && !isIn(at + 1);
+        if (typed) at += 2;
+        else if (peek(at).type == TokenType::IDENTIFIER) at += 1;
+        else return false;
+        return true;
+    };
+    if (!variable()) return false;
+    if (peek(at).type == TokenType::COMMA) {
+        ++at;
+        if (!variable()) return false;
+    }
+    return isIn(at);
+}
+
+std::unique_ptr<Node> Parser::forInStatement(SourcePosition start) {
+    auto node = std::make_unique<ForInNode>();
+    do {
+        ForInNode::Variable variable;
+        if (isTypeKeyword() || (check(TokenType::IDENTIFIER) && peek(1).type == TokenType::IDENTIFIER && peek(1).value != "in")) {
+            if (check(TokenType::VOID_KW)) fail("a loop variable cannot be void");
+            variable.type = tokens[pos++].value;
+        }
+        Token name = consume(TokenType::IDENTIFIER);
+        variable.name = name.value;
+        variable.range = name.range;
+        node->variables.push_back(variable);
+    } while (match(TokenType::COMMA));
+    if (node->variables.size() == 2 && node->variables[0].name == node->variables[1].name)
+        fail("the two loop variables need different names");
+    ++pos; // in
+    node->iterable = expression();
+    consume(TokenType::RPAREN);
+    node->body = parseBlock();
+    return at(std::move(node), start, previousEnd());
+}
+
 std::unique_ptr<Node> Parser::forStatement() {
     SourcePosition start = peek().range.start;
     consume(TokenType::FOR);
     consume(TokenType::LPAREN);
+    if (forInAhead()) return forInStatement(start);
     std::unique_ptr<Node> init;
     if (isType()) {
         init = declaration(false);
@@ -436,7 +656,14 @@ std::unique_ptr<Node> Parser::switchStatement() {
     return at(std::move(node), start, previousEnd());
 }
 
-std::unique_ptr<Node> Parser::expression() { return logicalOr(); }
+std::unique_ptr<Node> Parser::expression() {
+    SourcePosition start = peek().range.start;
+    auto node = logicalOr();
+    // a ?? b ?? c: the first that is not null; the right side runs only when needed.
+    while (match(TokenType::QUESTION_QUESTION))
+        node = at(std::make_unique<BinOpNode>("??", std::move(node), logicalOr()), start, previousEnd());
+    return node;
+}
 
 std::unique_ptr<Node> Parser::logicalOr() {
     SourcePosition start = peek().range.start;
@@ -513,9 +740,27 @@ std::unique_ptr<Node> Parser::postfix(std::unique_ptr<Node> node, SourcePosition
             auto index = expression();
             consume(TokenType::RBRACKET);
             node = at(std::make_unique<IndexNode>(std::move(node), std::move(index)), start, previousEnd());
-        } else if (match(TokenType::DOT)) {
+        } else if (check(TokenType::DOT) || check(TokenType::QUESTION_DOT)) {
+            bool optional = tokens[pos++].type == TokenType::QUESTION_DOT;
             Token field = consume(TokenType::IDENTIFIER);
-            node = at(std::make_unique<FieldNode>(std::move(node), field.value, field.range), start, previousEnd());
+            if (match(TokenType::LPAREN)) {
+                auto call = std::make_unique<MethodCallNode>();
+                call->optional = optional;
+                call->base = std::move(node);
+                call->name = field.value;
+                call->nameRange = field.range;
+                call->args = arguments(TokenType::RPAREN);
+                node = at(std::move(call), start, previousEnd());
+            } else {
+                auto access = std::make_unique<FieldNode>(std::move(node), field.value, field.range);
+                access->optional = optional;
+                node = at(std::move(access), start, previousEnd());
+            }
+        } else if (match(TokenType::LPAREN)) {
+            auto call = std::make_unique<CallNode>();
+            call->callee = std::move(node);
+            call->args = arguments(TokenType::RPAREN);
+            node = at(std::move(call), start, previousEnd());
         } else {
             return node;
         }
@@ -543,6 +788,55 @@ std::unique_ptr<Node> Parser::mapLiteral() {
     return at(std::move(node), start, previousEnd());
 }
 
+// At '(': a lambda's parameter list, the parentheses followed by =>.
+bool Parser::lambdaAhead() const {
+    int depth = 0;
+    for (size_t at = 0;; ++at) {
+        TokenType type = peek(at).type;
+        if (type == TokenType::END) return false;
+        if (type == TokenType::LPAREN) ++depth;
+        else if (type == TokenType::RPAREN && --depth == 0) return peek(at + 1).type == TokenType::ARROW;
+    }
+}
+
+// (type a, b) => expression,  (a) => { statements },  a => expression
+std::unique_ptr<Node> Parser::lambda(SourcePosition start) {
+    auto node = std::make_unique<LambdaNode>();
+    auto parameter = [&] {
+        std::string type;
+        if (isTypeKeyword() || (check(TokenType::IDENTIFIER) && peek(1).type == TokenType::IDENTIFIER)) {
+            if (check(TokenType::VOID_KW)) fail("expected a parameter type");
+            type = tokens[pos++].value;
+        }
+        Token name = consume(TokenType::IDENTIFIER);
+        for (const auto& existing : node->params)
+            if (existing.name == name.value) fail("parameter '" + name.value + "' is named twice");
+        node->params.push_back({type, name.value, name.range});
+    };
+    if (match(TokenType::LPAREN)) {
+        if (!check(TokenType::RPAREN)) {
+            do parameter();
+            while (match(TokenType::COMMA));
+        }
+        consume(TokenType::RPAREN);
+    } else {
+        parameter();
+    }
+    consume(TokenType::ARROW);
+    if (check(TokenType::LBRACE)) {
+        node->body = std::shared_ptr<BlockNode>(parseBlock().release());
+    } else {
+        SourcePosition valueStart = peek().range.start;
+        auto value = expression();
+        auto body = std::make_shared<BlockNode>();
+        body->file = file;
+        body->stmts.push_back(at(std::make_unique<ReturnNode>(std::move(value)), valueStart, previousEnd()));
+        body->range = {valueStart, previousEnd()};
+        node->body = body;
+    }
+    return at(std::move(node), start, previousEnd());
+}
+
 std::unique_ptr<Node> Parser::primary() {
     SourcePosition start = peek().range.start;
     return postfix(atom(), start);
@@ -556,18 +850,59 @@ std::unique_ptr<Node> Parser::atom() {
             Token number = tokens[pos++];
             return at(std::make_unique<NumberNode>(number.value), start, previousEnd());
         }
-        case TokenType::STRING_LITERAL: {
-            // Adjacent literals join, so long text can span several lines.
-            std::string value;
-            while (check(TokenType::STRING_LITERAL)) value += tokens[pos++].value;
-            return at(std::make_unique<StringNode>(value), start, previousEnd());
+        case TokenType::STRING_LITERAL:
+        case TokenType::STRING_BEGIN: {
+            // Adjacent literals join, so long text can span several lines; ${expression}
+            // parts make the string an interpolation.
+            std::vector<std::unique_ptr<Node>> parts;
+            std::string text;
+            SourcePosition textStart = peek().range.start;
+            auto flush = [&] {
+                if (!text.empty()) parts.push_back(at(std::make_unique<StringNode>(text), textStart, previousEnd()));
+                text.clear();
+            };
+            while (check(TokenType::STRING_LITERAL) || check(TokenType::STRING_BEGIN)) {
+                if (match(TokenType::STRING_LITERAL)) {
+                    text += tokens[pos - 1].value;
+                    continue;
+                }
+                text += tokens[pos++].value;
+                for (;;) {
+                    flush();
+                    if (check(TokenType::STRING_MIDDLE) || check(TokenType::STRING_END)) fail("expected an expression inside ${ }");
+                    parts.push_back(expression());
+                    textStart = peek().range.start;
+                    if (match(TokenType::STRING_END)) {
+                        text += tokens[pos - 1].value;
+                        break;
+                    }
+                    if (!check(TokenType::STRING_MIDDLE)) fail("expected '}' to close ${ in the string");
+                    text += tokens[pos++].value;
+                }
+            }
+            bool interpolated = false;
+            for (const auto& part : parts)
+                if (!dynamic_cast<StringNode*>(part.get())) interpolated = true;
+            if (!interpolated) {
+                std::string whole;
+                for (const auto& part : parts) whole += static_cast<StringNode*>(part.get())->val;
+                return at(std::make_unique<StringNode>(whole + text), start, previousEnd());
+            }
+            flush();
+            auto node = std::make_unique<InterpolationNode>();
+            node->parts = std::move(parts);
+            return at(std::move(node), start, previousEnd());
         }
+        case TokenType::NULL_KW:
+            ++pos;
+            return at(std::make_unique<NullNode>(), start, previousEnd());
         case TokenType::TRUE_KW:
         case TokenType::FALSE_KW: {
             bool value = tokens[pos++].type == TokenType::TRUE_KW;
             return at(std::make_unique<BoolNode>(value), start, previousEnd());
         }
         case TokenType::LPAREN: {
+            if (lambdaAhead()) return lambda(start);
             ++pos;
             auto inner = expression();
             consume(TokenType::RPAREN);
@@ -583,6 +918,8 @@ std::unique_ptr<Node> Parser::atom() {
         case TokenType::LBRACE:
             return mapLiteral();
         case TokenType::IDENTIFIER: {
+            if (peek(1).type == TokenType::ARROW) return lambda(start);
+            if (isNullable(peek().value)) error("unexpected '?' after '" + peek().value.substr(0, peek().value.size() - 1) + "'");
             Token name = tokens[pos++];
             if (match(TokenType::LPAREN)) {
                 auto args = arguments(TokenType::RPAREN);

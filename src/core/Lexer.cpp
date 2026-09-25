@@ -9,21 +9,21 @@ struct Keyword { const char* text; TokenType type; };
 constexpr Keyword keywords[] = {
     {"int", TokenType::INT_KW}, {"float", TokenType::FLOAT_KW}, {"string", TokenType::STRING_KW},
     {"bool", TokenType::BOOL_KW}, {"void", TokenType::VOID_KW}, {"array", TokenType::ARRAY},
-    {"true", TokenType::TRUE_KW}, {"false", TokenType::FALSE_KW},
+    {"true", TokenType::TRUE_KW}, {"false", TokenType::FALSE_KW}, {"null", TokenType::NULL_KW},
     {"if", TokenType::IF}, {"else", TokenType::ELSE}, {"while", TokenType::WHILE}, {"for", TokenType::FOR},
     {"switch", TokenType::SWITCH}, {"case", TokenType::CASE}, {"default", TokenType::DEFAULT},
     {"break", TokenType::BREAK}, {"continue", TokenType::CONTINUE}, {"return", TokenType::RETURN},
     {"global", TokenType::GLOBAL}, {"include", TokenType::INCLUDE}, {"using", TokenType::USING},
-    {"map", TokenType::MAP_KW}, {"struct", TokenType::STRUCT}, {"try", TokenType::TRY},
-    {"catch", TokenType::CATCH}, {"finally", TokenType::FINALLY}, {"throw", TokenType::THROW},
+    {"map", TokenType::MAP_KW}, {"func", TokenType::FUNC_KW}, {"struct", TokenType::STRUCT}, {"try", TokenType::TRY},
+    {"catch", TokenType::CATCH}, {"finally", TokenType::FINALLY}, {"throw", TokenType::THROW}, {"const", TokenType::CONST_KW}, {"enum", TokenType::ENUM},
 };
 }
 
 const char* const* keywordList() {
     static const char* const list[] = {
         "if", "else", "while", "for", "switch", "case", "default", "break", "continue", "return",
-        "using", "include", "global", "int", "float", "string", "bool", "void", "true", "false", "array",
-        "map", "struct", "try", "catch", "finally", "throw", nullptr};
+        "using", "include", "global", "int", "float", "string", "bool", "void", "true", "false", "null", "array",
+        "map", "func", "struct", "try", "catch", "finally", "throw", "const", "enum", nullptr};
     return list;
 }
 
@@ -31,6 +31,8 @@ const char* tokenTypeName(TokenType type) {
     switch (type) {
         case TokenType::NUMBER: return "number";
         case TokenType::STRING_LITERAL: return "string literal";
+        case TokenType::STRING_BEGIN: return "string with ${";
+        case TokenType::STRING_MIDDLE: case TokenType::STRING_END: return "the rest of a string after ${ }";
         case TokenType::PLUS: return "'+'";
         case TokenType::MINUS: return "'-'";
         case TokenType::STAR: return "'*'";
@@ -49,6 +51,9 @@ const char* tokenTypeName(TokenType type) {
         case TokenType::ASSIGN: return "'='";
         case TokenType::DOT: return "'.'";
         case TokenType::COLON: return "':'";
+        case TokenType::QUESTION: return "'?'";
+        case TokenType::QUESTION_QUESTION: return "'??'";
+        case TokenType::QUESTION_DOT: return "'?.'";
         case TokenType::EQ: return "'=='";
         case TokenType::NEQ: return "'!='";
         case TokenType::LT: return "'<'";
@@ -70,6 +75,7 @@ const char* tokenTypeName(TokenType type) {
         case TokenType::VOID_KW: return "'void'";
         case TokenType::ARRAY: return "'array'";
         case TokenType::TRUE_KW: return "'true'";
+        case TokenType::NULL_KW: return "'null'";
         case TokenType::FALSE_KW: return "'false'";
         case TokenType::WHILE: return "'while'";
         case TokenType::FOR: return "'for'";
@@ -85,11 +91,15 @@ const char* tokenTypeName(TokenType type) {
         case TokenType::BREAK: return "'break'";
         case TokenType::CONTINUE: return "'continue'";
         case TokenType::MAP_KW: return "'map'";
+        case TokenType::FUNC_KW: return "'func'";
+        case TokenType::ARROW: return "'=>'";
         case TokenType::STRUCT: return "'struct'";
         case TokenType::TRY: return "'try'";
         case TokenType::CATCH: return "'catch'";
         case TokenType::FINALLY: return "'finally'";
         case TokenType::THROW: return "'throw'";
+        case TokenType::CONST_KW: return "'const'";
+        case TokenType::ENUM: return "'enum'";
         case TokenType::IDENTIFIER: return "identifier";
         case TokenType::END: return "end of file";
         case TokenType::ERROR: return "invalid character";
@@ -235,48 +245,7 @@ std::vector<Token> Lexer::tokenize() {
         } 
         else if (current == '"') {
             advanceChar(); // consume opening quote
-            std::string str;
-            bool closed = false;
-            while (pos < source.length()) {
-                if (source[pos] == '"') {
-                    closed = true;
-                    advanceChar(); // consume closing quote
-                    break;
-                }
-                if (source[pos] == '\\' && pos + 1 < source.length()) {
-                    advanceChar(); // consume backslash
-                    char escaped = source[pos];
-                    if (escaped == 'u') {
-                        advanceChar();
-                        str += unicodeEscape(startPos);
-                        continue;
-                    }
-                    switch (escaped) {
-                        case 'n': str += '\n'; break;
-                        case 't': str += '\t'; break;
-                        case 'r': str += '\r'; break;
-                        case '0': str += '\0'; break;
-                        case '\\': str += '\\'; break;
-                        case '"': str += '"'; break;
-                        default: str += escaped; break;
-                    }
-                    advanceChar();
-                } else {
-                    size_t curPos = pos;
-                    advanceChar();
-                    str.append(source.data() + curPos, pos - curPos);
-                }
-            }
-            SourcePosition endPos = currentPosition();
-            if (!closed) {
-                std::string msg = "Unclosed string literal";
-                if (collectDiagnostics) {
-                    diagnostics.push_back({DiagnosticSeverity::Error, msg, {startPos, endPos}});
-                } else {
-                    throw SyntaxError("Syntax Error: " + msg, startPos.line);
-                }
-            }
-            tokens.push_back({TokenType::STRING_LITERAL, str, startPos.line, startPos.column, {startPos, endPos}});
+            scanString(tokens, startPos, false);
         } 
         else if (std::isalpha(static_cast<unsigned char>(current)) || current == '_') {
             std::string id;
@@ -296,6 +265,11 @@ std::vector<Token> Lexer::tokenize() {
         } 
         else {
             // Check 2-character operators
+            if (current == '=' && pos + 1 < source.length() && source[pos + 1] == '>') {
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::ARROW, "=>", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
+            }
             if (current == '=' && pos + 1 < source.length() && source[pos + 1] == '=') {
                 advanceChar(); advanceChar();
                 tokens.push_back({TokenType::EQ, "==", startPos.line, startPos.column, {startPos, currentPosition()}});
@@ -356,6 +330,13 @@ std::vector<Token> Lexer::tokenize() {
                 tokens.push_back({TokenType::AND, "&&", startPos.line, startPos.column, {startPos, currentPosition()}});
                 continue;
             }
+            if (current == '?' && pos + 1 < source.length() && (source[pos + 1] == '?' || source[pos + 1] == '.')) {
+                bool coalesce = source[pos + 1] == '?';
+                advanceChar(); advanceChar();
+                tokens.push_back({coalesce ? TokenType::QUESTION_QUESTION : TokenType::QUESTION_DOT, coalesce ? "??" : "?.",
+                                  startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
+            }
             if (current == '|' && pos + 1 < source.length() && source[pos + 1] == '|') {
                 advanceChar(); advanceChar();
                 tokens.push_back({TokenType::OR, "||", startPos.line, startPos.column, {startPos, currentPosition()}});
@@ -372,8 +353,21 @@ std::vector<Token> Lexer::tokenize() {
                 case '%': singleType = TokenType::MOD; break;
                 case '(': singleType = TokenType::LPAREN; break;
                 case ')': singleType = TokenType::RPAREN; break;
-                case '{': singleType = TokenType::LBRACE; break;
-                case '}': singleType = TokenType::RBRACE; break;
+                case '{':
+                    singleType = TokenType::LBRACE;
+                    if (!interpolations.empty()) ++interpolations.back();
+                    break;
+                case '}':
+                    if (!interpolations.empty() && interpolations.back() == 0) {
+                        // The end of a ${ } expression: the string goes on.
+                        interpolations.pop_back();
+                        advanceChar();
+                        scanString(tokens, startPos, true);
+                        continue;
+                    }
+                    if (!interpolations.empty()) --interpolations.back();
+                    singleType = TokenType::RBRACE;
+                    break;
                 case '[': singleType = TokenType::LBRACKET; break;
                 case ']': singleType = TokenType::RBRACKET; break;
                 case ';': singleType = TokenType::SEMICOLON; break;
@@ -384,6 +378,7 @@ std::vector<Token> Lexer::tokenize() {
                 case '<': singleType = TokenType::LT; break;
                 case '>': singleType = TokenType::GT; break;
                 case ':': singleType = TokenType::COLON; break;
+                case '?': singleType = TokenType::QUESTION; break;
                 default: 
                     advanceChar();
                     SourcePosition badEnd = currentPosition();
@@ -402,8 +397,68 @@ std::vector<Token> Lexer::tokenize() {
     }
 
     SourcePosition eofPos = currentPosition();
+    if (!interpolations.empty()) {
+        interpolations.clear();
+        std::string msg = "Unclosed ${ in a string: expected '}'";
+        if (!collectDiagnostics) throw SyntaxError("Syntax Error: " + msg, eofPos.line);
+        diagnostics.push_back({DiagnosticSeverity::Error, msg, {eofPos, eofPos}});
+    }
     tokens.push_back({TokenType::END, "", eofPos.line, eofPos.column, {eofPos, eofPos}});
     return tokens;
+}
+
+void Lexer::scanString(std::vector<Token>& tokens, SourcePosition startPos, bool resumed) {
+    std::string str;
+    bool closed = false, interpolation = false;
+    while (pos < source.length()) {
+        if (source[pos] == '"') {
+            closed = true;
+            advanceChar(); // consume closing quote
+            break;
+        }
+        if (source[pos] == '$' && pos + 1 < source.length() && source[pos + 1] == '{') {
+            interpolation = true;
+            advanceChar();
+            advanceChar();
+            break;
+        }
+        if (source[pos] == '\\' && pos + 1 < source.length()) {
+            advanceChar(); // consume backslash
+            char escaped = source[pos];
+            if (escaped == 'u') {
+                advanceChar();
+                str += unicodeEscape(startPos);
+                continue;
+            }
+            switch (escaped) {
+                case 'n': str += '\n'; break;
+                case 't': str += '\t'; break;
+                case 'r': str += '\r'; break;
+                case '0': str += '\0'; break;
+                case '\\': str += '\\'; break;
+                case '"': str += '"'; break;
+                default: str += escaped; break; // \$ is a dollar sign that starts no ${
+            }
+            advanceChar();
+        } else {
+            size_t curPos = pos;
+            advanceChar();
+            str.append(source.data() + curPos, pos - curPos);
+        }
+    }
+    SourcePosition endPos = currentPosition();
+    if (!closed && !interpolation) {
+        std::string msg = "Unclosed string literal";
+        if (collectDiagnostics) {
+            diagnostics.push_back({DiagnosticSeverity::Error, msg, {startPos, endPos}});
+        } else {
+            throw SyntaxError("Syntax Error: " + msg, startPos.line);
+        }
+    }
+    TokenType type = interpolation ? (resumed ? TokenType::STRING_MIDDLE : TokenType::STRING_BEGIN)
+                                   : (resumed ? TokenType::STRING_END : TokenType::STRING_LITERAL);
+    if (interpolation) interpolations.push_back(0);
+    tokens.push_back({type, str, startPos.line, startPos.column, {startPos, endPos}});
 }
 
 } // namespace foxlang

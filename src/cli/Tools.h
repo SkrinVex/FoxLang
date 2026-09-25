@@ -12,4 +12,8 @@ int format(const std::vector<std::string>& arguments);
 // every *_test.fox file, each in a fresh program; fails when any test fails.
 int test(const std::vector<std::string>& arguments);
 
+// foxlang disasm <file.fox>: prints the bytecode of the program and of every function
+// defined in it, in the order they appear in the file.
+int disassemble(const std::vector<std::string>& arguments);
+
 } // namespace foxlang::cli

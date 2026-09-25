@@ -8,6 +8,7 @@
       <item>else</item>
       <item>while</item>
       <item>for</item>
+      <item>in</item>
       <item>switch</item>
       <item>case</item>
       <item>default</item>
@@ -21,11 +22,14 @@
     </list>
     <list name="directives">
       <item>using</item>
+      <item>as</item>
       <item>include</item>
     </list>
     <list name="modifiers">
       <item>global</item>
+      <item>const</item>
       <item>struct</item>
+      <item>enum</item>
     </list>
     <list name="types">
       <item>int</item>
@@ -35,22 +39,33 @@
       <item>void</item>
       <item>array</item>
       <item>map</item>
+      <item>func</item>
     </list>
     <list name="constants">
       <item>true</item>
       <item>false</item>
+      <item>null</item>
+      <item>this</item>
     </list>
     <list name="builtins">
       <item>abs</item>
       <item>absolute_path</item>
       <item>access_log</item>
       <item>acos</item>
+      <item>all_of</item>
       <item>allow_cors</item>
+      <item>any_of</item>
       <item>append_file</item>
       <item>arg_or</item>
       <item>args</item>
+      <item>array_all</item>
+      <item>array_any</item>
       <item>array_copy</item>
+      <item>array_filter</item>
+      <item>array_find</item>
       <item>array_index_of</item>
+      <item>array_map</item>
+      <item>array_reduce</item>
       <item>array_reverse</item>
       <item>array_slice</item>
       <item>array_sort</item>
@@ -114,7 +129,9 @@
       <item>file_name</item>
       <item>file_size</item>
       <item>file_stem</item>
+      <item>filter</item>
       <item>find</item>
+      <item>find_first</item>
       <item>floor</item>
       <item>form</item>
       <item>format_bytes</item>
@@ -387,6 +404,7 @@
       <item>sleep_ms</item>
       <item>slice</item>
       <item>sort</item>
+      <item>sort_by</item>
       <item>sound_play</item>
       <item>sound_stop</item>
       <item>sound_tone</item>
@@ -433,6 +451,7 @@
       <item>to_float</item>
       <item>to_int</item>
       <item>to_string</item>
+      <item>transform</item>
       <item>trim</item>
       <item>type_of</item>
       <item>ui_button</item>
@@ -502,7 +521,7 @@
         <DetectChar char="}" attribute="Symbol" context="#stay" endRegion="BraceBlock"/>
         
         <!-- Operators and Delimiters -->
-        <AnyChar String="+-*/%=!&lt;&gt;&amp;|^~" attribute="Operator" context="#stay"/>
+        <AnyChar String="+-*/%=!&lt;&gt;&amp;|^~?" attribute="Operator" context="#stay"/>
         <AnyChar String="();,[]" attribute="Symbol" context="#stay"/>
       </context>
 
@@ -526,11 +545,17 @@
       <context name="String" attribute="String" lineEndContext="#stay">
         <DetectChar char="&quot;" attribute="String" context="#pop"/>
         <DetectChar char="\" attribute="Char" context="StringEscape"/>
+        <Detect2Chars char="$" char1="{" attribute="Char" context="Interpolation"/>
+      </context>
+
+      <context name="Interpolation" attribute="Normal Text" lineEndContext="#stay">
+        <DetectChar char="}" attribute="Char" context="#pop"/>
+        <IncludeRules context="Normal"/>
       </context>
 
       <context name="StringEscape" attribute="Char" lineEndContext="#pop">
         <Detect2Chars char="\" char1="u" attribute="Char" context="UnicodeEscape"/>
-        <AnyChar String="&quot;\/bfnrt0" attribute="Char" context="#pop"/>
+        <AnyChar String="&quot;\/bfnrt0$" attribute="Char" context="#pop"/>
       </context>
 
       <context name="UnicodeEscape" attribute="Char" lineEndContext="#pop" fallthrough="true" fallthroughContext="#pop">

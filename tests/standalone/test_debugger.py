@@ -312,6 +312,28 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
         finish(process, dap, 0)
         assert 'caught Runtime Error: Division by zero' in dap.output(), dap.output()
 
+    # A breakpoint inside a method shows `this` and the arguments; one inside a lambda
+    # shows its parameters and the function it was called from.
+    program = workdir / 'methods.fox'
+    program.write_text('struct Point {\n    int x;\n    void move(int dx) {\n        this.x += dx;\n    }\n}\n'
+                       'Point p = Point(1);\np.move(5);\nint base = 100;\nfunc add = (int v) => {\n'
+                       '    return v + base;\n};\nprint(p.x, add(2));\n', encoding='utf-8')
+    process, dap = stdio_session(workdir)
+    start(dap, program, [{'line': 4}, {'line': 11}])
+    _, frames = dap.stopped('breakpoint', 4)
+    assert frames[0]['name'] == 'Point.move', frames
+    found = dap.locals(frames[0]['id'])
+    local = next(v for name, v in found.items() if name != 'Глобальные')
+    assert local['this']['value'] == 'Point{x: 1}' and local['dx']['value'] == '5', local
+    assert dap.evaluate('this.x + dx', frames[0]['id']) == '6'
+    dap.request('continue', {'threadId': 1})
+    _, frames = dap.stopped('breakpoint', 11)
+    local = next(v for name, v in dap.locals(frames[0]['id']).items() if name != 'Глобальные')
+    assert local['v']['value'] == '2', local
+    dap.request('continue', {'threadId': 1})
+    finish(process, dap, 0)
+    assert '6 102' in dap.output(), dap.output()
+
     # Over TCP the program keeps its terminal: input() reads it, print() writes to it.
     program = workdir / 'pause.fox'
     program.write_text(PAUSE, encoding='utf-8')

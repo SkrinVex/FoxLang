@@ -68,13 +68,14 @@ struct HttpRoute {
     std::string method;
     std::string pattern;               // /users/:id, /files/*path or an exact path
     std::vector<std::string> segments; // pattern split at '/'
-    std::string handler;
+    Value handler;                     // a function, or the name of one
+
 };
 
 struct ServerState {
     std::vector<HttpRoute> routes;
     std::vector<std::pair<std::string, std::string>> staticMounts; // URL prefix -> directory
-    std::string notFoundHandler;
+    Value notFoundHandler; // void when there is none
     std::string corsOrigin;
     bool accessLog = false;
     std::size_t maxBody = 10 * 1024 * 1024;

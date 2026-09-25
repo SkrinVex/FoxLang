@@ -253,14 +253,14 @@ void addFileBuiltins(std::vector<Builtin>& out) {
          "```foxlang\nint code = os_run(\"git\", [\"status\", \"--short\"]);\n```"},
         [](Call& c) {
             std::vector<std::string> args;
-            if (c.has(1)) for (const auto& item : c.array(1)) args.push_back(item.value.str());
+            if (c.has(1)) for (const auto& item : c.array(1)) args.push_back(item.text());
             return integer(platform::runProcess(c.text(0), args, nullptr));
         });
     add({"os_run_output", "string", {{"string", "program"}, {"array", "args"}}, 1, false, "os",
          "Запускает программу и возвращает её стандартный вывод (до 16 МиБ); код возврата — `os_last_exit()`."},
         [](Call& c) {
             std::vector<std::string> args;
-            if (c.has(1)) for (const auto& item : c.array(1)) args.push_back(item.value.str());
+            if (c.has(1)) for (const auto& item : c.array(1)) args.push_back(item.text());
             std::string output;
             lastExitCode() = platform::runProcess(c.text(0), args, &output);
             return text(std::move(output));

@@ -38,6 +38,17 @@ struct Registry {
         addSoundBuiltins(builtins);
         for (size_t i = 0; i < builtins.size(); ++i) {
             const auto& spec = builtins[i].spec;
+            for (const auto& param : spec.params) {
+                Builtin::Accepts accepts;
+                if (param.type == "any") accepts.rule = Builtin::Accepts::Rule::Any;
+                else if (param.type == "int" || param.type == "float" || param.type == "number")
+                    accepts.rule = Builtin::Accepts::Rule::Number;
+                else if ((accepts.kind = declaredKind(param.type)) != Value::Kind::Struct)
+                    accepts.rule = Builtin::Accepts::Rule::Kind;
+                else
+                    accepts.rule = Builtin::Accepts::Rule::Named;
+                builtins[i].accepts.push_back(accepts);
+            }
             if (!index.emplace(spec.name, i).second)
                 throw std::logic_error("builtin '" + spec.name + "' is registered twice");
             specs.push_back(spec);
@@ -50,11 +61,15 @@ const Registry& registry() {
     return instance;
 }
 
-bool typeFits(const std::string& expected, const Value& value) {
-    if (expected == "any") return value.type != "void";
-    if (expected == "int" || expected == "float" || expected == "number")
-        return value.type == "int" || value.type == "float";
-    return value.type == expected;
+bool typeFits(const Builtin& builtin, size_t index, const Value& value) {
+    size_t at = std::min(index, builtin.accepts.size() - 1);
+    const Builtin::Accepts& accepts = builtin.accepts[at];
+    switch (accepts.rule) {
+        case Builtin::Accepts::Rule::Any: return true; // null too: print(null)
+        case Builtin::Accepts::Rule::Number: return value.isNumber();
+        case Builtin::Accepts::Rule::Kind: return value.kind() == accepts.kind;
+        default: return value.typeName() == builtin.spec.params[at].type;
+    }
 }
 
 std::string countText(const BuiltinSpec& spec) {
@@ -101,25 +116,25 @@ const Builtin* findBuiltin(const std::string& name) {
 
 const BuiltinSpec& specOf(const Builtin& builtin) { return builtin.spec; }
 
-bool acceptsArguments(const Builtin& builtin, const std::vector<Value>& args) {
+bool acceptsArguments(const Builtin& builtin, Arguments args) {
     const auto& spec = builtin.spec;
     if (!spec.acceptsCount(args.size())) return false;
     for (size_t i = 0; i < args.size(); ++i)
-        if (!typeFits(parameterFor(spec, i).type, args[i])) return false;
+        if (!typeFits(builtin, i, args[i])) return false;
     return true;
 }
 
-Value invoke(const Builtin& builtin, const std::vector<Value>& args, Context& ctx) {
+Value invoke(const Builtin& builtin, Arguments args, Context& ctx) {
     const auto& spec = builtin.spec;
     if (!spec.acceptsCount(args.size()))
         throw std::runtime_error("Runtime Error: " + spec.name + "() expects " + countText(spec) +
                                  " arguments, got " + std::to_string(args.size()));
     for (size_t i = 0; i < args.size(); ++i) {
         const auto& param = parameterFor(spec, i);
-        if (!typeFits(param.type, args[i]))
+        if (!typeFits(builtin, i, args[i]))
             throw std::runtime_error("Type Error: argument '" + param.name + "' of " + spec.name + "() must be " +
                                      (param.type == "number" ? std::string("int or float") : param.type) +
-                                     ", got '" + args[i].type + "'");
+                                     ", got '" + args[i].typeName() + "'");
     }
     Call call(spec, args, ctx);
     return builtin.handler(call);
@@ -127,7 +142,7 @@ Value invoke(const Builtin& builtin, const std::vector<Value>& args, Context& ct
 
 bool isBuiltin(const std::string& name) { return findBuiltin(name) != nullptr; }
 
-Value callBuiltin(const std::string& name, const std::vector<Value>& args, Context& ctx) {
+Value callBuiltin(const std::string& name, Arguments args, Context& ctx) {
     const Builtin* builtin = findBuiltin(name);
     if (!builtin) throw std::runtime_error("Runtime Error: Unknown builtin function '" + name + "'");
     return invoke(*builtin, args, ctx);

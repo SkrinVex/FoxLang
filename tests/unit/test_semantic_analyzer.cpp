@@ -331,6 +331,47 @@ int main() {
         TEST_ASSERT(mentions(analyzer, "Undefined variable 'q'"));
     }
 
+    // 16b. Lambdas, func variables and function names used as values
+    {
+        foxlang::SemanticAnalyzer analyzer;
+        analyze("int add(int a, int b) { return a + b; }\nfunc plus = add;\nfunc p = print;\n"
+                "func twice = (int x) => x * 2;\nvoid run(f, func g) { f(1); g(2); }\n"
+                "void local() { func fact = (int n) => { if (n <= 1) { return 1; } return n * fact(n - 1); }; fact(3); }\n"
+                "print(plus(1, 2), twice(3), array_map([1], x => x + 1));", analyzer);
+        TEST_ASSERT(analyzer.getDiagnostics().empty());
+        foxlang::SemanticAnalyzer wrong;
+        analyze("int n = 1;\nn(2);\nfunc f = (x) => y;", wrong);
+        TEST_ASSERT(mentions(wrong, "'n' is a int variable, not a function"));
+        TEST_ASSERT(mentions(wrong, "Undefined variable 'y'"));
+    }
+
+    // 16c. null only where the type says T?
+    {
+        foxlang::SemanticAnalyzer analyzer;
+        analyze("string? a = null;\na = null;\nint? f(Point? p) { return null; }\nstruct Point { int x; Point? next; }\n"
+                "Point q = Point(1);\nprint(q.next?.x ?? 0, f(null));", analyzer);
+        TEST_ASSERT(analyzer.getDiagnostics().empty());
+        foxlang::SemanticAnalyzer wrong;
+        analyze("string a = null;\nint b = 1;\nb = null;\nint f(string s) { return null; }\nf(null);", wrong);
+        TEST_ASSERT(mentions(wrong, "Variable 'a' of type string cannot be null"));
+        TEST_ASSERT(mentions(wrong, "Variable 'b' of type int cannot be null"));
+        TEST_ASSERT(mentions(wrong, "Function returning int cannot return null"));
+        TEST_ASSERT(mentions(wrong, "Parameter 's' of 'f' has type string and cannot be null"));
+    }
+
+    // 16d. Constants and enums
+    {
+        foxlang::SemanticAnalyzer analyzer;
+        analyze("print(Color.Green);\nenum Color { Red, Green = 5 }\nconst int MAX = 2;\nconst array ITEMS = [1];\n"
+                "push(ITEMS, 2);\nColor c = Color.Red;\nprint(c.name, c.value, MAX);", analyzer);
+        TEST_ASSERT(analyzer.getDiagnostics().empty());
+        foxlang::SemanticAnalyzer wrong;
+        analyze("enum Color { Red }\nconst int MAX = 2;\nMAX = 3;\nvoid f() { MAX++; }\nprint(Color.Pink);\nColor = 1;", wrong);
+        TEST_ASSERT(mentions(wrong, "'MAX' is a constant and cannot be changed"));
+        TEST_ASSERT(mentions(wrong, "Enum 'Color' has no value 'Pink'"));
+        TEST_ASSERT(mentions(wrong, "'Color' is a constant and cannot be changed"));
+    }
+
     // 17. Unknown modules are reported as warnings
     {
         foxlang::SemanticAnalyzer analyzer;

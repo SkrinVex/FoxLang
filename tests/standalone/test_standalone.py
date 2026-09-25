@@ -122,6 +122,8 @@ info("bundled logging");
     s.source("sub/deeper/second.fox", 'string nested() { return " nested"; }')
     s.source("local.fox", 'string local_value() { return "local"; }')
     s.source("late.fox", 'string late_value() { return " late"; }')
+    # A file named like a standard module must not replace it for `using arrays;`.
+    s.source("arrays.fox", "this is not FoxLang (")
     # Compare CLI behavior before isolation, then verify source/provider parity.
     result = s.command([s.cli, "main.fox"])
     assert result.returncode == 0, result.stderr

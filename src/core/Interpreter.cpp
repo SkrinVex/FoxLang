@@ -1,5 +1,5 @@
 #include "foxlang/FoxLang.h"
-#include "foxlang/Resolver.h"
+#include "foxlang/Bytecode.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -9,25 +9,9 @@ namespace foxlang {
 
 namespace {
 
-bool isDeclaration(const Node* stmt) {
-    return dynamic_cast<const FuncDefNode*>(stmt) || dynamic_cast<const VarDeclNode*>(stmt) ||
-           dynamic_cast<const ArrayDeclNode*>(stmt) || dynamic_cast<const UsingNode*>(stmt) ||
-           dynamic_cast<const IncludeNode*>(stmt) || dynamic_cast<const StructDefNode*>(stmt);
-}
-
 // Imports bring in declarations; calls on a module's top level are its own demo code.
 void runModule(BlockNode& program, Context& ctx, bool importOnly) {
-    runtime::StackGuard& guard = runtime::stackGuard();
-    for (auto& stmt : program.stmts) {
-        if (!stmt || (importOnly && !isDeclaration(stmt.get()))) continue;
-        guard.line = stmt->range.start.line;
-        guard.file = program.file;
-        stmt->eval(ctx);
-        if (guard.flow != runtime::StackGuard::Flow::None) {
-            guard.flow = runtime::StackGuard::Flow::None;
-            throw std::runtime_error("Runtime Error: 'return', 'break' or 'continue' outside of a function or loop");
-        }
-    }
+    vm::run(program, ctx, importOnly ? bytecode::Unit::Declarations : bytecode::Unit::Module);
 }
 
 // Parses a source, naming the file in a syntax error that the lexer could not name.
@@ -53,8 +37,8 @@ void executeIncludeHook(const std::string& path, Context& ctx, const std::string
     interpreterOf(ctx).executeInclude(path, currentFile, importOnly);
 }
 
-void executeUsingHook(const std::string& libName, Context& ctx, const std::string& currentFile) {
-    interpreterOf(ctx).executeUsing(libName, currentFile);
+void executeUsingHook(const std::string& libName, Context& ctx, const std::string& currentFile, const std::string& alias) {
+    interpreterOf(ctx).executeUsing(libName, currentFile, alias);
 }
 
 Interpreter::Interpreter() : Interpreter(InterpreterOptions{}) {}
@@ -80,15 +64,18 @@ void Interpreter::reset() {
     globalContext.graphics.reset();
     globalContext.server.reset();
     globalContext.variables.clear();
+    globalContext.nullableGlobals.clear();
+    globalContext.constants.clear();
     ++globalContext.generation;
     globalContext.functions.clear();
+    globalContext.retired.clear();
     ++globalContext.functionGeneration;
     globalContext.structs.clear();
     loadedModules.clear();
 }
 
 void Interpreter::setGlobal(const std::string& name, const std::string& type, const std::string& value) {
-    globalContext.defineVar(name, type, {type, value});
+    globalContext.defineVar(name, type, runtime::parseScalar(type, value, "global variable '" + name + "'"));
 }
 
 Value Interpreter::getGlobal(const std::string& name) const {
@@ -107,6 +94,13 @@ void Interpreter::executeModule(const std::string& fullPath, bool importOnly) {
     if (loadedModules.count(fullPath)) return;
     auto program = parseSource(sources->read(fullPath), fullPath);
     loadedModules.insert(fullPath);
+    auto& functions = moduleFunctions[fullPath];
+    auto& variables = moduleVariables[fullPath];
+    for (const auto& stmt : program->stmts) {
+        if (auto* function = dynamic_cast<const FuncDefNode*>(stmt.get())) functions.push_back(function->name);
+        else if (auto* variable = dynamic_cast<const VarDeclNode*>(stmt.get())) variables.push_back(variable->name);
+        else if (auto* list = dynamic_cast<const ArrayDeclNode*>(stmt.get())) variables.push_back(list->name);
+    }
     // The importing statement resumes after the module, so its location is restored.
     runtime::StackGuard& guard = runtime::stackGuard();
     int line = guard.line;
@@ -116,8 +110,27 @@ void Interpreter::executeModule(const std::string& fullPath, bool importOnly) {
     guard.file = file;
 }
 
-void Interpreter::executeUsing(const std::string& libName, const std::string& currentFile) {
-    executeModule(sources->resolve({libName, true}, currentFile), true);
+void Interpreter::executeUsing(const std::string& libName, const std::string& currentFile, const std::string& alias) {
+    std::string identity = sources->resolve({libName, true}, currentFile);
+    executeModule(identity, true);
+    if (alias.empty()) return;
+    Value names = runtime::makeMap();
+    Object& members = *names.ref();
+    for (const auto& name : moduleFunctions[identity]) {
+        auto callee = std::make_shared<Callee>();
+        callee->name = name;
+        callee->function = globalContext.getFunc(name);
+        if (!callee->function) continue;
+        Value function = Value::container(Value::Kind::Function);
+        function.ref()->callee = std::move(callee);
+        members.slot(name) = std::move(function);
+    }
+    for (const auto& name : moduleVariables[identity]) {
+        auto found = globalContext.variables.find(name);
+        if (found != globalContext.variables.end()) members.slot(name) = found->second;
+    }
+    globalContext.variables[alias] = std::move(names);
+    ++globalContext.generation;
 }
 
 RunResult Interpreter::runFile(const std::string& filepath) {
@@ -141,42 +154,18 @@ RunResult Interpreter::runSource(const std::string& source, const std::string& s
     runtime::StackGuard& guard = runtime::stackGuard();
     guard.line = 0;
     guard.file = nullptr;
+    guard.placed = false;
     auto located = [&](const std::string& message) { return runtime::locate(message, scriptPath); };
     try {
         auto program = parseSource(source, scriptPath);
         loadedModules.insert(scriptPath);
-        guard.flow = runtime::StackGuard::Flow::None;
-        // The blocks of the program keep their variables in numbered slots, alive while it runs.
-        resolveProgram(*program);
-        std::vector<Value> programSlots(program->layout->names.size());
-        struct Frame {
-            Context& root;
-            ~Frame() {
-                root.slots = nullptr;
-                root.slotNames = nullptr;
-                root.frame = false;
-            }
-        } frame{globalContext};
-        globalContext.slots = programSlots.data();
-        globalContext.slotNames = &program->layout->names;
-        globalContext.frame = true;
-        program->eval(globalContext);
-        auto flow = guard.flow;
-        guard.flow = runtime::StackGuard::Flow::None;
-        guard.returned = Value();
-        if (flow == runtime::StackGuard::Flow::Return)
-            return {false, 1, located("Runtime Error: 'return' outside of a function")};
-        if (flow == runtime::StackGuard::Flow::Break)
-            return {false, 1, located("Runtime Error: 'break' outside of loop in global scope")};
-        if (flow == runtime::StackGuard::Flow::Continue)
-            return {false, 1, located("Runtime Error: 'continue' outside of loop in global scope")};
+        vm::run(*program, globalContext, bytecode::Unit::Program);
         return {true, 0, ""};
     } catch (const ExitRequest& request) {
         return {request.code == 0, request.code, ""};
     } catch (const SyntaxError& error) {
         return {false, 1, error.what()};
     } catch (const std::exception& e) {
-        guard.flow = runtime::StackGuard::Flow::None;
         return {false, 1, located(e.what())};
     }
 }

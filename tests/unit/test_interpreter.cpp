@@ -20,8 +20,8 @@ int main() {
     {
         auto res = interpreter.runSource("int x = 40 + 2; string s = \"FoxLang\";");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interpreter.getGlobal("x").value == "42");
-        TEST_ASSERT(interpreter.getGlobal("s").value == "FoxLang");
+        TEST_ASSERT(interpreter.getGlobal("x").text() == "42");
+        TEST_ASSERT(interpreter.getGlobal("s").text() == "FoxLang");
     }
 
     // 2. Set global and use in script
@@ -29,7 +29,7 @@ int main() {
         interpreter.setGlobal("injected", "int", "100");
         auto res = interpreter.runSource("int total = injected + 50;");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interpreter.getGlobal("total").value == "150");
+        TEST_ASSERT(interpreter.getGlobal("total").text() == "150");
     }
 
     // 3. Reset clears state
@@ -55,7 +55,7 @@ int main() {
         )";
         auto res = interpreter.runSource(code);
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interpreter.getGlobal("r").value == "120");
+        TEST_ASSERT(interpreter.getGlobal("r").text() == "120");
     }
 
     // 5. Division by zero cleanly caught
@@ -85,8 +85,8 @@ int main() {
         auto resB = interpB.runSource("int varB = 222; int getVal() { return 2000; }");
 
         TEST_ASSERT(resA.success && resB.success);
-        TEST_ASSERT(interpA.getGlobal("varA").value == "111");
-        TEST_ASSERT(interpB.getGlobal("varB").value == "222");
+        TEST_ASSERT(interpA.getGlobal("varA").text() == "111");
+        TEST_ASSERT(interpB.getGlobal("varB").text() == "222");
 
         // interpA should not see varB and interpB should not see varA
         bool aHasB = false;
@@ -100,8 +100,8 @@ int main() {
         auto callA = interpA.runSource("int checkA = getVal();");
         auto callB = interpB.runSource("int checkB = getVal();");
         TEST_ASSERT(callA.success && callB.success);
-        TEST_ASSERT(interpA.getGlobal("checkA").value == "1000");
-        TEST_ASSERT(interpB.getGlobal("checkB").value == "2000");
+        TEST_ASSERT(interpA.getGlobal("checkA").text() == "1000");
+        TEST_ASSERT(interpB.getGlobal("checkB").text() == "2000");
     }
 
     // 8. Repeated runSource() on the same Interpreter
@@ -112,11 +112,11 @@ int main() {
 
         auto res2 = interp.runSource("counter = addStep(counter);");
         TEST_ASSERT(res2.success);
-        TEST_ASSERT(interp.getGlobal("counter").value == "15");
+        TEST_ASSERT(interp.getGlobal("counter").text() == "15");
 
         auto res3 = interp.runSource("counter = addStep(counter);");
         TEST_ASSERT(res3.success);
-        TEST_ASSERT(interp.getGlobal("counter").value == "20");
+        TEST_ASSERT(interp.getGlobal("counter").text() == "20");
     }
 
     // 9. Function defined inside nested block
@@ -132,7 +132,7 @@ int main() {
         )";
         auto res = interp.runSource(code);
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getGlobal("result").value == "12");
+        TEST_ASSERT(interp.getGlobal("result").text() == "12");
     }
 
     // 10. Exception handling via public API
@@ -169,9 +169,9 @@ int main() {
         foxlang::Interpreter interp;
         auto res = interp.runSource("float third = 1.0 / 3.0; float back = third * 3.0; float sum = 0.1 + 0.2;");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getGlobal("third").value == "0.3333333333333333");
-        TEST_ASSERT(interp.getGlobal("back").value == "1");
-        TEST_ASSERT(interp.getGlobal("sum").value == "0.30000000000000004");
+        TEST_ASSERT(interp.getGlobal("third").text() == "0.3333333333333333");
+        TEST_ASSERT(interp.getGlobal("back").text() == "1");
+        TEST_ASSERT(interp.getGlobal("sum").text() == "0.30000000000000004");
     }
 
     // 12. int stays inside its range instead of wrapping or leaking std::stoi
@@ -185,6 +185,32 @@ int main() {
         auto overflow = interp.runSource("int a = 2000000000; int b = a + a;");
         TEST_ASSERT(!overflow.success);
         TEST_ASSERT(overflow.errorMessage.find("int overflow") != std::string::npos);
+    }
+
+    // 12b. A value is a kind and one word; strings and containers are shared, not copied
+    {
+        step("compact values");
+        static_assert(sizeof(foxlang::Value) == 16, "a value is a kind and one machine word");
+        foxlang::Value text = foxlang::Value::string("Лис");
+        foxlang::Value copy = text;
+        TEST_ASSERT(&copy.str() == &text.str());
+        TEST_ASSERT(foxlang::Value::integer(7).text() == "7" && foxlang::Value::real(2.5).text() == "2.5");
+        TEST_ASSERT(foxlang::Value::boolean(true).typeName() == "bool" && foxlang::Value().isVoid());
+
+        foxlang::Interpreter interp;
+        interp.setGlobal("ratio", "float", "2.5");
+        interp.setGlobal("ready", "bool", "true");
+        auto res = interp.runSource("float twice = ratio * 2; bool go = ready && true; int huge = 99999999999999999999;");
+        TEST_ASSERT(!res.success && res.errorMessage.find("does not fit in int") != std::string::npos);
+        TEST_ASSERT(interp.getGlobal("twice").isFloat() && interp.getGlobal("twice").asFloat() == 5.0);
+        TEST_ASSERT(interp.getGlobal("go").asBool());
+        bool rejected = false;
+        try {
+            interp.setGlobal("n", "int", "abc");
+        } catch (const std::runtime_error& error) {
+            rejected = std::string(error.what()).find("Type Error") != std::string::npos;
+        }
+        TEST_ASSERT(rejected);
     }
 
     // 13. Runtime errors name the line they happened on
@@ -218,7 +244,7 @@ int main() {
         )";
         auto res = interp.runSource(code);
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getGlobal("seen").value == "7");
+        TEST_ASSERT(interp.getGlobal("seen").text() == "7");
 
         auto leak = interp.runSource(
             "int reader() { return hidden; } int owner() { int hidden = 1; return reader(); } int x = owner();");
@@ -240,7 +266,7 @@ int main() {
         // Only the variable holds the array: nothing else keeps a copy alive.
         auto kept = interp.runSource("array survivor 4; set(survivor, 0, 5);");
         TEST_ASSERT(kept.success);
-        TEST_ASSERT(interp.getContext().variables.at("survivor").ref.use_count() == 1);
+        TEST_ASSERT(interp.getContext().variables.at("survivor").ref()->refs == 1);
     }
 
     // 17. A block is a scope of its own, and the program top level is not
@@ -254,7 +280,7 @@ int main() {
         foxlang::Interpreter globals;
         auto top = globals.runSource("int kept = 3; { int hidden = 4; kept = kept + hidden; }");
         TEST_ASSERT(top.success);
-        TEST_ASSERT(globals.getGlobal("kept").value == "7");
+        TEST_ASSERT(globals.getGlobal("kept").text() == "7");
 
         auto twice = globals.runSource("int kept = 1;");
         TEST_ASSERT(!twice.success);
@@ -268,8 +294,8 @@ int main() {
         auto res = interp.runSource(
             "int zero = 0; bool guarded = zero != 0 && 10 / zero > 1; bool other = zero == 0 || 10 / zero > 1;");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getGlobal("guarded").value == "false");
-        TEST_ASSERT(interp.getGlobal("other").value == "true");
+        TEST_ASSERT(interp.getGlobal("guarded").text() == "false");
+        TEST_ASSERT(interp.getGlobal("other").text() == "true");
     }
 
     // 19. A number carries its binary form but still prints the text it always did
@@ -282,10 +308,10 @@ int main() {
             "float tiny = 2.0 / 3.0; string precise = \"\" + tiny;"
             "bool same = n == 42;");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getGlobal("label").value == "n = 42");
-        TEST_ASSERT(interp.getGlobal("shown").value == "0.25");
-        TEST_ASSERT(interp.getGlobal("precise").value == "0.6666666666666666");
-        TEST_ASSERT(interp.getGlobal("same").value == "true");
+        TEST_ASSERT(interp.getGlobal("label").text() == "n = 42");
+        TEST_ASSERT(interp.getGlobal("shown").text() == "0.25");
+        TEST_ASSERT(interp.getGlobal("precise").text() == "0.6666666666666666");
+        TEST_ASSERT(interp.getGlobal("same").text() == "true");
     }
 
     // 20. The recursion guard is only as good as the stack size it is told about
@@ -304,7 +330,7 @@ int main() {
         foxlang::Interpreter interp;
         auto res = interp.runSource("int before = 1; exit(4); int after = 2;");
         TEST_ASSERT(!res.success && res.exitCode == 4 && res.errorMessage.empty());
-        TEST_ASSERT(interp.getGlobal("before").value == "1");
+        TEST_ASSERT(interp.getGlobal("before").text() == "1");
         auto zero = interp.runSource("exit();");
         TEST_ASSERT(zero.success && zero.exitCode == 0);
     }
@@ -317,8 +343,8 @@ int main() {
         foxlang::Interpreter interp(options);
         auto res = interp.runSource("array list = os_args(); int count = size(list); string second = list[1];");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getGlobal("count").value == "2");
-        TEST_ASSERT(interp.getGlobal("second").value == "бета");
+        TEST_ASSERT(interp.getGlobal("count").text() == "2");
+        TEST_ASSERT(interp.getGlobal("second").text() == "бета");
     }
 
     // 23. return outside a function is an error, not a crash
@@ -338,7 +364,7 @@ int main() {
             "for (int i = 0; i < 500; i++) { array parts = str_split(\"a,b\", \",\"); array made = make(3); int n = size(make(2)); }");
         TEST_ASSERT(res.success);
         auto kept = interp.runSource("array keep = make(3);");
-        TEST_ASSERT(kept.success && interp.getContext().variables.at("keep").ref.use_count() == 1 && interp.getContext().variables.at("keep").ref->items.size() == 3);
+        TEST_ASSERT(kept.success && interp.getContext().variables.at("keep").ref()->refs == 1 && interp.getContext().variables.at("keep").ref()->items.size() == 3);
     }
 
     // 25. Parameters and results convert to their declared types
@@ -349,9 +375,9 @@ int main() {
             "float half(int v) { return v / 2; } string tag(string s) { return \"<\" + s + \">\"; }"
             "float h = half(7); string t = tag(5); string kind = type_of(half(7));");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getGlobal("h").value == "3");
-        TEST_ASSERT(interp.getGlobal("t").value == "<5>");
-        TEST_ASSERT(interp.getGlobal("kind").value == "float");
+        TEST_ASSERT(interp.getGlobal("h").text() == "3");
+        TEST_ASSERT(interp.getGlobal("t").text() == "<5>");
+        TEST_ASSERT(interp.getGlobal("kind").text() == "float");
         auto bad = interp.runSource("void want(int n) {} want(\"abc\");");
         TEST_ASSERT(!bad.success && bad.errorMessage.find("parameter 'n' of 'want'") != std::string::npos);
         auto missing = interp.runSource("int nothing() { } int x = nothing();");
@@ -366,8 +392,8 @@ int main() {
             "string routed = \"\"; void get(string path, string handler) { routed = path + \"->\" + handler; }"
             "array items = [10, 20]; int second = get(items, 1); get(\"/health\", \"health\");");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getGlobal("second").value == "20");
-        TEST_ASSERT(interp.getGlobal("routed").value == "/health->health");
+        TEST_ASSERT(interp.getGlobal("second").text() == "20");
+        TEST_ASSERT(interp.getGlobal("routed").text() == "/health->health");
     }
 
     // 27. Every builtin in the catalog can be found and describes itself

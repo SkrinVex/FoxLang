@@ -65,9 +65,9 @@ int main() {
             "doc = json_set_raw(doc, \"inner\", \"{\\\"k\\\":[]}\"); string value = json_value([1.5, [2]]);"
             "bool valid = json_valid(doc);");
         CHECK(res.success);
-        CHECK(interp.getGlobal("doc").value == R"({"name":"Лис \"1\"","tags":[1,"a",true],"inner":{"k":[]}})");
-        CHECK(interp.getGlobal("value").value == "[1.5,[2]]");
-        CHECK(interp.getGlobal("valid").value == "true");
+        CHECK(interp.getGlobal("doc").text() == R"({"name":"Лис \"1\"","tags":[1,"a",true],"inner":{"k":[]}})");
+        CHECK(interp.getGlobal("value").text() == "[1.5,[2]]");
+        CHECK(interp.getGlobal("valid").text() == "true");
         CHECK(throws("string s = json_set_raw(\"\", \"a\", \"{oops\");"));
         CHECK(throws("string s = json_set(\"[1]\", \"5\", 1);"));
         CHECK(throws("string s = json_set(\"5\", \"a\", 1);"));
@@ -169,6 +169,13 @@ int main() {
         reply = request("OPTIONS", "/anything");
         CHECK(reply.status == 204 && header(reply, "Access-Control-Allow-Origin") == "*");
         CHECK(header(request("GET", "/users/1"), "Access-Control-Allow-Methods").find("PATCH") != std::string::npos);
+        // A handler may be a function value: a lambda that captures a variable, or a function's name.
+        CHECK(interp.runSource("string greeting = \"hi\";\n"
+                               "server_route(\"GET\", \"/hello\", () => { server_respond(200, greeting); });\n"
+                               "server_route(\"GET\", \"/me2\", me);").success);
+        CHECK(request("GET", "/hello").body == "hi");
+        CHECK(request("GET", "/me2").body == "me");
+        CHECK(throws("server_route(\"GET\", \"/n\", 5);"));
         CHECK(throws("server_route(\"GET\", \"/a/*rest/b\", \"x\");"));
         CHECK(throws("server_route(\"GET\", \"nope\", \"x\");"));
         CHECK(throws("server_header(\"X-A\", \"line\\nbreak\");"));
