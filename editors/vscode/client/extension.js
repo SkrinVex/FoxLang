@@ -425,6 +425,64 @@ function activate(context) {
         }
     }));
 
+    const toRange = r => new vscode.Range(r.start.line, r.start.character, r.end.line, r.end.character);
+
+    // Find All References (Shift+F12): every file of the program.
+    context.subscriptions.push(vscode.languages.registerReferenceProvider('fox', {
+        async provideReferences(document, position, referenceContext) {
+            try {
+                const res = await sendRequest('textDocument/references', {
+                    textDocument: { uri: document.uri.toString() },
+                    position: { line: position.line, character: position.character },
+                    context: { includeDeclaration: referenceContext.includeDeclaration }
+                });
+                if (!Array.isArray(res)) return null;
+                return res.map(loc => new vscode.Location(vscode.Uri.parse(loc.uri), toRange(loc.range)));
+            } catch {
+                return null;
+            }
+        }
+    }));
+
+    // Rename Symbol (F2): the declaration and its uses in every file of the program.
+    context.subscriptions.push(vscode.languages.registerRenameProvider('fox', {
+        async prepareRename(document, position) {
+            const res = await sendRequest('textDocument/prepareRename', {
+                textDocument: { uri: document.uri.toString() },
+                position: { line: position.line, character: position.character }
+            });
+            return { range: toRange(res.range), placeholder: res.placeholder };
+        },
+        async provideRenameEdits(document, position, newName) {
+            const res = await sendRequest('textDocument/rename', {
+                textDocument: { uri: document.uri.toString() },
+                position: { line: position.line, character: position.character },
+                newName
+            });
+            const edit = new vscode.WorkspaceEdit();
+            for (const [uri, edits] of Object.entries((res && res.changes) || {})) {
+                for (const change of edits) edit.replace(vscode.Uri.parse(uri), toRange(change.range), change.newText);
+            }
+            return edit;
+        }
+    }));
+
+    // Format Document (Shift+Alt+F): the same layout as foxlang fmt.
+    context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider('fox', {
+        async provideDocumentFormattingEdits(document, options) {
+            try {
+                const res = await sendRequest('textDocument/formatting', {
+                    textDocument: { uri: document.uri.toString() },
+                    options: { tabSize: options.tabSize, insertSpaces: options.insertSpaces }
+                });
+                if (!Array.isArray(res)) return [];
+                return res.map(e => vscode.TextEdit.replace(toRange(e.range), e.newText));
+            } catch {
+                return [];
+            }
+        }
+    }));
+
     // Command to restart LSP
     context.subscriptions.push(vscode.commands.registerCommand('foxlang.restartServer', () => {
         if (serverProcess) {

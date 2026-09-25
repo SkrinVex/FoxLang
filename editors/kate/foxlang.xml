@@ -55,6 +55,8 @@
       <item>array_slice</item>
       <item>array_sort</item>
       <item>asin</item>
+      <item>assert</item>
+      <item>assert_equal</item>
       <item>atan</item>
       <item>atan2</item>
       <item>body</item>

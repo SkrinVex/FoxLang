@@ -352,15 +352,17 @@ void SemanticAnalyzer::visitFuncDef(const FuncDefNode* node) {
 
     checkType(node->returnType, fnSym.declRange);
     for (const auto& param : node->params) {
-        checkType(param.type, fnSym.declRange);
+        bool named = param.range.start.line != param.range.end.line || param.range.start.column != param.range.end.column;
+        checkType(param.type, named ? param.range : fnSym.declRange);
         Symbol paramSym;
         paramSym.name = param.name;
         paramSym.type = param.type;
         paramSym.kind = SymbolKind::Parameter;
         paramSym.documentation = "parameter " + param.type + " " + param.name;
         paramSym.fileUri = currentFile;
-        paramSym.declRange = fnSym.declRange;
+        paramSym.declRange = named ? param.range : fnSym.declRange;
         currentScope->symbols[param.name] = paramSym;
+        if (named) symbolRefs.push_back({param.range, paramSym});
     }
 
     if (node->body) visitNode(node->body.get());
@@ -729,6 +731,40 @@ HoverInfo SemanticAnalyzer::getHover(int line, int col, const std::string& code)
     }
     info.markdown = ss.str();
     return info;
+}
+
+SymbolIdentity SemanticAnalyzer::symbolAt(int line, int col) const {
+    SymbolIdentity identity;
+    for (const auto& ref : symbolRefs) {
+        if (!ref.range.contains(line, col)) continue;
+        const Symbol& symbol = ref.symbol;
+        identity.found = true;
+        identity.name = symbol.name;
+        identity.file = symbol.fileUri.empty() ? currentFile : symbol.fileUri;
+        identity.declaration = symbol.declRange;
+        identity.at = ref.range;
+        identity.editable = symbol.kind != SymbolKind::Builtin && symbol.kind != SymbolKind::Keyword &&
+                            symbol.kind != SymbolKind::Module && identity.file.rfind("@", 0) != 0 &&
+                            symbol.declRange.start.line > 0;
+        return identity;
+    }
+    return identity;
+}
+
+std::vector<SourceRange> SemanticAnalyzer::referencesTo(const SymbolIdentity& target) const {
+    std::vector<SourceRange> ranges;
+    for (const auto& ref : symbolRefs) {
+        const Symbol& symbol = ref.symbol;
+        std::string file = symbol.fileUri.empty() ? currentFile : symbol.fileUri;
+        if (symbol.name != target.name || file != target.file) continue;
+        if (symbol.declRange.start.line != target.declaration.start.line ||
+            symbol.declRange.start.column != target.declaration.start.column) continue;
+        bool seen = std::any_of(ranges.begin(), ranges.end(), [&](const SourceRange& r) {
+            return r.start.line == ref.range.start.line && r.start.column == ref.range.start.column;
+        });
+        if (!seen) ranges.push_back(ref.range);
+    }
+    return ranges;
 }
 
 DefinitionInfo SemanticAnalyzer::getDefinition(int line, int col) const {

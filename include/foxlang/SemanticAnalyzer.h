@@ -75,6 +75,16 @@ struct DefinitionInfo {
     bool found = false;
 };
 
+// The declaration a name refers to, the same in every file of a program.
+struct SymbolIdentity {
+    bool found = false;
+    std::string name;
+    std::string file;              // canonical path of the declaring file
+    SourceRange declaration;       // its name at the declaration
+    SourceRange at;                // the occurrence that was asked about
+    bool editable = false;         // declared in the program, not a builtin or std module
+};
+
 struct DocumentSymbolInfo {
     std::string name;
     std::string kind;              // "Function", "Variable", etc.
@@ -131,6 +141,9 @@ public:
     std::vector<DocumentSymbolInfo> getDocumentSymbols() const;
     SignatureHelpResult getSignatureHelp(const std::string& code, int line, int col) const;
     const Symbol* findFunction(const std::string& name) const;
+    SymbolIdentity symbolAt(int line, int col) const;
+    // Every place in this file that names the declaration, the declaration included.
+    std::vector<SourceRange> referencesTo(const SymbolIdentity& target) const;
 
 private:
     std::string currentFile;

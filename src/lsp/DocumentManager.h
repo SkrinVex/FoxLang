@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <memory>
 #include <vector>
+#include <functional>
 #include "foxlang/SemanticAnalyzer.h"
 #include "foxlang/Project.h"
 #include "Protocol.h"
@@ -37,6 +38,10 @@ public:
     std::vector<std::string> refresh();
 
     const DocumentState* getDocument(const std::string& uri) const;
+    // The analysis of every file of the document's program: open buffers as they are,
+    // the others from disk. For references and renaming across files.
+    void forEachProgramFile(const std::string& uri,
+                            const std::function<void(const std::string& fileUri, const SemanticAnalyzer&)>& visit);
     std::vector<LspDiagnostic> getDiagnostics(const std::string& uri) const;
 
     // file:// URIs are percent-encoded: spaces and Cyrillic in a path arrive as %XX.

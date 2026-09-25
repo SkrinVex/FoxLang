@@ -357,7 +357,8 @@ std::unique_ptr<Node> Parser::functionDefinition(const std::string& returnType, 
         do {
             if (!(isTypeKeyword() || check(TokenType::IDENTIFIER)) || check(TokenType::VOID_KW)) fail("expected a parameter type");
             std::string type = tokens[pos++].value;
-            params.push_back({type, consume(TokenType::IDENTIFIER).value});
+            Token name = consume(TokenType::IDENTIFIER);
+            params.push_back({type, name.value, name.range});
         } while (match(TokenType::COMMA));
     }
     consume(TokenType::RPAREN);

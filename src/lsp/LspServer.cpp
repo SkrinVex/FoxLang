@@ -1,5 +1,6 @@
 #include "LspServer.h"
 #include "foxlang/FoxLang.h"
+#include "foxlang/Formatter.h"
 #include <iostream>
 
 namespace foxlang {
@@ -73,6 +74,11 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
         capabilities["hoverProvider"] = true;
         capabilities["definitionProvider"] = true;
         capabilities["documentSymbolProvider"] = true;
+        capabilities["referencesProvider"] = true;
+        std::map<std::string, JsonValue> renameProvider;
+        renameProvider["prepareProvider"] = true;
+        capabilities["renameProvider"] = JsonValue(renameProvider);
+        capabilities["documentFormattingProvider"] = true;
 
         std::map<std::string, JsonValue> serverInfo;
         serverInfo["name"] = "foxlang-lsp";
@@ -212,6 +218,101 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
             }
         }
         sendResponse(id, JsonValue(), out);
+        return;
+    }
+
+    if (method == "textDocument/references" || method == "textDocument/rename" || method == "textDocument/prepareRename") {
+        const auto& params = msg.get("params");
+        std::string uri = params.get("textDocument").get("uri").asString();
+        LspPosition pos = LspPosition::fromJson(params.get("position"));
+        const auto* doc = docManager.getDocument(uri);
+        SymbolIdentity target;
+        if (doc && doc->analyzer)
+            target = doc->analyzer->symbolAt(utf::lspLineToLine(pos.line), utf::lspCharacterToColumn(pos.character));
+        if (method == "textDocument/prepareRename") {
+            if (!target.found || !target.editable) {
+                sendError(id, -32602, target.found ? "Встроенную функцию или функцию стандартной библиотеки переименовать нельзя"
+                                                   : "Здесь нет имени, которое можно переименовать", out);
+                return;
+            }
+            std::map<std::string, JsonValue> res;
+            res["range"] = LspRange::fromSourceRange(target.at).toJson();
+            res["placeholder"] = target.name;
+            sendResponse(id, JsonValue(res), out);
+            return;
+        }
+        if (!target.found) {
+            sendResponse(id, method == "textDocument/references" ? JsonValue(std::vector<JsonValue>{}) : JsonValue(), out);
+            return;
+        }
+        std::string newName = params.get("newName").asString();
+        if (method == "textDocument/rename") {
+            bool identifier = !newName.empty() && !std::isdigit(static_cast<unsigned char>(newName[0]));
+            for (char c : newName) identifier = identifier && (std::isalnum(static_cast<unsigned char>(c)) || c == '_');
+            for (const char* const* keyword = keywordList(); *keyword; ++keyword) identifier = identifier && newName != *keyword;
+            if (!target.editable || !identifier) {
+                sendError(id, -32602, !target.editable ? "Встроенную функцию или функцию стандартной библиотеки переименовать нельзя"
+                                                       : "«" + newName + "» не подходит как имя: латинские буквы, цифры и _, не ключевое слово", out);
+                return;
+            }
+        }
+        bool includeDeclaration = params.get("context").get("includeDeclaration").asBool(true);
+        std::vector<JsonValue> locations;
+        std::map<std::string, JsonValue> changes;
+        docManager.forEachProgramFile(uri, [&](const std::string& fileUri, const SemanticAnalyzer& analyzer) {
+            std::vector<JsonValue> edits;
+            std::string filePath = canonicalPath(DocumentManager::uriToFilePath(fileUri));
+            for (const auto& range : analyzer.referencesTo(target)) {
+                bool declaration = filePath == target.file && range.start.line == target.declaration.start.line &&
+                                   range.start.column == target.declaration.start.column;
+                if (method == "textDocument/references") {
+                    if (declaration && !includeDeclaration) continue;
+                    LspLocation location;
+                    location.uri = fileUri;
+                    location.range = LspRange::fromSourceRange(range);
+                    locations.push_back(location.toJson());
+                } else {
+                    std::map<std::string, JsonValue> edit;
+                    edit["range"] = LspRange::fromSourceRange(range).toJson();
+                    edit["newText"] = newName;
+                    edits.push_back(JsonValue(edit));
+                }
+            }
+            if (!edits.empty()) changes[fileUri] = JsonValue(edits);
+        });
+        if (method == "textDocument/references") {
+            sendResponse(id, JsonValue(locations), out);
+        } else {
+            std::map<std::string, JsonValue> workspaceEdit;
+            workspaceEdit["changes"] = JsonValue(changes);
+            sendResponse(id, JsonValue(workspaceEdit), out);
+        }
+        return;
+    }
+
+    if (method == "textDocument/formatting") {
+        std::string uri = msg.get("params").get("textDocument").get("uri").asString();
+        const auto* doc = docManager.getDocument(uri);
+        std::vector<JsonValue> edits;
+        if (doc) {
+            std::string formatted = formatSource(doc->text);
+            if (formatted != doc->text) {
+                // One edit replaces the whole document: from the start past its last line.
+                int lines = 1;
+                for (char c : doc->text) lines += c == '\n';
+                std::map<std::string, JsonValue> start, end, range, edit;
+                start["line"] = 0;
+                start["character"] = 0;
+                end["line"] = lines;
+                end["character"] = 0;
+                range["start"] = JsonValue(start);
+                range["end"] = JsonValue(end);
+                edit["range"] = JsonValue(range);
+                edit["newText"] = formatted;
+                edits.push_back(JsonValue(edit));
+            }
+        }
+        sendResponse(id, JsonValue(edits), out);
         return;
     }
 

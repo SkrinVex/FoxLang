@@ -118,6 +118,34 @@ std::vector<LspDiagnostic> DocumentManager::getDiagnostics(const std::string& ur
     return doc ? doc->diagnostics : std::vector<LspDiagnostic>{};
 }
 
+void DocumentManager::forEachProgramFile(const std::string& uri,
+                                         const std::function<void(const std::string&, const SemanticAnalyzer&)>& visit) {
+    const DocumentState* doc = getDocument(uri);
+    if (!doc || !doc->analyzer) return;
+    visit(uri, *doc->analyzer);
+    for (const auto& peer : doc->peers) {
+        std::string peerUri = filePathToUri(peer);
+        bool open = false;
+        for (const auto& entry : documents) {
+            if (entry.first == uri || canonicalPath(uriToFilePath(entry.first)) != peer) continue;
+            if (entry.second.analyzer) visit(entry.first, *entry.second.analyzer);
+            open = true;
+        }
+        if (open) continue;
+        // A file nobody has open is read from disk (through the overlay, so open
+        // buffers it includes are current) and analyzed with its own program.
+        DocumentState state;
+        state.uri = peerUri;
+        try {
+            state.text = sources->read(peer);
+        } catch (const std::exception&) {
+            continue;
+        }
+        analyze(state);
+        if (state.analyzer) visit(peerUri, *state.analyzer);
+    }
+}
+
 void DocumentManager::analyze(DocumentState& doc) {
     std::string filePath = uriToFilePath(doc.uri);
 

@@ -189,6 +189,31 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             return nothing();
         });
 
+    // Tests
+    add({"assert", "void", {{"bool", "condition"}, {"string", "message"}}, 1, false, "",
+         "Ошибка `Assertion failed`, если условие ложно; сообщение поясняет, что проверялось. "
+         "Для тестов `foxlang test` и проверок посреди программы.\n\n"
+         "```foxlang\nassert(size(items) > 0, \"список не пуст\");\n```"},
+        [](Call& c) -> Value {
+            if (c.flag(0)) return nothing();
+            throw std::runtime_error("Assertion failed: " + (c.has(1) ? c.text(1) : std::string("condition is false")));
+        });
+    add({"assert_equal", "void", {{"any", "actual"}, {"any", "expected"}, {"string", "message"}}, 2, false, "",
+         "Ошибка `Assertion failed` с обоими значениями, если `actual` не равно `expected`. Числа сравниваются по "
+         "величине (`2` равно `2.0`), массивы, словари и структуры — по содержимому.\n\n"
+         "```foxlang\nassert_equal(add(2, 3), 5);\n```"},
+        [](Call& c) -> Value {
+            const Value& actual = c.at(0);
+            const Value& expected = c.at(1);
+            double a = 0, b = 0;
+            bool numbers = (actual.type == "int" || actual.type == "float") && (expected.type == "int" || expected.type == "float");
+            bool equal = numbers ? tryNumber(actual, a) && tryNumber(expected, b) && a == b : deepEqual(actual, expected);
+            if (equal) return nothing();
+            auto shown = [](const Value& v) { return v.type == "string" ? "\"" + v.value.str() + "\"" : display(v); };
+            throw std::runtime_error("Assertion failed: " + (c.has(2) ? c.text(2) + ": " : std::string()) + "expected " +
+                                     shown(expected) + ", got " + shown(actual));
+        });
+
     // Maps
     add({"keys", "array", {{"map", "items"}}, 1, false, "",
          "Ключи словаря в порядке добавления.\n\n```foxlang\nmap ages = {\"Ann\": 30, \"Bob\": 25};\n"

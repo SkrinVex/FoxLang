@@ -5,6 +5,7 @@
 #include <memory>
 #include <iosfwd>
 #include <stdexcept>
+#include "foxlang/SourceLocation.h"
 
 namespace foxlang {
 
@@ -16,6 +17,10 @@ namespace platform { struct ServerState; }
 struct FuncParam {
     std::string type;
     std::string name;
+    SourceRange range; // where a parameter of a FoxLang function is named; empty for builtins
+
+    FuncParam() = default;
+    FuncParam(std::string t, std::string n, SourceRange r = {}) : type(std::move(t)), name(std::move(n)), range(r) {}
 };
 
 // The runtime exposes every value as text, because that is what the language

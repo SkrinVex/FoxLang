@@ -56,6 +56,9 @@ foxlang-lsp --help
 * `textDocument/completion`: контекстное автодополнение ключевых слов, модулей, функций стандартной библиотеки и переменных.
 * `textDocument/definition`: переход к объявлению переменной или функции (`Go to Definition`).
 * `textDocument/documentSymbol`: структура/аутлайн файла для быстрой навигации (`Document Symbols`).
+* `textDocument/references`: все места, где упомянуты переменная, функция, параметр или структура, во всех файлах программы (`Find All References`, `Shift+F12`).
+* `textDocument/prepareRename` / `textDocument/rename`: переименование объявления и всех его упоминаний во всех файлах программы (`F2`). Встроенные функции и функции стандартной библиотеки не переименовываются.
+* `textDocument/formatting`: оформление документа, как у `foxlang fmt` (`Format Document`).
 * `shutdown` / `exit`: корректное завершение работы сервера.
 
 ---
