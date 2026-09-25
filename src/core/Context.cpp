@@ -150,7 +150,9 @@ void Context::setVar(const std::string& name, Value val) {
         auto it = scope->variables.find(name);
         if (it == scope->variables.end()) continue;
         Value& target = it->second;
-        runtime::coerce(target.type, val, "variable '" + name + "'");
+        // The usual case, a value of the variable's own type, needs no conversion.
+        bool sameType = target.type == val.type && (val.type != "int" || val.value.isInteger());
+        if (!sameType) runtime::coerce(target.type, val, "variable '" + name + "'");
         // A container assigned to a variable becomes its own copy.
         runtime::own(val);
         target.value = std::move(val.value);

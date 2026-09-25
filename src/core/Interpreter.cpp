@@ -22,6 +22,10 @@ void runModule(BlockNode& program, Context& ctx, bool importOnly) {
         guard.line = stmt->range.start.line;
         guard.file = program.file;
         stmt->eval(ctx);
+        if (guard.flow != runtime::StackGuard::Flow::None) {
+            guard.flow = runtime::StackGuard::Flow::None;
+            throw std::runtime_error("Runtime Error: 'return', 'break' or 'continue' outside of a function or loop");
+        }
     }
 }
 
@@ -138,19 +142,24 @@ RunResult Interpreter::runSource(const std::string& source, const std::string& s
     try {
         auto program = parseSource(source, scriptPath);
         loadedModules.insert(scriptPath);
+        guard.flow = runtime::StackGuard::Flow::None;
         program->eval(globalContext);
+        auto flow = guard.flow;
+        guard.flow = runtime::StackGuard::Flow::None;
+        guard.returned = Value();
+        if (flow == runtime::StackGuard::Flow::Return)
+            return {false, 1, located("Runtime Error: 'return' outside of a function")};
+        if (flow == runtime::StackGuard::Flow::Break)
+            return {false, 1, located("Runtime Error: 'break' outside of loop in global scope")};
+        if (flow == runtime::StackGuard::Flow::Continue)
+            return {false, 1, located("Runtime Error: 'continue' outside of loop in global scope")};
         return {true, 0, ""};
     } catch (const ExitRequest& request) {
         return {request.code == 0, request.code, ""};
     } catch (const SyntaxError& error) {
         return {false, 1, error.what()};
-    } catch (const ReturnValue&) {
-        return {false, 1, located("Runtime Error: 'return' outside of a function")};
-    } catch (const BreakException&) {
-        return {false, 1, located("Runtime Error: 'break' outside of loop in global scope")};
-    } catch (const ContinueException&) {
-        return {false, 1, located("Runtime Error: 'continue' outside of loop in global scope")};
     } catch (const std::exception& e) {
+        guard.flow = runtime::StackGuard::Flow::None;
         return {false, 1, located(e.what())};
     }
 }

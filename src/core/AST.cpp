@@ -42,6 +42,7 @@ void evalDebugged(BlockNode& block, Context& scope, DebugHook& hook) {
             hook.error(error.what(), guard.tryDepth > 0);
             throw;
         }
+        if (guard.flow != runtime::StackGuard::Flow::None) return;
     }
 }
 
@@ -82,15 +83,22 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
     int callerLine = location.line;
     const std::string* callerFile = location.file;
     Value result{"void", ""};
-    try {
-        body->eval(*scope);
-    } catch (ReturnValue& ret) {
-        result = std::move(ret.value);
-    } catch (const BreakException&) {
-        throw std::runtime_error("Runtime Error: 'break' outside of loop in function '" + name + "'");
-    } catch (const ContinueException&) {
-        throw std::runtime_error("Runtime Error: 'continue' outside of loop in function '" + name + "'");
+    body->eval(*scope);
+    switch (location.flow) {
+        case runtime::StackGuard::Flow::Return:
+            result = std::move(location.returned);
+            location.returned = Value();
+            break;
+        case runtime::StackGuard::Flow::Break:
+            location.flow = runtime::StackGuard::Flow::None;
+            throw std::runtime_error("Runtime Error: 'break' outside of loop in function '" + name + "'");
+        case runtime::StackGuard::Flow::Continue:
+            location.flow = runtime::StackGuard::Flow::None;
+            throw std::runtime_error("Runtime Error: 'continue' outside of loop in function '" + name + "'");
+        default:
+            break;
     }
+    location.flow = runtime::StackGuard::Flow::None;
 
     location.line = callerLine;
     location.file = callerFile;
@@ -106,7 +114,10 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
 
 Value ReturnNode::eval(Context& ctx) {
     Value result = expr ? expr->eval(ctx) : Value{"void", ""};
-    throw ReturnValue{std::move(result)};
+    runtime::StackGuard& guard = runtime::stackGuard();
+    guard.returned = std::move(result);
+    guard.flow = runtime::StackGuard::Flow::Return;
+    return {"void", ""};
 }
 
 Value FuncCallNode::eval(Context& ctx) {
@@ -162,66 +173,104 @@ std::string containerName(const Value& value) {
 }
 } // namespace
 
+BinOpNode::BinOpNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r)
+    : op(std::move(o)), left(std::move(l)), right(std::move(r)) {
+    static const std::pair<const char*, Kind> kinds[] = {
+        {"&&", Kind::And}, {"||", Kind::Or}, {"+", Kind::Add}, {"+=", Kind::Add}, {"-", Kind::Sub}, {"-=", Kind::Sub},
+        {"*", Kind::Mul}, {"*=", Kind::Mul}, {"/", Kind::Div}, {"/=", Kind::Div}, {"%", Kind::Mod}, {"%=", Kind::Mod},
+        {"==", Kind::Eq}, {"!=", Kind::Ne}, {"<", Kind::Lt}, {"<=", Kind::Le}, {">", Kind::Gt}, {">=", Kind::Ge}};
+    kind = Kind::Unknown;
+    for (const auto& entry : kinds)
+        if (op == entry.first) kind = entry.second;
+}
+
 Value BinOpNode::eval(Context& ctx) {
     // Short-circuit before the right side runs: `x != 0 && 10 / x > 1` must not divide by zero.
-    if (op == "&&" || op == "||") {
+    if (kind == Kind::And || kind == Kind::Or) {
         bool l = truth(left->eval(ctx), "left");
-        if (l == (op == "||")) return {"bool", l ? "true" : "false"};
+        if (l == (kind == Kind::Or)) return {"bool", l ? "true" : "false"};
         return {"bool", truth(right->eval(ctx), "right") ? "true" : "false"};
     }
 
     Value lval = left->eval(ctx);
     Value rval = right->eval(ctx);
 
-    bool equality = op == "==" || op == "!=";
-    bool concatenation = (op == "+" || op == "+=") && (lval.type == "string" || rval.type == "string");
+    // Two ints are the common case: arithmetic and comparison without any conversion.
+    if (lval.value.isInteger() && rval.value.isInteger() && lval.type == "int" && rval.type == "int") {
+        long long l = lval.value.integerValue(), r = rval.value.integerValue();
+        switch (kind) {
+            case Kind::Add: return {"int", runtime::intResult(l + r, op)};
+            case Kind::Sub: return {"int", runtime::intResult(l - r, op)};
+            case Kind::Mul: return {"int", runtime::intResult(l * r, op)};
+            case Kind::Div:
+            case Kind::Mod:
+                if (r == 0) throw std::runtime_error("Runtime Error: Division by zero");
+                return {"int", runtime::intResult(kind == Kind::Div ? l / r : l % r, op)};
+            case Kind::Eq: return {"bool", l == r ? "true" : "false"};
+            case Kind::Ne: return {"bool", l != r ? "true" : "false"};
+            case Kind::Lt: return {"bool", l < r ? "true" : "false"};
+            case Kind::Le: return {"bool", l <= r ? "true" : "false"};
+            case Kind::Gt: return {"bool", l > r ? "true" : "false"};
+            case Kind::Ge: return {"bool", l >= r ? "true" : "false"};
+            default: break;
+        }
+    }
+
+    bool equality = kind == Kind::Eq || kind == Kind::Ne;
+    bool concatenation = kind == Kind::Add && (lval.type == "string" || rval.type == "string");
     if ((lval.ref || rval.ref) && !equality && !concatenation)
         throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref ? lval : rval));
 
-    if (op == "+" || op == "+=") {
-        if (concatenation) return {"string", runtime::display(lval) + runtime::display(rval)};
-        if (lval.type == "float" || rval.type == "float")
-            return {"float", runtime::realResult(number(lval, "left") + number(rval, "right"))};
-        return {"int", runtime::intResult(integer(lval, "left") + integer(rval, "right"), op)};
-    }
-
-    if (op == "-" || op == "-=" || op == "*" || op == "*=" || op == "/" || op == "/=" || op == "%" || op == "%=") {
-        bool division = op == "/" || op == "/=" || op == "%" || op == "%=";
-        bool subtract = op == "-" || op == "-=";
-        bool multiply = op == "*" || op == "*=";
-        if (lval.type == "float" || rval.type == "float") {
-            double l = number(lval, "left"), r = number(rval, "right");
-            if (r == 0.0 && division) throw std::runtime_error("Runtime Error: Division by zero");
-            double result = subtract ? l - r : multiply ? l * r : (op == "/" || op == "/=") ? l / r : std::fmod(l, r);
-            return {"float", runtime::realResult(result)};
+    switch (kind) {
+        case Kind::Add:
+            if (concatenation) return {"string", runtime::display(lval) + runtime::display(rval)};
+            if (lval.type == "float" || rval.type == "float")
+                return {"float", runtime::realResult(number(lval, "left") + number(rval, "right"))};
+            return {"int", runtime::intResult(integer(lval, "left") + integer(rval, "right"), op)};
+        case Kind::Sub:
+        case Kind::Mul:
+        case Kind::Div:
+        case Kind::Mod: {
+            bool division = kind == Kind::Div || kind == Kind::Mod;
+            if (lval.type == "float" || rval.type == "float") {
+                double l = number(lval, "left"), r = number(rval, "right");
+                if (r == 0.0 && division) throw std::runtime_error("Runtime Error: Division by zero");
+                double result = kind == Kind::Sub ? l - r : kind == Kind::Mul ? l * r : kind == Kind::Div ? l / r : std::fmod(l, r);
+                return {"float", runtime::realResult(result)};
+            }
+            long long l = integer(lval, "left"), r = integer(rval, "right");
+            if (r == 0 && division) throw std::runtime_error("Runtime Error: Division by zero");
+            long long result = kind == Kind::Sub ? l - r : kind == Kind::Mul ? l * r : kind == Kind::Div ? l / r : l % r;
+            return {"int", runtime::intResult(result, op)};
         }
-        long long l = integer(lval, "left"), r = integer(rval, "right");
-        if (r == 0 && division) throw std::runtime_error("Runtime Error: Division by zero");
-        long long result = subtract ? l - r : multiply ? l * r : (op == "/" || op == "/=") ? l / r : l % r;
-        return {"int", runtime::intResult(result, op)};
-    }
-
-    if (equality || op == "<" || op == ">" || op == "<=" || op == ">=") {
-        auto decide = [&](auto l, auto r) {
-            return op == "==" ? l == r : op == "!=" ? l != r : op == "<" ? l < r :
-                   op == "<=" ? l <= r : op == ">=" ? l >= r : l > r;
-        };
-        bool result;
-        if (lval.type == "string" && rval.type == "string") {
-            result = decide(lval.value.str(), rval.value.str());
-        } else if (lval.type == "bool" && rval.type == "bool") {
-            result = decide(truth(lval, "left"), truth(rval, "right"));
-        } else if (lval.ref || rval.ref) {
-            // Arrays, maps and structs are equal when their contents are.
-            if (!equality) throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref ? lval : rval));
-            result = runtime::deepEqual(lval, rval) == (op == "==");
-        } else {
-            result = decide(number(lval, "left"), number(rval, "right"));
+        case Kind::Eq: case Kind::Ne: case Kind::Lt: case Kind::Le: case Kind::Gt: case Kind::Ge: {
+            auto decide = [&](auto l, auto r) {
+                switch (kind) {
+                    case Kind::Eq: return l == r;
+                    case Kind::Ne: return l != r;
+                    case Kind::Lt: return l < r;
+                    case Kind::Le: return l <= r;
+                    case Kind::Ge: return l >= r;
+                    default: return l > r;
+                }
+            };
+            bool result;
+            if (lval.type == "string" && rval.type == "string") {
+                result = decide(lval.value.str(), rval.value.str());
+            } else if (lval.type == "bool" && rval.type == "bool") {
+                result = decide(truth(lval, "left"), truth(rval, "right"));
+            } else if (lval.ref || rval.ref) {
+                // Arrays, maps and structs are equal when their contents are.
+                if (!equality) throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref ? lval : rval));
+                result = runtime::deepEqual(lval, rval) == (kind == Kind::Eq);
+            } else {
+                result = decide(number(lval, "left"), number(rval, "right"));
+            }
+            return {"bool", result ? "true" : "false"};
         }
-        return {"bool", result ? "true" : "false"};
+        default:
+            throw std::runtime_error("Runtime Error: unknown operator '" + op + "'");
     }
-
-    throw std::runtime_error("Runtime Error: unknown operator '" + op + "'");
 }
 
 double BinOpNode::number(const Value& value, const char* side) const {
@@ -417,14 +466,28 @@ Value TryNode::eval(Context& ctx) {
     runtime::StackGuard& guard = runtime::stackGuard();
     // finally runs however the protected code ends: normally, by an error, by
     // return, break, continue or exit.
+    // A pending return, break or continue waits while finally runs, unless finally
+    // itself leaves by one of them.
+    auto runCleanup = [&] {
+        if (!cleanup) return;
+        auto pending = guard.flow;
+        Value returned = std::move(guard.returned);
+        guard.flow = runtime::StackGuard::Flow::None;
+        cleanup->eval(ctx);
+        if (guard.flow == runtime::StackGuard::Flow::None) {
+            guard.flow = pending;
+            guard.returned = std::move(returned);
+        }
+    };
     auto cleanupAfter = [&](auto&& run) {
         try {
             run();
         } catch (...) {
-            if (cleanup) cleanup->eval(ctx);
+            guard.flow = runtime::StackGuard::Flow::None;
+            runCleanup();
             throw;
         }
-        if (cleanup) cleanup->eval(ctx);
+        runCleanup();
     };
     cleanupAfter([&] {
         std::string message;
@@ -480,27 +543,38 @@ Value BlockNode::eval(Context& ctx) {
             guard.file = file;
         }
         stmt->eval(scope);
+        if (guard.flow != runtime::StackGuard::Flow::None) break;
     }
     return {"void", ""};
 }
 
 Value SwitchNode::eval(Context& ctx) {
     Value switchValue = expr->eval(ctx);
+    runtime::StackGuard& guard = runtime::stackGuard();
+    // break ends the switch; return and continue leave it for whatever encloses it.
+    auto finished = [&] {
+        if (guard.flow == runtime::StackGuard::Flow::None) return false;
+        if (guard.flow == runtime::StackGuard::Flow::Break) guard.flow = runtime::StackGuard::Flow::None;
+        return true;
+    };
     bool matched = false;
-    try {
-        for (auto& caseItem : cases) {
-            if (!matched) {
-                Value caseValue = caseItem.first->eval(ctx);
-                double l = 0, r = 0;
-                bool numeric = runtime::tryNumber(switchValue, l) && runtime::tryNumber(caseValue, r) &&
-                               switchValue.type != "string" && caseValue.type != "string";
-                matched = numeric ? l == r : runtime::deepEqual(switchValue, caseValue);
-            }
-            // Without break, execution falls through into the following cases.
-            if (matched) caseItem.second->eval(ctx);
+    for (auto& caseItem : cases) {
+        if (!matched) {
+            Value caseValue = caseItem.first->eval(ctx);
+            double l = 0, r = 0;
+            bool numeric = runtime::tryNumber(switchValue, l) && runtime::tryNumber(caseValue, r) &&
+                           switchValue.type != "string" && caseValue.type != "string";
+            matched = numeric ? l == r : runtime::deepEqual(switchValue, caseValue);
         }
-        if (defaultCase) defaultCase->eval(ctx);
-    } catch (const BreakException&) {
+        // Without break, execution falls through into the following cases.
+        if (matched) {
+            caseItem.second->eval(ctx);
+            if (finished()) return {"void", ""};
+        }
+    }
+    if (defaultCase) {
+        defaultCase->eval(ctx);
+        finished();
     }
     return {"void", ""};
 }

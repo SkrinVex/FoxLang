@@ -174,11 +174,12 @@ struct VarAssignNode : Node {
 struct BinOpNode : Node {
     std::string op;
     std::unique_ptr<Node> left, right;
-    BinOpNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r)
-        : op(std::move(o)), left(std::move(l)), right(std::move(r)) {}
+    BinOpNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r);
     Value eval(Context& ctx) override;
 
 private:
+    // The operator decided once when the node is built, not by comparing text on every run.
+    enum class Kind { And, Or, Add, Sub, Mul, Div, Mod, Eq, Ne, Lt, Le, Gt, Ge, Unknown } kind;
     std::string describe(const char* side) const { return std::string(side) + " operand of '" + op + "'"; }
     double number(const Value& value, const char* side) const;
     long long integer(const Value& value, const char* side) const;
@@ -302,14 +303,14 @@ struct WhileNode : Node {
     WhileNode(std::unique_ptr<Node> c, std::unique_ptr<Node> b)
         : condition(std::move(c)), body(std::move(b)) {}
     Value eval(Context& ctx) override {
+        runtime::StackGuard& guard = runtime::stackGuard();
         while (conditionTruth(condition->eval(ctx), "while")) {
-            try {
-                if (body) body->eval(ctx);
-            } catch (const BreakException&) {
-                break;
-            } catch (const ContinueException&) {
-                continue;
-            }
+            if (body) body->eval(ctx);
+            if (guard.flow == runtime::StackGuard::Flow::None) continue;
+            if (guard.flow == runtime::StackGuard::Flow::Return) break;
+            bool stop = guard.flow == runtime::StackGuard::Flow::Break;
+            guard.flow = runtime::StackGuard::Flow::None;
+            if (stop) break;
         }
         return {"void", ""};
     }
@@ -324,12 +325,14 @@ struct ForNode : Node {
         loop.parent = &ctx;
         loop.interpreter = ctx.interpreter;
         if (init) init->eval(loop);
+        runtime::StackGuard& guard = runtime::stackGuard();
         while (!condition || conditionTruth(condition->eval(loop), "for")) {
-            try {
-                if (body) body->eval(loop);
-            } catch (const BreakException&) {
-                break;
-            } catch (const ContinueException&) {
+            if (body) body->eval(loop);
+            if (guard.flow != runtime::StackGuard::Flow::None) {
+                if (guard.flow == runtime::StackGuard::Flow::Return) break;
+                bool stop = guard.flow == runtime::StackGuard::Flow::Break;
+                guard.flow = runtime::StackGuard::Flow::None;
+                if (stop) break;
                 // continue still runs the step
             }
             if (step) step->eval(loop);
@@ -339,11 +342,17 @@ struct ForNode : Node {
 };
 
 struct BreakNode : Node {
-    Value eval(Context& /*ctx*/) override { throw BreakException{}; }
+    Value eval(Context& /*ctx*/) override {
+        runtime::stackGuard().flow = runtime::StackGuard::Flow::Break;
+        return {"void", ""};
+    }
 };
 
 struct ContinueNode : Node {
-    Value eval(Context& /*ctx*/) override { throw ContinueException{}; }
+    Value eval(Context& /*ctx*/) override {
+        runtime::stackGuard().flow = runtime::StackGuard::Flow::Continue;
+        return {"void", ""};
+    }
 };
 
 struct SwitchNode : Node {

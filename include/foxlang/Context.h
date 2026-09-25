@@ -117,13 +117,6 @@ struct Object {
     bool erase(const std::string& key);
 };
 
-struct ReturnValue {
-    Value value;
-};
-
-struct BreakException {};
-struct ContinueException {};
-
 // exit(code) unwinds the whole program; it is deliberately not a std::exception,
 // so handlers that report runtime errors never swallow it.
 struct ExitRequest {

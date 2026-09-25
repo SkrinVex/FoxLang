@@ -661,17 +661,17 @@ Value Session::evaluate(const std::string& text, Context& scope, bool statements
         Lexer lexer(source);
         Parser parser(lexer.tokenize(), "<консоль>");
         auto program = parser.parseProgram();
-        for (auto& stmt : program->stmts)
+        for (auto& stmt : program->stmts) {
             if (stmt) stmt->eval(scope);
+            if (guard.flow != runtime::StackGuard::Flow::None) {
+                guard.flow = runtime::StackGuard::Flow::None;
+                guard.returned = Value();
+                throw std::runtime_error("return, break и continue в консоли отладчика не выполняются");
+            }
+        }
         return {"void", ""};
     } catch (const ExitRequest&) {
         throw std::runtime_error("exit() в консоли отладчика не выполняется: остановите отладку");
-    } catch (const ReturnValue&) {
-        throw std::runtime_error("return вне функции");
-    } catch (const BreakException&) {
-        throw std::runtime_error("break вне цикла");
-    } catch (const ContinueException&) {
-        throw std::runtime_error("continue вне цикла");
     }
 }
 
