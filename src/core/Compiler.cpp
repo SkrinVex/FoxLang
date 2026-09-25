@@ -720,16 +720,21 @@ private:
         bool slotted = isSlotted(node.slot);
         int site = slotted ? -1 : globalSite(node.name, node.global);
         if (!slotted && node.constant) p.globals[static_cast<size_t>(site)].declaresConstant = true;
+        if (!slotted && isNullable(node.type)) p.globals[static_cast<size_t>(site)].nullable = node.type;
         if (!slotted && !node.global) emit(Op::DefineGlobal, -1, site, 1);
+        bool plain = node.type == "array";
         auto store = [&](int reg) {
             if (node.initializer) {
                 into(*node.initializer, reg);
-                emit(Op::Coerce, reg, conversion(Value::Kind::Array, "array", "initializer of array '" + node.name + "'"));
+                emit(Op::Coerce, reg, conversion(runtime::declaredKind(node.type), node.type, "initializer of array '" + node.name + "'"));
             } else if (node.sizeNode) {
                 int size = any(*node.sizeNode);
                 emit(Op::NewSized, reg, size, stringConstant(node.name));
-            } else {
+                if (!plain) emit(Op::Coerce, reg, conversion(runtime::declaredKind(node.type), node.type, "array '" + node.name + "'"));
+            } else if (plain) {
                 emit(Op::NewArray, reg, 0, 0);
+            } else {
+                emit(Op::Zero, reg, stringConstant(node.type)); // array<int>: typed and empty; array?: null
             }
         };
         if (slotted) {

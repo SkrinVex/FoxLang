@@ -193,7 +193,7 @@ std::string SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, Sou
             auto* arr = dynamic_cast<const ArrayDeclNode*>(stmt.get());
             Symbol s;
             s.name = var ? var->name : arr->name;
-            s.type = var ? var->type : "array";
+            s.type = var ? var->type : arr->type;
             s.kind = SymbolKind::Variable;
             s.constant = var ? var->constant : arr->constant;
             s.declRange = var ? var->nameRange : arr->nameRange;
@@ -267,7 +267,7 @@ void SemanticAnalyzer::analyze(const BlockNode* root) {
             sym.constant = var->constant;
         } else if (auto* arr = dynamic_cast<const ArrayDeclNode*>(stmt.get())) {
             sym.name = arr->name;
-            sym.type = "array";
+            sym.type = arr->type;
             sym.declRange = arr->nameRange;
             sym.constant = arr->constant;
         } else {
@@ -646,6 +646,16 @@ void SemanticAnalyzer::checkType(const std::string& written, SourceRange range) 
         return;
     }
     const std::string type = isNullable(written) ? written.substr(0, written.size() - 1) : written;
+    if (!type.empty() && type.back() == '>') {
+        Value::Kind kind;
+        std::string element;
+        if (!runtime::containerType(type, kind, element)) {
+            diagnostics.push_back({DiagnosticSeverity::Error, "Unknown type '" + type + "': map keys are text, write map<string, T>", range});
+            return;
+        }
+        checkType(element, range);
+        return;
+    }
     static const std::set<std::string> builtinTypes = {"int", "float", "string", "bool", "void", "array", "map", "func"};
     if (builtinTypes.count(type)) return;
     Symbol* sym = rootScope->find(type);
@@ -879,13 +889,14 @@ void SemanticAnalyzer::visitBinOp(const BinOpNode* node) {
 void SemanticAnalyzer::visitArrayDecl(const ArrayDeclNode* node) {
     visitNode(node->sizeNode.get());
     visitNode(node->initializer.get());
+    checkType(node->type, node->nameRange.start.line > 0 ? node->nameRange : node->range);
     Symbol sym;
     sym.name = node->name;
-    sym.type = "array";
+    sym.type = node->type;
     sym.kind = SymbolKind::Variable;
     sym.declRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
     sym.constant = node->constant;
-    sym.documentation = std::string(node->constant ? "const " : "") + "array " + node->name;
+    sym.documentation = std::string(node->constant ? "const " : "") + node->type + " " + node->name;
     sym.fileUri = currentFile;
     addSymbol(node->global ? rootScope.get() : currentScope, sym, sym.declRange, !node->global);
 }

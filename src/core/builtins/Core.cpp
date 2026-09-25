@@ -22,7 +22,13 @@ std::mt19937& generator() {
 
 // Arrays print as [a, b, c]; their internal id means nothing to a reader.
 // Arrays, maps and structs go into a container as they are, shared like everywhere else.
-Value stored(const Value& value) { return value; }
+// A value going into the array argument: converted to its element type when it has one.
+Value stored(Call& call, const Value& value) {
+    Value copy = value;
+    const Object* items = call.at(0).ref();
+    if (items && items->elementType) storeElement(*items, copy);
+    return copy;
+}
 
 Object& mapOf(Call& call, size_t index) {
     const Value& value = call.at(index);
@@ -139,7 +145,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
          "Записывает значение в элемент массива. То же, что `items[index] = value;`.\n\n```foxlang\nset(scores, 0, 100);\n```"},
         [](Call& c) {
             auto& items = c.array(0);
-            items[checkedIndex(c, 1, items.size())] = stored(c.at(2));
+            items[checkedIndex(c, 1, items.size())] = stored(c, c.at(2));
             return nothing();
         });
     add({"push", "void", {{"array", "items"}, {"any", "value"}}, 2, false, "",
@@ -147,7 +153,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
         [](Call& c) {
             auto& items = c.array(0);
             if (items.size() >= maxElements) throw std::runtime_error("Runtime Error: array is too large");
-            items.push_back(stored(c.at(1)));
+            items.push_back(stored(c, c.at(1)));
             return nothing();
         });
     add({"pop", "any", {{"array", "items"}}, 1, false, "",
@@ -165,7 +171,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             auto& items = c.array(0);
             size_t index = checkedIndex(c, 1, items.size() + 1);
             if (items.size() >= maxElements) throw std::runtime_error("Runtime Error: array is too large");
-            items.insert(items.begin() + static_cast<std::ptrdiff_t>(index), stored(c.at(2)));
+            items.insert(items.begin() + static_cast<std::ptrdiff_t>(index), stored(c, c.at(2)));
             return nothing();
         });
     add({"remove_at", "any", {{"array", "items"}, {"int", "index"}}, 2, false, "",
@@ -180,7 +186,16 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
     add({"resize", "void", {{"array", "items"}, {"int", "size"}}, 2, false, "",
          "Меняет размер массива. Новые элементы равны `0`, лишние отбрасываются."},
         [](Call& c) {
-            c.array(0).resize(c.amount(1, maxElements), Value::integer(0));
+            const Object* items = c.at(0).ref();
+            size_t size = c.amount(1, maxElements);
+            auto& list = c.array(0);
+            if (!items || !items->elementType) {
+                list.resize(size, Value::integer(0));
+                return nothing();
+            }
+            if (size < list.size()) list.resize(size);
+            // Each new element its own zero value: array<Point> gets separate points.
+            while (list.size() < size) list.push_back(zeroValue(*items->elementType, c.ctx));
             return nothing();
         });
 

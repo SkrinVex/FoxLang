@@ -274,6 +274,7 @@ struct PostIncNode : Node {
 // array name size;   array name = expression;   array name;
 struct ArrayDeclNode : Node {
     std::string name;
+    std::string type = "array"; // array, array?, array<int>
     std::unique_ptr<Node> sizeNode;
     std::unique_ptr<Node> initializer;
     SourceRange nameRange;

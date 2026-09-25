@@ -136,6 +136,7 @@ Value copyOf(const Value& value, std::map<const Object*, Value>& copies) {
     Object* copy = result.ref();
     copies[original] = result;
     copy->keys = original->keys;
+    copy->elementType = original->elementType;
     copy->structType = original->structType;
     copy->items.reserve(original->items.size());
     for (const auto& item : original->items) copy->items.push_back(copyOf(item, copies));

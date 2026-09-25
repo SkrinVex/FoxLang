@@ -200,6 +200,13 @@ std::string display(const Value& value) {
 
 Value zeroValue(const std::string& type, Context& ctx) {
     if (isNullable(type)) return Value();
+    Value::Kind container;
+    std::string element;
+    if (containerType(type, container, element)) {
+        Value empty = container == Value::Kind::Array ? makeArray({}) : makeMap();
+        empty.ref()->elementType = internFile(element);
+        return empty;
+    }
     if (type == "int") return Value::integer(0);
     if (type == "float") return Value::real(0);
     if (type == "string") return Value::string("");
@@ -261,8 +268,37 @@ Value construct(const std::shared_ptr<const StructType>& type, Value* args, size
     return result;
 }
 
+bool containerType(const std::string& type, Value::Kind& kind, std::string& element) {
+    if (type.size() < 7 || type.back() != '>') return false;
+    if (type.compare(0, 6, "array<") == 0) {
+        kind = Value::Kind::Array;
+        element = type.substr(6, type.size() - 7);
+        return true;
+    }
+    if (type.compare(0, 11, "map<string,") == 0) {
+        kind = Value::Kind::Map;
+        element = type.substr(11, type.size() - 12);
+        return true;
+    }
+    return false;
+}
+
+std::string typeText(const Value& value) {
+    const Object* object = value.ref();
+    if (!object || !object->elementType) return value.typeName();
+    return object->kind == Object::Kind::Array ? "array<" + *object->elementType + ">" : "map<string," + *object->elementType + ">";
+}
+
+void storeElement(const Object& container, Value& value) {
+    coerce(*container.elementType, value,
+           std::string(container.kind == Object::Kind::Array ? "an element of array<" : "a value of map<string,") +
+               *container.elementType + ">");
+}
+
 Value::Kind declaredKind(const std::string& type) {
     if (isNullable(type)) return declaredKind(type.substr(0, type.size() - 1));
+    // array<int> and map<string,int> always take the slow path, which checks the elements.
+    if (type.back() == '>') return Value::Kind::Struct;
     static const std::pair<const char*, Value::Kind> kinds[] = {
         {"void", Value::Kind::Void}, {"int", Value::Kind::Int}, {"float", Value::Kind::Float},
         {"bool", Value::Kind::Bool}, {"string", Value::Kind::String}, {"array", Value::Kind::Array},
@@ -277,6 +313,25 @@ void coerce(const std::string& type, Value& value, const std::string& what) {
         if (value.isVoid()) return;
         coerce(type.substr(0, type.size() - 1), value, what);
         return;
+    }
+    Value::Kind container;
+    std::string element;
+    if (containerType(type, container, element)) {
+        // The container itself takes the type: its elements are converted once, later
+        // writes are checked. One already typed differently is an error.
+        if (value.kind() == container) {
+            Object& object = *value.ref();
+            const std::string* tag = internFile(element);
+            if (object.elementType == tag) return;
+            if (!object.elementType) {
+                for (auto& item : object.items)
+                    coerce(element, item, (container == Value::Kind::Array ? "an element of " : "a value of ") + what);
+                object.elementType = tag;
+                return;
+            }
+        }
+        throw std::runtime_error("Type Error: " + what + " has type '" + type + "' and cannot hold a value of type '" +
+                                 typeText(value) + "'");
     }
     switch (value.kind()) {
         case Value::Kind::Int:
@@ -313,7 +368,7 @@ void coerce(const std::string& type, Value& value, const std::string& what) {
         return;
     }
     throw std::runtime_error("Type Error: " + what + " has type '" + type + "' and cannot hold a value of type '" +
-                             value.typeName() + "'");
+                             typeText(value) + "'");
 }
 
 int getLogLevelThreshold() {

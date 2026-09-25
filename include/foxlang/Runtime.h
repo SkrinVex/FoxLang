@@ -78,6 +78,12 @@ void coerce(const std::string& type, Value& value, const std::string& what);
 // The kind of value a declared type holds: Struct for the name of a struct, Void for
 // "void". Declarations look it up once, so storing checks a byte instead of a name.
 Value::Kind declaredKind(const std::string& type);
+// For array<T> and map<string,T>: whether the type is one, and its element type T.
+bool containerType(const std::string& type, Value::Kind& kind, std::string& element);
+// A value's type as messages show it: array<int> for a typed array.
+std::string typeText(const Value& value);
+// A value about to be stored in a typed container's element: converted to its type.
+void storeElement(const Object& container, Value& value);
 // True when a value can be stored as it is in a slot of the declared kind; otherwise
 // coerce() converts it or reports the mismatch. A struct always takes the slow path,
 // because its name has to match too.

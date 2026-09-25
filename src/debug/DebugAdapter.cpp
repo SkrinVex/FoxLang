@@ -773,10 +773,10 @@ JsonValue Session::variable(const std::string& name, const Value& boxed) {
         size_t size = object->items.size();
         if (object->kind == Object::Kind::Array) {
             out["indexedVariables"] = JsonValue(size);
-            out["type"] = "array (" + std::to_string(size) + ")";
+            out["type"] = runtime::typeText(value) + " (" + std::to_string(size) + ")";
         } else {
             out["namedVariables"] = JsonValue(size);
-            if (object->kind == Object::Kind::Map) out["type"] = "map (" + std::to_string(size) + ")";
+            if (object->kind == Object::Kind::Map) out["type"] = runtime::typeText(value) + " (" + std::to_string(size) + ")";
         }
     }
     return out;

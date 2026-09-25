@@ -138,6 +138,7 @@ set(REGRESSION_TESTS
     test_methods
     test_null
     test_enums
+    test_typed_containers
 )
 
 foreach(T ${REGRESSION_TESTS})

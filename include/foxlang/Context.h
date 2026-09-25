@@ -213,6 +213,9 @@ struct Object {
     Kind kind;
     unsigned refs = 0; // the values naming this container
     bool frozen = false; // an enum's values and its map of them cannot be changed
+    // array<int>, map<string, int>: the type every element (map value) has, interned;
+    // null for a container that takes any values.
+    const std::string* elementType = nullptr;
     // Array: the elements. Struct: the fields in declaration order.
     std::vector<Value> items;
     // Map: keys in insertion order, items[i] belongs to keys[i].

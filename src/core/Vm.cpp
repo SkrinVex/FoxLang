@@ -215,18 +215,21 @@ FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& a
     else if (path.capture >= 0) at = &closure->items[static_cast<size_t>(path.capture)].ref()->items[0];
     else at = global(proto.globals[static_cast<size_t>(path.global)], root, scope);
     const std::string* declared = nullptr;
+    const Object* owner = nullptr; // the container of the element written
     bool create = path.op == "=";
     for (size_t i = 0; i < path.steps.size(); ++i) {
         const auto& step = path.steps[i];
         bool last = i + 1 == path.steps.size();
         if (at->ref() && at->ref()->frozen)
             throw std::runtime_error("Runtime Error: the values of an enum cannot be changed");
+        owner = at->ref();
         at = step.field ? &runtime::member(*at, step.name, last && create, last ? &declared : nullptr)
                         : &runtime::element(*at, R[step.key], last && create);
     }
     Value value = create ? assigned : runtime::binary(path.kind, path.op, *at, assigned);
     // A struct field keeps its declared type; elements and map values take any value.
     if (declared) runtime::coerce(*declared, value, "field '" + path.steps.back().name + "'");
+    else if (owner && owner->elementType) runtime::storeElement(*owner, value); // array<int>, map<string,int>
     *at = std::move(value);
 }
 
