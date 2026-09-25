@@ -19,6 +19,8 @@ class NativeWindow:
             self.api.ReleaseDC.argtypes = [C.c_void_p, C.c_void_p]
             self.gdi.GetPixel.argtypes = [C.c_void_p, C.c_int, C.c_int]
             self.gdi.GetPixel.restype = C.c_uint32
+            self.api.ClientToScreen.argtypes = [C.c_void_p, C.c_void_p]
+            self.api.SetCursorPos.argtypes = [C.c_int, C.c_int]
         else:
             self.api = C.CDLL(ctypes.util.find_library('X11') or 'libX11.so.6')
             def declare(name, result, args):
@@ -103,18 +105,32 @@ class NativeWindow:
                 self.send_key(ch, True, shift)
                 self.send_key(ch, False, shift)
 
+    def screen(self, x, y):
+        """A point of the window's client area in screen coordinates (Windows)."""
+        class Point(C.Structure):
+            _fields_ = [('x', C.c_long), ('y', C.c_long)]
+        point = Point(x, y)
+        self.api.ClientToScreen(self.handle, C.byref(point))
+        return point.x, point.y
+
     def wheel(self, x, y, steps):
         """Positive steps turn the wheel away from the user."""
         for _ in range(abs(steps)):
             if os.name == 'nt':
+                # A real wheel message carries the cursor in screen coordinates, and the
+                # real cursor must be there too: Windows reports its position on its own.
+                sx, sy = self.screen(x, y)
+                self.api.SetCursorPos(sx, sy)
                 delta = 120 if steps > 0 else -120
-                self.api.PostMessageW(self.handle, 0x20A, (delta & 0xffff) << 16, (y << 16) | x)
+                self.api.PostMessageW(self.handle, 0x20A, (delta & 0xffff) << 16, ((sy & 0xffff) << 16) | (sx & 0xffff))
             else:
                 self.mouse(x, y, True, button=4 if steps > 0 else 5)
                 self.mouse(x, y, False, button=4 if steps > 0 else 5)
 
     def mouse(self, x, y, down=None, button=1):
         if os.name == 'nt':
+            # Keep the real cursor on the same point, or Windows moves the mouse back.
+            self.api.SetCursorPos(*self.screen(x, y))
             message = 0x200 if down is None else (0x201 if down else 0x202) if button == 1 else (0x204 if down else 0x205)
             self.api.PostMessageW(self.handle, message, button if down else 0, (y << 16) | x)
         else:

@@ -110,6 +110,10 @@ struct Window::Native {
                 return 0;
             }
             case WM_MOUSEWHEEL: {
+                // The wheel acts where the cursor is, which the message carries in screen
+                // coordinates; no mouse move may have been reported since the cursor got there.
+                POINT at{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+                if (ScreenToClient(handle, &at)) self->owner.mouseEvent(at.x, at.y);
                 self->wheelRemainder += GET_WHEEL_DELTA_WPARAM(wparam);
                 int steps = self->wheelRemainder / WHEEL_DELTA;
                 self->wheelRemainder -= steps * WHEEL_DELTA;
