@@ -118,6 +118,11 @@ struct DebugFrame {
 
 // ---------------------------------------------------------------- helpers
 
+FOXLANG_COLD void markDeclared(DebugFrame& frame, int from, int to, bool declared) {
+    auto& marks = frame.function->declared;
+    for (int i = from; i < to && i >= 0 && static_cast<size_t>(i) < marks.size(); ++i) marks[static_cast<size_t>(i)] = declared;
+}
+
 [[noreturn]] FOXLANG_COLD void notFound(const std::string& name) {
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
 }
@@ -126,6 +131,10 @@ FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root, Context& scope) {
     if (site.byName) {
         Value* found = scope.findVar(site.name);
         if (!found) notFound(site.name);
+        // The debugger's console reaches globals by name; a constant stays one there too.
+        Context& owner = *scope.getRoot();
+        auto global = owner.variables.find(site.name);
+        site.constant = global != owner.variables.end() && &global->second == found && owner.constants.count(site.name) > 0;
         return found;
     }
     auto found = root.variables.find(site.name);
@@ -256,6 +265,8 @@ FOXLANG_COLD Value executeDebugged(Proto& proto, Value* R, Context& root, DebugH
     scope.slots = R;
     scope.slotNames = proto.slotNames.get();
     scope.frame = true;
+    scope.declared.assign(static_cast<size_t>(proto.slots), 0);
+    for (size_t i = 0; i < proto.params.size() && i < scope.declared.size(); ++i) scope.declared[i] = 1;
     DebugFrame frame{hook, &scope, {}, {}};
     struct Leave {
         DebugFrame& frame;
@@ -368,6 +379,15 @@ FOXLANG_APART void callMethod(Value* R, int base, int count, Context& root, cons
     }
     if (self.is(Value::Kind::Map)) {
         long at = self.ref()->find(name);
+        if (at < 0 && self.ref()->moduleAlias) {
+            // m.sqrt(2): a builtin through a module's alias, as the module's own code calls it.
+            if (const runtime::Builtin* builtin = runtime::findBuiltin(name)) {
+                Value result = runtime::invoke(*builtin, Arguments(R + base + 1, static_cast<size_t>(count)), root);
+                R[base] = std::move(result);
+                return;
+            }
+            throw std::runtime_error("Runtime Error: the module has no function '" + name + "'");
+        }
         if (at < 0) throw std::runtime_error("Runtime Error: map has no key '" + name + "' to call");
         Value function = self.ref()->items[static_cast<size_t>(at)];
         Value result = callFunctionValue(function, R + base + 1, static_cast<size_t>(count), root, name);
@@ -484,6 +504,7 @@ FOXLANG_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug
     guard.tryDepth += depthAt(proto, handler->target) - depth;
     if (debug) debug->leaveTo(static_cast<size_t>(handler->scopes));
     for (int i = handler->clearFrom; i < handler->clearTo; ++i) R[i] = Value();
+    if (debug) markDeclared(*debug, handler->clearFrom, handler->clearTo, false);
     if (handler->finally) pending[static_cast<size_t>(handler->pending)] = error;
     else if (handler->message >= 0) R[handler->message] = Value::string(message);
     return handler->target;
@@ -676,6 +697,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         break;
                     case Op::Clear:
                         for (int i = in.a; i < in.b; ++i) R[i] = Value();
+                        if (debug) markDeclared(*debug, in.a, in.b, false);
                         break;
                     case Op::GetGlobal:
                         R[in.a] = *readGlobal(proto.globals[static_cast<size_t>(in.b)], root, scope);
@@ -964,6 +986,9 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                     case Op::ScopeLeave:
                         if (debug) debug->leave();
                         break;
+                    case Op::Declared:
+                        if (debug) markDeclared(*debug, in.a, in.a + 1, true);
+                        break;
                 }
             }
         } catch (...) {
@@ -1013,11 +1038,17 @@ void run(BlockNode& program, Context& root, Unit unit) {
         execute(*proto, window.base(), root, root, nullptr);
         return;
     }
+    std::vector<char> outerDeclared(static_cast<size_t>(proto->slots), 0);
+    root.declared.swap(outerDeclared);
     DebugFrame frame{hook, &root, {}, {}};
     struct Leave {
         DebugFrame& frame;
-        ~Leave() { frame.leaveTo(0); }
-    } leave{frame};
+        std::vector<char>& outer;
+        ~Leave() {
+            frame.leaveTo(0);
+            frame.function->declared.swap(outer);
+        }
+    } leave{frame, outerDeclared};
     execute(*proto, window.base(), root, root, &frame);
 }
 

@@ -32,7 +32,7 @@ class Interpreter {
 public:
     Interpreter();
     explicit Interpreter(InterpreterOptions options);
-    ~Interpreter() = default;
+    ~Interpreter(); // frees the program's rings of containers too
 
     // Run program from file
     RunResult runFile(const std::string& filepath);

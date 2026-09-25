@@ -48,6 +48,15 @@ Interpreter::Interpreter(InterpreterOptions opts) : options(std::move(opts)) {
     sources = options.sources ? options.sources : filesystemSources(options.foxHome);
 }
 
+Interpreter::~Interpreter() {
+    // The variables go first; the rings of containers they left behind go with them.
+    globalContext.variables.clear();
+    globalContext.functions.clear();
+    globalContext.retired.clear();
+    globalContext.structs.clear();
+    runtime::collectCycles();
+}
+
 std::string Interpreter::getVersion() {
     return FOXLANG_VERSION;
 }
@@ -129,7 +138,10 @@ void Interpreter::executeUsing(const std::string& libName, const std::string& cu
         auto found = globalContext.variables.find(name);
         if (found != globalContext.variables.end()) members.slot(name) = found->second;
     }
+    members.frozen = true;
+    members.moduleAlias = true;
     globalContext.variables[alias] = std::move(names);
+    globalContext.constants.insert(alias);
     ++globalContext.generation;
 }
 

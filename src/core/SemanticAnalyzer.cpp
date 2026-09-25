@@ -225,6 +225,7 @@ Symbol SemanticAnalyzer::aliasSymbol(const UsingNode* node, const std::string& i
     alias.declRange = node->aliasRange;
     alias.fileUri = currentFile;
     alias.documentation = "using " + node->libName + " as " + node->alias + ";";
+    alias.constant = true;
     auto found = moduleMembers.find(identity);
     if (found != moduleMembers.end()) alias.methods = found->second;
     return alias;
@@ -565,9 +566,17 @@ void SemanticAnalyzer::visitMethodCall(const MethodCallNode* node) {
                     "'" + named->name + "." + node->name + "' is a " + member.type + " variable, not a function", node->nameRange});
             return;
         }
-        std::string hint = findBuiltinSpec(node->name) ? "; the builtin " + node->name + "() is called without a module name" : "";
+        if (const BuiltinSpec* builtin = findBuiltinSpec(node->name)) {
+            // A builtin works through the alias too: m.sqrt(2).
+            symbolRefs.push_back({node->nameRange, rootScope->symbols[node->name]});
+            if (!builtin->acceptsCount(node->args.size()))
+                diagnostics.push_back({DiagnosticSeverity::Error,
+                    "Function '" + node->name + "' expects " + std::to_string(builtin->required) + " arguments, but got " +
+                    std::to_string(node->args.size()), node->range});
+            return;
+        }
         diagnostics.push_back({DiagnosticSeverity::Error,
-            "Module '" + named->type.substr(7) + "' has no function '" + node->name + "'" + hint, node->nameRange});
+            "Module '" + named->type.substr(7) + "' has no function '" + node->name + "'", node->nameRange});
         return;
     }
     const Symbol* type = structOf(node->base.get());

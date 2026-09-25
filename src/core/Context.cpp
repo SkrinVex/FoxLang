@@ -11,14 +11,159 @@
 
 namespace foxlang {
 
+namespace {
+
+// The live containers. Reference counts free most of them the moment they are no
+// longer used; only rings of containers that name each other stay, and the collector
+// looks for those once enough containers were created since last time. A table rather
+// than a linked list, so the collector reads it straight through; a container that goes
+// away only empties its own entry, and the table is packed now and then.
+struct Containers {
+    std::vector<Object*> all; // with holes where containers went away
+    size_t live = 0;
+    size_t created = 0;       // since the last collection
+    size_t threshold = 100000; // eight times the live ones: the work per container stays small
+    unsigned round = 0;
+    bool collecting = false;
+    std::vector<char> holds; // during a collection: which containers hold containers
+
+    // Closes the holes; only the containers after the first hole move.
+    void pack() {
+        if (all.size() == live) return;
+        size_t kept = 0;
+        while (kept < all.size() && all[kept]) ++kept;
+        for (size_t i = kept; i < all.size(); ++i) {
+            Object* o = all[i];
+            if (!o) continue;
+            o->gcIndex = static_cast<std::uint32_t>(kept);
+            all[kept++] = o;
+        }
+        all.resize(kept);
+    }
+};
+
+Containers& containers() {
+    static Containers* list = new Containers; // outlives every container, even static ones
+    return *list;
+}
+
+} // namespace
+
+Object::~Object() {
+    Containers& list = containers();
+    list.all[gcIndex] = nullptr;
+    --list.live;
+}
+
+void Object::clearContents() {
+    items.clear();
+    keys.clear();
+    index_.reset();
+    callee.reset();
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+#define FOXLANG_PREFETCH(address) __builtin_prefetch(address)
+#else
+#define FOXLANG_PREFETCH(address) ((void)0)
+#endif
+
+size_t runtime::collectCycles() {
+    Containers& list = containers();
+    if (list.collecting) return 0;
+    list.collecting = true;
+    list.created = 0;
+    list.pack();
+    unsigned round = ++list.round;
+    const std::vector<Object*>& all = list.all;
+    size_t count = all.size();
+    // Trial deletion: take away the references containers hold to each other. What
+    // still has references left is named from outside (a variable, a register, the
+    // C++ code) and keeps alive everything it reaches; the rest are rings.
+    // Most containers were made long ago and are far out of the cache, so each is
+    // asked for ahead of time, and one without containers inside is not read twice.
+    std::vector<char>& holds = list.holds;
+    holds.assign(count, 0);
+    auto start = [round](Object* o) {
+        if (o->gcRound != round) {
+            o->gcRound = round;
+            o->gcRefs = static_cast<int>(o->refs);
+        }
+    };
+    constexpr size_t ahead = 16;
+    for (size_t i = 0; i < count; ++i) {
+        if (i + ahead < count) FOXLANG_PREFETCH(all[i + ahead]);
+        if (i + ahead / 2 < count) FOXLANG_PREFETCH(all[i + ahead / 2]->items.data());
+        Object* o = all[i];
+        start(o);
+        for (const Value& item : o->items) {
+            if (Object* target = item.ref()) {
+                holds[i] = 1;
+                start(target);
+                --target->gcRefs;
+            }
+        }
+    }
+    std::vector<Object*> reached;
+    size_t alive = 0;
+    auto reach = [&](Object* target) {
+        if (target->gcRefs < 0) return;
+        target->gcRefs = -1;
+        ++alive;
+        if (holds[target->gcIndex]) reached.push_back(target);
+    };
+    for (size_t i = 0; i < count; ++i) {
+        if (i + ahead < count) FOXLANG_PREFETCH(all[i + ahead]);
+        if (all[i]->gcRefs > 0) reach(all[i]);
+        while (!reached.empty()) {
+            Object* next = reached.back();
+            reached.pop_back();
+            const std::vector<Value>& items = next->items;
+            for (size_t j = 0; j < items.size(); ++j) {
+                if (j + ahead < items.size())
+                    if (Object* later = items[j + ahead].ref()) FOXLANG_PREFETCH(later);
+                if (Object* target = items[j].ref()) reach(target);
+            }
+        }
+    }
+    list.threshold = std::max<size_t>(100000, 8 * list.live);
+    if (alive == count) { // the usual case: no rings, nothing more to look at
+        list.collecting = false;
+        return 0;
+    }
+    // A container passed over before something reached it was marked since; what is
+    // still unmarked now is only reachable from rings.
+    std::vector<Object*> rings;
+    for (Object* o : all) {
+        if (o->gcRefs >= 0) {
+            ++o->refs; // held while the rings are taken apart
+            rings.push_back(o);
+        }
+    }
+    for (Object* o : rings) o->clearContents();
+    for (Object* o : rings)
+        if (--o->refs == 0) delete o;
+    list.pack();
+    list.threshold = std::max<size_t>(100000, 8 * list.live);
+    list.collecting = false;
+    return rings.size();
+}
+
 Value Value::container(Kind kind) {
+    Containers& list = containers();
+    if (++list.created >= list.threshold) runtime::collectCycles();
     Object::Kind objectKind = kind == Kind::Array    ? Object::Kind::Array
                             : kind == Kind::Map      ? Object::Kind::Map
                             : kind == Kind::Function ? Object::Kind::Function
                             : kind == Kind::Box      ? Object::Kind::Box
                                                      : Object::Kind::Struct;
     Value v;
-    v.data_.object = new Object(objectKind);
+    Object* object = new Object(objectKind);
+    if (list.all.size() >= 2 * list.live + 4096) list.pack();
+    object->gcIndex = static_cast<std::uint32_t>(list.all.size());
+    list.all.push_back(object);
+    ++list.live;
+    v.data_.object = object;
     v.data_.object->refs = 1;
     v.kind_ = kind;
     return v;

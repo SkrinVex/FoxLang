@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <cstdint>
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -208,11 +209,18 @@ struct Callee {
 struct Object {
     enum class Kind { Array, Map, Struct, Function, Box };
     explicit Object(Kind k) : kind(k) {}
+    ~Object(); // leaves the list of live containers
     Object(const Object&) = delete;
     Object& operator=(const Object&) = delete;
     Kind kind;
     unsigned refs = 0; // the values naming this container
+    // Every live container is in one table, for the cycle collector (collectCycles).
+    // The fields are packed so that a container stays in the same allocation size.
+    int gcRefs = 0;
+    unsigned gcRound = 0; // the collection that last set gcRefs
+    std::uint32_t gcIndex = 0;
     bool frozen = false; // an enum's values and its map of them cannot be changed
+    bool moduleAlias = false; // using math as m: m.name(...) reaches builtins too
     // array<int>, map<string, int>: the type every element (map value) has, interned;
     // null for a container that takes any values.
     const std::string* elementType = nullptr;
@@ -227,6 +235,8 @@ struct Object {
     long find(const std::string& key) const;
     Value& slot(const std::string& key); // inserts a void value for a new key
     bool erase(const std::string& key);
+    // Drops everything the container holds: how the cycle collector breaks a ring.
+    void clearContents();
 
 private:
     // Where each key sits in `keys`, built once the map is big enough for a scan to
@@ -272,6 +282,9 @@ struct Context {
     Value* slots = nullptr;
     const std::vector<std::string>* slotNames = nullptr;
     bool frame = false;
+    // Under the debugger, the frame owner marks the slots whose declaration has run, so
+    // a variable holding null is told apart from one not declared yet.
+    std::vector<char> declared;
     // The root counts how often its variables were cleared and its functions changed,
     // so what calls and globals cached goes stale.
     unsigned generation = 0;
@@ -313,6 +326,10 @@ struct Context {
 
 namespace runtime {
 Value makeArray(std::vector<Value> items);
+// Frees containers that only hold each other (a[0] = a, two structs naming each
+// other) and that nothing else reaches. Runs by itself as containers are created;
+// returns how many containers it freed.
+size_t collectCycles();
 Value makeMap();
 // A new container with the same contents, nested containers copied too (copy()).
 Value deepCopy(const Value& value);

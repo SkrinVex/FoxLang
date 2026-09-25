@@ -158,6 +158,7 @@
       <item>fs_set_permissions</item>
       <item>fs_size</item>
       <item>fs_temp_dir</item>
+      <item>gc_collect</item>
       <item>get</item>
       <item>get_or</item>
       <item>getch</item>

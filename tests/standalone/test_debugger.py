@@ -334,6 +334,18 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     finish(process, dap, 0)
     assert '6 102' in dap.output(), dap.output()
 
+    # A local holding null is shown; one whose declaration has not run yet is not.
+    program = workdir / 'nulls.fox'
+    program.write_text('void show() {\n    string? nick = null;\n    int count = 1;\n    print(nick ?? "-", count);\n}\nshow();\n',
+                       encoding='utf-8')
+    process, dap = stdio_session(workdir)
+    start(dap, program, [{'line': 3}])
+    _, frames = dap.stopped('breakpoint', 3)
+    local = next(v for name, v in dap.locals(frames[0]['id']).items() if name != 'Глобальные')
+    assert local['nick']['value'] == 'null' and 'count' not in local, local
+    dap.request('continue', {'threadId': 1})
+    finish(process, dap, 0)
+
     # Over TCP the program keeps its terminal: input() reads it, print() writes to it.
     program = workdir / 'pause.fox'
     program.write_text(PAUSE, encoding='utf-8')
