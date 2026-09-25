@@ -739,7 +739,9 @@ std::string Session::interpolate(const std::string& message, Context& scope) {
 
 std::string Session::preview(const Value& value, int depth) {
     if (value.isString()) return quoted(value.str(), 500);
+    if (value.isVoid()) return "null";
     if (!value.ref()) return value.text();
+    if (value.is(Value::Kind::Struct) && value.ref()->structType->isEnum) return runtime::display(value); // Color.Red: Red
     if (value.is(Value::Kind::Box)) return preview(value.ref()->items[0], depth);
     if (value.isFunction()) return runtime::display(value);
     const Object& object = *value.ref();
@@ -865,7 +867,8 @@ JsonValue Session::variables(const JsonValue& arguments) {
                 const auto& names = *scope->slotNames;
                 for (size_t i = names.size(); i-- > 0;) {
                     const Value& slot = scope->slots[i];
-                    if (!slot.isVoid() && seen.insert(names[i]).second) list.push_back(variable(names[i], slot));
+                    bool declared = !slot.isVoid() || (i < scope->declared.size() && scope->declared[i]);
+                    if (declared && seen.insert(names[i]).second) list.push_back(variable(names[i], slot));
                 }
                 break;
             }
@@ -887,7 +890,9 @@ JsonValue Session::setVariable(const JsonValue& arguments) {
         for (size_t i = 0; i < object.items.size(); ++i)
             if (childName(object, i) == name) index = i;
         if (index >= object.items.size()) throw std::runtime_error("Нет такого элемента");
+        if (object.frozen) throw std::runtime_error("Значения перечисления менять нельзя");
         if (object.kind == Object::Kind::Struct) runtime::coerce(object.structType->fields[index].type, value, "поле '" + name + "'");
+        else if (object.elementType) runtime::storeElement(object, value);
         object.items[index] = value;
         return variable(name, object.items[index]);
     }
@@ -899,7 +904,16 @@ JsonValue Session::setVariable(const JsonValue& arguments) {
         target = scope.findVar(name);
     }
     if (!target) throw std::runtime_error("Переменная '" + name + "' не найдена");
-    runtime::assign(*target, value, name);
+    auto global = root().variables.find(name);
+    bool isGlobal = global != root().variables.end() && &global->second == target;
+    if (isGlobal && root().constants.count(name)) throw std::runtime_error("'" + name + "' — константа, её нельзя изменить");
+    auto nullable = root().nullableGlobals.find(name);
+    if (isGlobal && nullable != root().nullableGlobals.end()) {
+        runtime::coerce(nullable->second, value, "переменная '" + name + "'");
+        *target = value;
+    } else {
+        runtime::assign(*target, value, name);
+    }
     return variable(name, *target);
 }
 

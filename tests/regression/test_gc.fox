@@ -1,0 +1,58 @@
+// FoxLang regression: the cycle collector frees rings of containers
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+struct Node {
+    int value;
+    Node? next;
+}
+
+gc_collect(); // start from a clean slate
+
+// 1. Rings nothing else reaches are freed: an array in itself, two structs, a map in
+// itself and a lambda that sees the map it is stored in.
+void make_rings() {
+    array self = [1];
+    push(self, self);
+    Node a = Node(1);
+    Node b = Node(2, a);
+    a.next = b;
+    map table = {};
+    table["me"] = table;
+    map handlers = {};
+    handlers["run"] = () => size(handlers);
+}
+make_rings();
+int freed = gc_collect();
+assert_true(freed >= 6, "rings are freed: " + freed);
+assert_true(gc_collect() == 0, "a second collection finds nothing");
+
+// 2. A ring the program still reaches stays, with its contents.
+array kept = [7];
+push(kept, kept);
+Node first = Node(1);
+first.next = Node(2, first);
+assert_true(gc_collect() == 0, "reachable rings stay");
+assert_true(kept[1][1][0] == 7 && first.next.next.value == 1, "their contents are intact");
+
+// 3. Once the program lets go of it, the ring goes.
+kept = [];
+assert_true(gc_collect() == 1, "a ring let go of is freed");
+
+// 4. Collections also run by themselves while a program keeps making rings; values
+// in use at that moment are never touched.
+array survivors;
+for (int i = 0; i < 60000; i++) {
+    array ring = [i];
+    push(ring, ring);
+    if (i % 10000 == 0) {
+        push(survivors, ring);
+    }
+}
+assert_true(size(survivors) == 6 && survivors[5][0] == 50000 && survivors[5][1][0] == 50000, "survivors are intact");
+
+print("test_gc OK");

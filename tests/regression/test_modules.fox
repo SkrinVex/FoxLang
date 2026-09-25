@@ -41,6 +41,11 @@ float read_alias() { return m.lerp(0, 10, 0.5); }
 assert_true(read_alias() == 5.0, "an alias inside a function");
 string message = "";
 try { arr.nope(); } catch (e) { message = e; }
-assert_true(str_contains(message, "no key 'nope'"), "a missing name through an alias: " + message);
+assert_true(str_contains(message, "has no function 'nope'"), "a missing name through an alias: " + message);
+assert_true(m.sqrt(16) == 4.0 && m.max(2, 5) == 5, "builtins through an alias");
+message = "";
+void change_alias(value) { m = value; }
+try { change_alias(1); } catch (e) { message = e; }
+assert_true(str_contains(message, "'m' is a constant"), "an alias cannot be replaced: " + message);
 
 print("MODULES_OK");

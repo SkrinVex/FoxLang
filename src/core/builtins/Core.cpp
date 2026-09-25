@@ -199,6 +199,12 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             return nothing();
         });
 
+    add({"gc_collect", "int", {}, 0, false, "",
+         "Сразу освобождает кольца контейнеров, которые ссылаются только друг на друга (`push(a, a);`, две "
+         "структуры с полями друг на друга), и возвращает, сколько контейнеров освобождено. Обычно не нужна: "
+         "сборка запускается сама по мере создания массивов, словарей и структур."},
+        [](Call&) { return integer(static_cast<long long>(collectCycles())); });
+
     // Tests
     add({"assert", "void", {{"bool", "condition"}, {"string", "message"}}, 1, false, "",
          "Ошибка `Assertion failed`, если условие ложно; сообщение поясняет, что проверялось. "

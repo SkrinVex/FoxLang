@@ -453,13 +453,15 @@ private:
     void declareSlot(int slot, Store store) {
         if (!boxed(slot)) {
             store(slot);
-            return;
+        } else {
+            emit(Op::Clear, slot, slot + 1);
+            emit(Op::Box, slot);
+            int reg = temp();
+            store(reg);
+            emit(Op::BoxStore, slot, reg);
         }
-        emit(Op::Clear, slot, slot + 1);
-        emit(Op::Box, slot);
-        int reg = temp();
-        store(reg);
-        emit(Op::BoxStore, slot, reg);
+        // The debugger shows a declared variable even while it holds null.
+        if (debug) emit(Op::Declared, slot);
     }
 
     // ---------------------------------------------------------------- expressions
@@ -1157,7 +1159,7 @@ const char* opName(Op op) {
         "jump", "jumpif-false", "jumpif-true", "jumpif-null", "jumpif-notnull", "compare", "for-in", "call", "return", "return-void", "newarray", "newmap",
         "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "box", "unbox", "box-store", "box-assign", "get-capture",
         "set-capture", "inc-ref", "closure", "call-value", "method", "declare", "throw", "rethrow", "try-enter",
-        "try-leave", "match", "statement", "scope-enter", "scope-leave"};
+        "try-leave", "match", "statement", "scope-enter", "scope-leave", "declared"};
     return names[static_cast<int>(op)];
 }
 

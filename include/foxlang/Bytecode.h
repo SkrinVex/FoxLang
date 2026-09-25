@@ -90,6 +90,7 @@ enum class Op : std::uint8_t {
     Statement,     // a statement at line a begins
     ScopeEnter,    // a block begins
     ScopeLeave,
+    Declared,      // slot a now holds a declared variable, even when that is null
 };
 
 struct Instr {
