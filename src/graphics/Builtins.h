@@ -8,5 +8,5 @@ struct Signature {
     std::string documentation;
 };
 const std::vector<Signature>& signatures();
-Value callBuiltin(const std::string& name, const std::vector<Value>& args, Context& context);
+Value callBuiltin(const std::string& name, Arguments args, Context& context);
 } // namespace foxlang::graphics

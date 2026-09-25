@@ -1,4 +1,5 @@
 #pragma once
+#include <exception>
 #include <string>
 #include <vector>
 #include "foxlang/Context.h"
@@ -13,11 +14,11 @@ const Builtin* findBuiltin(const std::string& name);
 const BuiltinSpec& specOf(const Builtin& builtin);
 // True when the arguments fit the builtin's parameter count and types. A FoxLang
 // function with the same name is called instead when they do not.
-bool acceptsArguments(const Builtin& builtin, const std::vector<Value>& args);
-Value invoke(const Builtin& builtin, const std::vector<Value>& args, Context& ctx);
+bool acceptsArguments(const Builtin& builtin, Arguments args);
+Value invoke(const Builtin& builtin, Arguments args, Context& ctx);
 
 bool isBuiltin(const std::string& name);
-Value callBuiltin(const std::string& name, const std::vector<Value>& args, Context& ctx);
+Value callBuiltin(const std::string& name, Arguments args, Context& ctx);
 
 int getLogLevelThreshold();
 std::string formatNumber(double val);
@@ -36,6 +37,9 @@ struct StackGuard {
     // every block stops after the statement that set it, loops and calls consume it.
     enum class Flow { None, Return, Break, Continue } flow = Flow::None;
     Value returned;
+    // The bytecode VM learns the line of an error from the innermost function it leaves;
+    // the error it last placed is kept so that outer functions do not move it.
+    std::exception_ptr located;
 };
 StackGuard& stackGuard();
 
@@ -61,6 +65,10 @@ Value realResult(double result);
 // A value of a scalar type from its text, as the embedding API and the debugger
 // receive it: "42" for int, "2.5" for float, "true" for bool, anything for string.
 Value parseScalar(const std::string& type, const std::string& text, const std::string& what);
+
+// A binary operator, decided once from its text ("+", "+=", "<"); Unknown for anything else.
+enum class Operator : unsigned char { Add, Sub, Mul, Div, Mod, Eq, Ne, Lt, Le, Gt, Ge, And, Or, Unknown };
+Operator operatorOf(const std::string& text);
 
 // Converts a value for storage in a slot of the given type: a variable, a parameter
 // or a return value. int and float convert both ways (float to int truncates, and

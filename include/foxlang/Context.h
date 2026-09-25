@@ -88,6 +88,23 @@ public:
     // A new, empty array, map or struct.
     static Value container(Kind kind);
 
+    // Overwrite with a scalar in place, for the VM's arithmetic.
+    void setInt(long long value) noexcept {
+        release();
+        kind_ = Kind::Int;
+        data_.integer = value;
+    }
+    void setReal(double value) noexcept {
+        release();
+        kind_ = Kind::Float;
+        data_.real = value;
+    }
+    void setBool(bool value) noexcept {
+        release();
+        kind_ = Kind::Bool;
+        data_.boolean = value;
+    }
+
     Kind kind() const { return kind_; }
     bool is(Kind kind) const { return kind_ == kind; }
     bool isVoid() const { return kind_ == Kind::Void; }
@@ -135,6 +152,23 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& out, const Value& value);
+
+// The arguments of a call: consecutive values that the caller keeps alive, such as a
+// vector or the registers of the bytecode VM. Builtins read them without copying.
+class Arguments {
+public:
+    Arguments(const Value* data, size_t count) : data_(data), count_(count) {}
+    Arguments(const std::vector<Value>& values) : data_(values.data()), count_(values.size()) {}
+    size_t size() const { return count_; }
+    bool empty() const { return count_ == 0; }
+    const Value& operator[](size_t index) const { return data_[index]; }
+    const Value* begin() const { return data_; }
+    const Value* end() const { return data_ + count_; }
+
+private:
+    const Value* data_;
+    size_t count_;
+};
 
 struct StructType {
     std::string name;
@@ -192,6 +226,9 @@ struct Context {
     Interpreter* interpreter = nullptr;
     std::map<std::string, Value> variables;
     std::map<std::string, std::shared_ptr<Node>> functions;
+    // Functions replaced by a definition with another body: their code may still be
+    // running, so it is kept until the functions are cleared.
+    std::vector<std::shared_ptr<Node>> retired;
     std::map<std::string, std::shared_ptr<const StructType>> structs;
     // The numbered variables of the running function (or of the program's blocks),
     // shared by every block scope inside it; the frame owner is the scope that made them.

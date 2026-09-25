@@ -69,7 +69,7 @@ const std::vector<Signature>& signatures() {
     };
     return result;
 }
-Value callBuiltin(const std::string& name, const std::vector<Value>& args, Context& context) {
+Value callBuiltin(const std::string& name, Arguments args, Context& context) {
     const auto& list = signatures();
     auto signature = std::find_if(list.begin(), list.end(), [&](const Signature& s) { return s.builtin == name; });
     if (signature == list.end() || args.size() != signature->params.size())

@@ -116,7 +116,7 @@ const Builtin* findBuiltin(const std::string& name) {
 
 const BuiltinSpec& specOf(const Builtin& builtin) { return builtin.spec; }
 
-bool acceptsArguments(const Builtin& builtin, const std::vector<Value>& args) {
+bool acceptsArguments(const Builtin& builtin, Arguments args) {
     const auto& spec = builtin.spec;
     if (!spec.acceptsCount(args.size())) return false;
     for (size_t i = 0; i < args.size(); ++i)
@@ -124,7 +124,7 @@ bool acceptsArguments(const Builtin& builtin, const std::vector<Value>& args) {
     return true;
 }
 
-Value invoke(const Builtin& builtin, const std::vector<Value>& args, Context& ctx) {
+Value invoke(const Builtin& builtin, Arguments args, Context& ctx) {
     const auto& spec = builtin.spec;
     if (!spec.acceptsCount(args.size()))
         throw std::runtime_error("Runtime Error: " + spec.name + "() expects " + countText(spec) +
@@ -142,7 +142,7 @@ Value invoke(const Builtin& builtin, const std::vector<Value>& args, Context& ct
 
 bool isBuiltin(const std::string& name) { return findBuiltin(name) != nullptr; }
 
-Value callBuiltin(const std::string& name, const std::vector<Value>& args, Context& ctx) {
+Value callBuiltin(const std::string& name, Arguments args, Context& ctx) {
     const Builtin* builtin = findBuiltin(name);
     if (!builtin) throw std::runtime_error("Runtime Error: Unknown builtin function '" + name + "'");
     return invoke(*builtin, args, ctx);

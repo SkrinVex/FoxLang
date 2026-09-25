@@ -1,6 +1,8 @@
 #include "foxlang/AST.h"
 #include "foxlang/Debug.h"
 #include "foxlang/Resolver.h"
+#include "Operations.h"
+#include "foxlang/Bytecode.h"
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
@@ -60,6 +62,11 @@ void evalDebugged(BlockNode& block, Context& scope, DebugHook& hook) {
 
 } // namespace
 
+void CallDepth::exceeded(const std::string& name, int depth) {
+    throw std::runtime_error("Runtime Error: call depth limit reached in '" + name + "' after " + std::to_string(depth) +
+                             " nested calls (recursion without a base case?)");
+}
+
 FuncDefNode::FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b, SourceRange nr)
     : returnType(std::move(rt)), name(std::move(n)), params(std::move(p)), body(std::move(b)), nameRange(nr) {
     block_ = dynamic_cast<BlockNode*>(body.get());
@@ -78,6 +85,7 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
 }
 
 Value FuncDefNode::invoke(Value* args, size_t count, Context& caller) const {
+    if (block_ && !vm::treeWalker()) return vm::call(*this, args, count, caller);
     if (count != params.size())
         throw std::runtime_error("Runtime Error: function '" + name + "' expects " + std::to_string(params.size()) +
                                  " arguments, got " + std::to_string(count));
@@ -272,159 +280,29 @@ Value VarDeclNode::eval(Context& ctx) {
     return Value();
 }
 
-namespace {
-std::string containerName(const Value& value) {
-    if (value.is(Value::Kind::Array)) return "an array";
-    if (value.is(Value::Kind::Map)) return "a map";
-    return "a struct '" + value.typeName() + "'";
-}
-} // namespace
-
-BinOpNode::BinOpNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r)
-    : op(std::move(o)), left(std::move(l)), right(std::move(r)) {
-    static const std::pair<const char*, Kind> kinds[] = {
-        {"&&", Kind::And}, {"||", Kind::Or}, {"+", Kind::Add}, {"+=", Kind::Add}, {"-", Kind::Sub}, {"-=", Kind::Sub},
-        {"*", Kind::Mul}, {"*=", Kind::Mul}, {"/", Kind::Div}, {"/=", Kind::Div}, {"%", Kind::Mod}, {"%=", Kind::Mod},
-        {"==", Kind::Eq}, {"!=", Kind::Ne}, {"<", Kind::Lt}, {"<=", Kind::Le}, {">", Kind::Gt}, {">=", Kind::Ge}};
-    kind = Kind::Unknown;
-    for (const auto& entry : kinds)
-        if (op == entry.first) kind = entry.second;
-}
-
 Value BinOpNode::eval(Context& ctx) {
     // Short-circuit before the right side runs: `x != 0 && 10 / x > 1` must not divide by zero.
-    if (kind == Kind::And || kind == Kind::Or) {
-        bool l = truth(left->eval(ctx), "left");
-        if (l == (kind == Kind::Or)) return Value::boolean(l);
-        return Value::boolean(truth(right->eval(ctx), "right"));
+    if (kind == runtime::Operator::And || kind == runtime::Operator::Or) {
+        bool l = runtime::operandTruth(left->eval(ctx), "left", op);
+        if (l == (kind == runtime::Operator::Or)) return Value::boolean(l);
+        return Value::boolean(runtime::operandTruth(right->eval(ctx), "right", op));
     }
-
     Value lval = left->eval(ctx);
     Value rval = right->eval(ctx);
-
-    // Two ints are the common case: arithmetic and comparison without any conversion.
-    if (lval.isInt() && rval.isInt()) {
-        long long l = lval.asInt(), r = rval.asInt();
-        switch (kind) {
-            case Kind::Add: return runtime::intResult(l + r, op);
-            case Kind::Sub: return runtime::intResult(l - r, op);
-            case Kind::Mul: return runtime::intResult(l * r, op);
-            case Kind::Div:
-            case Kind::Mod:
-                if (r == 0) throw std::runtime_error("Runtime Error: Division by zero");
-                return runtime::intResult(kind == Kind::Div ? l / r : l % r, op);
-            case Kind::Eq: return Value::boolean(l == r);
-            case Kind::Ne: return Value::boolean(l != r);
-            case Kind::Lt: return Value::boolean(l < r);
-            case Kind::Le: return Value::boolean(l <= r);
-            case Kind::Gt: return Value::boolean(l > r);
-            case Kind::Ge: return Value::boolean(l >= r);
-            default: break;
-        }
-    }
-
-    bool equality = kind == Kind::Eq || kind == Kind::Ne;
-    bool concatenation = kind == Kind::Add && (lval.isString() || rval.isString());
-    if ((lval.ref() || rval.ref()) && !equality && !concatenation)
-        throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref() ? lval : rval));
-
-    switch (kind) {
-        case Kind::Add:
-            if (concatenation) {
-                if (lval.isString() && rval.isString()) return Value::string(lval.str() + rval.str());
-                return Value::string(runtime::display(lval) + runtime::display(rval));
-            }
-            if (lval.isFloat() || rval.isFloat())
-                return runtime::realResult(number(lval, "left") + number(rval, "right"));
-            return runtime::intResult(integer(lval, "left") + integer(rval, "right"), op);
-        case Kind::Sub:
-        case Kind::Mul:
-        case Kind::Div:
-        case Kind::Mod: {
-            bool division = kind == Kind::Div || kind == Kind::Mod;
-            if (lval.isFloat() || rval.isFloat()) {
-                double l = number(lval, "left"), r = number(rval, "right");
-                if (r == 0.0 && division) throw std::runtime_error("Runtime Error: Division by zero");
-                double result = kind == Kind::Sub ? l - r : kind == Kind::Mul ? l * r : kind == Kind::Div ? l / r : std::fmod(l, r);
-                return runtime::realResult(result);
-            }
-            long long l = integer(lval, "left"), r = integer(rval, "right");
-            if (r == 0 && division) throw std::runtime_error("Runtime Error: Division by zero");
-            long long result = kind == Kind::Sub ? l - r : kind == Kind::Mul ? l * r : kind == Kind::Div ? l / r : l % r;
-            return runtime::intResult(result, op);
-        }
-        case Kind::Eq: case Kind::Ne: case Kind::Lt: case Kind::Le: case Kind::Gt: case Kind::Ge: {
-            auto decide = [&](auto l, auto r) {
-                switch (kind) {
-                    case Kind::Eq: return l == r;
-                    case Kind::Ne: return l != r;
-                    case Kind::Lt: return l < r;
-                    case Kind::Le: return l <= r;
-                    case Kind::Ge: return l >= r;
-                    default: return l > r;
-                }
-            };
-            bool result;
-            if (lval.isString() && rval.isString()) {
-                result = decide(lval.str(), rval.str());
-            } else if (lval.isBool() && rval.isBool()) {
-                result = decide(lval.asBool(), rval.asBool());
-            } else if (lval.ref() || rval.ref()) {
-                // Arrays, maps and structs are equal when their contents are.
-                if (!equality) throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref() ? lval : rval));
-                result = runtime::deepEqual(lval, rval) == (kind == Kind::Eq);
-            } else {
-                result = decide(number(lval, "left"), number(rval, "right"));
-            }
-            return Value::boolean(result);
-        }
-        default:
-            throw std::runtime_error("Runtime Error: unknown operator '" + op + "'");
-    }
-}
-
-double BinOpNode::number(const Value& value, const char* side) const {
-    double result = 0;
-    if (runtime::tryNumber(value, result)) return result;
-    return runtime::toNumber(value, describe(side));
-}
-
-long long BinOpNode::integer(const Value& value, const char* side) const {
-    long long result = 0;
-    if (runtime::tryInt(value, result)) return result;
-    return runtime::toInt(value, describe(side));
-}
-
-bool BinOpNode::truth(const Value& value, const char* side) const {
-    if (!value.isBool()) throw std::runtime_error("Type Error: " + describe(side) + " must be bool, got '" + value.typeName() + "'");
-    return value.asBool();
+    Value result;
+    if (lval.isInt() && rval.isInt() && runtime::binaryInts(kind, lval.asInt(), rval.asInt(), op, result)) return result;
+    return runtime::binary(kind, op, lval, rval);
 }
 
 Value UnaryOpNode::eval(Context& ctx) {
     Value val = operand->eval(ctx);
-    if (op == "!") {
-        if (!val.isBool()) throw std::runtime_error("Type Error: operand of '!' must be bool, got '" + val.typeName() + "'");
-        return Value::boolean(!val.asBool());
-    }
-    if (val.isInt()) return runtime::intResult(-intArg(val, "operand of unary '-'"), "-");
-    if (val.isFloat()) return runtime::realResult(-val.asFloat());
-    throw std::runtime_error("Type Error: operand of unary '-' must be a number, got '" + val.typeName() + "'");
+    return op == "!" ? runtime::logicalNot(val) : runtime::negate(val);
 }
 
 Value PostIncNode::eval(Context& ctx) {
     Value* target = ref.find(ctx, name);
     if (!target) notFound(name);
-    const char* op = delta > 0 ? "++" : "--";
-    if (target->isFloat()) {
-        Value old = *target;
-        *target = runtime::realResult(old.asFloat() + delta);
-        return old;
-    }
-    if (!target->isInt())
-        throw std::runtime_error("Type Error: '" + std::string(op) + "' needs an int or float variable, '" + name + "' is " + target->typeName());
-    long long value = intArg(*target, "variable", name);
-    *target = runtime::intResult(value + delta, op);
-    return Value::integer(value);
+    return runtime::postIncrement(*target, delta, name);
 }
 
 Value ArrayDeclNode::eval(Context& ctx) {
@@ -457,57 +335,9 @@ Value ArrayLiteralNode::eval(Context& ctx) {
 
 namespace {
 
-std::string keyOf(const Value& key) {
-    if (key.isString()) return key.str();
-    if (key.isInt()) return std::to_string(key.asInt());
-    throw std::runtime_error("Type Error: a map key must be string or int, got '" + key.typeName() + "'");
-}
-
-size_t positionIn(const Object& array, const Value& indexValue) {
-    long long index = intArg(indexValue, "array index");
-    if (index < 0 || static_cast<unsigned long long>(index) >= array.items.size())
-        throw std::runtime_error("Runtime Error: Array index out of bounds: " + std::to_string(index) + " (size " +
-                                 std::to_string(array.items.size()) + ")");
-    return static_cast<size_t>(index);
-}
-
-size_t fieldIn(const Object& object, const std::string& name) {
-    const auto& fields = object.structType->fields;
-    for (size_t i = 0; i < fields.size(); ++i)
-        if (fields[i].name == name) return i;
-    throw std::runtime_error("Runtime Error: struct '" + object.structType->name + "' has no field '" + name + "'");
-}
-
-Value& missingKey(const std::string& key) {
-    throw std::runtime_error("Runtime Error: map has no key '" + key + "' (has(map, key) checks, get_or(map, key, default) reads safely)");
-}
-
-// base[index] on a container value; create inserts a new map key.
-Value& element(Value& base, const Value& index, bool create) {
-    if (!base.is(Value::Kind::Array) && !base.is(Value::Kind::Map))
-        throw std::runtime_error("Type Error: '[]' needs an array or a map, got '" + base.typeName() + "'");
-    Object& object = *base.ref();
-    if (object.kind == Object::Kind::Array) return object.items[positionIn(object, index)];
-    std::string key = keyOf(index);
-    if (create) return object.slot(key);
-    long at = object.find(key);
-    return at < 0 ? missingKey(key) : object.items[static_cast<size_t>(at)];
-}
-
-Value& member(Value& base, const std::string& name, bool create, const std::string** declared = nullptr) {
-    Object* object = base.ref();
-    if (base.is(Value::Kind::Struct)) {
-        size_t at = fieldIn(*object, name);
-        if (declared) *declared = &object->structType->fields[at].type;
-        return object->items[at];
-    }
-    if (base.is(Value::Kind::Map)) {
-        if (create) return object->slot(name);
-        long at = object->find(name);
-        return at < 0 ? missingKey(name) : object->items[static_cast<size_t>(at)];
-    }
-    throw std::runtime_error("Type Error: '." + name + "' needs a struct or a map, got '" + base.typeName() + "'");
-}
+using runtime::element;
+using runtime::keyOf;
+using runtime::member;
 
 // The slot an assignment writes to: a variable, then elements and fields inside it.
 // A struct field reports its declared type, which the stored value must keep.
@@ -543,15 +373,7 @@ Value SetNode::eval(Context& ctx) {
     Value assigned = value->eval(ctx);
     const std::string* declared = nullptr;
     Value& slot = place(*target, ctx, op == "=", &declared);
-    if (op != "=") {
-        struct Literal : Node {
-            Value held;
-            explicit Literal(Value v) : held(std::move(v)) {}
-            Value eval(Context&) override { return held; }
-        };
-        BinOpNode combine(op, std::make_unique<Literal>(slot), std::make_unique<Literal>(assigned));
-        assigned = combine.eval(ctx);
-    }
+    if (op != "=") assigned = runtime::binary(runtime::operatorOf(op), op, slot, assigned);
     // A struct field keeps its declared type; elements and map values take any value.
     if (declared) runtime::coerce(*declared, assigned, "field '" + static_cast<FieldNode*>(target.get())->name + "'");
     slot = std::move(assigned);
@@ -678,11 +500,7 @@ Value SwitchNode::eval(Context& ctx) {
     bool matched = false;
     for (auto& caseItem : cases) {
         if (!matched) {
-            Value caseValue = caseItem.first->eval(ctx);
-            double l = 0, r = 0;
-            bool numeric = runtime::tryNumber(switchValue, l) && runtime::tryNumber(caseValue, r) &&
-                           !switchValue.isString() && !caseValue.isString();
-            matched = numeric ? l == r : runtime::deepEqual(switchValue, caseValue);
+            matched = runtime::switchMatches(switchValue, caseItem.first->eval(ctx));
         }
         // Without break, execution falls through into the following cases.
         if (matched) {

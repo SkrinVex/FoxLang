@@ -11,6 +11,8 @@
 
 namespace foxlang {
 
+namespace bytecode { struct Proto; }
+
 struct Node {
     virtual ~Node() = default;
     virtual Value eval(Context& ctx) = 0;
@@ -95,9 +97,7 @@ struct CallDepth {
                 if (measured > 64) guard.limit = static_cast<int>(guard.budget / measured);
             }
             bool spent = (used > 0 && static_cast<size_t>(used) > guard.budget) || guard.depth >= guard.limit;
-            if (spent)
-                throw std::runtime_error("Runtime Error: call depth limit reached in '" + name + "' after " +
-                                         std::to_string(guard.depth) + " nested calls (recursion without a base case?)");
+            if (spent) exceeded(name, guard.depth);
         }
         ++guard.depth;
     }
@@ -107,6 +107,8 @@ struct CallDepth {
     }
     CallDepth(const CallDepth&) = delete;
     CallDepth& operator=(const CallDepth&) = delete;
+    // Out of line: the message would otherwise take room in every call's native frame.
+    [[noreturn]] static void exceeded(const std::string& name, int depth);
 };
 
 struct BlockNode;
@@ -126,6 +128,7 @@ struct FuncDefNode : Node {
     Value invoke(std::vector<Value> args, Context& caller) const;
     // The same with the arguments in place; they are moved into the function's slots.
     Value invoke(Value* args, size_t count, Context& caller) const;
+    BlockNode* block() const { return block_; }
 
 private:
     BlockNode* block_ = nullptr; // the body, when it is a block (it always is from the parser)
@@ -226,16 +229,11 @@ struct VarAssignNode : Node {
 struct BinOpNode : Node {
     std::string op;
     std::unique_ptr<Node> left, right;
-    BinOpNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r);
+    BinOpNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r)
+        : op(std::move(o)), left(std::move(l)), right(std::move(r)), kind(runtime::operatorOf(op)) {}
     Value eval(Context& ctx) override;
-
-private:
     // The operator decided once when the node is built, not by comparing text on every run.
-    enum class Kind { And, Or, Add, Sub, Mul, Div, Mod, Eq, Ne, Lt, Le, Gt, Ge, Unknown } kind;
-    std::string describe(const char* side) const { return std::string(side) + " operand of '" + op + "'"; }
-    double number(const Value& value, const char* side) const;
-    long long integer(const Value& value, const char* side) const;
-    bool truth(const Value& value, const char* side) const;
+    runtime::Operator kind;
 };
 
 // Unary minus and logical not.
@@ -344,6 +342,9 @@ struct BlockNode : Node {
     // body or of the program, set by the resolver.
     int firstSlot = 0, endSlot = 0;
     std::shared_ptr<FrameLayout> layout;
+    // A function body's bytecode, compiled at its first call; the second version reports
+    // statements and scopes to a debugger.
+    std::shared_ptr<bytecode::Proto> proto, debugProto;
     Value eval(Context& ctx) override;
 
 private:

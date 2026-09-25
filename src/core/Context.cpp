@@ -175,7 +175,11 @@ bool deepEqual(const Value& a, const Value& b) {
 } // namespace runtime
 
 void Context::defineFunc(const std::string& name, std::shared_ptr<Node> func) {
-    functions[name] = std::move(func);
+    auto& slot = functions[name];
+    auto* replaced = dynamic_cast<FuncDefNode*>(slot.get());
+    auto* replacement = dynamic_cast<FuncDefNode*>(func.get());
+    if (replaced && (!replacement || replaced->body != replacement->body)) retired.push_back(std::move(slot));
+    slot = std::move(func);
     ++functionGeneration;
 }
 

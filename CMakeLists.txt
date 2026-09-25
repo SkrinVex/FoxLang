@@ -49,6 +49,9 @@ add_library(foxlang_core STATIC
     src/core/Lexer.cpp
     src/core/Parser.cpp
     src/core/AST.cpp
+    src/core/Operations.cpp
+    src/core/Compiler.cpp
+    src/core/Vm.cpp
     src/core/Project.cpp
     src/core/HttpServer.cpp
     src/core/Process.cpp

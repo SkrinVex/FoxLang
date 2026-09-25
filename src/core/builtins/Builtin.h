@@ -11,11 +11,11 @@ namespace foxlang::runtime {
 // types against the catalog, so accessors only convert and range-check.
 class Call {
 public:
-    Call(const BuiltinSpec& spec, const std::vector<Value>& args, Context& ctx)
+    Call(const BuiltinSpec& spec, Arguments args, Context& ctx)
         : spec(spec), args(args), ctx(ctx) {}
 
     const BuiltinSpec& spec;
-    const std::vector<Value>& args;
+    const Arguments args;
     Context& ctx;
 
     size_t count() const { return args.size(); }

@@ -1,5 +1,6 @@
 #include "foxlang/FoxLang.h"
 #include "foxlang/Resolver.h"
+#include "foxlang/Bytecode.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -17,6 +18,10 @@ bool isDeclaration(const Node* stmt) {
 
 // Imports bring in declarations; calls on a module's top level are its own demo code.
 void runModule(BlockNode& program, Context& ctx, bool importOnly) {
+    if (!vm::treeWalker()) {
+        vm::run(program, ctx, importOnly ? bytecode::Unit::Declarations : bytecode::Unit::Module);
+        return;
+    }
     runtime::StackGuard& guard = runtime::stackGuard();
     for (auto& stmt : program.stmts) {
         if (!stmt || (importOnly && !isDeclaration(stmt.get()))) continue;
@@ -82,6 +87,7 @@ void Interpreter::reset() {
     globalContext.variables.clear();
     ++globalContext.generation;
     globalContext.functions.clear();
+    globalContext.retired.clear();
     ++globalContext.functionGeneration;
     globalContext.structs.clear();
     loadedModules.clear();
@@ -141,11 +147,16 @@ RunResult Interpreter::runSource(const std::string& source, const std::string& s
     runtime::StackGuard& guard = runtime::stackGuard();
     guard.line = 0;
     guard.file = nullptr;
+    guard.located = nullptr;
     auto located = [&](const std::string& message) { return runtime::locate(message, scriptPath); };
     try {
         auto program = parseSource(source, scriptPath);
         loadedModules.insert(scriptPath);
         guard.flow = runtime::StackGuard::Flow::None;
+        if (!vm::treeWalker()) {
+            vm::run(*program, globalContext, bytecode::Unit::Program);
+            return {true, 0, ""};
+        }
         // The blocks of the program keep their variables in numbered slots, alive while it runs.
         resolveProgram(*program);
         std::vector<Value> programSlots(program->layout->names.size());

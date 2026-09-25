@@ -1,0 +1,951 @@
+// Compiles the parser's tree into bytecode for the VM (Vm.cpp), one function or one
+// program top level at a time. The resolver has already numbered the local variables;
+// they become the first registers of the frame. Everything a statement computes on
+// the way lives in temporaries above them, freed when the statement ends.
+#include "foxlang/Bytecode.h"
+#include "foxlang/AST.h"
+#include "foxlang/Resolver.h"
+#include <algorithm>
+#include <cstring>
+#include <map>
+#include <stdexcept>
+
+namespace foxlang::bytecode {
+namespace {
+
+// Constant registers are numbered from here while compiling, and placed after the
+// temporaries once their count is known.
+constexpr int constantBase = 1 << 24;
+
+// Where inside a try statement code is: its body, its catch block, a copy of its
+// finally block run on the way out, or the finally block run for an error.
+enum class Part { Body, Handler, Finally, Rescue };
+
+bool isDeclaration(const Node* node) {
+    return dynamic_cast<const FuncDefNode*>(node) || dynamic_cast<const VarDeclNode*>(node) ||
+           dynamic_cast<const ArrayDeclNode*>(node) || dynamic_cast<const UsingNode*>(node) ||
+           dynamic_cast<const IncludeNode*>(node) || dynamic_cast<const StructDefNode*>(node);
+}
+
+bool isComparison(runtime::Operator op) {
+    return op >= runtime::Operator::Eq && op <= runtime::Operator::Ge;
+}
+
+// Whether evaluating the expression can change a local variable: only name++ can.
+bool mutates(const Node* node) {
+    if (!node) return false;
+    if (dynamic_cast<const PostIncNode*>(node)) return true;
+    if (auto* n = dynamic_cast<const BinOpNode*>(node)) return mutates(n->left.get()) || mutates(n->right.get());
+    if (auto* n = dynamic_cast<const UnaryOpNode*>(node)) return mutates(n->operand.get());
+    if (auto* n = dynamic_cast<const IndexNode*>(node)) return mutates(n->base.get()) || mutates(n->index.get());
+    if (auto* n = dynamic_cast<const FieldNode*>(node)) return mutates(n->base.get());
+    if (auto* n = dynamic_cast<const FuncCallNode*>(node)) {
+        for (const auto& arg : n->args)
+            if (mutates(arg.get())) return true;
+        return false;
+    }
+    if (auto* n = dynamic_cast<const ArrayLiteralNode*>(node)) {
+        for (const auto& element : n->elements)
+            if (mutates(element.get())) return true;
+        return false;
+    }
+    if (auto* n = dynamic_cast<const MapLiteralNode*>(node)) {
+        for (const auto& entry : n->entries)
+            if (mutates(entry.first.get()) || mutates(entry.second.get())) return true;
+        return false;
+    }
+    return false;
+}
+
+class Compiler {
+public:
+    Compiler(Proto& proto, bool debug, bool function) : p(proto), debug(debug), function(function) {
+        next = p.slots;
+        p.registers = p.slots;
+    }
+
+    void block(BlockNode& block, bool loopBody = false, bool functionBody = false) {
+        int outerLine = line;
+        if (debug) {
+            emit(Op::ScopeEnter, block.scoped ? 1 : 0);
+            ++scopes;
+        }
+        for (auto& stmt : block.stmts) {
+            if (!stmt) continue;
+            if (stmt->range.start.line > 0) line = stmt->range.start.line;
+            // A function definition only registers the function; stepping over it is noise.
+            if (debug && stmt->range.start.line > 0 && !dynamic_cast<const FuncDefNode*>(stmt.get()))
+                emit(Op::Statement, line);
+            statement(*stmt);
+        }
+        if (debug) {
+            emit(Op::ScopeLeave);
+            --scopes;
+        }
+        // The block's variables end with it. A loop body's are overwritten by the next
+        // round and cleared when the loop ends, so only a debugger needs them cleared here.
+        if (!functionBody && block.endSlot > block.firstSlot && (debug || !loopBody))
+            emit(Op::Clear, block.firstSlot, block.endSlot);
+        line = outerLine;
+    }
+
+    void topLevel(BlockNode& program, Unit unit) {
+        for (auto& stmt : program.stmts) {
+            if (!stmt || (unit == Unit::Declarations && !isDeclaration(stmt.get()))) continue;
+            if (stmt->range.start.line > 0) line = stmt->range.start.line;
+            statement(*stmt);
+        }
+    }
+
+    void statement(Node& node) {
+        int mark = next;
+        if (dynamic_cast<FuncDefNode*>(&node) || dynamic_cast<StructDefNode*>(&node) || dynamic_cast<UsingNode*>(&node) ||
+            dynamic_cast<IncludeNode*>(&node)) {
+            p.declarations.push_back(&node);
+            emit(Op::Declare, 0, static_cast<int>(p.declarations.size()) - 1);
+        } else if (auto* n = dynamic_cast<VarDeclNode*>(&node)) {
+            variable(*n);
+        } else if (auto* n = dynamic_cast<ArrayDeclNode*>(&node)) {
+            arrayVariable(*n);
+        } else if (auto* n = dynamic_cast<VarAssignNode*>(&node)) {
+            assignment(*n);
+        } else if (auto* n = dynamic_cast<SetNode*>(&node)) {
+            setPath(*n);
+        } else if (auto* n = dynamic_cast<PostIncNode*>(&node)) {
+            increment(*n, -1);
+        } else if (auto* n = dynamic_cast<ReturnNode*>(&node)) {
+            returnStatement(*n);
+        } else if (dynamic_cast<BreakNode*>(&node)) {
+            jumpOut(false);
+        } else if (dynamic_cast<ContinueNode*>(&node)) {
+            jumpOut(true);
+        } else if (auto* n = dynamic_cast<IfNode*>(&node)) {
+            ifStatement(*n);
+        } else if (auto* n = dynamic_cast<WhileNode*>(&node)) {
+            whileLoop(*n);
+        } else if (auto* n = dynamic_cast<ForNode*>(&node)) {
+            forLoop(*n);
+        } else if (auto* n = dynamic_cast<SwitchNode*>(&node)) {
+            switchStatement(*n);
+        } else if (auto* n = dynamic_cast<TryNode*>(&node)) {
+            tryStatement(*n);
+        } else if (auto* n = dynamic_cast<ThrowNode*>(&node)) {
+            emit(Op::Throw, any(*n->message));
+        } else if (auto* n = dynamic_cast<BlockNode*>(&node)) {
+            block(*n);
+        } else {
+            any(node); // an expression statement, such as a call
+        }
+        next = mark;
+    }
+
+    // Constant registers go after the temporaries, now that their number is known.
+    void finish() {
+        int base = p.registers;
+        auto place = [&](std::int32_t& field) {
+            if (field >= constantBase) field = base + (field - constantBase);
+        };
+        for (auto& instr : p.code) {
+            place(instr.a);
+            place(instr.b);
+            place(instr.c);
+        }
+        for (auto& path : p.paths)
+            for (auto& step : path.steps) place(step.key);
+        for (size_t i = 0; i < constantOrder.size(); ++i)
+            p.preload.push_back({base + static_cast<int>(i), constantOrder[i]});
+        p.registers = base + static_cast<int>(constantOrder.size());
+    }
+
+    int emit(Op op, int a = 0, int b = 0, int c = 0, int x = 0, int y = 0) {
+        Instr instr;
+        instr.op = op;
+        instr.x = static_cast<std::uint8_t>(x);
+        instr.y = static_cast<std::uint16_t>(y);
+        instr.a = a;
+        instr.b = b;
+        instr.c = c;
+        p.code.push_back(instr);
+        p.lines.push_back(line);
+        return static_cast<int>(p.code.size()) - 1;
+    }
+
+private:
+    Proto& p;
+    bool debug;
+    bool function; // a function body; otherwise a program's or a module's top level
+    int next = 0;  // the first free temporary
+    int line = 0;
+    int scopes = 0; // blocks open, for the debugger's scope events
+
+    struct Target {
+        bool loop;
+        std::vector<int> breaks, continues;
+        size_t tries;
+        int scopes;
+        int clearFrom = 0, clearTo = 0; // a loop body's variables, cleared by continue
+    };
+    std::vector<Target> targets;
+
+    struct TryContext {
+        TryNode* node;
+        Part part;
+        int pending;
+    };
+    std::vector<TryContext> tries;
+    int tryLevel = 0;
+
+    std::map<long long, int> ints;
+    std::map<std::string, int> strings;
+    std::map<std::uint64_t, int> reals;
+    int bools[2] = {-1, -1};
+    std::map<int, int> constantRegisters;
+    std::vector<int> constantOrder;
+    std::map<std::string, int> globalSites, callSites, textIndex;
+
+    int here() const { return static_cast<int>(p.code.size()); }
+
+    void patch(int at, int target) {
+        Instr& instr = p.code[static_cast<size_t>(at)];
+        switch (instr.op) {
+            case Op::Jump: instr.a = target; break;
+            case Op::JumpIfFalse:
+            case Op::JumpIfTrue: instr.b = target; break;
+            case Op::Compare: instr.c = target; break;
+            default: throw std::logic_error("patching an instruction that does not jump");
+        }
+    }
+
+    int temp() {
+        int reg = next++;
+        p.registers = std::max(p.registers, next);
+        return reg;
+    }
+
+    int text(const std::string& value) {
+        auto found = textIndex.find(value);
+        if (found != textIndex.end()) return found->second;
+        if (p.texts.size() >= 0x7fff) throw std::runtime_error("Compile Error: too many operators in one function");
+        p.texts.push_back(value);
+        return textIndex[value] = static_cast<int>(p.texts.size()) - 1;
+    }
+
+    int addConstant(Value value) {
+        p.constants.push_back(std::move(value));
+        return static_cast<int>(p.constants.size()) - 1;
+    }
+
+    int constant(const Value& value) {
+        switch (value.kind()) {
+            case Value::Kind::Int: {
+                auto found = ints.find(value.asInt());
+                if (found != ints.end()) return found->second;
+                return ints[value.asInt()] = addConstant(value);
+            }
+            case Value::Kind::Float: {
+                double real = value.asFloat();
+                std::uint64_t bits;
+                std::memcpy(&bits, &real, sizeof bits);
+                auto found = reals.find(bits);
+                if (found != reals.end()) return found->second;
+                return reals[bits] = addConstant(value);
+            }
+            case Value::Kind::Bool: {
+                int& slot = bools[value.asBool() ? 1 : 0];
+                if (slot < 0) slot = addConstant(value);
+                return slot;
+            }
+            default:
+                return addConstant(value);
+        }
+    }
+
+    int stringConstant(const std::string& value) {
+        auto found = strings.find(value);
+        if (found != strings.end()) return found->second;
+        return strings[value] = addConstant(Value::string(value));
+    }
+
+    // A register that holds the constant for the whole call: operands of arithmetic
+    // read it like a variable.
+    int constantRegister(int index) {
+        auto found = constantRegisters.find(index);
+        if (found != constantRegisters.end()) return found->second;
+        constantOrder.push_back(index);
+        return constantRegisters[index] = constantBase + static_cast<int>(constantOrder.size()) - 1;
+    }
+
+    int globalSite(const std::string& name) {
+        auto found = globalSites.find(name);
+        if (found != globalSites.end()) return found->second;
+        p.globals.push_back({});
+        p.globals.back().name = name;
+        return globalSites[name] = static_cast<int>(p.globals.size()) - 1;
+    }
+
+    int callSite(const std::string& name) {
+        auto found = callSites.find(name);
+        if (found != callSites.end()) return found->second;
+        p.calls.push_back({});
+        p.calls.back().name = name;
+        return callSites[name] = static_cast<int>(p.calls.size()) - 1;
+    }
+
+    int conversion(Value::Kind kind, const std::string& type, const std::string& what) {
+        p.conversions.push_back({kind, type, what});
+        return static_cast<int>(p.conversions.size()) - 1;
+    }
+
+    void fail(const std::string& message) { emit(Op::Fail, stringConstant(message)); }
+
+    // An error that belongs to the whole function, such as a break outside a loop: raised
+    // after the code, where no try block of the function can catch it.
+    void failAfter(const std::string& message) { late.push_back({emit(Op::Jump), line, message}); }
+
+public:
+    // The errors raised after the code go at its end.
+    void epilogue() {
+        for (const auto& error : late) {
+            patch(error.jump, here());
+            line = error.line;
+            fail(error.message);
+        }
+        late.clear();
+    }
+
+private:
+    struct LateError {
+        int jump;
+        int line;
+        std::string message;
+    };
+    std::vector<LateError> late;
+
+    static bool isSlot(const VarRef& ref) { return ref.slot >= 0; }
+
+    // ---------------------------------------------------------------- expressions
+
+    // A register holding the expression's value: a variable's own register, a constant
+    // register, or a new temporary.
+    int any(Node& node) {
+        if (auto* n = dynamic_cast<VarAccessNode*>(&node)) {
+            if (isSlot(n->ref)) return n->ref.slot;
+        } else if (auto* n = dynamic_cast<BoolNode*>(&node)) {
+            return constantRegister(constant(Value::boolean(n->val)));
+        } else if (auto* n = dynamic_cast<NumberNode*>(&node)) {
+            Value value;
+            if (literal(*n, value)) return constantRegister(constant(value));
+        }
+        int reg = temp();
+        into(node, reg);
+        return reg;
+    }
+
+    // A number literal's value; false when it does not fit even 64 bits.
+    static bool literal(NumberNode& node, Value& out) {
+        try {
+            Context none;
+            out = node.eval(none);
+            return true;
+        } catch (const std::runtime_error&) {
+            return false;
+        }
+    }
+
+    // The left operand of an operator, copied when the right one could change it.
+    int operand(Node& left, Node& right) {
+        int reg = any(left);
+        if (reg < p.slots && mutates(&right)) {
+            int copy = temp();
+            emit(Op::Move, copy, reg);
+            return copy;
+        }
+        return reg;
+    }
+
+    // Compiles the expression so that its value ends up in `dest`.
+    void into(Node& node, int dest) {
+        int mark = std::max(next, dest + 1);
+        if (dest >= next) next = dest + 1;
+        expression(node, dest);
+        next = mark;
+    }
+
+    void expression(Node& node, int dest) {
+        if (auto* n = dynamic_cast<NumberNode*>(&node)) {
+            Value value;
+            if (literal(*n, value)) emit(Op::LoadConst, dest, constant(value));
+            else fail("Runtime Error: int literal '" + n->val + "' does not fit in int (int holds -2147483648..2147483647)");
+        } else if (auto* n = dynamic_cast<StringNode*>(&node)) {
+            emit(Op::LoadConst, dest, stringConstant(n->val));
+        } else if (auto* n = dynamic_cast<BoolNode*>(&node)) {
+            emit(Op::LoadConst, dest, constant(Value::boolean(n->val)));
+        } else if (auto* n = dynamic_cast<VarAccessNode*>(&node)) {
+            if (isSlot(n->ref)) {
+                if (n->ref.slot != dest) emit(Op::Move, dest, n->ref.slot);
+            } else {
+                emit(Op::GetGlobal, dest, globalSite(n->name));
+            }
+        } else if (auto* n = dynamic_cast<BinOpNode*>(&node)) {
+            binary(*n, dest);
+        } else if (auto* n = dynamic_cast<UnaryOpNode*>(&node)) {
+            int reg = any(*n->operand);
+            emit(n->op == "!" ? Op::Not : Op::Negate, dest, reg);
+        } else if (auto* n = dynamic_cast<PostIncNode*>(&node)) {
+            increment(*n, dest);
+        } else if (auto* n = dynamic_cast<FuncCallNode*>(&node)) {
+            call(*n, dest);
+        } else if (auto* n = dynamic_cast<IndexNode*>(&node)) {
+            int base = operand(*n->base, *n->index);
+            int index = any(*n->index);
+            emit(Op::Index, dest, base, index);
+        } else if (auto* n = dynamic_cast<FieldNode*>(&node)) {
+            int base = any(*n->base);
+            emit(Op::Field, dest, base, stringConstant(n->name));
+        } else if (auto* n = dynamic_cast<ArrayLiteralNode*>(&node)) {
+            int first = next;
+            for (auto& element : n->elements) into(*element, temp());
+            emit(Op::NewArray, dest, first, static_cast<int>(n->elements.size()));
+        } else if (auto* n = dynamic_cast<MapLiteralNode*>(&node)) {
+            int first = next;
+            for (auto& entry : n->entries) {
+                int key = temp();
+                into(*entry.first, key);
+                emit(Op::MapKey, key);
+                into(*entry.second, temp());
+            }
+            emit(Op::NewMap, dest, first, static_cast<int>(n->entries.size()));
+        } else {
+            throw std::logic_error("the bytecode compiler does not know this expression");
+        }
+    }
+
+    void binary(BinOpNode& node, int dest) {
+        int opText = text(node.op);
+        if (node.kind == runtime::Operator::And || node.kind == runtime::Operator::Or) {
+            // Short-circuit: the right side runs only when the left does not decide.
+            into(*node.left, dest);
+            emit(Op::Truth, dest, 0, 0, 0, opText);
+            int skip = emit(node.kind == runtime::Operator::And ? Op::JumpIfFalse : Op::JumpIfTrue, dest, 0, 0, 3);
+            into(*node.right, dest);
+            emit(Op::Truth, dest, 0, 0, 1, opText);
+            patch(skip, here());
+            return;
+        }
+        static const Op ops[] = {Op::Add, Op::Sub, Op::Mul, Op::Div, Op::Mod, Op::Eq, Op::Ne, Op::Lt, Op::Le, Op::Gt, Op::Ge};
+        if (node.kind == runtime::Operator::Unknown) {
+            fail("Runtime Error: unknown operator '" + node.op + "'");
+            return;
+        }
+        int left = operand(*node.left, *node.right);
+        int right = any(*node.right);
+        emit(ops[static_cast<int>(node.kind)], dest, left, right, 0, opText);
+    }
+
+    void call(FuncCallNode& node, int dest) {
+        // The arguments go to consecutive registers; the result replaces the first.
+        int base;
+        if (dest == next - 1 && dest >= p.slots && dest < constantBase) {
+            base = dest;
+            next = dest;
+        } else {
+            base = next;
+        }
+        for (auto& arg : node.args) into(*arg, temp());
+        if (node.args.empty()) temp();
+        emit(Op::Call, base, callSite(node.name), static_cast<int>(node.args.size()));
+        if (base != dest) emit(Op::Move, dest, base, 0, 1);
+    }
+
+    // name++ / name--; dest < 0 when the old value is not needed.
+    void increment(PostIncNode& node, int dest) {
+        if (isSlot(node.ref))
+            emit(Op::Increment, dest, node.ref.slot, stringConstant(node.name) * 2 + (node.delta > 0 ? 1 : 0));
+        else
+            emit(Op::IncrementGlobal, dest, globalSite(node.name), node.delta > 0 ? 1 : 0);
+    }
+
+    // Jumps to target when the condition is `when`; returns the jump, to patch later.
+    int conditionJump(Node& condition, bool when, const char* statement) {
+        auto* comparison = dynamic_cast<BinOpNode*>(&condition);
+        if (comparison && isComparison(comparison->kind)) {
+            // A comparison always gives a bool, so it jumps directly.
+            int left = operand(*comparison->left, *comparison->right);
+            int right = any(*comparison->right);
+            return emit(Op::Compare, left, right, 0, static_cast<int>(comparison->kind),
+                        text(comparison->op) * 2 + (when ? 1 : 0));
+        }
+        int reg = any(condition);
+        int kind = std::strcmp(statement, "if") == 0 ? 0 : std::strcmp(statement, "while") == 0 ? 1 : 2;
+        return emit(when ? Op::JumpIfTrue : Op::JumpIfFalse, reg, 0, 0, kind);
+    }
+
+    // ---------------------------------------------------------------- statements
+
+    void variable(VarDeclNode& node) {
+        if (node.duplicate) {
+            fail("Runtime Error: Variable '" + node.name + "' is already declared in this scope");
+            return;
+        }
+        if (isSlotted(node.slot)) {
+            if (node.expr) into(*node.expr, node.slot);
+            else emit(Op::Zero, node.slot, stringConstant(node.type));
+            emit(Op::Coerce, node.slot, conversion(node.kind, node.type, "variable '" + node.name + "'"));
+            return;
+        }
+        int site = globalSite(node.name);
+        if (!node.global) emit(Op::DefineGlobal, -1, site, 1);
+        int reg = temp();
+        if (node.expr) into(*node.expr, reg);
+        else emit(Op::Zero, reg, stringConstant(node.type));
+        emit(Op::Coerce, reg,
+             conversion(node.kind, node.type, std::string(node.global ? "global variable '" : "variable '") + node.name + "'"));
+        emit(Op::DefineGlobal, reg, site, 0);
+    }
+
+    void arrayVariable(ArrayDeclNode& node) {
+        if (node.duplicate) {
+            fail("Runtime Error: Variable '" + node.name + "' is already declared in this scope");
+            return;
+        }
+        bool slotted = isSlotted(node.slot);
+        int site = slotted ? -1 : globalSite(node.name);
+        if (!slotted && !node.global) emit(Op::DefineGlobal, -1, site, 1);
+        int reg = slotted ? node.slot : temp();
+        if (node.initializer) {
+            into(*node.initializer, reg);
+            emit(Op::Coerce, reg, conversion(Value::Kind::Array, "array", "initializer of array '" + node.name + "'"));
+        } else if (node.sizeNode) {
+            int size = any(*node.sizeNode);
+            emit(Op::NewSized, reg, size, stringConstant(node.name));
+        } else {
+            emit(Op::NewArray, reg, 0, 0);
+        }
+        if (!slotted) emit(Op::DefineGlobal, reg, site, 0);
+    }
+
+    bool isSlotted(int slot) const { return slot >= 0; }
+
+    void assignment(VarAssignNode& node) {
+        int reg = temp();
+        into(*node.expr, reg);
+        if (isSlot(node.ref)) emit(Op::Assign, node.ref.slot, reg, stringConstant(node.name));
+        else emit(Op::SetGlobal, reg, globalSite(node.name));
+    }
+
+    void setPath(SetNode& node) {
+        // The value first: it may change the containers the target lives in. Then the
+        // indexes, from the outermost in, as the tree walker has always done.
+        int value = temp();
+        into(*node.value, value);
+        SetPath path;
+        path.op = node.op;
+        path.kind = runtime::operatorOf(node.op);
+        std::vector<SetPath::Step> steps;
+        Node* at = node.target.get();
+        for (;;) {
+            if (auto* index = dynamic_cast<IndexNode*>(at)) {
+                int key = temp();
+                into(*index->index, key);
+                steps.push_back({false, key, ""});
+                at = index->base.get();
+            } else if (auto* field = dynamic_cast<FieldNode*>(at)) {
+                steps.push_back({true, -1, field->name});
+                at = field->base.get();
+            } else {
+                break;
+            }
+        }
+        auto* variable = dynamic_cast<VarAccessNode*>(at);
+        if (!variable || steps.empty()) {
+            fail("Syntax Error: only a variable, an element or a field can be assigned to");
+            return;
+        }
+        std::reverse(steps.begin(), steps.end());
+        path.steps = std::move(steps);
+        path.variable = variable->name;
+        if (isSlot(variable->ref)) path.slot = variable->ref.slot;
+        else path.global = globalSite(variable->name);
+        p.paths.push_back(std::move(path));
+        emit(Op::SetPath, value, static_cast<int>(p.paths.size()) - 1);
+    }
+
+    void returnStatement(ReturnNode& node) {
+        int reg = -1;
+        if (node.expr) {
+            reg = any(*node.expr);
+            // finally blocks run before the function returns and may change the variable.
+            if (!tries.empty() && reg < p.slots) {
+                int copy = temp();
+                emit(Op::Move, copy, reg);
+                reg = copy;
+            }
+        }
+        if (!function) {
+            if (!leave(0)) return;
+            failAfter("Runtime Error: 'return' outside of a function");
+            return;
+        }
+        if (!leave(0)) return;
+        if (reg >= 0) emit(Op::Return, reg);
+        else emit(Op::ReturnVoid);
+    }
+
+    // break and continue leave blocks, loops and try statements; the finally blocks on
+    // the way run first.
+    void jumpOut(bool isContinue) {
+        Target* target = nullptr;
+        for (auto it = targets.rbegin(); it != targets.rend(); ++it) {
+            if (!isContinue || it->loop) {
+                target = &*it;
+                break;
+            }
+        }
+        if (!target) {
+            if (!leave(0)) return;
+            std::string word = isContinue ? "continue" : "break";
+            failAfter(function ? "Runtime Error: '" + word + "' outside of loop in function '" + p.name + "'"
+                               : "Runtime Error: '" + word + "' outside of loop in global scope");
+            return;
+        }
+        size_t index = static_cast<size_t>(target - targets.data());
+        if (!leave(target->tries)) return;
+        target = &targets[index];
+        for (int open = scopes; open > target->scopes; --open) emit(Op::ScopeLeave);
+        if (isContinue) {
+            if (target->clearTo > target->clearFrom) emit(Op::Clear, target->clearFrom, target->clearTo);
+            target->continues.push_back(emit(Op::Jump));
+        } else {
+            target->breaks.push_back(emit(Op::Jump));
+        }
+    }
+
+    // Leaves the try statements above `depth`: runs their finally blocks. False when
+    // the code is inside a finally that runs for an error, which raises it again instead.
+    bool leave(size_t depth) {
+        for (size_t i = tries.size(); i-- > depth;) {
+            TryContext context = tries[i];
+            if (context.part == Part::Rescue) {
+                emit(Op::Rethrow, context.pending);
+                return false;
+            }
+            if (context.part == Part::Body) emit(Op::TryLeave);
+            if (context.node->cleanup && context.part != Part::Finally) inlineFinally(*context.node, i);
+        }
+        return true;
+    }
+
+    // A copy of a finally block, run outside its try statement.
+    void inlineFinally(TryNode& node, size_t depth) {
+        auto saved = tries;
+        int savedScopes = scopes;
+        tries.resize(depth);
+        tries.push_back({&node, Part::Finally, -1});
+        auto* cleanup = dynamic_cast<BlockNode*>(node.cleanup.get());
+        if (cleanup) block(*cleanup);
+        else statement(*node.cleanup);
+        tries = std::move(saved);
+        scopes = savedScopes;
+    }
+
+    void ifStatement(IfNode& node) {
+        int skip = conditionJump(*node.condition, false, "if");
+        if (node.thenB) statement(*node.thenB);
+        if (node.elseB) {
+            int end = emit(Op::Jump);
+            patch(skip, here());
+            statement(*node.elseB);
+            patch(end, here());
+        } else {
+            patch(skip, here());
+        }
+    }
+
+    Target loopTarget(Node* body) {
+        Target target{true, {}, {}, tries.size(), scopes};
+        if (auto* block = dynamic_cast<BlockNode*>(body)) {
+            target.clearFrom = block->firstSlot;
+            target.clearTo = block->endSlot;
+        }
+        return target;
+    }
+
+    void loopBody(Node* body) {
+        if (!body) return;
+        if (auto* block = dynamic_cast<BlockNode*>(body)) this->block(*block, true);
+        else statement(*body);
+    }
+
+    void whileLoop(WhileNode& node) {
+        int toCondition = emit(Op::Jump);
+        int start = here();
+        targets.push_back(loopTarget(node.body.get()));
+        loopBody(node.body.get());
+        Target target = std::move(targets.back());
+        targets.pop_back();
+        for (int jump : target.continues) patch(jump, here());
+        patch(toCondition, here());
+        patch(conditionJump(*node.condition, true, "while"), start);
+        for (int jump : target.breaks) patch(jump, here());
+        if (target.clearTo > target.clearFrom) emit(Op::Clear, target.clearFrom, target.clearTo);
+    }
+
+    void forLoop(ForNode& node) {
+        if (node.init) statement(*node.init);
+        int toCondition = node.condition ? emit(Op::Jump) : -1;
+        int start = here();
+        targets.push_back(loopTarget(node.body.get()));
+        loopBody(node.body.get());
+        Target target = std::move(targets.back());
+        targets.pop_back();
+        for (int jump : target.continues) patch(jump, here());
+        if (node.step) statement(*node.step);
+        if (node.condition) {
+            patch(toCondition, here());
+            patch(conditionJump(*node.condition, true, "for"), start);
+        } else {
+            emit(Op::Jump, start);
+        }
+        for (int jump : target.breaks) patch(jump, here());
+        if (node.endSlot > node.firstSlot) emit(Op::Clear, node.firstSlot, node.endSlot);
+    }
+
+    void switchStatement(SwitchNode& node) {
+        int value = temp();
+        into(*node.expr, value);
+        // The cases are tried in order until one matches; from its body on, execution
+        // falls through the following bodies and the default, until break.
+        std::vector<int> toBody;
+        for (auto& item : node.cases) {
+            int mark = next;
+            int candidate = any(*item.first);
+            int matched = temp();
+            emit(Op::Match, matched, value, candidate);
+            toBody.push_back(emit(Op::JumpIfTrue, matched, 0, 0, 3));
+            next = mark;
+        }
+        int toDefault = emit(Op::Jump);
+        targets.push_back({false, {}, {}, tries.size(), scopes});
+        for (size_t i = 0; i < node.cases.size(); ++i) {
+            patch(toBody[i], here());
+            statement(*node.cases[i].second);
+        }
+        patch(toDefault, here());
+        if (node.defaultCase) statement(*node.defaultCase);
+        Target target = std::move(targets.back());
+        targets.pop_back();
+        for (int jump : target.breaks) patch(jump, here());
+    }
+
+    void tryStatement(TryNode& node) {
+        auto* body = dynamic_cast<BlockNode*>(node.body.get());
+        auto* handler = dynamic_cast<BlockNode*>(node.handler.get());
+        int level = ++tryLevel * 2;
+        int pending = node.cleanup ? p.pendingErrors++ : -1;
+        int outerScopes = scopes;
+        int bodyFrom = body ? body->firstSlot : 0, bodyTo = body ? body->endSlot : 0;
+        int handlerTo = handler ? handler->endSlot : bodyTo;
+
+        int bodyStart = emit(Op::TryEnter);
+        tries.push_back({&node, Part::Body, pending});
+        statement(*node.body);
+        tries.pop_back();
+        int bodyEnd = emit(Op::TryLeave);
+        p.tryBodies.push_back({bodyStart + 1, bodyEnd});
+        if (node.cleanup) inlineFinally(node, tries.size());
+        std::vector<int> toEnd{emit(Op::Jump)};
+
+        int handlerStart = here(), handlerEnd = here();
+        if (node.handler) {
+            Handler caught{bodyStart, bodyEnd, handlerStart, level + 1, false};
+            caught.message = node.errorName.empty() ? -1 : node.errorSlot;
+            caught.clearFrom = bodyFrom;
+            caught.clearTo = bodyTo;
+            caught.scopes = outerScopes;
+            p.handlers.push_back(caught);
+            tries.push_back({&node, Part::Handler, pending});
+            statement(*node.handler);
+            tries.pop_back();
+            if (node.errorSlot >= 0 && !node.errorName.empty()) emit(Op::Clear, node.errorSlot, node.errorSlot + 1);
+            handlerEnd = here();
+            if (node.cleanup) inlineFinally(node, tries.size());
+            toEnd.push_back(emit(Op::Jump));
+        }
+        if (node.cleanup) {
+            int rescue = here();
+            Handler cleanup{bodyStart, bodyEnd, rescue, level, true};
+            cleanup.pending = pending;
+            cleanup.clearFrom = bodyFrom;
+            cleanup.clearTo = handlerTo;
+            cleanup.scopes = outerScopes;
+            p.handlers.push_back(cleanup);
+            if (handlerEnd > handlerStart) {
+                cleanup.start = handlerStart;
+                cleanup.end = handlerEnd;
+                p.handlers.push_back(cleanup);
+            }
+            tries.push_back({&node, Part::Rescue, pending});
+            statement(*node.cleanup);
+            tries.pop_back();
+            emit(Op::Rethrow, pending);
+        }
+        for (int jump : toEnd) patch(jump, here());
+        --tryLevel;
+    }
+};
+
+} // namespace
+
+std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug) {
+    BlockNode* body = function.block();
+    if (!body) throw std::logic_error("a function body must be a block");
+    if (!body->layout) resolveFunction(const_cast<FuncDefNode&>(function));
+    auto proto = std::make_shared<Proto>();
+    proto->name = function.name;
+    proto->file = body->file;
+    proto->line = function.range.start.line;
+    proto->debug = debug;
+    proto->slotNames = std::make_shared<std::vector<std::string>>(body->layout->names);
+    proto->slots = static_cast<int>(body->layout->names.size());
+    for (const auto& param : function.params)
+        proto->params.push_back({runtime::declaredKind(param.type), param.type,
+                                 "parameter '" + param.name + "' of '" + function.name + "'"});
+    proto->result = {runtime::declaredKind(function.returnType), function.returnType, "return value of '" + function.name + "'"};
+    Compiler compiler(*proto, debug, true);
+    compiler.block(*body, false, true);
+    compiler.emit(Op::ReturnVoid);
+    compiler.epilogue();
+    compiler.finish();
+    return proto;
+}
+
+std::shared_ptr<Proto> compileProgram(BlockNode& program, Unit unit, bool debug) {
+    resolveProgram(program);
+    auto proto = std::make_shared<Proto>();
+    proto->file = program.file;
+    proto->debug = debug && unit == Unit::Program;
+    proto->slotNames = std::make_shared<std::vector<std::string>>(program.layout->names);
+    proto->slots = static_cast<int>(program.layout->names.size());
+    Compiler compiler(*proto, proto->debug, false);
+    if (unit == Unit::Program) compiler.block(program);
+    else compiler.topLevel(program, unit);
+    compiler.emit(Op::ReturnVoid);
+    compiler.epilogue();
+    compiler.finish();
+    return proto;
+}
+
+namespace {
+
+const char* opName(Op op) {
+    static const char* names[] = {
+        "move", "loadk", "clear", "getglobal", "setglobal", "defglobal", "coerce", "assign", "zero", "newsized",
+        "fail", "add", "sub", "mul", "div", "mod", "eq", "ne", "lt", "le", "gt", "ge", "neg", "not", "truth",
+        "jump", "jumpif-false", "jumpif-true", "compare", "call", "return", "return-void", "newarray", "newmap",
+        "mapkey", "index", "field", "setpath", "inc", "inc-global", "declare", "throw", "rethrow", "try-enter",
+        "try-leave", "match", "statement", "scope-enter", "scope-leave"};
+    return names[static_cast<int>(op)];
+}
+
+std::string show(const Value& value) {
+    if (value.isString()) {
+        std::string text = value.str();
+        if (text.size() > 40) text = text.substr(0, 37) + "...";
+        std::string out = "\"";
+        for (char ch : text) out += ch == '\n' ? std::string("\\n") : std::string(1, ch);
+        return out + "\"";
+    }
+    return value.text();
+}
+
+} // namespace
+
+void disassemble(const Proto& proto, std::ostream& out) {
+    out << (proto.name.empty() ? std::string("<program>") : proto.name + "()") << ": " << proto.code.size()
+        << " instructions, " << proto.registers << " registers (" << proto.slots << " variables)\n";
+    for (size_t i = 0; i < static_cast<size_t>(proto.slots); ++i)
+        out << "    r" << i << " = " << (*proto.slotNames)[i] << "\n";
+    for (const auto& [reg, index] : proto.preload)
+        out << "    r" << reg << " = " << show(proto.constants[static_cast<size_t>(index)]) << "\n";
+    int lastLine = -1;
+    for (size_t pc = 0; pc < proto.code.size(); ++pc) {
+        const Instr& in = proto.code[pc];
+        int line = proto.lines[pc];
+        out << (line != lastLine ? std::to_string(line) : std::string()) ;
+        out << std::string(line != lastLine ? std::max<size_t>(1, 6 - std::to_string(line).size()) : 6, ' ');
+        lastLine = line;
+        std::string index = std::to_string(pc);
+        out << std::string(4 - std::min<size_t>(4, index.size()), ' ') << index << "  " << opName(in.op);
+        std::string name = opName(in.op);
+        out << std::string(name.size() < 13 ? 13 - name.size() : 1, ' ');
+        auto reg = [](int r) { return "r" + std::to_string(r); };
+        const auto& K = proto.constants;
+        switch (in.op) {
+            case Op::Move: out << reg(in.a) << " " << reg(in.b) << (in.x ? " (moved)" : ""); break;
+            case Op::LoadConst: out << reg(in.a) << " " << show(K[in.b]); break;
+            case Op::Clear: out << reg(in.a) << ".." << reg(in.b - 1); break;
+            case Op::GetGlobal: out << reg(in.a) << " " << proto.globals[in.b].name; break;
+            case Op::SetGlobal: out << proto.globals[in.b].name << " " << reg(in.a); break;
+            case Op::DefineGlobal:
+                out << proto.globals[in.b].name;
+                if (in.a < 0) out << " (check)";
+                else out << " " << reg(in.a);
+                break;
+            case Op::Coerce: out << reg(in.a) << " " << proto.conversions[in.b].type; break;
+            case Op::Assign: out << reg(in.a) << " " << reg(in.b) << " (" << K[in.c].str() << ")"; break;
+            case Op::Zero: out << reg(in.a) << " " << K[in.b].str(); break;
+            case Op::NewSized: out << reg(in.a) << " " << reg(in.b); break;
+            case Op::Fail: out << show(K[in.a]); break;
+            case Op::Add: case Op::Sub: case Op::Mul: case Op::Div: case Op::Mod:
+            case Op::Eq: case Op::Ne: case Op::Lt: case Op::Le: case Op::Gt: case Op::Ge:
+                out << reg(in.a) << " " << reg(in.b) << " " << reg(in.c);
+                break;
+            case Op::Negate: case Op::Not: out << reg(in.a) << " " << reg(in.b); break;
+            case Op::Truth: out << reg(in.a); break;
+            case Op::Jump: out << "-> " << in.a; break;
+            case Op::JumpIfFalse: case Op::JumpIfTrue: out << reg(in.a) << " -> " << in.b; break;
+            case Op::Compare:
+                out << "if " << (in.y & 1 ? "" : "not ") << reg(in.a) << " " << proto.texts[in.y >> 1] << " " << reg(in.b)
+                    << " -> " << in.c;
+                break;
+            case Op::Call:
+                out << reg(in.a) << " = " << proto.calls[in.b].name << "(";
+                for (int i = 0; i < in.c; ++i) out << (i ? ", " : "") << reg(in.a + i);
+                out << ")";
+                break;
+            case Op::Return: out << reg(in.a); break;
+            case Op::NewArray: out << reg(in.a) << " [" << in.c << " from " << reg(in.b) << "]"; break;
+            case Op::NewMap: out << reg(in.a) << " {" << in.c << " from " << reg(in.b) << "}"; break;
+            case Op::MapKey: out << reg(in.a); break;
+            case Op::Index: out << reg(in.a) << " " << reg(in.b) << "[" << reg(in.c) << "]"; break;
+            case Op::Field: out << reg(in.a) << " " << reg(in.b) << "." << K[in.c].str(); break;
+            case Op::SetPath: {
+                const SetPath& path = proto.paths[in.b];
+                out << path.variable;
+                for (const auto& step : path.steps) out << (step.field ? "." + step.name : "[" + reg(step.key) + "]");
+                out << " " << (path.op == "=" ? "=" : path.op + "=") << " " << reg(in.a);
+                break;
+            }
+            case Op::Increment:
+                if (in.a >= 0) out << reg(in.a) << " = ";
+                out << reg(in.b) << (in.c & 1 ? "++" : "--");
+                break;
+            case Op::IncrementGlobal:
+                if (in.a >= 0) out << reg(in.a) << " = ";
+                out << proto.globals[in.b].name << (in.c ? "++" : "--");
+                break;
+            case Op::Declare: out << "#" << in.b; break;
+            case Op::Throw: out << reg(in.a); break;
+            case Op::Rethrow: out << "#" << in.a; break;
+            case Op::Match: out << reg(in.a) << " " << reg(in.b) << " " << reg(in.c); break;
+            case Op::Statement: out << "line " << in.a; break;
+            default: break;
+        }
+        out << "\n";
+    }
+    for (const auto& handler : proto.handlers)
+        out << "    " << (handler.finally ? "finally" : "catch") << " [" << handler.start << ", " << handler.end << ") -> "
+            << handler.target << "\n";
+}
+
+} // namespace foxlang::bytecode
