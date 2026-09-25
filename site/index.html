@@ -198,7 +198,7 @@ td code { white-space: nowrap; }
 
 /* Pipeline */
 .pipeline {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px; margin: 6px 0 22px;
 }
 .stage {
@@ -249,6 +249,7 @@ td code { white-space: nowrap; }
   overflow-x: auto; white-space: pre;
 }
 .trace { white-space: normal; }
+.bytecode { white-space: pre; }
 .trace ol { margin: 0; padding-left: 1.4em; }
 .result { font-family: var(--mono); color: var(--green); font-weight: 600; }
 .error { color: var(--fox); font-family: var(--mono); font-size: 14px; }
@@ -384,17 +385,18 @@ img { max-width: 100%; }
     </section>
 
     <section id="pipeline">
-      <h2>Путь программы: три шага</h2>
-      <p>Когда ты читаешь предложение на чужом языке, ты сначала выделяешь слова, потом понимаешь грамматику, потом смысл. <code>foxlang</code> делает то же самое.</p>
+      <h2>Путь программы: четыре шага</h2>
+      <p>Когда ты читаешь предложение на чужом языке, ты сначала выделяешь слова, потом понимаешь грамматику, потом смысл. <code>foxlang</code> делает то же самое, а потом ещё переводит понятое в короткие простые команды и выполняет их.</p>
       <div class="pipeline">
         <div class="stage"><small>вход</small><b>Текст</b><span>файл .fox, просто буквы</span></div>
         <div class="stage"><small>шаг 1</small><b>Лексер</b><span>режет текст на токены-слова</span></div>
         <div class="stage"><small>шаг 2</small><b>Парсер</b><span>строит из слов дерево смысла</span></div>
-        <div class="stage"><small>шаг 3</small><b>Интерпретатор</b><span>обходит дерево и выполняет</span></div>
+        <div class="stage"><small>шаг 3</small><b>Компилятор</b><span>переводит дерево в байткод — список простых команд</span></div>
+        <div class="stage"><small>шаг 4</small><b>Виртуальная машина</b><span>выполняет команды одну за другой</span></div>
       </div>
 
       <h3>Попробуй сам</h3>
-      <p>Ниже маленькая копия этих трёх шагов, написанная для страницы. Она понимает объявление переменной и арифметику, как настоящий FoxLang. Меняй строку и смотри, что получается на каждом шаге.</p>
+      <p>Ниже маленькая копия этих четырёх шагов, написанная для страницы. Она понимает объявление переменной и арифметику, как настоящий FoxLang, и показывает байткод в том же виде, что и команда <code>foxlang disasm</code>. Меняй строку и смотри, что получается на каждом шаге.</p>
       <div class="demo">
         <label for="expr">Строка FoxLang</label>
         <input id="expr" type="text" value="int x = 5 + 2 * 3;" spellcheck="false" autocomplete="off">
@@ -408,7 +410,8 @@ img { max-width: 100%; }
         <div class="demo-grid">
           <div class="panel"><h4><em>1</em>Лексер: токены</h4><div class="tokens" id="tokens"></div></div>
           <div class="panel"><h4><em>2</em>Парсер: дерево</h4><pre class="tree" id="tree"></pre></div>
-          <div class="panel"><h4><em>3</em>Интерпретатор: вычисление</h4><div class="trace" id="trace"></div></div>
+          <div class="panel"><h4><em>3</em>Компилятор: байткод</h4><pre class="tree bytecode" id="bytecode"></pre></div>
+          <div class="panel"><h4><em>4</em>Виртуальная машина: выполнение</h4><div class="trace" id="trace"></div></div>
         </div>
       </div>
 
@@ -416,24 +419,47 @@ img { max-width: 100%; }
       <p>Лексер (<code>src/core/Lexer.cpp</code>) идёт по тексту буква за буквой и собирает <strong>токены</strong>: ключевые слова (<code>int</code>, <code>if</code>), имена (<code>x</code>), числа, строки и знаки. Пробелы и комментарии <code>//</code> он выбрасывает. У каждого токена запоминается строка и столбец: когда что-то сломается, ошибка скажет «строка 12».</p>
       <h3>Шаг 2. Парсер</h3>
       <p>Парсер (<code>src/core/Parser.cpp</code>) знает грамматику: что после <code>int</code> идёт имя, потом <code>=</code>, потом выражение и <code>;</code>. Из токенов он строит <strong>дерево</strong>, его ещё называют AST. Умножение оказывается глубже сложения, поэтому считается раньше. Так и получается правило «умножение раньше сложения». Если грамматика нарушена, парсер сообщает <code>Syntax Error</code> с номером строки.</p>
-      <h3>Шаг 3. Интерпретатор</h3>
-      <p>У каждого вида узла дерева есть метод <code>eval</code> — «вычисли себя». Число возвращает себя. Сложение просит посчитать левую и правую ветку и складывает их. Объявление переменной кладёт результат в ячейку. Все виды узлов описаны в <code>include/foxlang/AST.h</code>: <code>if</code>, <code>while</code>, вызов функции, <code>a[i]</code>, <code>p.x</code>, <code>try</code> и остальные.</p>
-      <div class="note"><p>Такой способ называется <strong>интерпретатором по дереву</strong>. Это самый простой способ выполнить программу, и именно так сейчас устроен FoxLang. Большие языки работают иначе, об этом следующий абзац.</p></div>
+      <h3>Шаг 3. Компилятор</h3>
+      <p>Компилятор (<code>src/core/Compiler.cpp</code>) обходит дерево один раз и переводит его в <strong>байткод</strong> — плоский список простых команд: «сложи ячейки 2 и 3 и положи в ячейку 1», «если не меньше — перейди к команде 7», «вызови функцию». Ячейки называются <strong>регистрами</strong>. У каждого вызова функции свой ряд регистров: сначала её переменные (параметры первыми), потом числа, с которыми она считает, потом место для промежуточных результатов. Каждая функция компилируется при первом вызове, а дальше её байткод просто используется снова.</p>
+      <p>Вот как выглядит функция Фибоначчи. Это настоящий вывод <code>foxlang disasm</code>:</p>
+      <pre class="fox" data-fox>int fib(int n) {
+    if (n &lt; 2) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}</pre>
+      <pre class="fox"><code>fib(): 9 instructions, 6 registers (1 variables)
+    r0 = n
+    r4 = 2
+    r5 = 1
+5        0  compare      if not r0 &lt; r4 -&gt; 2
+6        1  return       r0
+8        2  sub          r2 r0 r5
+         3  call         r2 = fib(r2)
+         4  sub          r3 r0 r4
+         5  call         r3 = fib(r3)
+         6  add          r1 r2 r3
+         7  return       r1
+9        8  return-void</code></pre>
+      <p>Слева номер строки исходника, потом номер команды и сама команда. <code>if</code> превратился в одно сравнение с переходом, а <code>return</code> — в команду, которая сразу отдаёт значение. Номер строки записан у каждой команды: так ошибка узнаёт, на какой строке она случилась.</p>
+      <h3>Шаг 4. Виртуальная машина</h3>
+      <p>Виртуальная машина (<code>src/core/Vm.cpp</code>) — это один цикл: взять следующую команду, выполнить, взять следующую. Для частых случаев — сложить два целых, сравнить два целых, взять элемент массива по номеру — у неё есть короткий путь в несколько процессорных инструкций. Всё редкое и сложное она передаёт общему коду, тому же, что знает все правила языка.</p>
+      <div class="note"><p>Такой способ называется <strong>байткод и регистровая виртуальная машина</strong>, так же устроен Lua. До версии 8.3 FoxLang был <strong>интерпретатором по дереву</strong>: у каждого узла был метод <code>eval</code> — «вычисли себя», и программа выполнялась, обходя дерево. Это самый простой способ, но медленный. На байткоде вызовы функций стали быстрее примерно в полтора-два раза, а тесные циклы — в два. Старый обход дерева пока оставлен для проверки: переменная окружения <code>FOXLANG_TREE=1</code> включает его, и тесты гоняют одни и те же программы обоими способами.</p></div>
 
-      <h3>А как делают большие языки</h3>
+      <h3>А как делают другие языки</h3>
       <p>Исполнять дерево напрямую просто, но медленно. Узлы дерева разбросаны по памяти, и на каждый узел приходится отдельный вызов функции. Процессор постоянно ждёт данные из памяти. Поэтому языки, для которых важна скорость, после парсера делают ещё один шаг:</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Способ</th><th>Что происходит после дерева</th><th>Кто так работает</th></tr></thead>
           <tbody>
-            <tr><td>Интерпретатор по дереву</td><td>дерево выполняется напрямую, узел за узлом</td><td>FoxLang, Bash, ранний Ruby, многие встроенные языки</td></tr>
-            <tr><td>Байткод и виртуальная машина</td><td>дерево переводится в плоский список простых команд, их гоняет быстрый цикл</td><td>Python, Lua, Ruby 1.9+</td></tr>
+            <tr><td>Интерпретатор по дереву</td><td>дерево выполняется напрямую, узел за узлом</td><td>Bash, ранний Ruby, FoxLang до 8.3, многие встроенные языки</td></tr>
+            <tr><td>Байткод и виртуальная машина</td><td>дерево переводится в плоский список простых команд, их гоняет быстрый цикл</td><td>FoxLang, Python, Lua, Ruby 1.9+</td></tr>
             <tr><td>Байткод и JIT</td><td>горячий байткод на лету переводится в машинный код процессора</td><td>JavaScript в браузере, Java, C#</td></tr>
             <tr><td>Компиляция</td><td>дерево проходит через десятки оптимизаций и превращается в машинный код заранее; интерпретатора при запуске нет вовсе</td><td>C, C++, Rust, Go</td></tr>
           </tbody>
         </table>
       </div>
-      <p>Первые три шага — лексер и парсер — у всех одинаковые. Отличается только то, что происходит с деревом дальше. Поэтому FoxLang хорошо показывает начало пути любого языка, но не то, как Python или браузер выполняют код.</p>
+      <p>Лексер и парсер у всех одинаковые. Отличается только то, что происходит с деревом дальше. FoxLang теперь проходит тот же путь, что Python и Lua: дерево, байткод, виртуальная машина. Дальше по этой дороге идёт только JIT, а он на порядок сложнее и для такого языка не окупится.</p>
     </section>
 
     <section id="types">
@@ -504,26 +530,25 @@ print(fox.name, fox["tags"][0], p.x + p.y);   // Лис рыжий 7</pre>
         <li>Функция видит свои переменные и глобальные, но не переменные того, кто её вызвал.</li>
       </ul>
       <h3>Как FoxLang находит переменную быстро</h3>
-      <p>Искать имя по комнатам при каждом обращении долго: это сравнение строк в нескольких словарях. Поэтому перед первым вызовом функции FoxLang один раз проходит по её дереву и раздаёт всем локальным переменным <strong>номера ячеек</strong>: параметрам первыми, потом переменным блоков по порядку. У каждого вызова свой ряд ячеек, и <code>total</code> превращается просто в «ячейку номер 3». Глобальные переменные ищутся по имени один раз, дальше узел дерева помнит, где они лежат.</p>
+      <p>Искать имя по комнатам при каждом обращении долго: это сравнение строк в нескольких словарях. Поэтому перед первым вызовом функции FoxLang один раз проходит по её дереву и раздаёт всем локальным переменным <strong>номера ячеек</strong>: параметрам первыми, потом переменным блоков по порядку. У каждого вызова свой ряд ячеек, и <code>total</code> превращается просто в «ячейку номер 3». Глобальные переменные ищутся по имени один раз, дальше команда байткода помнит, где они лежат.</p>
       <p>Так делают почти все языки: Python, Lua и JavaScript тоже заранее превращают имена локальных переменных в номера. Комнаты при этом никуда не делись. Они определяют, какой номер получит каждое имя, просто решается это заранее, а не во время работы программы.</p>
     </section>
 
     <section id="functions">
-      <h2>Функции и флажок return</h2>
+      <h2>Функции, вызов и return</h2>
       <pre class="fox" data-fox>int add(int a, int b) {
     return a + b;
 }
 print(add(2, 3));   // 5</pre>
       <ol class="steps">
-        <li>Считаются аргументы: 2 и 3.</li>
-        <li>Создаётся новая комната, в ней <code>a = 2</code>, <code>b = 3</code>.</li>
-        <li>Выполняется тело функции.</li>
-        <li><code>return</code> кладёт результат рядом и <strong>поднимает флажок</strong> «пора выходить». Каждый блок после каждой строки смотрит на флажок и, если он поднят, заканчивает работу.</li>
-        <li>Функция забирает результат, опускает флажок и отдаёт 5.</li>
+        <li>Аргументы 2 и 3 считаются в соседние регистры вызывающего кода.</li>
+        <li>Команда <code>call</code> выделяет новый ряд регистров и переносит в него аргументы: <code>a = 2</code>, <code>b = 3</code>.</li>
+        <li>Виртуальная машина выполняет байткод функции: <code>add r2 r0 r1</code>.</li>
+        <li><code>return r2</code> сразу отдаёт значение. Ряд регистров функции освобождается, а 5 попадает в регистр, где лежал первый аргумент.</li>
       </ol>
-      <p>Раньше <code>return</code> был сделан через исключение C++, а это медленная операция. Флажок сделал вызовы примерно в 8 раз быстрее. <code>break</code> и <code>continue</code> в циклах работают тем же флажком.</p>
-      <div class="note"><p>Флажок — приём именно интерпретатора по дереву. В байткоде и в машинном коде никто ничего не опрашивает: при вызове функции запоминается адрес, куда вернуться, а <code>return</code> просто прыгает по этому адресу и убирает кадр функции со стека.</p></div>
-      <p>Есть и защита от бесконечной рекурсии: если функция вызывает себя слишком глубоко, программа получит понятную ошибку вместо аварийного падения.</p>
+      <p><code>break</code> и <code>continue</code> — просто переходы к нужной команде. Сложнее всего с <code>finally</code>: он должен выполниться, как бы ни закончился <code>try</code>. Компилятор кладёт копию блока <code>finally</code> на каждый выход из <code>try</code> — перед <code>return</code>, <code>break</code> и в конце, — а для ошибок у каждой функции есть таблица: «ошибка в командах с 3 по 9 — переходи к команде 15».</p>
+      <div class="note"><p>До версии 8.3, во времена обхода дерева, <code>return</code> работал иначе: он поднимал флажок «пора выходить», и каждый блок после каждой строки на него смотрел. А ещё раньше <code>return</code> был исключением C++, в восемь раз медленнее флажка. В байткоде никто ничего не опрашивает: <code>return</code> — одна команда.</p></div>
+      <p>Есть и защита от бесконечной рекурсии: если функция вызывает себя слишком глубоко, программа получит понятную ошибку вместо аварийного падения. На обычных 8 МБ стека это несколько тысяч вложенных вызовов.</p>
     </section>
 
     <section id="errors">
@@ -709,6 +734,7 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
             <tr><td><code>foxlang test</code></td><td>запускает тесты из файлов <code>*_test.fox</code></td></tr>
             <tr><td><code>foxlang fmt</code></td><td>приводит оформление кода к одному виду</td></tr>
             <tr><td><code>foxlang build файл.fox -o app</code></td><td>собирает отдельное приложение</td></tr>
+            <tr><td><code>foxlang disasm файл.fox</code></td><td>показывает байткод программы и её функций</td></tr>
             <tr><td><code>foxlang debug-adapter</code></td><td>отладчик для редакторов</td></tr>
             <tr><td><code>foxlang-lsp</code></td><td>помощник для редакторов: ошибки, подсказки, переходы</td></tr>
           </tbody>
@@ -719,7 +745,7 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
       <h3>Помощник в редакторе</h3>
       <p>VS Code, Kate и Zed разговаривают с <code>foxlang-lsp</code> по стандартному протоколу LSP. На каждое изменение в файле сервер заново прогоняет анализатор и отвечает: где подчеркнуть ошибку, что подсказать при вводе, где объявлена функция, как переименовать имя во всех файлах.</p>
       <h3>Отладчик</h3>
-      <p>Перед каждой строкой интерпретатор спрашивает отладчика: «остановиться?». Если на строке стоит точка останова, программа замирает, а редактор по протоколу DAP смотрит переменные, стек вызовов и вычисляет выражения. Без отладчика этот вопрос стоит одну проверку указателя, то есть почти ничего.</p>
+      <p>Когда отладчик подключён, FoxLang компилирует функции в особый вариант байткода: перед каждой строкой стоит команда <code>statement</code>, которая спрашивает отладчика «остановиться?». Если на строке точка останова, программа замирает, а редактор по протоколу DAP смотрит переменные, стек вызовов и вычисляет выражения. Регистры функции при этом видны отладчику как её переменные. Без отладчика таких команд в байткоде нет вовсе, и за отладку ничего не платится.</p>
       <h3>Отдельное приложение</h3>
       <p><code>foxlang build</code> берёт копию самого <code>foxlang</code> и дописывает в её конец твои исходники. Запущенная программа видит «у меня в хвосте есть код» и выполняет его. Поэтому готовому приложению не нужен установленный FoxLang.</p>
     </section>
@@ -727,7 +753,7 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
     <section id="project">
       <h2>Как устроен сам проект</h2>
       <pre class="files">FoxLang/
-├── src/core/       <i>сердце: лексер, парсер, дерево, интерпретатор, анализатор</i>
+├── src/core/       <i>сердце: лексер, парсер, компилятор, виртуальная машина, анализатор</i>
 │   └── builtins/   <i>встроенные функции на C++</i>
 ├── src/graphics/   <i>окно, рисование, картинки, интерфейс</i>
 ├── src/lsp/        <i>помощник для редакторов</i>
@@ -735,12 +761,12 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
 ├── src/cli/        <i>команда foxlang: запуск, check, test, fmt</i>
 ├── std/            <i>стандартная библиотека на FoxLang</i>
 ├── editors/        <i>расширения для VS Code, Kate и Zed</i>
-├── tests/          <i>95 автотестов</i>
+├── tests/          <i>98 автотестов</i>
 ├── docs/           <i>документация</i>
 └── VERSION         <i>номер версии, одно место на весь проект</i></pre>
       <ul class="plain">
         <li><strong>Сборка.</strong> CMake собирает около 13 тысяч строк C++ в две программы: <code>foxlang</code> и <code>foxlang-lsp</code>.</li>
-        <li><strong>Тесты.</strong> 97 проверок: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши.</li>
+        <li><strong>Тесты.</strong> 98 проверок: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши.</li>
         <li><strong>Релизы.</strong> Когда меняется <code>VERSION</code> и изменения попадают в ветку <code>master</code>, GitHub сам собирает версии для Linux и Windows, гоняет все тесты на обеих системах и публикует релиз с архивами и расширениями для редакторов.</li>
       </ul>
     </section>
@@ -791,7 +817,7 @@ python3 benchmarks/run.py --baseline old/foxlang <span class="c"># сравни�
       <div class="bench-legend" id="bench-legend"></div>
       <div class="bench-chart" id="bench-langs" role="img" aria-label="Время бенчмарков на FoxLang и других языках"></div>
       <div class="note">
-        <p>Честно о том, что видно на графике. FoxLang выполняет дерево программы напрямую, а Python, Lua и Ruby сначала переводят его в байткод и гоняют быстрый цикл по командам, поэтому они быстрее в несколько раз, а в тесных циклах — в десятки. JavaScript в Node.js ещё и превращает горячий код в машинный прямо во время работы, об этом было в таблице <a href="#pipeline">выше</a>. Там, где работа уходит во встроенные функции на C++ — сортировка, разбор JSON, склейка строк, — FoxLang ближе к остальным: внутри них дерево уже не обходится. Эти языки развивают большие команды десятки лет, так что сравнение — это ориентир, а не соревнование.</p>
+        <p>Честно о том, что видно на графике. С версии 8.3 FoxLang, как Python и Lua, выполняет байткод, а не дерево, и на этих задачах идёт вровень с Python: где-то быстрее (циклы, структуры, сортировка), где-то медленнее (словари, JSON). Lua устроен так же, но его виртуальную машину вылизывают тридцать лет, поэтому она ещё в несколько раз быстрее. JavaScript в Node.js превращает горячий код в машинный прямо во время работы, об этом было в таблице <a href="#pipeline">выше</a>. Эти языки развивают большие команды десятки лет, так что сравнение — это ориентир, а не соревнование.</p>
       </div>
 
       <h3>Новая версия и предыдущая</h3>
@@ -809,22 +835,22 @@ print(square(4));</pre>
         <li><span><code>foxlang</code> читает файл целиком.</span></li>
         <li><span><strong>Лексер</strong> выдаёт токены: <code>int</code> <code>square</code> <code>(</code> <code>int</code> <code>n</code> <code>)</code> <code>{</code> <code>return</code> <code>n</code> <code>*</code> <code>n</code> <code>;</code> <code>}</code> <code>print</code> …</span></li>
         <li><span><strong>Парсер</strong> строит дерево из двух частей: «объявление функции square» и «вызов print с аргументом square(4)».</span></li>
-        <li><span><strong>Интерпретатор</strong> запоминает функцию <code>square</code>.</span></li>
-        <li><span>Видит <code>print(…)</code> и сначала считает аргумент, то есть вызывает <code>square(4)</code>.</span></li>
-        <li><span>Создаёт комнату с <code>n = 4</code> и считает <code>n * n</code> = 16.</span></li>
-        <li><span><code>return</code> поднимает флажок, функция отдаёт 16.</span></li>
+        <li><span><strong>Компилятор</strong> переводит верхний уровень программы в байткод: «объявить функцию square», «положить 4 в регистр, вызвать square, вызвать print».</span></li>
+        <li><span><strong>Виртуальная машина</strong> выполняет эти команды. Первая запоминает функцию <code>square</code>.</span></li>
+        <li><span>Команда <code>call square</code> видит, что байткода у функции ещё нет, и компилирует её тело: <code>mul r1 r0 r0</code>, <code>return r1</code>.</span></li>
+        <li><span>Для вызова выделяется ряд регистров с <code>n = 4</code> в регистре r0, умножение даёт 16, <code>return</code> отдаёт его.</span></li>
         <li><span><code>print</code> выводит <span class="result">16</span>, программа завершается с кодом 0 — «всё хорошо».</span></li>
       </ol>
     </section>
 
     <section id="short" class="summary">
       <h2>Если совсем коротко</h2>
-      <p>FoxLang — программа на C++, которая режет твой текст на слова, строит из слов дерево смысла и обходит это дерево, выполняя каждый узел. Вокруг этого ядра построены стандартная библиотека, графика, веб-сервер, проверка ошибок, помощник для редакторов, отладчик, тесты и автоматические релизы.</p>
+      <p>FoxLang — программа на C++, которая режет твой текст на слова, строит из слов дерево смысла, переводит дерево в байткод — список простых команд — и выполняет эти команды в своей виртуальной машине. Вокруг этого ядра построены стандартная библиотека, графика, веб-сервер, проверка ошибок, помощник для редакторов, отладчик, тесты и автоматические релизы.</p>
     </section>
   </article>
 </div>
 
-<footer>FoxLang 8.2.0 · исходники и документация — <a href="https://github.com/SkrinVex/FoxLang" target="_blank" rel="noopener">github.com/SkrinVex/FoxLang</a></footer>
+<footer>FoxLang 8.3.0 · исходники и документация — <a href="https://github.com/SkrinVex/FoxLang" target="_blank" rel="noopener">github.com/SkrinVex/FoxLang</a></footer>
 
 <script type="application/json" id="bench-data">
 {"version":"8.1.0","date":"2026-09-25","machine":{"os":"Linux x86_64","cpu":"Intel(R) Celeron(R) N4020C CPU @ 1.10GHz"},"runs":5,"languages":{"foxlang":{"name":"FoxLang","version":"FoxLang 8.1.0"},"foxlang_baseline":{"name":"FoxLang (previous)","version":"FoxLang 8.0.0"},"python":{"name":"Python","version":"Python 3.14.7"},"lua":{"name":"Lua","version":"Lua 5.4.9"},"javascript":{"name":"JavaScript (Node.js)","version":"v26.10.0"}},"benchmarks":[{"name":"array_sum","about":"Growing an array and reading it back by index.","seconds":{"foxlang":0.8220495040004607,"foxlang_baseline":0.8046430410031462,"python":0.11204682500101626,"lua":0.04474602800473804,"javascript":0.08812319800199475}},{"name":"fib","about":"Function calls: naive recursive Fibonacci.","seconds":{"foxlang":0.6164286349958275,"foxlang_baseline":0.6133975439952337,"python":0.07494633600435918,"lua":0.02926724500139244,"javascript":0.07089768599689705}},{"name":"json_roundtrip","about":"Turning records into JSON text and back.","seconds":{"foxlang":0.3555030940042343,"foxlang_baseline":0.34874510599911446,"python":0.20824911999807227,"javascript":0.135121507999429}},{"name":"loop","about":"Integer arithmetic in a tight loop.","seconds":{"foxlang":2.797177840999211,"foxlang_baseline":2.7681683769988013,"python":0.5878342849973706,"lua":0.10385304999363143,"javascript":0.08476455699565122}},{"name":"map_lookup","about":"Inserting keys into a map and looking every one of them up.","seconds":{"foxlang":0.6534529349955847,"foxlang_baseline":null,"python":0.28541876199597027,"lua":0.6466928770023515,"javascript":0.4442104150002706}},{"name":"records","about":"Creating many small records and reading their fields.","seconds":{"foxlang":0.9637308169985772,"foxlang_baseline":0.9543194729994866,"python":0.25225184000009904,"lua":0.19137996299832594,"javascript":0.13434408799366793}},{"name":"sort_numbers","about":"Sorting numbers with the language's own sort.","seconds":{"foxlang":0.5961958159969072,"foxlang_baseline":0.5898370669965516,"python":0.25797608100401703,"lua":0.254622147003829,"javascript":0.23630277100164676}},{"name":"split_join","about":"Building text, joining and splitting it.","seconds":{"foxlang":0.600587403998361,"foxlang_baseline":19.539538478995382,"python":0.14139736899960553,"lua":0.4179613119995338,"javascript":0.17239006900490494}}]}
@@ -901,10 +927,11 @@ print(square(4));</pre>
     pre.innerHTML = "<code>" + out + "</code>";
   });
 
-  // The live demo: a tiny lexer, parser and tree-walking evaluator.
+  // The live demo: a tiny lexer, parser, bytecode compiler and VM.
   var input = document.getElementById("expr");
   var tokensBox = document.getElementById("tokens");
   var treeBox = document.getElementById("tree");
+  var codeBox = document.getElementById("bytecode");
   var traceBox = document.getElementById("trace");
   var types = { "int": 1, "float": 1, "string": 1, "bool": 1 };
 
@@ -984,40 +1011,99 @@ print(square(4));</pre>
     return lines;
   }
 
-  function evaluate(node, steps) {
-    if (node.type === "Число") {
-      var isFloat = node.value.indexOf(".") >= 0;
-      var v = { value: parseFloat(node.value), float: isFloat };
-      steps.push("Число " + node.value + " → " + format(v));
-      return v;
+  // Like FoxLang's compiler: the declared variable is register r0, temporaries follow,
+  // and every number arithmetic reads gets a register of its own after them.
+  function compile(root) {
+    var code = [], next = 0, top = 0, numbers = [], names = {};
+    function number(text) {
+      if (names[text] === undefined) { names[text] = numbers.length; numbers.push(text); }
+      return { number: names[text] };
     }
-    if (node.type === "Переменная") throw { stage: 3, message: "Runtime Error: Variable '" + node.value + "' not found!" };
-    if (node.type === "Минус") {
-      var inner = evaluate(node.children[0], steps);
-      var neg = { value: -inner.value, float: inner.float };
-      steps.push("Минус → " + format(neg));
-      return neg;
+    function any(node) {
+      if (node.type === "Число") return number(node.value);
+      var reg = next++;
+      top = Math.max(top, next);
+      into(node, reg);
+      return reg;
     }
-    if (node.type === "Объявление") {
-      var val = evaluate(node.children[0], steps);
-      if (node.declared === "int" && val.float) { val = { value: Math.trunc(val.value), float: false }; steps.push("float превращается в int, дробная часть отбрасывается → " + format(val)); }
-      if (node.declared === "float") val = { value: val.value, float: true };
-      if (node.declared === "string") { steps.push("число превращается в текст \"" + format(val) + "\""); }
-      if (node.declared === "bool") throw { stage: 3, message: "Type Error: variable '" + node.name + "' has type 'bool' and cannot hold a value of type '" + (val.float ? "float" : "int") + "'" };
-      steps.push("в ячейку " + node.name + " кладётся " + format(val));
-      return val;
+    function into(node, dest) {
+      var mark = Math.max(next, dest + 1);
+      if (dest >= next) next = dest + 1;
+      top = Math.max(top, next);
+      if (node.type === "Число") code.push({ op: "loadk", a: dest, value: node.value });
+      else if (node.type === "Переменная") code.push({ op: "getglobal", a: dest, name: node.value });
+      else if (node.type === "Минус") code.push({ op: "neg", a: dest, b: any(node.children[0]) });
+      else {
+        var names2 = { "+": "add", "-": "sub", "*": "mul", "/": "div", "%": "mod" };
+        var l = any(node.children[0]), r = any(node.children[1]);
+        code.push({ op: names2[node.op], a: dest, b: l, c: r, sign: node.op });
+      }
+      next = mark;
     }
-    var l = evaluate(node.children[0], steps), r = evaluate(node.children[1], steps);
-    var isF = l.float || r.float, res;
-    if ((node.op === "/" || node.op === "%") && r.value === 0) throw { stage: 3, message: "Runtime Error: Division by zero" };
-    if (node.op === "+") res = l.value + r.value;
-    else if (node.op === "-") res = l.value - r.value;
-    else if (node.op === "*") res = l.value * r.value;
-    else if (node.op === "/") res = isF ? l.value / r.value : Math.trunc(l.value / r.value);
-    else res = isF ? l.value % r.value : Math.trunc(l.value % r.value);
-    var out = { value: res, float: isF };
-    steps.push(node.type + ": " + format(l) + " " + node.op + " " + format(r) + " = " + format(out));
-    return out;
+    var slots = 0;
+    if (root.type === "Объявление") {
+      slots = 1; next = 1;
+      into(root.children[0], 0);
+      code.push({ op: "coerce", a: 0, declared: root.declared, name: root.name });
+    } else {
+      into(root, next++);
+    }
+    // The number registers go after the temporaries, as in the real compiler.
+    var base = Math.max(top, slots);
+    function place(x) { return x && x.number !== undefined ? base + x.number : x; }
+    code.forEach(function (c) { c.b = place(c.b); c.c = place(c.c); });
+    return { code: code, numbers: numbers, base: base, name: root.name };
+  }
+
+  function listing(program) {
+    var lines = [];
+    if (program.name) lines.push("    r0 = " + program.name);
+    program.numbers.forEach(function (n, i) { lines.push("    r" + (program.base + i) + " = " + n); });
+    program.code.forEach(function (c, pc) {
+      var args = c.op === "loadk" ? "r" + c.a + " " + c.value
+        : c.op === "getglobal" ? "r" + c.a + " " + c.name
+        : c.op === "neg" ? "r" + c.a + " r" + c.b
+        : c.op === "coerce" ? "r" + c.a + " " + c.declared
+        : "r" + c.a + " r" + c.b + " r" + c.c;
+      lines.push(String(pc).padStart(4) + "  " + c.op.padEnd(10) + args);
+    });
+    return lines.join("\n");
+  }
+
+  function execute(program, steps) {
+    var R = [];
+    program.numbers.forEach(function (n, i) { R[program.base + i] = { value: parseFloat(n), float: n.indexOf(".") >= 0 }; });
+    program.code.forEach(function (c, pc) {
+      var at = "[" + pc + "] ";
+      if (c.op === "loadk") {
+        R[c.a] = { value: parseFloat(c.value), float: c.value.indexOf(".") >= 0 };
+        steps.push(at + "r" + c.a + " ← " + format(R[c.a]));
+      } else if (c.op === "getglobal") {
+        throw { stage: 4, message: "Runtime Error: Variable '" + c.name + "' not found!" };
+      } else if (c.op === "neg") {
+        R[c.a] = { value: -R[c.b].value, float: R[c.b].float };
+        steps.push(at + "r" + c.a + " ← −" + format(R[c.b]) + " = " + format(R[c.a]));
+      } else if (c.op === "coerce") {
+        var v = R[0];
+        if (c.declared === "int" && v.float) { R[0] = v = { value: Math.trunc(v.value), float: false }; steps.push(at + "float превращается в int, дробная часть отбрасывается → " + format(v)); }
+        else if (c.declared === "float" && !v.float) { R[0] = v = { value: v.value, float: true }; steps.push(at + "int превращается во float → " + format(v)); }
+        else if (c.declared === "string") steps.push(at + "число превращается в текст \"" + format(v) + "\"");
+        else if (c.declared === "bool") throw { stage: 4, message: "Type Error: variable '" + c.name + "' has type 'bool' and cannot hold a value of type '" + (v.float ? "float" : "int") + "'" };
+        else steps.push(at + "тип уже " + c.declared + ", превращать не нужно");
+        steps.push("в переменной " + c.name + " (регистр r0) теперь " + format(R[0]));
+      } else {
+        var l = R[c.b], r = R[c.c], isF = l.float || r.float, res;
+        if ((c.sign === "/" || c.sign === "%") && r.value === 0) throw { stage: 4, message: "Runtime Error: Division by zero" };
+        if (c.sign === "+") res = l.value + r.value;
+        else if (c.sign === "-") res = l.value - r.value;
+        else if (c.sign === "*") res = l.value * r.value;
+        else if (c.sign === "/") res = isF ? l.value / r.value : Math.trunc(l.value / r.value);
+        else res = isF ? l.value % r.value : Math.trunc(l.value % r.value);
+        R[c.a] = { value: res, float: isF };
+        steps.push(at + "r" + c.a + " ← " + format(l) + " " + c.sign + " " + format(r) + " = " + format(R[c.a]));
+      }
+    });
+    return R[program.name ? 0 : program.code.length ? program.code[program.code.length - 1].a : 0];
   }
 
   function format(v) {
@@ -1027,8 +1113,13 @@ print(square(4));</pre>
   }
 
   function render() {
-    tokensBox.innerHTML = ""; treeBox.textContent = ""; traceBox.innerHTML = "";
-    var tokens, tree;
+    tokensBox.innerHTML = ""; treeBox.textContent = ""; codeBox.textContent = ""; traceBox.innerHTML = "";
+    var tokens, tree, steps = [];
+    function listSteps() {
+      var ol = document.createElement("ol");
+      steps.forEach(function (s) { var li = document.createElement("li"); li.textContent = s; ol.appendChild(li); });
+      traceBox.appendChild(ol);
+    }
     try {
       tokens = lex(input.value);
       tokens.forEach(function (t) {
@@ -1040,22 +1131,23 @@ print(square(4));</pre>
       if (!tokens.length) { tokensBox.textContent = "пусто"; return; }
       tree = parse(tokens);
       treeBox.textContent = drawTree(tree, "", true, true).join("\n");
-      var steps = [];
-      var result = evaluate(tree, steps);
-      var ol = document.createElement("ol");
-      steps.forEach(function (s) { var li = document.createElement("li"); li.textContent = s; ol.appendChild(li); });
-      traceBox.appendChild(ol);
+      var program = compile(tree);
+      codeBox.textContent = listing(program);
+      var result = execute(program, steps);
+      listSteps();
       var done = document.createElement("p");
       done.style.margin = "8px 0 0";
       done.innerHTML = 'Итог: <span class="result">' + escapeHtml(tree.name ? tree.name + " = " + format(result) : format(result)) + "</span>";
       traceBox.appendChild(done);
     } catch (e) {
-      var box = e.stage === 1 ? tokensBox : e.stage === 2 ? treeBox : traceBox;
+      var box = e.stage === 1 ? tokensBox : e.stage === 2 ? treeBox : e.stage === 3 ? codeBox : traceBox;
+      if (box === traceBox && steps.length) listSteps();
       var msg = document.createElement("span");
       msg.className = "error";
       msg.textContent = e.message || String(e);
       if (box === treeBox) { treeBox.textContent = ""; treeBox.appendChild(msg); } else { box.appendChild(msg); }
-      if (e.stage <= 2) traceBox.innerHTML = '<span class="error">до выполнения дело не дошло</span>';
+      if (e.stage <= 2) codeBox.innerHTML = '<span class="error">без дерева компилировать нечего</span>';
+      if (e.stage <= 3) traceBox.innerHTML = '<span class="error">до выполнения дело не дошло</span>';
     }
   }
   input.addEventListener("input", render);
