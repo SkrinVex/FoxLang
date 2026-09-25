@@ -69,8 +69,8 @@ print("GRAPHICS_STANDALONE_OK");
         driver=NativeWindow(title)
         wait_for(driver.find,process,'window')
         assert driver.pixel(5,5)==0x0a141e,hex(driver.pixel(5,5))
-        assert driver.pixel(25,25)==0xf03c14
-        assert driver.pixel(140,80)==0x1edc46
+        assert driver.pixel(25,25)==0xf03c14,hex(driver.pixel(25,25))
+        assert driver.pixel(140,80)==0x1edc46,hex(driver.pixel(140,80))
         driver.send_key('SPACE',True)
         wait_for(lambda:(clean/'key.txt').exists(),process,'key down')
         # Repeated keydown without release must not count as another press.
@@ -80,11 +80,11 @@ print("GRAPHICS_STANDALONE_OK");
         time.sleep(.05)
         driver.mouse(90,100,True)
         wait_for(lambda:(clean/'mouse.txt').exists(),process,'mouse')
-        assert (clean/'mouse.txt').read_text()=='90,100'
+        assert (clean/'mouse.txt').read_text()=='90,100',(clean/'mouse.txt').read_text()
         driver.mouse(90,100,False)
         driver.mouse(110,120,True,button=2)
         wait_for(lambda:(clean/'right.txt').exists(),process,'right mouse')
-        assert (clean/'right.txt').read_text()=='110,120'
+        assert (clean/'right.txt').read_text()=='110,120',(clean/'right.txt').read_text()
         driver.mouse(110,120,False,button=2)
         driver.close_window()
         stdout,stderr=process.communicate(timeout=15)

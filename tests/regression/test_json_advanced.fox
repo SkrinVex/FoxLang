@@ -26,7 +26,7 @@ string tg_json = "{"
         "\"text\": \"Привет, мир! 🦊\","
         "\"date\": 1700000000"
     "}"
-"}";
+    "}";
 
 assert_true(json_path(tg_json, "update_id") == "10001", "tg update_id");
 assert_true(json_path(tg_json, "message.message_id") == "42", "tg message.message_id");
