@@ -136,6 +136,7 @@ set(REGRESSION_TESTS
     test_slots
     test_lambdas
     test_methods
+    test_null
 )
 
 foreach(T ${REGRESSION_TESTS})

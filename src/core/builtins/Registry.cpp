@@ -65,7 +65,7 @@ bool typeFits(const Builtin& builtin, size_t index, const Value& value) {
     size_t at = std::min(index, builtin.accepts.size() - 1);
     const Builtin::Accepts& accepts = builtin.accepts[at];
     switch (accepts.rule) {
-        case Builtin::Accepts::Rule::Any: return !value.isVoid();
+        case Builtin::Accepts::Rule::Any: return true; // null too: print(null)
         case Builtin::Accepts::Rule::Number: return value.isNumber();
         case Builtin::Accepts::Rule::Kind: return value.kind() == accepts.kind;
         default: return value.typeName() == builtin.spec.params[at].type;

@@ -22,6 +22,27 @@ std::unique_ptr<NodeType> at(std::unique_ptr<NodeType> node, SourcePosition star
 Parser::Parser(std::vector<Token> t, std::string curFile)
     : currentFile(std::move(curFile)), tokens(std::move(t)), file(runtime::internFile(currentFile)) {
     if (tokens.empty() || tokens.back().type != TokenType::END) tokens.push_back({TokenType::END, "", 1, 1});
+    // `string?` is one type: the ? joins the type's token, so everything that looks for a
+    // type sees the same token kind as for `string`. A ? has no other use.
+    std::vector<Token> joined;
+    joined.reserve(tokens.size());
+    for (auto& token : tokens) {
+        if (token.type == TokenType::QUESTION && !joined.empty()) {
+            Token& type = joined.back();
+            bool typeToken = type.type == TokenType::IDENTIFIER || type.type == TokenType::INT_KW ||
+                             type.type == TokenType::FLOAT_KW || type.type == TokenType::STRING_KW ||
+                             type.type == TokenType::BOOL_KW || type.type == TokenType::ARRAY ||
+                             type.type == TokenType::MAP_KW || type.type == TokenType::FUNC_KW;
+            bool touching = type.range.end.line == token.range.start.line && type.range.end.column == token.range.start.column;
+            if (typeToken && touching && type.value.back() != '?') {
+                type.value += "?";
+                type.range.end = token.range.end;
+                continue;
+            }
+        }
+        joined.push_back(std::move(token));
+    }
+    tokens = std::move(joined);
 }
 
 const Token& Parser::peek(size_t offset) const {
@@ -352,7 +373,7 @@ std::unique_ptr<Node> Parser::declaration(bool global) {
     }
     if (type == "void") fail("expected '(' after a void function name");
     // A map or a struct may start empty; a scalar needs its value.
-    bool container = type == "map" || tokens[pos - 2].type == TokenType::IDENTIFIER;
+    bool container = type == "map" || tokens[pos - 2].type == TokenType::IDENTIFIER || isNullable(type);
     std::unique_ptr<Node> value;
     if (!(container && check(TokenType::SEMICOLON))) {
         consume(TokenType::ASSIGN);
@@ -510,7 +531,14 @@ std::unique_ptr<Node> Parser::switchStatement() {
     return at(std::move(node), start, previousEnd());
 }
 
-std::unique_ptr<Node> Parser::expression() { return logicalOr(); }
+std::unique_ptr<Node> Parser::expression() {
+    SourcePosition start = peek().range.start;
+    auto node = logicalOr();
+    // a ?? b ?? c: the first that is not null; the right side runs only when needed.
+    while (match(TokenType::QUESTION_QUESTION))
+        node = at(std::make_unique<BinOpNode>("??", std::move(node), logicalOr()), start, previousEnd());
+    return node;
+}
 
 std::unique_ptr<Node> Parser::logicalOr() {
     SourcePosition start = peek().range.start;
@@ -587,17 +615,21 @@ std::unique_ptr<Node> Parser::postfix(std::unique_ptr<Node> node, SourcePosition
             auto index = expression();
             consume(TokenType::RBRACKET);
             node = at(std::make_unique<IndexNode>(std::move(node), std::move(index)), start, previousEnd());
-        } else if (match(TokenType::DOT)) {
+        } else if (check(TokenType::DOT) || check(TokenType::QUESTION_DOT)) {
+            bool optional = tokens[pos++].type == TokenType::QUESTION_DOT;
             Token field = consume(TokenType::IDENTIFIER);
             if (match(TokenType::LPAREN)) {
                 auto call = std::make_unique<MethodCallNode>();
+                call->optional = optional;
                 call->base = std::move(node);
                 call->name = field.value;
                 call->nameRange = field.range;
                 call->args = arguments(TokenType::RPAREN);
                 node = at(std::move(call), start, previousEnd());
             } else {
-                node = at(std::make_unique<FieldNode>(std::move(node), field.value, field.range), start, previousEnd());
+                auto access = std::make_unique<FieldNode>(std::move(node), field.value, field.range);
+                access->optional = optional;
+                node = at(std::move(access), start, previousEnd());
             }
         } else if (match(TokenType::LPAREN)) {
             auto call = std::make_unique<CallNode>();
@@ -736,6 +768,9 @@ std::unique_ptr<Node> Parser::atom() {
             node->parts = std::move(parts);
             return at(std::move(node), start, previousEnd());
         }
+        case TokenType::NULL_KW:
+            ++pos;
+            return at(std::make_unique<NullNode>(), start, previousEnd());
         case TokenType::TRUE_KW:
         case TokenType::FALSE_KW: {
             bool value = tokens[pos++].type == TokenType::TRUE_KW;
@@ -759,6 +794,7 @@ std::unique_ptr<Node> Parser::atom() {
             return mapLiteral();
         case TokenType::IDENTIFIER: {
             if (peek(1).type == TokenType::ARROW) return lambda(start);
+            if (isNullable(peek().value)) fail("unexpected '?' after '" + peek().value.substr(0, peek().value.size() - 1) + "'");
             Token name = tokens[pos++];
             if (match(TokenType::LPAREN)) {
                 auto args = arguments(TokenType::RPAREN);

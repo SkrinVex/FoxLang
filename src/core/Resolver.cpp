@@ -19,12 +19,13 @@ public:
     void push() { scopes_.emplace_back(); }
     void pop() { scopes_.pop_back(); }
 
-    int declare(const std::string& name, bool* duplicate = nullptr) {
+    int declare(const std::string& name, const std::string& type, bool* duplicate = nullptr) {
         auto& scope = scopes_.back();
         if (duplicate && scope.count(name)) *duplicate = true;
         int slot = static_cast<int>(layout_.names.size());
         layout_.names.push_back(name);
         layout_.boxed.push_back(false);
+        layout_.types.push_back(type);
         scope[name] = slot;
         return slot;
     }
@@ -44,9 +45,10 @@ public:
         if (outer.slot >= 0) {
             // The variable now lives in a box that the function and the lambda share.
             parent_->layout_.boxed[static_cast<size_t>(outer.slot)] = true;
-            return capture(false, outer.slot, name);
+            return capture(false, outer.slot, name, parent_->layout_.types[static_cast<size_t>(outer.slot)]);
         }
-        if (outer.slot == VarRef::captured) return capture(true, outer.capture, name);
+        if (outer.slot == VarRef::captured)
+            return capture(true, outer.capture, name, (*parent_->captures_)[static_cast<size_t>(outer.capture)].type);
         return outer;
     }
 
@@ -61,7 +63,7 @@ private:
     std::vector<Capture>* captures_;
     std::vector<std::unordered_map<std::string, int>> scopes_;
 
-    VarRef capture(bool fromCapture, int index, const std::string& name) {
+    VarRef capture(bool fromCapture, int index, const std::string& name, const std::string& type) {
         VarRef ref;
         ref.slot = VarRef::captured;
         for (size_t i = 0; i < captures_->size(); ++i) {
@@ -71,7 +73,7 @@ private:
                 return ref;
             }
         }
-        captures_->push_back({fromCapture, index, name});
+        captures_->push_back({fromCapture, index, name, type});
         ref.capture = static_cast<int>(captures_->size()) - 1;
         return ref;
     }
@@ -89,7 +91,7 @@ private:
         node.captures.clear();
         Resolver inner(*node.layout, this, &node.captures);
         inner.push();
-        for (const auto& param : node.params) inner.declare(param.name);
+        for (const auto& param : node.params) inner.declare(param.name, param.type);
         inner.visit(node.body.get());
         inner.pop();
     }
@@ -110,17 +112,17 @@ void Resolver::visit(Node* node) {
         bool local = !n->global && !topLevel();
         if (local && n->kind == Value::Kind::Function && dynamic_cast<LambdaNode*>(n->expr.get())) {
             // func f = (n) => ... f(n - 1): a lambda may call itself by its variable.
-            n->slot = declare(n->name, &n->duplicate);
+            n->slot = declare(n->name, n->type, &n->duplicate);
             visit(n->expr.get());
         } else {
             // The initializer sees the names before this one: `int x = x + 1;` reads an outer x.
             visit(n->expr.get());
-            if (local) n->slot = declare(n->name, &n->duplicate);
+            if (local) n->slot = declare(n->name, n->type, &n->duplicate);
         }
     } else if (auto* n = dynamic_cast<ArrayDeclNode*>(node)) {
         visit(n->sizeNode.get());
         visit(n->initializer.get());
-        if (!n->global && !topLevel()) n->slot = declare(n->name, &n->duplicate);
+        if (!n->global && !topLevel()) n->slot = declare(n->name, "array", &n->duplicate);
     } else if (auto* n = dynamic_cast<ForNode*>(node)) {
         push();
         n->firstSlot = size();
@@ -135,7 +137,7 @@ void Resolver::visit(Node* node) {
         push();
         n->firstSlot = size();
         // The variables take consecutive slots: the loop fills them with one instruction.
-        for (auto& variable : n->variables) variable.slot = declare(variable.name);
+        for (auto& variable : n->variables) variable.slot = declare(variable.name, variable.type);
         visit(n->body.get());
         n->endSlot = size();
         pop();
@@ -157,7 +159,7 @@ void Resolver::visit(Node* node) {
         visit(n->body.get());
         if (n->handler) {
             push();
-            if (!n->errorName.empty()) n->errorSlot = declare(n->errorName);
+            if (!n->errorName.empty()) n->errorSlot = declare(n->errorName, "string");
             visit(n->handler.get());
             pop();
         }
@@ -213,7 +215,7 @@ void resolveFunction(FuncDefNode& function) {
     auto layout = std::make_shared<FrameLayout>();
     Resolver resolver(*layout);
     resolver.push();
-    for (const auto& param : function.params) resolver.declare(param.name);
+    for (const auto& param : function.params) resolver.declare(param.name, param.type);
     resolver.visit(body);
     resolver.pop();
     body->layout = layout;

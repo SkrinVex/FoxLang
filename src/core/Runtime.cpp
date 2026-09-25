@@ -165,6 +165,7 @@ Value parseScalar(const std::string& type, const std::string& text, const std::s
 }
 
 std::string display(const Value& value) {
+    if (value.isVoid()) return "null";
     const Object* container = value.ref();
     if (!container) return value.isString() ? value.str() : value.text();
     if (value.isFunction()) return "<func " + container->callee->name + ">";
@@ -197,6 +198,7 @@ std::string display(const Value& value) {
 }
 
 Value zeroValue(const std::string& type, Context& ctx) {
+    if (isNullable(type)) return Value();
     if (type == "int") return Value::integer(0);
     if (type == "float") return Value::real(0);
     if (type == "string") return Value::string("");
@@ -204,7 +206,7 @@ Value zeroValue(const std::string& type, Context& ctx) {
     if (type == "array") return makeArray({});
     if (type == "map") return makeMap();
     if (auto structType = ctx.getStruct(type)) return construct(*structType, {}, ctx);
-    if (type == "func") throw std::runtime_error("Type Error: a func has no empty value; give it a function");
+    if (type == "func") throw std::runtime_error("Type Error: a func has no empty value; give it a function or declare it func?");
     throw std::runtime_error("Type Error: unknown type '" + type + "'");
 }
 
@@ -252,6 +254,7 @@ Value construct(const std::shared_ptr<const StructType>& type, Value* args, size
 }
 
 Value::Kind declaredKind(const std::string& type) {
+    if (isNullable(type)) return declaredKind(type.substr(0, type.size() - 1));
     static const std::pair<const char*, Value::Kind> kinds[] = {
         {"void", Value::Kind::Void}, {"int", Value::Kind::Int}, {"float", Value::Kind::Float},
         {"bool", Value::Kind::Bool}, {"string", Value::Kind::String}, {"array", Value::Kind::Array},
@@ -262,6 +265,11 @@ Value::Kind declaredKind(const std::string& type) {
 }
 
 void coerce(const std::string& type, Value& value, const std::string& what) {
+    if (isNullable(type)) {
+        if (value.isVoid()) return;
+        coerce(type.substr(0, type.size() - 1), value, what);
+        return;
+    }
     switch (value.kind()) {
         case Value::Kind::Int:
             if (type == "int") {

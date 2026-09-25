@@ -35,7 +35,7 @@ std::string Value::text() const {
 }
 
 const std::string& Value::nameOf(Kind kind) {
-    static const std::string names[] = {"void", "int", "float", "bool", "string", "array", "map", "struct", "func", "box"};
+    static const std::string names[] = {"null", "int", "float", "bool", "string", "array", "map", "struct", "func", "box"};
     return names[static_cast<int>(kind)];
 }
 

@@ -45,6 +45,7 @@ struct VarRef {
 struct FrameLayout {
     std::vector<std::string> names;
     std::vector<bool> boxed;
+    std::vector<std::string> types; // declared type per slot; "" when it takes any value
 };
 
 // Where a lambda's captured variable comes from, in the function that creates it: one
@@ -53,6 +54,7 @@ struct Capture {
     bool fromCapture = false;
     int index = 0;
     std::string name;
+    std::string type; // the variable's declared type
 };
 
 // A bool is the only thing a condition may be; an int used to silently count as false.
@@ -167,6 +169,7 @@ struct FuncCallNode : Node {
 // base.name(args): a struct's method, or a function stored in a field or map key.
 struct MethodCallNode : Node {
     std::unique_ptr<Node> base;
+    bool optional = false; // base?.name(args): null when base is null
     std::string name;
     SourceRange nameRange;
     std::vector<std::unique_ptr<Node>> args;
@@ -206,6 +209,11 @@ struct BoolNode : Node {
     bool val;
     explicit BoolNode(bool v) : val(v) {}
 };
+
+struct NullNode : Node {};
+
+// A type written `T?` also holds null.
+inline bool isNullable(const std::string& type) { return !type.empty() && type.back() == '?'; }
 
 struct VarAccessNode : Node {
     std::string name;
@@ -287,6 +295,7 @@ struct IndexNode : Node {
 // base.name: a struct field, or a map value whose key is a plain word.
 struct FieldNode : Node {
     std::unique_ptr<Node> base;
+    bool optional = false; // base?.name: null when base is null
     std::string name;
     SourceRange nameRange;
     FieldNode(std::unique_ptr<Node> b, std::string n, SourceRange nr = {})

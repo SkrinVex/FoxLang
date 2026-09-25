@@ -102,6 +102,7 @@ constexpr size_t maxText = size_t{64} * 1024 * 1024;
 std::string toJson(const Value& value, int depth = 0) {
     if (value.isString()) return "\"" + jsonEscape(value.str()).str() + "\"";
     if (value.isNumber() || value.isBool()) return value.text();
+    if (value.isVoid()) return "null";
     if (!value.ref() || value.isFunction())
         throw std::runtime_error("Type Error: json_value() cannot convert '" + value.typeName() + "'");
     if (depth > 64) throw std::runtime_error("Runtime Error: json_value() nesting is too deep");
@@ -126,7 +127,7 @@ std::string trimmedText(const std::string& raw) {
 }
 
 // JSON text as FoxLang values: objects become maps, arrays arrays, whole numbers int,
-// other numbers float, null an empty string.
+// other numbers float, null null.
 Value fromJson(const std::string& raw, int depth = 0) {
     if (depth > 64) throw std::runtime_error("Runtime Error: json_decode() nesting is too deep");
     std::string kind = jsonType(raw, "");
@@ -141,7 +142,7 @@ Value fromJson(const std::string& raw, int depth = 0) {
     }
     if (kind == "string") return jsonGet(raw, "");
     if (kind == "bool") return boolean(trimmedText(raw) == "true");
-    if (kind == "null") return text("");
+    if (kind == "null") return nothing();
     if (kind == "number") {
         std::string number = trimmedText(raw);
         if (number.find_first_of(".eE") == std::string::npos) {
@@ -282,12 +283,12 @@ void addTextBuiltins(std::vector<Builtin>& out) {
          "Тип значения по пути: `object`, `array`, `string`, `number`, `bool`, `null` или пустая строка, если пути нет."},
         [](Call& c) { return text(jsonType(c.text(0), c.text(1))); });
     add({"json_value", "string", {{"any", "value"}}, 1, false, "",
-         "Значение FoxLang в виде JSON: числа и `bool` как есть, строка в кавычках с экранированием, "
+         "Значение FoxLang в виде JSON: числа и `bool` как есть, `null` как `null`, строка в кавычках с экранированием, "
          "массив — JSON-массив, словарь и структура — JSON-объект.\n\n```foxlang\njson_value([1, \"лис\", true]) // [1,\"лис\",true]\n```"},
         [](Call& c) { return text(toJson(c.at(0))); });
     add({"json_decode", "any", {{"string", "json"}}, 1, false, "",
          "Разбирает JSON целиком: объект становится словарём `map`, массив — массивом, целые числа — `int`, "
-         "дробные — `float`, `null` — пустой строкой. Некорректный JSON — ошибка выполнения.\n\n"
+         "дробные — `float`, `null` — `null`. Некорректный JSON — ошибка выполнения.\n\n"
          "```foxlang\nmap user = json_decode(\"{\\\"name\\\": \\\"Лис\\\", \\\"tags\\\": [1, 2]}\");\nprint(user.name, user[\"tags\"][1]);\n```"},
         [](Call& c) {
             if (!jsonValid(c.text(0))) throw std::runtime_error("Runtime Error: json_decode() got text that is not valid JSON");

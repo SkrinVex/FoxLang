@@ -493,7 +493,8 @@ const Symbol* SemanticAnalyzer::variableOf(const Node* base) {
 const Symbol* SemanticAnalyzer::structOf(const Node* base) {
     const Symbol* variable = variableOf(base);
     if (!variable || (variable->kind != SymbolKind::Variable && variable->kind != SymbolKind::Parameter)) return nullptr;
-    Symbol* type = rootScope->find(variable->type);
+    const std::string& declared = variable->type;
+    Symbol* type = rootScope->find(isNullable(declared) ? declared.substr(0, declared.size() - 1) : declared);
     return type && type->kind == SymbolKind::Type ? type : nullptr;
 }
 
@@ -509,7 +510,7 @@ void SemanticAnalyzer::visitMethodCall(const MethodCallNode* node) {
                 diagnostics.push_back({DiagnosticSeverity::Error,
                     "Function '" + named->name + "." + node->name + "' expects " + std::to_string(member.params.size()) +
                     " arguments, but got " + std::to_string(node->args.size()), node->range});
-            else if (member.kind == SymbolKind::Variable && member.type != "func")
+            else if (member.kind == SymbolKind::Variable && member.type != "func" && member.type != "func?")
                 diagnostics.push_back({DiagnosticSeverity::Error,
                     "'" + named->name + "." + node->name + "' is a " + member.type + " variable, not a function", node->nameRange});
             return;
@@ -532,7 +533,7 @@ void SemanticAnalyzer::visitMethodCall(const MethodCallNode* node) {
     }
     for (const auto& field : type->params) {
         if (field.name != node->name) continue;
-        if (field.type != "func")
+        if (field.type != "func" && field.type != "func?")
             diagnostics.push_back({DiagnosticSeverity::Error,
                 "Field '" + type->name + "." + node->name + "' is " + field.type + ", not a function", node->nameRange});
         return;
@@ -580,7 +581,12 @@ void SemanticAnalyzer::visitTry(const TryNode* node) {
     visitNode(node->cleanup.get());
 }
 
-void SemanticAnalyzer::checkType(const std::string& type, SourceRange range) {
+void SemanticAnalyzer::checkType(const std::string& written, SourceRange range) {
+    if (written == "void?") {
+        diagnostics.push_back({DiagnosticSeverity::Error, "Type 'void' cannot be nullable", range});
+        return;
+    }
+    const std::string type = isNullable(written) ? written.substr(0, written.size() - 1) : written;
     static const std::set<std::string> builtinTypes = {"int", "float", "string", "bool", "void", "array", "map", "func"};
     if (builtinTypes.count(type)) return;
     Symbol* sym = rootScope->find(type);
@@ -594,6 +600,10 @@ void SemanticAnalyzer::visitVarDecl(const VarDeclNode* node) {
                      dynamic_cast<const LambdaNode*>(node->expr.get());
     if (node->expr && !recursive) visitNode(node->expr.get());
     checkType(node->type, node->range);
+    if (dynamic_cast<const NullNode*>(node->expr.get()) && !isNullable(node->type))
+        diagnostics.push_back({DiagnosticSeverity::Error,
+            "Variable '" + node->name + "' of type " + node->type + " cannot be null; declare it " + node->type + "?",
+            node->nameRange.start.line > 0 ? node->nameRange : node->range});
     Symbol sym;
     sym.name = node->name;
     sym.type = node->type;
@@ -622,7 +632,19 @@ void SemanticAnalyzer::checkVariable(const std::string& name, SourceRange range)
 
 void SemanticAnalyzer::visitVarAssign(const VarAssignNode* node) {
     if (node->expr) visitNode(node->expr.get());
-    checkVariable(node->name, node->nameRange.start.line > 0 ? node->nameRange : node->range);
+    SourceRange where = node->nameRange.start.line > 0 ? node->nameRange : node->range;
+    checkVariable(node->name, where);
+    if (dynamic_cast<const NullNode*>(node->expr.get())) {
+        const Symbol* variable = currentScope->find(node->name);
+        if (!variable && !currentFuncReturnType.empty()) {
+            auto global = fileGlobals.find(node->name);
+            if (global != fileGlobals.end()) variable = &global->second;
+        }
+        if (variable && (variable->kind == SymbolKind::Variable || variable->kind == SymbolKind::Parameter) &&
+            variable->type != "any" && !isNullable(variable->type))
+            diagnostics.push_back({DiagnosticSeverity::Error,
+                "Variable '" + node->name + "' of type " + variable->type + " cannot be null; declare it " + variable->type + "?", where});
+    }
 }
 
 void SemanticAnalyzer::visitVarAccess(const VarAccessNode* node) {
@@ -643,7 +665,7 @@ void SemanticAnalyzer::visitFuncCall(const FuncCallNode* node) {
     if (holder && (holder->kind == SymbolKind::Variable || holder->kind == SymbolKind::Parameter)) {
         // A variable holding a function is called like one; its arity is known only when it runs.
         symbolRefs.push_back({targetRange, *holder});
-        if (holder->type != "func" && holder->type != "any")
+        if (holder->type != "func" && holder->type != "func?" && holder->type != "any")
             diagnostics.push_back({DiagnosticSeverity::Error,
                 "'" + node->name + "' is a " + holder->type + " variable, not a function", targetRange});
         return;
@@ -665,6 +687,16 @@ void SemanticAnalyzer::visitFuncCall(const FuncCallNode* node) {
         }
     }
     symbolRefs.push_back({targetRange, *sym});
+
+    if (sym->kind == SymbolKind::Function && !builtin) {
+        for (size_t i = 0; i < node->args.size() && i < sym->params.size(); ++i) {
+            const FuncParam& param = sym->params[i];
+            if (dynamic_cast<const NullNode*>(node->args[i].get()) && !param.type.empty() && !isNullable(param.type))
+                diagnostics.push_back({DiagnosticSeverity::Error,
+                    "Parameter '" + param.name + "' of '" + node->name + "' has type " + param.type +
+                    " and cannot be null; declare it " + param.type + "?", node->args[i]->range});
+        }
+    }
 
     // A builtin and a module function may share a name (get); either signature is fine.
     size_t count = node->args.size();
@@ -709,7 +741,12 @@ void SemanticAnalyzer::visitReturn(const ReturnNode* node) {
         diagnostics.push_back({DiagnosticSeverity::Error, "Void function should not return a value", node->range});
     } else if (currentFuncReturnType.empty()) {
         diagnostics.push_back({DiagnosticSeverity::Error, "'return' outside of a function", node->range});
-    } else if (currentFuncReturnType != "void" && currentFuncReturnType != "any" && node->expr == nullptr) {
+    } else if (dynamic_cast<const NullNode*>(node->expr.get()) && currentFuncReturnType != "any" &&
+               !isNullable(currentFuncReturnType)) {
+        diagnostics.push_back({DiagnosticSeverity::Error,
+            "Function returning " + currentFuncReturnType + " cannot return null; declare it " + currentFuncReturnType + "?", node->range});
+    } else if (currentFuncReturnType != "void" && currentFuncReturnType != "any" && !isNullable(currentFuncReturnType) &&
+               node->expr == nullptr) {
         diagnostics.push_back({DiagnosticSeverity::Error,
             "Function returning " + currentFuncReturnType + " must return a value", node->range});
     }
@@ -1017,7 +1054,8 @@ std::vector<CompletionItem> SemanticAnalyzer::getMemberCompletions(const std::st
                              member.documentation});
         return items;
     }
-    const Symbol* type = rootScope ? rootScope->find(variable->type) : nullptr;
+    std::string declared = isNullable(variable->type) ? variable->type.substr(0, variable->type.size() - 1) : variable->type;
+    const Symbol* type = rootScope ? rootScope->find(declared) : nullptr;
     if (!type || type->kind != SymbolKind::Type) return items;
     for (const auto& field : type->params)
         items.push_back({field.name, "Field", field.type + " " + type->name + "." + field.name, ""});
@@ -1067,6 +1105,8 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         {"func", "(type) func", "Функция как значение: лямбда `(int x) => x * 2`, имя функции или встроенной функции. "
             "Переменную типа `func` вызывают как функцию.\n\n```foxlang\nfunc twice = (int x) => x * 2;\nprint(twice(21));\n```"},
         {"true", "(keyword) true", "Логическая истина."},
+        {"null", "(keyword) null", "«Нет значения». Хранится только в переменных, параметрах, полях и результатах типа `T?`: "
+            "`string? nick = null;`. `a ?? b` — `a`, если оно не `null`, иначе `b`; `user?.name` — `null` вместо ошибки, когда `user` — `null`."},
         {"this", "(keyword) this", "Внутри метода структуры — значение, у которого метод вызван: `this.x`."},
         {"false", "(keyword) false", "Логическая ложь."},
         {"array", "(keyword) array <name> [size | = value];", "Массив: `array имя размер;`, `array имя = [1, 2, 3];` или пустой `array имя;`. "

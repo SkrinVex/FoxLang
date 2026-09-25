@@ -19,7 +19,10 @@ enum class TokenType {
 
     INT_KW, FLOAT_KW, STRING_KW, BOOL_KW, VOID_KW, ARRAY, MAP_KW, FUNC_KW,
     ARROW, // => of a lambda
-    TRUE_KW, FALSE_KW,
+    QUESTION,          // ? after a type: string? name
+    QUESTION_QUESTION, // ?? : the left side unless it is null
+    QUESTION_DOT,      // ?. : a field or method, or null when the value is null
+    TRUE_KW, FALSE_KW, NULL_KW,
     WHILE, FOR, IF, ELSE, SWITCH, CASE, DEFAULT,
     INCLUDE, USING, RETURN, GLOBAL, BREAK, CONTINUE,
     STRUCT, TRY, CATCH, FINALLY, THROW,

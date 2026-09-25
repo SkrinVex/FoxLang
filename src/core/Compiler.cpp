@@ -69,6 +69,7 @@ public:
     bool names = false;
     std::string outside;
     const std::vector<bool>* boxedSlots = nullptr; // the frame's slots that lambdas capture
+    const std::vector<std::string>* slotTypes = nullptr; // the declared type of each slot
 
     Compiler(Proto& proto, bool debug, bool function) : p(proto), debug(debug), function(function) {
         next = p.slots;
@@ -208,6 +209,7 @@ public:
         proto->captures = node.captures;
         Compiler inner(*proto, debug, true);
         inner.boxedSlots = &node.layout->boxed;
+        inner.slotTypes = &node.layout->types;
         inner.line = node.range.start.line;
         inner.boxParameters(node.params.size());
         inner.block(*node.body, false, true);
@@ -285,7 +287,9 @@ private:
         switch (instr.op) {
             case Op::Jump: instr.a = target; break;
             case Op::JumpIfFalse:
-            case Op::JumpIfTrue: instr.b = target; break;
+            case Op::JumpIfTrue:
+            case Op::JumpIfNull:
+            case Op::JumpIfNotNull: instr.b = target; break;
             case Op::Compare: instr.c = target; break;
             default: throw std::logic_error("patching an instruction that does not jump");
         }
@@ -403,6 +407,15 @@ private:
 
     // A local variable read and written in its own register: not captured by a lambda.
     bool isSlot(const VarRef& ref) const { return ref.slot >= 0 && !boxed(ref.slot); }
+    // The declared type of a local or captured variable, "" when unknown.
+    std::string declaredType(const VarRef& ref) const {
+        if (ref.slot >= 0 && slotTypes && static_cast<size_t>(ref.slot) < slotTypes->size())
+            return (*slotTypes)[static_cast<size_t>(ref.slot)];
+        if (ref.slot == VarRef::captured && ref.capture >= 0 && static_cast<size_t>(ref.capture) < p.captures.size())
+            return p.captures[static_cast<size_t>(ref.capture)].type;
+        return "";
+    }
+
     bool boxed(int slot) const {
         return boxedSlots && slot >= 0 && static_cast<size_t>(slot) < boxedSlots->size() && (*boxedSlots)[static_cast<size_t>(slot)];
     }
@@ -484,6 +497,8 @@ private:
             emit(Op::LoadConst, dest, stringConstant(n->val));
         } else if (auto* n = dynamic_cast<BoolNode*>(&node)) {
             emit(Op::LoadConst, dest, constant(Value::boolean(n->val)));
+        } else if (dynamic_cast<NullNode*>(&node)) {
+            emit(Op::LoadConst, dest, constant(Value()));
         } else if (auto* n = dynamic_cast<VarAccessNode*>(&node)) {
             readVariable(n->ref, n->name, dest);
         } else if (auto* n = dynamic_cast<LambdaNode*>(&node)) {
@@ -503,7 +518,21 @@ private:
         } else if (auto* n = dynamic_cast<FuncCallNode*>(&node)) {
             call(*n, dest);
         } else if (auto* n = dynamic_cast<MethodCallNode*>(&node)) {
-            callThrough(Op::Method, *n->base, n->args, stringConstant(n->name), dest);
+            if (n->optional) {
+                // base?.name(args): null without calling when base is null.
+                int base = any(*n->base);
+                emit(Op::Move, dest, base);
+                int skip = emit(Op::JumpIfNull, dest);
+                int first = next;
+                emit(Op::Move, temp(), base);
+                for (auto& arg : n->args) into(*arg, temp());
+                emit(Op::Method, first, stringConstant(n->name), static_cast<int>(n->args.size()));
+                emit(Op::Move, dest, first, 0, 1);
+                next = first;
+                patch(skip, here());
+            } else {
+                callThrough(Op::Method, *n->base, n->args, stringConstant(n->name), dest);
+            }
         } else if (auto* n = dynamic_cast<CallNode*>(&node)) {
             callThrough(Op::CallValue, *n->callee, n->args, stringConstant("value"), dest);
         } else if (auto* n = dynamic_cast<IndexNode*>(&node)) {
@@ -513,7 +542,17 @@ private:
         } else if (auto* n = dynamic_cast<FieldNode*>(&node)) {
             int base = any(*n->base);
             p.fields.push_back({n->name});
-            emit(Op::Field, dest, base, static_cast<int>(p.fields.size()) - 1);
+            if (n->optional) {
+                // base?.name: null when base is null.
+                int holder = temp();
+                emit(Op::Move, holder, base);
+                emit(Op::Move, dest, base);
+                int skip = emit(Op::JumpIfNull, dest);
+                emit(Op::Field, dest, holder, static_cast<int>(p.fields.size()) - 1);
+                patch(skip, here());
+            } else {
+                emit(Op::Field, dest, base, static_cast<int>(p.fields.size()) - 1);
+            }
         } else if (auto* n = dynamic_cast<InterpolationNode*>(&node)) {
             int first = next;
             for (auto& part : n->parts) into(*part, temp());
@@ -537,6 +576,14 @@ private:
     }
 
     void binary(BinOpNode& node, int dest) {
+        if (node.op == "??") {
+            // The right side runs only when the left is null.
+            into(*node.left, dest);
+            int skip = emit(Op::JumpIfNotNull, dest);
+            into(*node.right, dest);
+            patch(skip, here());
+            return;
+        }
         int opText = text(node.op);
         if (node.kind == runtime::Operator::And || node.kind == runtime::Operator::Or) {
             // Short-circuit: the right side runs only when the left does not decide.
@@ -637,6 +684,7 @@ private:
             return;
         }
         int site = globalSite(node.name, node.global);
+        if (isNullable(node.type)) p.globals[static_cast<size_t>(site)].nullable = node.type;
         if (!node.global) emit(Op::DefineGlobal, -1, site, 1);
         int reg = temp();
         if (node.expr) into(*node.expr, reg);
@@ -679,6 +727,15 @@ private:
     void assignment(VarAssignNode& node) {
         int reg = temp();
         into(*node.expr, reg);
+        std::string type = declaredType(node.ref);
+        if (isNullable(type)) {
+            // The value may be null or of the type: converted here, then stored as it is.
+            emit(Op::Coerce, reg, conversion(runtime::declaredKind(type), type, "variable '" + node.name + "'"));
+            if (isSlot(node.ref)) emit(Op::Move, node.ref.slot, reg, 0, 1);
+            else if (node.ref.slot >= 0) emit(Op::BoxStore, node.ref.slot, reg);
+            else emit(Op::SetCapture, node.ref.capture, reg, stringConstant(node.name), 1);
+            return;
+        }
         if (isSlot(node.ref)) emit(Op::Assign, node.ref.slot, reg, stringConstant(node.name));
         else if (node.ref.slot >= 0) emit(Op::BoxAssign, node.ref.slot, reg, stringConstant(node.name));
         else if (node.ref.slot == VarRef::captured) emit(Op::SetCapture, node.ref.capture, reg, stringConstant(node.name));
@@ -1001,6 +1058,7 @@ std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug) 
     proto->result = {runtime::declaredKind(function.returnType), function.returnType, "return value of '" + function.name + "'"};
     Compiler compiler(*proto, debug, true);
     compiler.boxedSlots = &body->layout->boxed;
+    compiler.slotTypes = &body->layout->types;
     compiler.boxParameters(function.params.size());
     compiler.block(*body, false, true);
     compiler.end(body->range.end.line);
@@ -1019,6 +1077,7 @@ std::shared_ptr<Proto> compileStatements(BlockNode& statements, const std::strin
     compiler.names = true;
     compiler.outside = outside;
     compiler.boxedSlots = &statements.layout->boxed;
+    compiler.slotTypes = &statements.layout->types;
     compiler.topLevel(statements, Unit::Module);
     compiler.end(statements.range.end.line);
     compiler.epilogue();
@@ -1065,7 +1124,7 @@ const char* opName(Op op) {
     static const char* names[] = {
         "move", "loadk", "clear", "getglobal", "setglobal", "defglobal", "coerce", "assign", "zero", "newsized",
         "fail", "add", "sub", "mul", "div", "mod", "eq", "ne", "lt", "le", "gt", "ge", "neg", "not", "truth",
-        "jump", "jumpif-false", "jumpif-true", "compare", "for-in", "call", "return", "return-void", "newarray", "newmap",
+        "jump", "jumpif-false", "jumpif-true", "jumpif-null", "jumpif-notnull", "compare", "for-in", "call", "return", "return-void", "newarray", "newmap",
         "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "box", "unbox", "box-store", "box-assign", "get-capture",
         "set-capture", "inc-ref", "closure", "call-value", "method", "declare", "throw", "rethrow", "try-enter",
         "try-leave", "match", "statement", "scope-enter", "scope-leave"};
@@ -1128,7 +1187,9 @@ void disassemble(const Proto& proto, std::ostream& out) {
             case Op::Negate: case Op::Not: out << reg(in.a) << " " << reg(in.b); break;
             case Op::Truth: out << reg(in.a); break;
             case Op::Jump: out << "-> " << in.a; break;
-            case Op::JumpIfFalse: case Op::JumpIfTrue: out << reg(in.a) << " -> " << in.b; break;
+            case Op::JumpIfFalse: case Op::JumpIfTrue: case Op::JumpIfNull: case Op::JumpIfNotNull:
+                out << reg(in.a) << " -> " << in.b;
+                break;
             case Op::Compare:
                 out << "if " << (in.y & 1 ? "" : "not ") << reg(in.a) << " " << proto.texts[in.y >> 1] << " " << reg(in.b)
                     << " -> " << in.c;

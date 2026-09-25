@@ -42,6 +42,7 @@
     <list name="constants">
       <item>true</item>
       <item>false</item>
+      <item>null</item>
       <item>this</item>
     </list>
     <list name="builtins">
@@ -518,7 +519,7 @@
         <DetectChar char="}" attribute="Symbol" context="#stay" endRegion="BraceBlock"/>
         
         <!-- Operators and Delimiters -->
-        <AnyChar String="+-*/%=!&lt;&gt;&amp;|^~" attribute="Operator" context="#stay"/>
+        <AnyChar String="+-*/%=!&lt;&gt;&amp;|^~?" attribute="Operator" context="#stay"/>
         <AnyChar String="();,[]" attribute="Symbol" context="#stay"/>
       </context>
 

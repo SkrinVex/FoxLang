@@ -253,6 +253,8 @@ struct Context {
     Context* parent = nullptr;
     Interpreter* interpreter = nullptr;
     std::map<std::string, Value> variables;
+    // Globals declared with a type T?: an assignment converts to it and may store null.
+    std::unordered_map<std::string, std::string> nullableGlobals;
     std::map<std::string, std::shared_ptr<Node>> functions;
     // Functions replaced by a definition with another body: their code may still be
     // running, so it is kept until the functions are cleared.

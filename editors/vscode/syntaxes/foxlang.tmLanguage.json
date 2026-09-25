@@ -147,7 +147,7 @@
       "patterns": [
         {
           "name": "constant.language.boolean.fox",
-          "match": "\\b(true|false)\\b"
+          "match": "\\b(true|false|null)\\b"
         },
         {
           "name": "variable.language.this.fox",
@@ -200,6 +200,10 @@
         {
           "name": "storage.type.function.arrow.fox",
           "match": "=>"
+        },
+        {
+          "name": "keyword.operator.null.fox",
+          "match": "\\?\\?|\\?\\.|\\?"
         },
         {
           "name": "keyword.operator.arithmetic.fox",

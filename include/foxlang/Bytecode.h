@@ -47,6 +47,8 @@ enum class Op : std::uint8_t {
     Jump,          // go to a
     JumpIfFalse,   // go to b unless R[a]
     JumpIfTrue,    // go to b if R[a]
+    JumpIfNull,    // go to b if R[a] is null
+    JumpIfNotNull, // go to b unless R[a] is null
     Compare,       // go to c when (R[a] op R[b]) == (y != 0); op is x
     ForIn,         // next round of for-in over R[a] (position R[a+1], count R[a+2]):
                    // fills the x loop variables from R[b]; at the end, go to c
@@ -70,7 +72,7 @@ enum class Op : std::uint8_t {
     BoxStore,      // box R[a] holds R[b] (moved), as a declaration stores it
     BoxAssign,     // box R[a] holds R[b], converted to the variable's type (name K[c])
     GetCapture,    // R[a] = what captured variable b holds
-    SetCapture,    // captured variable a = R[b], converted to its type (name K[c])
+    SetCapture,    // captured variable a = R[b], converted to its type (name K[c]); x=1: already converted
     IncrementRef,  // R[a] = old value of the box R[b] (x=0) or capture b (x=1); ++ when c&1, name K[c>>1]
     Closure,       // R[a] = lambda b of this code, with its captured variables
     CallValue,     // R[a] = call the function R[a] with c arguments in R[a+1] ..
@@ -107,6 +109,7 @@ struct Conversion {
 // A global variable read or written by name; the lookup is kept until the globals change.
 struct GlobalSite {
     std::string name;
+    std::string nullable; // a declaration of type T?: later assignments may store null
     // Code compiled for a scope (the debugger's console, a field's default value) finds
     // the name through that scope: its blocks, the paused function's slots, the globals.
     bool byName = false;

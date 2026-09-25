@@ -1,0 +1,100 @@
+// FoxLang regression: null, nullable types T?, ?? and ?.
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+// 1. Nullable variables: globals, locals, captured
+string? nick = null;
+assert_true(nick == null && type_of(nick) == "null", "a global starts as null");
+assert_true((nick ?? "anon") == "anon", "?? gives the right side for null");
+nick = "fox";
+assert_true(nick == "fox" && (nick ?? "anon") == "fox", "a nullable global takes a value");
+nick = null;
+assert_true(nick == null, "and null again");
+int? count;
+assert_true(count == null, "a nullable without a value is null");
+float? ratio = 1;
+assert_true(ratio == 1.0 && type_of(ratio) == "float", "a value converts to the type");
+
+void locals() {
+    string? label = null;
+    label = "a";
+    label = null;
+    assert_true(label == null, "a nullable local");
+    int? total = null;
+    func set_total = (int v) => { total = v; };
+    set_total(5);
+    assert_true(total == 5, "a captured nullable takes a value");
+    func clear = () => { total = null; };
+    clear();
+    assert_true(total == null, "and null through the capture");
+}
+locals();
+
+// 2. Functions and parameters
+string? first_long(array words, int length) {
+    for (word in words) {
+        if (size(word) >= length) {
+            return word;
+        }
+    }
+    return null;
+}
+assert_true(first_long(["a", "abcd"], 3) == "abcd", "a nullable result with a value");
+assert_true(first_long(["a"], 3) == null, "a nullable result that is null");
+int? nothing_found() { }
+assert_true(nothing_found() == null, "a T? function without return gives null");
+string greet(string? name) { return "hi " + (name ?? "you"); }
+assert_true(greet(null) == "hi you" && greet("Ann") == "hi Ann", "a nullable parameter");
+
+// 3. Struct fields and ?.
+struct Node {
+    int value;
+    Node? next;
+    func? on_visit;
+}
+Node last = Node(3);
+Node head = Node(1, Node(2, last));
+assert_true(head.next?.next?.value == 3, "?. follows a chain");
+assert_true(last.next?.value == null, "?. gives null for a null base");
+assert_true((last.next?.next?.value ?? -1) == -1, "?. and ??");
+assert_true(last.on_visit == null, "a func? field starts as null");
+last.on_visit = () => "visited";
+assert_true(last.on_visit() == "visited", "a func? field takes a function");
+struct Box { int size; int doubled() { return this.size * 2; } }
+Box? maybe = null;
+assert_true(maybe?.doubled() == null, "?. skips a method of null");
+maybe = Box(4);
+assert_true(maybe?.doubled() == 8, "?. calls a method when there is a value");
+int calls = 0;
+int counted() { calls++; return 1; }
+Box? none = null;
+none?.doubled();
+assert_true(("x" ?? counted()) == "x" && calls == 0, "?? does not run the right side when not needed");
+
+// 4. Display, equality, JSON
+assert_true("${null}" == "null" && "v=" + null == "v=null", "null as text");
+assert_true(null == null && !(null != null) && 0 != null && "" != null, "null equals only null");
+map doc = json_decode("{\"a\": null, \"b\": [null, 1]}");
+assert_true(doc.a == null && doc.b[0] == null, "JSON null decodes to null");
+assert_true(json_value(doc) == "{\"a\":null,\"b\":[null,1]}", "null encodes to JSON null");
+array holder = [1, null];
+assert_true(size(holder) == 2 && holder[1] == null, "arrays hold null");
+
+// 5. Errors
+string message = "";
+void set_plain(value) { string plain = "a"; plain = value; }
+try { set_plain(null); } catch (e) { message = e; }
+assert_true(str_contains(message, "cannot hold a value of type 'null'"), "a plain type rejects null: " + message);
+int plain_result(value) { return value; }
+try { plain_result(null); } catch (e) { message = e; }
+assert_true(str_contains(message, "must return"), "a plain result rejects null: " + message);
+try { int bad = none.size; } catch (e) { message = e; }
+assert_true(str_contains(message, "got 'null'"), "a field of null without ?.: " + message);
+try { bool wrong = null < 1; } catch (e) { message = e; }
+assert_true(message != "", "ordering with null is an error");
+
+print("test_null OK");

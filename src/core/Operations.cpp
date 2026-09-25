@@ -69,7 +69,7 @@ void appendDisplay(std::string& out, const Value& value) {
             break;
         }
         case Value::Kind::Bool: out += value.asBool() ? "true" : "false"; break;
-        case Value::Kind::Void: break;
+        case Value::Kind::Void: out += "null"; break;
         default: out += display(value); break;
     }
 }
@@ -100,6 +100,8 @@ Value binary(Operator op, const std::string& text, const Value& lval, const Valu
     if (lval.isInt() && rval.isInt() && binaryInts(op, lval.asInt(), rval.asInt(), text, result)) return result;
 
     bool equality = op == Operator::Eq || op == Operator::Ne;
+    // null equals only null; any other comparison with it is an error below.
+    if (equality && (lval.isVoid() || rval.isVoid())) return Value::boolean((lval.isVoid() && rval.isVoid()) == (op == Operator::Eq));
     bool concatenation = op == Operator::Add && (lval.isString() || rval.isString());
     if ((lval.ref() || rval.ref()) && !equality && !concatenation)
         throw std::runtime_error("Type Error: operator '" + text + "' cannot be applied to " + containerName(lval.ref() ? lval : rval));

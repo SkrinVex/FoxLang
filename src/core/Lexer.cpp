@@ -9,7 +9,7 @@ struct Keyword { const char* text; TokenType type; };
 constexpr Keyword keywords[] = {
     {"int", TokenType::INT_KW}, {"float", TokenType::FLOAT_KW}, {"string", TokenType::STRING_KW},
     {"bool", TokenType::BOOL_KW}, {"void", TokenType::VOID_KW}, {"array", TokenType::ARRAY},
-    {"true", TokenType::TRUE_KW}, {"false", TokenType::FALSE_KW},
+    {"true", TokenType::TRUE_KW}, {"false", TokenType::FALSE_KW}, {"null", TokenType::NULL_KW},
     {"if", TokenType::IF}, {"else", TokenType::ELSE}, {"while", TokenType::WHILE}, {"for", TokenType::FOR},
     {"switch", TokenType::SWITCH}, {"case", TokenType::CASE}, {"default", TokenType::DEFAULT},
     {"break", TokenType::BREAK}, {"continue", TokenType::CONTINUE}, {"return", TokenType::RETURN},
@@ -22,7 +22,7 @@ constexpr Keyword keywords[] = {
 const char* const* keywordList() {
     static const char* const list[] = {
         "if", "else", "while", "for", "switch", "case", "default", "break", "continue", "return",
-        "using", "include", "global", "int", "float", "string", "bool", "void", "true", "false", "array",
+        "using", "include", "global", "int", "float", "string", "bool", "void", "true", "false", "null", "array",
         "map", "func", "struct", "try", "catch", "finally", "throw", nullptr};
     return list;
 }
@@ -51,6 +51,9 @@ const char* tokenTypeName(TokenType type) {
         case TokenType::ASSIGN: return "'='";
         case TokenType::DOT: return "'.'";
         case TokenType::COLON: return "':'";
+        case TokenType::QUESTION: return "'?'";
+        case TokenType::QUESTION_QUESTION: return "'??'";
+        case TokenType::QUESTION_DOT: return "'?.'";
         case TokenType::EQ: return "'=='";
         case TokenType::NEQ: return "'!='";
         case TokenType::LT: return "'<'";
@@ -72,6 +75,7 @@ const char* tokenTypeName(TokenType type) {
         case TokenType::VOID_KW: return "'void'";
         case TokenType::ARRAY: return "'array'";
         case TokenType::TRUE_KW: return "'true'";
+        case TokenType::NULL_KW: return "'null'";
         case TokenType::FALSE_KW: return "'false'";
         case TokenType::WHILE: return "'while'";
         case TokenType::FOR: return "'for'";
@@ -324,6 +328,13 @@ std::vector<Token> Lexer::tokenize() {
                 tokens.push_back({TokenType::AND, "&&", startPos.line, startPos.column, {startPos, currentPosition()}});
                 continue;
             }
+            if (current == '?' && pos + 1 < source.length() && (source[pos + 1] == '?' || source[pos + 1] == '.')) {
+                bool coalesce = source[pos + 1] == '?';
+                advanceChar(); advanceChar();
+                tokens.push_back({coalesce ? TokenType::QUESTION_QUESTION : TokenType::QUESTION_DOT, coalesce ? "??" : "?.",
+                                  startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
+            }
             if (current == '|' && pos + 1 < source.length() && source[pos + 1] == '|') {
                 advanceChar(); advanceChar();
                 tokens.push_back({TokenType::OR, "||", startPos.line, startPos.column, {startPos, currentPosition()}});
@@ -365,6 +376,7 @@ std::vector<Token> Lexer::tokenize() {
                 case '<': singleType = TokenType::LT; break;
                 case '>': singleType = TokenType::GT; break;
                 case ':': singleType = TokenType::COLON; break;
+                case '?': singleType = TokenType::QUESTION; break;
                 default: 
                     advanceChar();
                     SourcePosition badEnd = currentPosition();

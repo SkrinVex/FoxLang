@@ -30,6 +30,9 @@
 ((identifier) @boolean
   (#match? @boolean "^(true|false)$"))
 
+((identifier) @constant.builtin
+  (#match? @constant.builtin "^null$"))
+
 ((identifier) @variable.special
   (#match? @variable.special "^this$"))
 

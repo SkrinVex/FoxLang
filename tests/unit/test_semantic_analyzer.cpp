@@ -345,6 +345,20 @@ int main() {
         TEST_ASSERT(mentions(wrong, "Undefined variable 'y'"));
     }
 
+    // 16c. null only where the type says T?
+    {
+        foxlang::SemanticAnalyzer analyzer;
+        analyze("string? a = null;\na = null;\nint? f(Point? p) { return null; }\nstruct Point { int x; Point? next; }\n"
+                "Point q = Point(1);\nprint(q.next?.x ?? 0, f(null));", analyzer);
+        TEST_ASSERT(analyzer.getDiagnostics().empty());
+        foxlang::SemanticAnalyzer wrong;
+        analyze("string a = null;\nint b = 1;\nb = null;\nint f(string s) { return null; }\nf(null);", wrong);
+        TEST_ASSERT(mentions(wrong, "Variable 'a' of type string cannot be null"));
+        TEST_ASSERT(mentions(wrong, "Variable 'b' of type int cannot be null"));
+        TEST_ASSERT(mentions(wrong, "Function returning int cannot return null"));
+        TEST_ASSERT(mentions(wrong, "Parameter 's' of 'f' has type string and cannot be null"));
+    }
+
     // 17. Unknown modules are reported as warnings
     {
         foxlang::SemanticAnalyzer analyzer;

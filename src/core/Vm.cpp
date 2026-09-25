@@ -295,7 +295,10 @@ Value callFunction(const FuncDefNode& function, Value* args, size_t count, Conte
         result = hook ? executeDebugged(proto, R, root, hook) : execute(proto, R, root, root, nullptr);
     }
     if (proto.result.kind == Value::Kind::Void) return Value();
-    if (result.isVoid()) noResult(proto);
+    if (result.isVoid()) {
+        if (isNullable(proto.result.type)) return result; // a T? function may return null
+        noResult(proto);
+    }
     if (!runtime::storesAsIs(proto.result.kind, result)) convert(proto.result, result);
     return result;
 }
@@ -543,11 +546,22 @@ FOXLANG_APART void defineGlobal(const GlobalSite& site, Context& root, Context& 
         if (owner.variables.count(site.name)) alreadyDeclared(site.name);
     } else {
         owner.variables[site.name] = std::move(*value);
+        if (!site.nullable.empty()) owner.nullableGlobals[site.name] = site.nullable;
+        else if (!owner.nullableGlobals.empty()) owner.nullableGlobals.erase(site.name);
     }
 }
 
 FOXLANG_APART void setGlobal(GlobalSite& site, Context& root, Context& scope, Value& value) {
-    runtime::assign(*global(site, root, scope), std::move(value), site.name);
+    Value& target = *global(site, root, scope);
+    Context& owner = site.byName ? scope : root;
+    auto nullable = owner.nullableGlobals.find(site.name);
+    auto variable = owner.variables.find(site.name);
+    if (nullable != owner.nullableGlobals.end() && variable != owner.variables.end() && &variable->second == &target) {
+        runtime::coerce(nullable->second, value, "variable '" + site.name + "'");
+        target = std::move(value);
+        return;
+    }
+    runtime::assign(target, std::move(value), site.name);
 }
 
 FOXLANG_APART void assignSlow(Value& target, Value& value, const std::string& name) {
@@ -767,6 +781,12 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                     case Op::JumpIfTrue:
                         if (truth(R[in.a], in.x)) ip = code + in.b;
                         break;
+                    case Op::JumpIfNull:
+                        if (R[in.a].isVoid()) ip = code + in.b;
+                        break;
+                    case Op::JumpIfNotNull:
+                        if (!R[in.a].isVoid()) ip = code + in.b;
+                        break;
                     case Op::Compare: {
                         const Value& l = R[in.a];
                         const Value& r = R[in.b];
@@ -875,7 +895,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                     case Op::SetCapture: {
                         Value& target = closure->items[static_cast<size_t>(in.a)].ref()->items[0];
                         Value& value = R[in.b];
-                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
+                        if (in.x || (target.kind() == value.kind() && !target.is(Value::Kind::Struct))) target = std::move(value);
                         else assignSlow(target, value, K[in.c].str());
                         break;
                     }
