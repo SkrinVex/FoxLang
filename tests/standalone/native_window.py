@@ -2,6 +2,7 @@
 import ctypes as C
 import ctypes.util
 import os
+import time
 
 
 class NativeWindow:
@@ -121,6 +122,7 @@ class NativeWindow:
                 # real cursor must be there too: Windows reports its position on its own.
                 sx, sy = self.screen(x, y)
                 self.api.SetCursorPos(sx, sy)
+                time.sleep(0.03)
                 delta = 120 if steps > 0 else -120
                 self.api.PostMessageW(self.handle, 0x20A, (delta & 0xffff) << 16, ((sy & 0xffff) << 16) | (sx & 0xffff))
             else:
@@ -129,8 +131,10 @@ class NativeWindow:
 
     def mouse(self, x, y, down=None, button=1):
         if os.name == 'nt':
-            # Keep the real cursor on the same point, or Windows moves the mouse back.
+            # Keep the real cursor on the same point, or Windows moves the mouse back. The
+            # system reports the move after posted messages, so it is let through first.
             self.api.SetCursorPos(*self.screen(x, y))
+            time.sleep(0.03)
             message = 0x200 if down is None else (0x201 if down else 0x202) if button == 1 else (0x204 if down else 0x205)
             self.api.PostMessageW(self.handle, message, button if down else 0, (y << 16) | x)
         else:
