@@ -95,6 +95,15 @@
     "modules": {
       "patterns": [
         {
+          "match": "\\b(using)\\s+([a-zA-Z_][a-zA-Z0-9_.]*)\\s+(as)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.directive.fox" },
+            "2": { "name": "entity.name.namespace.fox" },
+            "3": { "name": "keyword.control.directive.fox" },
+            "4": { "name": "entity.name.namespace.fox" }
+          }
+        },
+        {
           "match": "\\b(using|include)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.control.directive.fox" },

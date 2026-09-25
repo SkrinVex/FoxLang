@@ -37,8 +37,8 @@ void executeIncludeHook(const std::string& path, Context& ctx, const std::string
     interpreterOf(ctx).executeInclude(path, currentFile, importOnly);
 }
 
-void executeUsingHook(const std::string& libName, Context& ctx, const std::string& currentFile) {
-    interpreterOf(ctx).executeUsing(libName, currentFile);
+void executeUsingHook(const std::string& libName, Context& ctx, const std::string& currentFile, const std::string& alias) {
+    interpreterOf(ctx).executeUsing(libName, currentFile, alias);
 }
 
 Interpreter::Interpreter() : Interpreter(InterpreterOptions{}) {}
@@ -92,6 +92,13 @@ void Interpreter::executeModule(const std::string& fullPath, bool importOnly) {
     if (loadedModules.count(fullPath)) return;
     auto program = parseSource(sources->read(fullPath), fullPath);
     loadedModules.insert(fullPath);
+    auto& functions = moduleFunctions[fullPath];
+    auto& variables = moduleVariables[fullPath];
+    for (const auto& stmt : program->stmts) {
+        if (auto* function = dynamic_cast<const FuncDefNode*>(stmt.get())) functions.push_back(function->name);
+        else if (auto* variable = dynamic_cast<const VarDeclNode*>(stmt.get())) variables.push_back(variable->name);
+        else if (auto* list = dynamic_cast<const ArrayDeclNode*>(stmt.get())) variables.push_back(list->name);
+    }
     // The importing statement resumes after the module, so its location is restored.
     runtime::StackGuard& guard = runtime::stackGuard();
     int line = guard.line;
@@ -101,8 +108,27 @@ void Interpreter::executeModule(const std::string& fullPath, bool importOnly) {
     guard.file = file;
 }
 
-void Interpreter::executeUsing(const std::string& libName, const std::string& currentFile) {
-    executeModule(sources->resolve({libName, true}, currentFile), true);
+void Interpreter::executeUsing(const std::string& libName, const std::string& currentFile, const std::string& alias) {
+    std::string identity = sources->resolve({libName, true}, currentFile);
+    executeModule(identity, true);
+    if (alias.empty()) return;
+    Value names = runtime::makeMap();
+    Object& members = *names.ref();
+    for (const auto& name : moduleFunctions[identity]) {
+        auto callee = std::make_shared<Callee>();
+        callee->name = name;
+        callee->function = globalContext.getFunc(name);
+        if (!callee->function) continue;
+        Value function = Value::container(Value::Kind::Function);
+        function.ref()->callee = std::move(callee);
+        members.slot(name) = std::move(function);
+    }
+    for (const auto& name : moduleVariables[identity]) {
+        auto found = globalContext.variables.find(name);
+        if (found != globalContext.variables.end()) members.slot(name) = found->second;
+    }
+    globalContext.variables[alias] = std::move(names);
+    ++globalContext.generation;
 }
 
 RunResult Interpreter::runFile(const std::string& filepath) {

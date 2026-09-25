@@ -147,7 +147,7 @@ void SemanticAnalyzer::addProjectFiles(const std::vector<std::string>& files) {
     for (const auto& file : files) loadModuleSymbols({file, false}, {}, true);
 }
 
-void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRange importRange, bool quiet) {
+std::string SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRange importRange, bool quiet) {
     std::string identity;
     std::string text;
     try {
@@ -155,9 +155,10 @@ void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRang
         text = sources->read(identity);
     } catch (const std::exception&) {
         if (!quiet) diagnostics.push_back({DiagnosticSeverity::Warning, "Module '" + request.name + "' not found", importRange});
-        return;
+        return "";
     }
-    if (!loadedModules.insert(identity).second) return;
+    if (!loadedModules.insert(identity).second) return identity;
+    auto& members = moduleMembers[identity];
 
     Lexer lexer(text, true);
     Parser parser(lexer.tokenize(), identity);
@@ -182,6 +183,7 @@ void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRang
             }
             if (s.documentation.empty()) s.documentation = signatureOf(fn->name, fn->params, fn->returnType);
             rootScope->symbols[fn->name] = s;
+            members.push_back(s);
         } else if (auto* type = dynamic_cast<const StructDefNode*>(stmt.get())) {
             declareStruct(type, uri, functionComment(source, stmt->range.start.line));
         } else if (dynamic_cast<const VarDeclNode*>(stmt.get()) || dynamic_cast<const ArrayDeclNode*>(stmt.get())) {
@@ -196,6 +198,7 @@ void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRang
             s.documentation = functionComment(source, stmt->range.start.line);
             if (s.documentation.empty()) s.documentation = s.type + " " + s.name;
             rootScope->symbols[s.name] = s;
+            members.push_back(s);
         } else if (auto* use = dynamic_cast<const UsingNode*>(stmt.get())) {
             std::string saved = currentFile;
             currentFile = identity;
@@ -208,6 +211,20 @@ void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRang
             currentFile = saved;
         }
     }
+    return identity;
+}
+
+Symbol SemanticAnalyzer::aliasSymbol(const UsingNode* node, const std::string& identity) {
+    Symbol alias;
+    alias.name = node->alias;
+    alias.type = "module " + node->libName;
+    alias.kind = SymbolKind::Module;
+    alias.declRange = node->aliasRange;
+    alias.fileUri = currentFile;
+    alias.documentation = "using " + node->libName + " as " + node->alias + ";";
+    auto found = moduleMembers.find(identity);
+    if (found != moduleMembers.end()) alias.methods = found->second;
+    return alias;
 }
 
 void SemanticAnalyzer::analyze(const BlockNode* root) {
@@ -225,6 +242,12 @@ void SemanticAnalyzer::analyze(const BlockNode* root) {
         }
         if (auto* type = dynamic_cast<const StructDefNode*>(stmt.get())) {
             declareStruct(type, currentFile, "");
+            continue;
+        }
+        if (auto* use = dynamic_cast<const UsingNode*>(stmt.get())) {
+            // An alias is a global name: function bodies above the line see it too.
+            if (!use->alias.empty())
+                fileGlobals.emplace(use->alias, aliasSymbol(use, loadModuleSymbols({use->libName, true}, use->range, true)));
             continue;
         }
         Symbol sym;
@@ -453,8 +476,8 @@ void SemanticAnalyzer::visitStructDef(const StructDefNode* node) {
     }
 }
 
-// The struct that a variable (or `this`) holds, when its declared type says so.
-const Symbol* SemanticAnalyzer::structOf(const Node* base) {
+// What a plain name before `.` refers to.
+const Symbol* SemanticAnalyzer::variableOf(const Node* base) {
     auto* access = dynamic_cast<const VarAccessNode*>(base);
     if (!access) return nullptr;
     Symbol* variable = currentScope->find(access->name);
@@ -463,6 +486,12 @@ const Symbol* SemanticAnalyzer::structOf(const Node* base) {
         auto global = fileGlobals.find(access->name);
         if (global != fileGlobals.end()) variable = &global->second;
     }
+    return variable;
+}
+
+// The struct that a variable (or `this`) holds, when its declared type says so.
+const Symbol* SemanticAnalyzer::structOf(const Node* base) {
+    const Symbol* variable = variableOf(base);
     if (!variable || (variable->kind != SymbolKind::Variable && variable->kind != SymbolKind::Parameter)) return nullptr;
     Symbol* type = rootScope->find(variable->type);
     return type && type->kind == SymbolKind::Type ? type : nullptr;
@@ -471,6 +500,25 @@ const Symbol* SemanticAnalyzer::structOf(const Node* base) {
 void SemanticAnalyzer::visitMethodCall(const MethodCallNode* node) {
     visitNode(node->base.get());
     for (const auto& arg : node->args) visitNode(arg.get());
+    const Symbol* named = variableOf(node->base.get());
+    if (named && named->kind == SymbolKind::Module) {
+        for (const auto& member : named->methods) {
+            if (member.name != node->name) continue;
+            symbolRefs.push_back({node->nameRange, member});
+            if (member.kind == SymbolKind::Function && member.params.size() != node->args.size())
+                diagnostics.push_back({DiagnosticSeverity::Error,
+                    "Function '" + named->name + "." + node->name + "' expects " + std::to_string(member.params.size()) +
+                    " arguments, but got " + std::to_string(node->args.size()), node->range});
+            else if (member.kind == SymbolKind::Variable && member.type != "func")
+                diagnostics.push_back({DiagnosticSeverity::Error,
+                    "'" + named->name + "." + node->name + "' is a " + member.type + " variable, not a function", node->nameRange});
+            return;
+        }
+        std::string hint = findBuiltinSpec(node->name) ? "; the builtin " + node->name + "() is called without a module name" : "";
+        diagnostics.push_back({DiagnosticSeverity::Error,
+            "Module '" + named->type.substr(7) + "' has no function '" + node->name + "'" + hint, node->nameRange});
+        return;
+    }
     const Symbol* type = structOf(node->base.get());
     if (!type) return;
     for (const auto& method : type->methods) {
@@ -494,6 +542,17 @@ void SemanticAnalyzer::visitMethodCall(const MethodCallNode* node) {
 
 void SemanticAnalyzer::visitField(const FieldNode* node) {
     visitNode(node->base.get());
+    const Symbol* named = variableOf(node->base.get());
+    if (named && named->kind == SymbolKind::Module) {
+        for (const auto& member : named->methods) {
+            if (member.name != node->name) continue;
+            symbolRefs.push_back({node->nameRange, member});
+            return;
+        }
+        diagnostics.push_back({DiagnosticSeverity::Error,
+            "Module '" + named->type.substr(7) + "' has no '" + node->name + "'", node->nameRange});
+        return;
+    }
     const Symbol* type = structOf(node->base.get());
     if (!type) return;
     for (const auto& field : type->params)
@@ -722,7 +781,12 @@ void SemanticAnalyzer::visitArrayDecl(const ArrayDeclNode* node) {
 }
 
 void SemanticAnalyzer::visitUsing(const UsingNode* node) {
-    loadModuleSymbols({node->libName, true}, node->range);
+    std::string identity = loadModuleSymbols({node->libName, true}, node->range);
+    if (!node->alias.empty()) {
+        Symbol alias = aliasSymbol(node, identity);
+        symbolRefs.push_back({node->aliasRange, alias});
+        addSymbol(rootScope.get(), alias, node->aliasRange, true);
+    }
     documentSymbols.push_back({"using " + node->libName, "Module", node->range, node->range, {}});
 }
 
@@ -933,7 +997,8 @@ std::vector<CompletionItem> SemanticAnalyzer::getMemberCompletions(const std::st
     SourcePosition best{0, 0};
     for (const auto& ref : symbolRefs) {
         const Symbol& symbol = ref.symbol;
-        if (symbol.name != name || (symbol.kind != SymbolKind::Variable && symbol.kind != SymbolKind::Parameter)) continue;
+        if (symbol.name != name || (symbol.kind != SymbolKind::Variable && symbol.kind != SymbolKind::Parameter &&
+                                    symbol.kind != SymbolKind::Module)) continue;
         SourcePosition at = ref.range.start;
         bool before = at.line < line || (at.line == line && at.column <= col);
         bool later = at.line > best.line || (at.line == best.line && at.column >= best.column);
@@ -944,6 +1009,14 @@ std::vector<CompletionItem> SemanticAnalyzer::getMemberCompletions(const std::st
     }
     std::vector<CompletionItem> items;
     if (!variable) return items;
+    if (variable->kind == SymbolKind::Module) {
+        for (const auto& member : variable->methods)
+            items.push_back({member.name, member.kind == SymbolKind::Function ? "Function" : "Variable",
+                             member.kind == SymbolKind::Function ? signatureOf(member.name, member.params, member.returnType)
+                                                                 : member.type + " " + member.name,
+                             member.documentation});
+        return items;
+    }
     const Symbol* type = rootScope ? rootScope->find(variable->type) : nullptr;
     if (!type || type->kind != SymbolKind::Type) return items;
     for (const auto& field : type->params)

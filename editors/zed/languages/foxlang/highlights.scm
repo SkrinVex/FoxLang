@@ -14,7 +14,7 @@
   (#match? @keyword "^(try|catch|finally|throw|in)$"))
 
 ((identifier) @keyword.import
-  (#match? @keyword.import "^using$"))
+  (#match? @keyword.import "^(using|as)$"))
 
 ; Types
 (primitive_type) @type.builtin

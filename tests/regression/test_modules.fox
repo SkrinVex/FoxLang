@@ -29,4 +29,18 @@ using fs;
 assert_true(is_dir("."), "fs module function");
 assert_true(size(read_lines("definitely_missing_file.txt")) == 0, "fs module helper written in FoxLang");
 
+// 5. A module alias: functions and variables through the dot
+using arrays as arr;
+using math as m;
+assert_true(m.hypot(3, 4) == 5.0, "a module function through an alias");
+assert_true(m.PI == PI, "a module variable through an alias");
+assert_true(arr.sum([1, 2, 3]) == 6.0 && arr.transform([1], x => x + 1) == [2], "a second alias");
+assert_true(arr.reduce([1, 2], (a, b) => a + b, 0) == 3, "a func variable of the module");
+assert_true(type_of(m) == "map", "an alias is a map");
+float read_alias() { return m.lerp(0, 10, 0.5); }
+assert_true(read_alias() == 5.0, "an alias inside a function");
+string message = "";
+try { arr.nope(); } catch (e) { message = e; }
+assert_true(str_contains(message, "no key 'nope'"), "a missing name through an alias: " + message);
+
 print("MODULES_OK");

@@ -29,7 +29,8 @@ struct Symbol {
     std::string returnType;        // If function
     std::string documentation;     // Description for hover/completion
     std::string fileUri;           // URI or path of declaration
-    std::vector<Symbol> methods;   // If a struct: its methods, without the `this` parameter
+    std::vector<Symbol> methods;   // If a struct: its methods, without the `this` parameter;
+                                   // if a module alias (using math as m): the module's functions and variables
 };
 
 struct Scope {
@@ -178,6 +179,7 @@ private:
     void visitMethodCall(const MethodCallNode* node);
     void visitField(const FieldNode* node);
     const Symbol* structOf(const Node* base);
+    const Symbol* variableOf(const Node* base);
     void visitVarDecl(const VarDeclNode* node);
     void visitVarAssign(const VarAssignNode* node);
     void visitFuncCall(const FuncCallNode* node);
@@ -203,7 +205,10 @@ private:
     void enterScope();
     void exitScope();
     void addBuiltins();
-    void loadModuleSymbols(const ModuleImport& request, SourceRange importRange, bool quiet = false);
+    // Returns the module's identity, or "" when it cannot be read.
+    std::string loadModuleSymbols(const ModuleImport& request, SourceRange importRange, bool quiet = false);
+    std::unordered_map<std::string, std::vector<Symbol>> moduleMembers; // by identity
+    Symbol aliasSymbol(const UsingNode* node, const std::string& identity);
 };
 
 } // namespace foxlang

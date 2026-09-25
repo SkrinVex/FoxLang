@@ -393,14 +393,16 @@ struct SwitchNode : Node {
 
 // Forward declaration of interpreter execution hooks
 void executeIncludeHook(const std::string& path, Context& ctx, const std::string& currentFile, bool importOnly);
-void executeUsingHook(const std::string& libName, Context& ctx, const std::string& currentFile);
+void executeUsingHook(const std::string& libName, Context& ctx, const std::string& currentFile, const std::string& alias);
 
 struct UsingNode : Declaration {
     std::string libName;
     std::string currentFile;
+    std::string alias; // using math as m;
+    SourceRange aliasRange;
     UsingNode(std::string lib, std::string curFile = "")
         : libName(std::move(lib)), currentFile(std::move(curFile)) {}
-    void declare(Context& root) override { executeUsingHook(libName, root, currentFile); }
+    void declare(Context& root) override { executeUsingHook(libName, root, currentFile, alias); }
 };
 
 struct IncludeNode : Declaration {

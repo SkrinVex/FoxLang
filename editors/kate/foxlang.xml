@@ -22,6 +22,7 @@
     </list>
     <list name="directives">
       <item>using</item>
+      <item>as</item>
       <item>include</item>
     </list>
     <list name="modifiers">

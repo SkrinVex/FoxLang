@@ -140,6 +140,15 @@ with tempfile.TemporaryDirectory(prefix='fox-lsp-') as directory:
                                                         'position': {'line': 6, 'character': 2}})['result']
     assert sorted(item['label'] for item in listed) == ['length', 'x', 'y'], listed
 
+    # After a module alias, the module's functions and variables.
+    aliased = 'using math as m;\nfloat r = m.'
+    aliased_uri = uri(root / 'aliased.fox')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': aliased_uri, 'languageId': 'fox', 'version': 1, 'text': aliased}})
+    listed = server.request('textDocument/completion', {'textDocument': {'uri': aliased_uri},
+                                                        'position': {'line': 1, 'character': 12}})['result']
+    labels = [item['label'] for item in listed]
+    assert 'hypot' in labels and 'PI' in labels and 'print' not in labels, labels
+
     server.request('shutdown', None)
     server.notify('exit', None)
     server.process.wait(timeout=10)

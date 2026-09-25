@@ -164,9 +164,16 @@ std::unique_ptr<Node> Parser::statement() {
                 fail("expected a module name after 'using'");
             std::string name = tokens[pos++].value;
             if (match(TokenType::DOT)) name += "." + consume(TokenType::IDENTIFIER).value;
+            auto node = std::make_unique<UsingNode>(name, currentFile);
+            if (check(TokenType::IDENTIFIER) && peek().value == "as") {
+                ++pos;
+                Token alias = consume(TokenType::IDENTIFIER);
+                node->alias = alias.value;
+                node->aliasRange = alias.range;
+            }
             consume(TokenType::SEMICOLON);
             imports.push_back({name, true});
-            return at(std::make_unique<UsingNode>(name, currentFile), start, previousEnd());
+            return at(std::move(node), start, previousEnd());
         }
         case TokenType::GLOBAL:
             ++pos;
