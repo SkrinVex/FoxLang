@@ -19,19 +19,24 @@ public:
         if (request.usingModule && (name.size() < 4 || name.substr(name.size() - 4) != ".fox")) {
             name += ".fox";
         }
-        const std::vector<std::string> candidates = request.usingModule
-            ? std::vector<std::string>{"std/" + name, name}
-            : std::vector<std::string>{name};
-        for (const auto& candidate : candidates) {
+        auto onDisk = [&](const std::string& candidate, std::string& found) {
             try {
-                return runtime::resolveFoxFile(candidate, from, home);
+                found = runtime::resolveFoxFile(candidate, from, home);
+                return true;
             } catch (const std::runtime_error&) {
                 // Only resolution may fall back; module execution errors must propagate.
+                return false;
             }
+        };
+        std::string found;
+        if (request.usingModule) {
+            // A standard module wins over a file of the same name next to the program:
+            // `using arrays;` beside a script called arrays.fox must still mean std/arrays.
+            std::string standard = "std/" + name;
+            if (onDisk(standard, found)) return found;
+            if (embeddedStdlib().count(standard)) return "@" + standard;
         }
-        for (const auto& candidate : candidates) {
-            if (embeddedStdlib().count(candidate)) return "@" + candidate;
-        }
+        if (onDisk(name, found)) return found;
         throw std::runtime_error("Module Error: '" + request.name + "' not found (imported by '" + from + "')");
     }
 
