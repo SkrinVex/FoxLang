@@ -47,6 +47,8 @@ enum class Op : std::uint8_t {
     JumpIfFalse,   // go to b unless R[a]
     JumpIfTrue,    // go to b if R[a]
     Compare,       // go to c when (R[a] op R[b]) == (y != 0); op is x
+    ForIn,         // next round of for-in over R[a] (position R[a+1], count R[a+2]):
+                   // fills the x loop variables from R[b]; at the end, go to c
     // Calls
     Call,          // R[a] = call site b with c arguments in R[a] .. R[a+c-1]
     Return,        // return R[a]

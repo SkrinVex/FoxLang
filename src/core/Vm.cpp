@@ -7,6 +7,7 @@
 #include "foxlang/Debug.h"
 #include "foxlang/Platform.h"
 #include "Operations.h"
+#include <algorithm>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -423,6 +424,59 @@ FOXLANG_APART void concat(Value& out, const Value* parts, int count) {
     out = Value::string(std::move(text));
 }
 
+// One round of a for-in loop: false when there is nothing left.
+FOXLANG_APART bool forIn(Value* R, const Instr& in) {
+    const Value& container = R[in.a];
+    Value& position = R[in.a + 1];
+    Value& count = R[in.a + 2];
+    size_t at = static_cast<size_t>(position.asInt());
+    bool pair = in.x == 2;
+    Value* first = R + in.b;
+    switch (container.kind()) {
+        case Value::Kind::Array: {
+            const auto& items = container.ref()->items;
+            if (at >= items.size()) return false;
+            if (pair) {
+                first[0].setInt(static_cast<long long>(at));
+                first[1] = items[at];
+            } else {
+                first[0] = items[at];
+            }
+            break;
+        }
+        case Value::Kind::Map: {
+            const Object& map = *container.ref();
+            if (at >= map.keys.size()) return false;
+            first[0] = Value::string(map.keys[at]);
+            if (pair) first[1] = map.items[at];
+            break;
+        }
+        case Value::Kind::String: {
+            const std::string& text = container.str();
+            if (at >= text.size()) return false;
+            // One character: the bytes of one UTF-8 sequence.
+            unsigned char lead = static_cast<unsigned char>(text[at]);
+            size_t length = lead < 0x80 ? 1 : (lead >> 5) == 0x6 ? 2 : (lead >> 4) == 0xE ? 3 : (lead >> 3) == 0x1E ? 4 : 1;
+            length = std::min(length, text.size() - at);
+            Value character = Value::string(text.substr(at, length));
+            if (pair) {
+                first[0].setInt(count.asInt());
+                first[1] = std::move(character);
+            } else {
+                first[0] = std::move(character);
+            }
+            position.setInt(static_cast<long long>(at + length));
+            count.setInt(count.asInt() + 1);
+            return true;
+        }
+        default:
+            throw std::runtime_error("Type Error: a for-in loop needs an array, a map or a string, got '" +
+                                     container.typeName() + "'");
+    }
+    position.setInt(static_cast<long long>(at + 1));
+    return true;
+}
+
 FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key)); }
 
 [[noreturn]] FOXLANG_APART void rethrow(std::exception_ptr& pending) {
@@ -594,6 +648,9 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         break;
                     }
 
+                    case Op::ForIn:
+                        if (!forIn(R, in)) ip = code + in.c;
+                        break;
                     case Op::Call:
                         call(proto, in, R, root);
                         break;

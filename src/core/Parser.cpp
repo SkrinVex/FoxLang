@@ -367,10 +367,52 @@ std::unique_ptr<Node> Parser::functionDefinition(const std::string& returnType, 
               start, previousEnd());
 }
 
+bool Parser::forInAhead() const {
+    size_t at = 0;
+    auto isIn = [&](size_t offset) { return peek(offset).type == TokenType::IDENTIFIER && peek(offset).value == "in"; };
+    auto variable = [&] {
+        bool typed = (isTypeKeyword(at) || peek(at).type == TokenType::IDENTIFIER) &&
+                     peek(at + 1).type == TokenType::IDENTIFIER && !isIn(at + 1);
+        if (typed) at += 2;
+        else if (peek(at).type == TokenType::IDENTIFIER) at += 1;
+        else return false;
+        return true;
+    };
+    if (!variable()) return false;
+    if (peek(at).type == TokenType::COMMA) {
+        ++at;
+        if (!variable()) return false;
+    }
+    return isIn(at);
+}
+
+std::unique_ptr<Node> Parser::forInStatement(SourcePosition start) {
+    auto node = std::make_unique<ForInNode>();
+    do {
+        ForInNode::Variable variable;
+        if (isTypeKeyword() || (check(TokenType::IDENTIFIER) && peek(1).type == TokenType::IDENTIFIER && peek(1).value != "in")) {
+            if (check(TokenType::VOID_KW)) fail("a loop variable cannot be void");
+            variable.type = tokens[pos++].value;
+        }
+        Token name = consume(TokenType::IDENTIFIER);
+        variable.name = name.value;
+        variable.range = name.range;
+        node->variables.push_back(variable);
+    } while (match(TokenType::COMMA));
+    if (node->variables.size() == 2 && node->variables[0].name == node->variables[1].name)
+        fail("the two loop variables need different names");
+    ++pos; // in
+    node->iterable = expression();
+    consume(TokenType::RPAREN);
+    node->body = parseBlock();
+    return at(std::move(node), start, previousEnd());
+}
+
 std::unique_ptr<Node> Parser::forStatement() {
     SourcePosition start = peek().range.start;
     consume(TokenType::FOR);
     consume(TokenType::LPAREN);
+    if (forInAhead()) return forInStatement(start);
     std::unique_ptr<Node> init;
     if (isType()) {
         init = declaration(false);

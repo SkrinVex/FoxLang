@@ -79,6 +79,15 @@ void Resolver::visit(Node* node) {
         visit(n->body.get());
         n->endSlot = size();
         pop();
+    } else if (auto* n = dynamic_cast<ForInNode*>(node)) {
+        visit(n->iterable.get());
+        push();
+        n->firstSlot = size();
+        // The variables take consecutive slots: the loop fills them with one instruction.
+        for (auto& variable : n->variables) variable.slot = declare(variable.name);
+        visit(n->body.get());
+        n->endSlot = size();
+        pop();
     } else if (auto* n = dynamic_cast<WhileNode*>(node)) {
         visit(n->condition.get());
         visit(n->body.get());

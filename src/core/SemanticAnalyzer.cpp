@@ -272,6 +272,8 @@ void SemanticAnalyzer::visitNode(const Node* node) {
         visitWhile(wh);
     } else if (auto* fr = dynamic_cast<const ForNode*>(node)) {
         visitFor(fr);
+    } else if (auto* each = dynamic_cast<const ForInNode*>(node)) {
+        visitForIn(each);
     } else if (auto* sw = dynamic_cast<const SwitchNode*>(node)) {
         visitSwitch(sw);
     } else if (auto* bop = dynamic_cast<const BinOpNode*>(node)) {
@@ -547,6 +549,24 @@ void SemanticAnalyzer::visitFor(const ForNode* node) {
     visitNode(node->init.get());
     visitNode(node->condition.get());
     visitNode(node->step.get());
+    visitNode(node->body.get());
+    exitScope();
+}
+
+void SemanticAnalyzer::visitForIn(const ForInNode* node) {
+    visitNode(node->iterable.get());
+    enterScope();
+    for (const auto& variable : node->variables) {
+        if (!variable.type.empty()) checkType(variable.type, variable.range);
+        Symbol sym;
+        sym.name = variable.name;
+        sym.type = variable.type.empty() ? "any" : variable.type;
+        sym.kind = SymbolKind::Variable;
+        sym.declRange = variable.range;
+        sym.documentation = (variable.type.empty() ? "" : variable.type + " ") + variable.name + " (переменная цикла)";
+        sym.fileUri = currentFile;
+        addSymbol(currentScope, sym, variable.range, true);
+    }
     visitNode(node->body.get());
     exitScope();
 }

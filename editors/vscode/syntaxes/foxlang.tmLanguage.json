@@ -118,7 +118,7 @@
       "patterns": [
         {
           "name": "keyword.control.flow.fox",
-          "match": "\\b(if|else|while|for|switch|case|default|break|continue|return|try|catch|finally|throw)\\b"
+          "match": "\\b(if|else|while|for|in|switch|case|default|break|continue|return|try|catch|finally|throw)\\b"
         },
         {
           "name": "keyword.other.module.fox",

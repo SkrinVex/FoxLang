@@ -326,6 +326,21 @@ struct ForNode : Node {
         : init(std::move(i)), condition(std::move(c)), step(std::move(s)), body(std::move(b)) {}
 };
 
+// for (x in items), for (key, value in ages), for (int i, string ch in text): each
+// variable with an optional type. Arrays give elements (or index and element), maps keys
+// (or key and value), strings characters (or their number and the character).
+struct ForInNode : Node {
+    struct Variable {
+        std::string type; // empty: the variable takes whatever the loop gives it
+        std::string name;
+        SourceRange range;
+        int slot = VarRef::byName;
+    };
+    std::vector<Variable> variables; // one or two
+    std::unique_ptr<Node> iterable, body;
+    int firstSlot = 0, endSlot = 0;
+};
+
 struct BreakNode : Node {};
 
 struct ContinueNode : Node {};

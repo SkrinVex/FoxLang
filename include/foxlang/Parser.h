@@ -38,6 +38,9 @@ private:
     std::unique_ptr<Node> arrayDeclaration(bool global, SourcePosition start);
     std::unique_ptr<Node> functionDefinition(const std::string& returnType, const Token& name, SourcePosition start);
     std::unique_ptr<Node> forStatement();
+    // After `for (`: a for-in header, `x in`, `int x in`, `k, v in`, rather than a for (;;).
+    bool forInAhead() const;
+    std::unique_ptr<Node> forInStatement(SourcePosition start);
     std::unique_ptr<Node> switchStatement();
     std::unique_ptr<Node> ifStatement();
     std::unique_ptr<Node> structDefinition();

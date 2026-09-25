@@ -11,7 +11,7 @@
 "struct" @keyword
 
 ((identifier) @keyword
-  (#match? @keyword "^(try|catch|finally|throw)$"))
+  (#match? @keyword "^(try|catch|finally|throw|in)$"))
 
 ((identifier) @keyword.import
   (#match? @keyword.import "^using$"))

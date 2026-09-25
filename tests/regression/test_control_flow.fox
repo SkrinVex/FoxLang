@@ -129,4 +129,54 @@ for (int i = 0; i < 6; i++) {
 }
 assert_true(odd == 3, "continue inside switch");
 
+// 9. for-in over arrays, maps and strings
+array values = [3, 4, 5];
+int each = 0;
+for (v in values) {
+    each += v;
+}
+assert_true(each == 12, "for-in over an array");
+string pairs_seen = "";
+for (i, v in values) {
+    pairs_seen += "${i}:${v} ";
+}
+assert_true(pairs_seen == "0:3 1:4 2:5 ", "for-in with index and element");
+map scores = {"a": 1, "b": 2};
+string keys_seen = "";
+int score_sum = 0;
+for (string key, int score in scores) {
+    keys_seen += key;
+    score_sum += score;
+}
+assert_true(keys_seen == "ab" && score_sum == 3, "for-in over a map");
+string letters = "";
+int count = 0;
+for (n, ch in "Лис") {
+    letters = ch + letters;
+    count = n + 1;
+}
+assert_true(letters == "сиЛ" && count == 3, "for-in over characters");
+int stopped = 0;
+for (v in [1, 2, 3, 4]) {
+    if (v == 2) {
+        continue;
+    }
+    if (v == 4) {
+        break;
+    }
+    stopped += v;
+}
+assert_true(stopped == 4, "break and continue in for-in");
+array grown = [1];
+int rounds = 0;
+for (v in grown) {
+    if (size(grown) < 3) {
+        push(grown, v + 1);
+    }
+    rounds++;
+}
+assert_true(rounds == 3, "for-in sees elements added during the loop");
+int in = 7;
+assert_true(in == 7, "in is still a name");
+
 print("CONTROL_FLOW_OK");

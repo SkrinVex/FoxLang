@@ -148,6 +148,8 @@ public:
             ifStatement(*n);
         } else if (auto* n = dynamic_cast<WhileNode*>(&node)) {
             whileLoop(*n);
+        } else if (auto* n = dynamic_cast<ForInNode*>(&node)) {
+            forIn(*n);
         } else if (auto* n = dynamic_cast<ForNode*>(&node)) {
             forLoop(*n);
         } else if (auto* n = dynamic_cast<SwitchNode*>(&node)) {
@@ -752,6 +754,28 @@ private:
         if (node.endSlot > node.firstSlot) emit(Op::Clear, node.firstSlot, node.endSlot);
     }
 
+    void forIn(ForInNode& node) {
+        int container = temp();
+        into(*node.iterable, container);
+        int zero = constant(Value::integer(0));
+        emit(Op::LoadConst, temp(), zero);
+        emit(Op::LoadConst, temp(), zero);
+        int start = emit(Op::ForIn, container, node.variables.front().slot, 0, static_cast<int>(node.variables.size()));
+        for (const auto& variable : node.variables)
+            if (!variable.type.empty())
+                emit(Op::Coerce, variable.slot,
+                     conversion(runtime::declaredKind(variable.type), variable.type, "variable '" + variable.name + "'"));
+        targets.push_back(loopTarget(node.body.get()));
+        loopBody(node.body.get());
+        Target target = std::move(targets.back());
+        targets.pop_back();
+        for (int jump : target.continues) patch(jump, start);
+        emit(Op::Jump, start);
+        p.code[static_cast<size_t>(start)].c = here();
+        for (int jump : target.breaks) patch(jump, here());
+        if (node.endSlot > node.firstSlot) emit(Op::Clear, node.firstSlot, node.endSlot);
+    }
+
     void switchStatement(SwitchNode& node) {
         int value = temp();
         into(*node.expr, value);
@@ -914,7 +938,7 @@ const char* opName(Op op) {
     static const char* names[] = {
         "move", "loadk", "clear", "getglobal", "setglobal", "defglobal", "coerce", "assign", "zero", "newsized",
         "fail", "add", "sub", "mul", "div", "mod", "eq", "ne", "lt", "le", "gt", "ge", "neg", "not", "truth",
-        "jump", "jumpif-false", "jumpif-true", "compare", "call", "return", "return-void", "newarray", "newmap",
+        "jump", "jumpif-false", "jumpif-true", "compare", "for-in", "call", "return", "return-void", "newarray", "newmap",
         "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "declare", "throw", "rethrow", "try-enter",
         "try-leave", "match", "statement", "scope-enter", "scope-leave"};
     return names[static_cast<int>(op)];
@@ -980,6 +1004,9 @@ void disassemble(const Proto& proto, std::ostream& out) {
             case Op::Compare:
                 out << "if " << (in.y & 1 ? "" : "not ") << reg(in.a) << " " << proto.texts[in.y >> 1] << " " << reg(in.b)
                     << " -> " << in.c;
+                break;
+            case Op::ForIn:
+                out << reg(in.b) << (in.x == 2 ? ", " + reg(in.b + 1) : std::string()) << " in " << reg(in.a) << " else -> " << in.c;
                 break;
             case Op::Call:
                 out << reg(in.a) << " = " << proto.calls[in.b].name << "(";
