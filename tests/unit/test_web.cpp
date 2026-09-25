@@ -65,9 +65,9 @@ int main() {
             "doc = json_set_raw(doc, \"inner\", \"{\\\"k\\\":[]}\"); string value = json_value([1.5, [2]]);"
             "bool valid = json_valid(doc);");
         CHECK(res.success);
-        CHECK(interp.getGlobal("doc").value == R"({"name":"Лис \"1\"","tags":[1,"a",true],"inner":{"k":[]}})");
-        CHECK(interp.getGlobal("value").value == "[1.5,[2]]");
-        CHECK(interp.getGlobal("valid").value == "true");
+        CHECK(interp.getGlobal("doc").text() == R"({"name":"Лис \"1\"","tags":[1,"a",true],"inner":{"k":[]}})");
+        CHECK(interp.getGlobal("value").text() == "[1.5,[2]]");
+        CHECK(interp.getGlobal("valid").text() == "true");
         CHECK(throws("string s = json_set_raw(\"\", \"a\", \"{oops\");"));
         CHECK(throws("string s = json_set(\"[1]\", \"5\", 1);"));
         CHECK(throws("string s = json_set(\"5\", \"a\", 1);"));

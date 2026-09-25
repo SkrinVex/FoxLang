@@ -4,6 +4,7 @@
 #include "foxlang/Platform.h"
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -80,10 +81,8 @@ StackGuard& stackGuard() {
     return state;
 }
 
-bool tryNumber(const Value& value, double& out) {
-    if (value.value.isInteger()) { out = static_cast<double>(value.value.integerValue()); return true; }
-    if (value.value.isReal()) { out = value.value.realValue(); return true; }
-    const std::string& text = value.value.str();
+namespace {
+bool parseDouble(const std::string& text, double& out) {
     char* end = nullptr;
     double result = std::strtod(text.c_str(), &end);
     if (text.empty() || end != text.c_str() + text.size() || !std::isfinite(result)) return false;
@@ -91,20 +90,33 @@ bool tryNumber(const Value& value, double& out) {
     return true;
 }
 
-bool tryInt(const Value& value, long long& out) {
-    if (value.value.isInteger()) {
-        long long stored = value.value.integerValue();
-        if (stored < -2147483648LL || stored > 2147483647LL) return false;
-        out = stored;
-        return true;
-    }
-    // A real narrows through toInt, which truncates it, exactly as its text would.
-    if (value.value.isReal()) return false;
-    const std::string& text = value.value.str();
+bool parseInt(const std::string& text, long long& out) {
     char* end = nullptr;
+    errno = 0;
     long long result = std::strtoll(text.c_str(), &end, 10);
-    if (text.empty() || end != text.c_str() + text.size() ||
-        result < -2147483648LL || result > 2147483647LL) return false;
+    if (text.empty() || end != text.c_str() + text.size() || errno == ERANGE) return false;
+    out = result;
+    return true;
+}
+
+bool fitsInt(long long value) { return value >= -2147483648LL && value <= 2147483647LL; }
+} // namespace
+
+bool tryNumber(const Value& value, double& out) {
+    switch (value.kind()) {
+        case Value::Kind::Int: out = static_cast<double>(value.asInt()); return true;
+        case Value::Kind::Float: out = value.asFloat(); return true;
+        case Value::Kind::String: return parseDouble(value.str(), out);
+        default: return false;
+    }
+}
+
+bool tryInt(const Value& value, long long& out) {
+    long long result = 0;
+    if (value.isInt()) result = value.asInt();
+    // A float narrows through toInt, which truncates it.
+    else if (!value.isString() || !parseInt(value.str(), result)) return false;
+    if (!fitsInt(result)) return false;
     out = result;
     return true;
 }
@@ -112,45 +124,57 @@ bool tryInt(const Value& value, long long& out) {
 double toNumber(const Value& value, const std::string& what) {
     double result = 0;
     if (!tryNumber(value, result))
-        throw std::runtime_error("Type Error: " + what + " is not a number: '" + value.value + "'");
+        throw std::runtime_error("Type Error: " + what + " is not a number: '" + value.text() + "'");
     return result;
 }
 
-Text realResult(double result) {
+Value realResult(double result) {
     if (!std::isfinite(result)) throw std::runtime_error("Runtime Error: float result is not a finite number");
-    return Text::real(result);
+    return Value::real(result);
 }
 
 int toInt(const Value& value, const std::string& what) {
     double number = toNumber(value, what);
     if (number < -2147483648.0 || number > 2147483647.0)
-        throw std::runtime_error("Runtime Error: " + what + " does not fit in int: '" + value.value +
+        throw std::runtime_error("Runtime Error: " + what + " does not fit in int: '" + value.text() +
                                  "' (int holds -2147483648..2147483647)");
     return static_cast<int>(number);
 }
 
-Text intText(const Value& value, const std::string& what) {
-    return Text::integer(toInt(value, what));
+Value intValue(const Value& value, const std::string& what) {
+    long long result = 0;
+    if (tryInt(value, result)) return Value::integer(result);
+    return Value::integer(toInt(value, what));
 }
 
-Text intResult(long long result, const std::string& op) {
-    if (result < -2147483648LL || result > 2147483647LL)
-        throw std::runtime_error("Runtime Error: int overflow in '" + op + "': result " + std::to_string(result) +
-                                 " is outside -2147483648..2147483647");
-    return Text::integer(result);
+void intOverflow(long long result, const char* op) {
+    throw std::runtime_error("Runtime Error: int overflow in '" + std::string(op) + "': result " + std::to_string(result) +
+                             " is outside -2147483648..2147483647");
+}
+
+Value parseScalar(const std::string& type, const std::string& text, const std::string& what) {
+    if (type == "string") return Value::string(text);
+    if (type == "bool") {
+        if (text == "true" || text == "false") return Value::boolean(text == "true");
+        throw std::runtime_error("Type Error: " + what + " must be true or false, got '" + text + "'");
+    }
+    if (type == "int") return intValue(Value::string(text), what);
+    if (type == "float") return Value::real(toNumber(Value::string(text), what));
+    throw std::runtime_error("Type Error: " + what + " has type '" + type + "', which has no text form");
 }
 
 std::string display(const Value& value) {
-    if (!value.ref) return value.value.str();
+    const Object* container = value.ref();
+    if (!container) return value.isString() ? value.str() : value.text();
     // A container inside itself (a[0] = a) is shown as [...] instead of forever.
     thread_local std::vector<const Object*> open;
-    if (std::find(open.begin(), open.end(), value.ref.get()) != open.end() || open.size() > 64)
-        return value.ref->kind == Object::Kind::Array ? "[...]" : "{...}";
+    if (std::find(open.begin(), open.end(), container) != open.end() || open.size() > 64)
+        return container->kind == Object::Kind::Array ? "[...]" : "{...}";
     struct Nest {
         explicit Nest(const Object* object) { open.push_back(object); }
         ~Nest() { open.pop_back(); }
-    } nest(value.ref.get());
-    const Object& object = *value.ref;
+    } nest(container);
+    const Object& object = *container;
     std::string out;
     if (object.kind == Object::Kind::Array) {
         out = "[";
@@ -170,10 +194,10 @@ std::string display(const Value& value) {
 }
 
 Value zeroValue(const std::string& type, Context& ctx) {
-    if (type == "int") return {"int", Text::integer(0)};
-    if (type == "float") return {"float", Text::real(0)};
-    if (type == "string") return {"string", ""};
-    if (type == "bool") return {"bool", "false"};
+    if (type == "int") return Value::integer(0);
+    if (type == "float") return Value::real(0);
+    if (type == "string") return Value::string("");
+    if (type == "bool") return Value::boolean(false);
     if (type == "array") return makeArray({});
     if (type == "map") return makeMap();
     if (auto structType = ctx.getStruct(type)) return construct(*structType, {}, ctx);
@@ -184,7 +208,8 @@ Value construct(const StructType& type, std::vector<Value> args, Context& ctx) {
     if (args.size() > type.fields.size())
         throw std::runtime_error("Runtime Error: struct '" + type.name + "' has " + std::to_string(type.fields.size()) +
                                  " fields, got " + std::to_string(args.size()) + " values");
-    auto object = std::make_shared<Object>(Object::Kind::Struct);
+    Value result = Value::container(Value::Kind::Struct);
+    Object* object = result.ref();
     object->structType = ctx.getStruct(type.name);
     object->items.reserve(type.fields.size());
     for (size_t i = 0; i < type.fields.size(); ++i) {
@@ -196,29 +221,56 @@ Value construct(const StructType& type, std::vector<Value> args, Context& ctx) {
         coerce(field.type, value, "field '" + field.name + "' of '" + type.name + "'");
         object->items.push_back(std::move(value));
     }
-    return {type.name, "", std::move(object)};
+    return result;
+}
+
+Value::Kind declaredKind(const std::string& type) {
+    static const std::pair<const char*, Value::Kind> kinds[] = {
+        {"void", Value::Kind::Void}, {"int", Value::Kind::Int}, {"float", Value::Kind::Float},
+        {"bool", Value::Kind::Bool}, {"string", Value::Kind::String}, {"array", Value::Kind::Array},
+        {"map", Value::Kind::Map}};
+    for (const auto& entry : kinds)
+        if (type == entry.first) return entry.second;
+    return Value::Kind::Struct;
 }
 
 void coerce(const std::string& type, Value& value, const std::string& what) {
-    if (type == value.type) {
-        if (type == "int") {
-            long long probe = 0;
-            if (!tryInt(value, probe)) value.value = intText(value, what);
-        }
+    switch (value.kind()) {
+        case Value::Kind::Int:
+            if (type == "int") {
+                if (!fitsInt(value.asInt())) value = intValue(value, what);
+                return;
+            }
+            if (type == "float") {
+                value = Value::real(static_cast<double>(value.asInt()));
+                return;
+            }
+            break;
+        case Value::Kind::Float:
+            if (type == "float") return;
+            if (type == "int") {
+                value = intValue(value, what);
+                return;
+            }
+            break;
+        case Value::Kind::String:
+        case Value::Kind::Void:
+            if (type == value.typeName()) return;
+            break;
+        default:
+            if (type == value.typeName()) return;
+            if (type == "string" && value.isBool()) {
+                value = Value::string(value.text());
+                return;
+            }
+            break;
+    }
+    if (type == "string" && value.isNumber()) {
+        value = Value::string(value.text());
         return;
     }
-    bool numeric = value.type == "int" || value.type == "float";
-    if (type == "float" && numeric) {
-        value.type = "float";
-    } else if (type == "int" && numeric) {
-        value.type = "int";
-        value.value = intText(value, what);
-    } else if (type == "string" && (numeric || value.type == "bool")) {
-        value.type = "string";
-    } else {
-        throw std::runtime_error("Type Error: " + what + " has type '" + type + "' and cannot hold a value of type '" +
-                                 value.type + "'");
-    }
+    throw std::runtime_error("Type Error: " + what + " has type '" + type + "' and cannot hold a value of type '" +
+                             value.typeName() + "'");
 }
 
 int getLogLevelThreshold() {
@@ -280,7 +332,7 @@ Value jsonEscape(const std::string& text) {
                 }
         }
     }
-    return {"string", out};
+    return Value::string(std::move(out));
 }
 
 namespace {
@@ -524,7 +576,7 @@ std::string setAt(const std::string& doc, const std::vector<std::string>& segmen
             if (cursor.at(',')) ++cursor.pos;
         }
         if (!cursor.at('}')) throw std::runtime_error("Runtime Error: json_set() got malformed JSON");
-        std::string member = jsonEscape(segment).value.str();
+        std::string member = jsonEscape(segment).str();
         return text.substr(0, cursor.pos) + (any ? "," : "") + "\"" + member + "\":" +
                setAt("", segments, index + 1, raw, path) + text.substr(cursor.pos);
     }
@@ -556,15 +608,15 @@ std::string jsonSet(const std::string& json, const std::string& path, const std:
 
 Value jsonGet(const std::string& json, const std::string& path) {
     JsonCursor cursor(json);
-    if (!cursor.locate(path)) return {"string", ""};
+    if (!cursor.locate(path)) return Value::string("");
     if (json[cursor.pos] == '"') {
         std::string decoded;
-        if (!cursor.string(&decoded)) return {"string", ""};
-        return {"string", decoded};
+        if (!cursor.string(&decoded)) return Value::string("");
+        return Value::string(std::move(decoded));
     }
     size_t start = cursor.pos;
-    if (!cursor.value()) return {"string", ""};
-    return {"string", json.substr(start, cursor.pos - start)};
+    if (!cursor.value()) return Value::string("");
+    return Value::string(json.substr(start, cursor.pos - start));
 }
 
 int jsonCount(const std::string& json, const std::string& path) {

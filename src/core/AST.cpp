@@ -60,87 +60,119 @@ void evalDebugged(BlockNode& block, Context& scope, DebugHook& hook) {
 
 } // namespace
 
+FuncDefNode::FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b, SourceRange nr)
+    : returnType(std::move(rt)), name(std::move(n)), params(std::move(p)), body(std::move(b)), nameRange(nr) {
+    block_ = dynamic_cast<BlockNode*>(body.get());
+    returnKind_ = runtime::declaredKind(returnType);
+    paramKinds_.reserve(params.size());
+    for (const auto& param : params) paramKinds_.push_back(runtime::declaredKind(param.type));
+}
+
 Value FuncDefNode::eval(Context& ctx) {
     ctx.getRoot()->defineFunc(name, std::make_shared<FuncDefNode>(returnType, name, params, body, nameRange));
-    return {"void", ""};
+    return Value();
 }
 
 Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
-    if (args.size() != params.size())
-        throw std::runtime_error("Runtime Error: function '" + name + "' expects " + std::to_string(params.size()) +
-                                 " arguments, got " + std::to_string(args.size()));
+    return invoke(args.data(), args.size(), caller);
+}
 
-    // Lexical scope: a function sees globals, never the caller's locals. The scope ends
-    // before the result is checked, so the function's locals are gone by then.
-    auto scope = std::make_unique<Context>();
-    scope->parent = caller.getRoot();
-    scope->interpreter = caller.interpreter;
+Value FuncDefNode::invoke(Value* args, size_t count, Context& caller) const {
+    if (count != params.size())
+        throw std::runtime_error("Runtime Error: function '" + name + "' expects " + std::to_string(params.size()) +
+                                 " arguments, got " + std::to_string(count));
+
     // The body's variables are numbered once; each call gets its own row of slots,
     // the parameters first. Arrays, maps and structs are shared with the caller.
-    auto* block = dynamic_cast<BlockNode*>(body.get());
+    // A small row lives on the native stack, so most calls allocate nothing.
+    BlockNode* block = block_;
     if (block && !block->layout) resolveFunction(const_cast<FuncDefNode&>(*this));
-    std::vector<Value> frameSlots(block && block->layout ? block->layout->names.size() : 0);
-    if (block && block->layout) {
-        scope->slots = frameSlots.data();
-        scope->slotNames = &block->layout->names;
-        scope->frame = true;
-    }
-    for (size_t i = 0; i < params.size(); ++i) {
-        const auto& param = params[i];
-        runtime::coerce(param.type, args[i], "parameter '" + param.name + "' of '" + name + "'");
-        if (scope->frame) frameSlots[i] = std::move(args[i]);
-        else scope->defineVar(param.name, param.type, args[i]);
+    size_t slotCount = block && block->layout ? block->layout->names.size() : 0;
+    constexpr size_t inlineSlots = 8;
+    Value localSlots[inlineSlots];
+    std::unique_ptr<Value[]> heapSlots;
+    Value* slots = localSlots;
+    if (slotCount > inlineSlots) {
+        heapSlots.reset(new Value[slotCount]);
+        slots = heapSlots.get();
     }
 
-    CallDepth guard(name);
-    DebugHook* hook = runtime::debugHook();
-    FrameMark frame{hook};
-    if (hook) hook->enterFunction(name, block ? block->file : nullptr, range.start.line, *scope);
-    // After a normal return the caller's statement is the one running again, so an
-    // error later in it must not be reported at the callee's last line.
     runtime::StackGuard& location = runtime::stackGuard();
-    int callerLine = location.line;
-    const std::string* callerFile = location.file;
-    Value result{"void", ""};
-    body->eval(*scope);
-    switch (location.flow) {
-        case runtime::StackGuard::Flow::Return:
-            result = std::move(location.returned);
-            location.returned = Value();
-            break;
-        case runtime::StackGuard::Flow::Break:
-            location.flow = runtime::StackGuard::Flow::None;
-            throw std::runtime_error("Runtime Error: 'break' outside of loop in function '" + name + "'");
-        case runtime::StackGuard::Flow::Continue:
-            location.flow = runtime::StackGuard::Flow::None;
-            throw std::runtime_error("Runtime Error: 'continue' outside of loop in function '" + name + "'");
-        default:
-            break;
-    }
-    location.flow = runtime::StackGuard::Flow::None;
+    Value result;
+    {
+        // Lexical scope: a function sees globals, never the caller's locals. The scope
+        // ends before the result is checked, so the function's locals are gone by then.
+        Context scope;
+        scope.parent = caller.getRoot();
+        scope.interpreter = caller.interpreter;
+        if (block && block->layout) {
+            scope.slots = slots;
+            scope.slotNames = &block->layout->names;
+            scope.frame = true;
+        }
+        for (size_t i = 0; i < params.size(); ++i) {
+            const auto& param = params[i];
+            if (!runtime::storesAsIs(paramKinds_[i], args[i]))
+                runtime::coerce(param.type, args[i], "parameter '" + param.name + "' of '" + name + "'");
+            if (scope.frame) slots[i] = std::move(args[i]);
+            else scope.defineVar(param.name, param.type, args[i]);
+        }
 
-    location.line = callerLine;
-    location.file = callerFile;
-    scope.reset();
-    if (returnType == "void") return {"void", ""};
-    if (result.type == "void")
+        CallDepth guard(name);
+        DebugHook* hook = runtime::debugHook();
+        FrameMark frame{hook};
+        if (hook) hook->enterFunction(name, block ? block->file : nullptr, range.start.line, scope);
+        // After a normal return the caller's statement is the one running again, so an
+        // error later in it must not be reported at the callee's last line.
+        int callerLine = location.line;
+        const std::string* callerFile = location.file;
+        body->eval(scope);
+        switch (location.flow) {
+            case runtime::StackGuard::Flow::Return:
+                result = std::move(location.returned);
+                location.returned = Value();
+                break;
+            case runtime::StackGuard::Flow::Break:
+                location.flow = runtime::StackGuard::Flow::None;
+                throw std::runtime_error("Runtime Error: 'break' outside of loop in function '" + name + "'");
+            case runtime::StackGuard::Flow::Continue:
+                location.flow = runtime::StackGuard::Flow::None;
+                throw std::runtime_error("Runtime Error: 'continue' outside of loop in function '" + name + "'");
+            default:
+                break;
+        }
+        location.flow = runtime::StackGuard::Flow::None;
+
+        location.line = callerLine;
+        location.file = callerFile;
+    }
+    if (returnKind_ == Value::Kind::Void) return Value();
+    if (result.isVoid())
         throw std::runtime_error("Runtime Error: function '" + name + "' must return " + returnType + " but ended without a value");
-    runtime::coerce(returnType, result, "return value of '" + name + "'");
+    if (!runtime::storesAsIs(returnKind_, result)) runtime::coerce(returnType, result, "return value of '" + name + "'");
     return result;
 }
 
 Value ReturnNode::eval(Context& ctx) {
-    Value result = expr ? expr->eval(ctx) : Value{"void", ""};
+    Value result = expr ? expr->eval(ctx) : Value();
     runtime::StackGuard& guard = runtime::stackGuard();
     guard.returned = std::move(result);
     guard.flow = runtime::StackGuard::Flow::Return;
-    return {"void", ""};
+    return Value();
 }
 
 Value FuncCallNode::eval(Context& ctx) {
-    std::vector<Value> argValues;
-    argValues.reserve(args.size());
-    for (auto& arg : args) argValues.push_back(arg->eval(ctx));
+    // Arguments are evaluated in place; only a builtin needs them in a vector.
+    constexpr size_t inlineArgs = 8;
+    Value localArgs[inlineArgs];
+    std::vector<Value> heapArgs;
+    size_t count = args.size();
+    Value* argValues = localArgs;
+    if (count > inlineArgs) {
+        heapArgs.resize(count);
+        argValues = heapArgs.data();
+    }
+    for (size_t i = 0; i < count; ++i) argValues[i] = args[i]->eval(ctx);
 
     if (!resolved) {
         builtin = runtime::findBuiltin(name);
@@ -156,36 +188,40 @@ Value FuncCallNode::eval(Context& ctx) {
         functionRoot = root;
         functionGeneration = root->functionGeneration;
     }
-    // A builtin and a FoxLang function may share a name, like get(items, i) and the
-    // server's get(path, handler). The builtin wins whenever the arguments fit it.
-    if (builtin && (!callee || runtime::acceptsArguments(*builtin, argValues)))
-        return runtime::invoke(*builtin, argValues, ctx);
+    auto asVector = [&] {
+        if (argValues != localArgs) return std::move(heapArgs);
+        return std::vector<Value>(std::make_move_iterator(localArgs), std::make_move_iterator(localArgs + count));
+    };
+    if (builtin) {
+        // A builtin and a FoxLang function may share a name, like get(items, i) and the
+        // server's get(path, handler). The builtin wins whenever the arguments fit it.
+        std::vector<Value> values = asVector();
+        if (!callee || runtime::acceptsArguments(*builtin, values)) return runtime::invoke(*builtin, values, ctx);
+        return static_cast<const FuncDefNode*>(callee.get())->invoke(values.data(), values.size(), ctx);
+    }
     if (!callee) {
         // A struct's name called like a function builds a value of it.
-        if (auto type = ctx.getStruct(name)) return runtime::construct(*type, std::move(argValues), ctx);
+        if (auto type = ctx.getStruct(name)) return runtime::construct(*type, asVector(), ctx);
         throw std::runtime_error("Runtime Error: Function '" + name + "' not found!");
     }
     // `callee` keeps the function alive even if it redefines itself meanwhile.
-    return static_cast<const FuncDefNode*>(callee.get())->invoke(std::move(argValues), ctx);
+    return static_cast<const FuncDefNode*>(callee.get())->invoke(argValues, count, ctx);
 }
 
 NumberNode::NumberNode(std::string v) : val(std::move(v)) {
     isFloat = val.find('.') != std::string::npos;
     if (isFloat) {
-        literal = {"float", Text::real(std::strtod(val.c_str(), nullptr))};
+        literal = Value::real(std::strtod(val.c_str(), nullptr));
     } else {
         errno = 0;
         long long parsed = std::strtoll(val.c_str(), nullptr, 10);
         // Keep the digits when they do not even fit 64 bits; storing them reports the range.
-        literal = errno == ERANGE ? Value{"int", val} : Value{"int", Text::integer(parsed)};
+        tooBig = errno == ERANGE;
+        literal = Value::integer(parsed);
     }
 }
 
-Value* VarRef::find(Context& ctx, const std::string& name) {
-    if (slot >= 0 && ctx.slots) {
-        Value& value = ctx.slots[slot];
-        return value.type.is(TypeName::Kind::Void) ? nullptr : &value;
-    }
+Value* VarRef::findSlow(Context& ctx, const std::string& name) {
     if (slot == global) {
         Context* root = ctx.getRoot();
         if (cached && cachedRoot == root && cachedGeneration == root->generation) return cached;
@@ -216,16 +252,16 @@ Value VarAssignNode::eval(Context& ctx) {
     Value* target = ref.find(ctx, name);
     if (!target) notFound(name);
     runtime::assign(*target, std::move(assigned), name);
-    return {"void", ""};
+    return Value();
 }
 
 Value VarDeclNode::eval(Context& ctx) {
     if (duplicate) throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
     if (slot >= 0 && ctx.slots) {
         Value val = expr ? expr->eval(ctx) : runtime::zeroValue(type, ctx);
-        runtime::coerce(type, val, "variable '" + name + "'");
+        if (!runtime::storesAsIs(kind, val)) runtime::coerce(type, val, "variable '" + name + "'");
         ctx.slots[slot] = std::move(val);
-        return {"void", ""};
+        return Value();
     }
     Context& scope = global ? *ctx.getRoot() : ctx;
     if (!global && scope.variables.count(name))
@@ -233,14 +269,14 @@ Value VarDeclNode::eval(Context& ctx) {
     Value val = expr ? expr->eval(ctx) : runtime::zeroValue(type, ctx);
     runtime::coerce(type, val, std::string(global ? "global variable '" : "variable '") + name + "'");
     scope.defineVar(name, type, val);
-    return {"void", ""};
+    return Value();
 }
 
 namespace {
 std::string containerName(const Value& value) {
-    if (value.type == "array") return "an array";
-    if (value.type == "map") return "a map";
-    return "a struct '" + value.type + "'";
+    if (value.is(Value::Kind::Array)) return "an array";
+    if (value.is(Value::Kind::Map)) return "a map";
+    return "a struct '" + value.typeName() + "'";
 }
 } // namespace
 
@@ -259,60 +295,63 @@ Value BinOpNode::eval(Context& ctx) {
     // Short-circuit before the right side runs: `x != 0 && 10 / x > 1` must not divide by zero.
     if (kind == Kind::And || kind == Kind::Or) {
         bool l = truth(left->eval(ctx), "left");
-        if (l == (kind == Kind::Or)) return {"bool", l ? "true" : "false"};
-        return {"bool", truth(right->eval(ctx), "right") ? "true" : "false"};
+        if (l == (kind == Kind::Or)) return Value::boolean(l);
+        return Value::boolean(truth(right->eval(ctx), "right"));
     }
 
     Value lval = left->eval(ctx);
     Value rval = right->eval(ctx);
 
     // Two ints are the common case: arithmetic and comparison without any conversion.
-    if (lval.value.isInteger() && rval.value.isInteger() && lval.type == "int" && rval.type == "int") {
-        long long l = lval.value.integerValue(), r = rval.value.integerValue();
+    if (lval.isInt() && rval.isInt()) {
+        long long l = lval.asInt(), r = rval.asInt();
         switch (kind) {
-            case Kind::Add: return {"int", runtime::intResult(l + r, op)};
-            case Kind::Sub: return {"int", runtime::intResult(l - r, op)};
-            case Kind::Mul: return {"int", runtime::intResult(l * r, op)};
+            case Kind::Add: return runtime::intResult(l + r, op);
+            case Kind::Sub: return runtime::intResult(l - r, op);
+            case Kind::Mul: return runtime::intResult(l * r, op);
             case Kind::Div:
             case Kind::Mod:
                 if (r == 0) throw std::runtime_error("Runtime Error: Division by zero");
-                return {"int", runtime::intResult(kind == Kind::Div ? l / r : l % r, op)};
-            case Kind::Eq: return {"bool", l == r ? "true" : "false"};
-            case Kind::Ne: return {"bool", l != r ? "true" : "false"};
-            case Kind::Lt: return {"bool", l < r ? "true" : "false"};
-            case Kind::Le: return {"bool", l <= r ? "true" : "false"};
-            case Kind::Gt: return {"bool", l > r ? "true" : "false"};
-            case Kind::Ge: return {"bool", l >= r ? "true" : "false"};
+                return runtime::intResult(kind == Kind::Div ? l / r : l % r, op);
+            case Kind::Eq: return Value::boolean(l == r);
+            case Kind::Ne: return Value::boolean(l != r);
+            case Kind::Lt: return Value::boolean(l < r);
+            case Kind::Le: return Value::boolean(l <= r);
+            case Kind::Gt: return Value::boolean(l > r);
+            case Kind::Ge: return Value::boolean(l >= r);
             default: break;
         }
     }
 
     bool equality = kind == Kind::Eq || kind == Kind::Ne;
-    bool concatenation = kind == Kind::Add && (lval.type == "string" || rval.type == "string");
-    if ((lval.ref || rval.ref) && !equality && !concatenation)
-        throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref ? lval : rval));
+    bool concatenation = kind == Kind::Add && (lval.isString() || rval.isString());
+    if ((lval.ref() || rval.ref()) && !equality && !concatenation)
+        throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref() ? lval : rval));
 
     switch (kind) {
         case Kind::Add:
-            if (concatenation) return {"string", runtime::display(lval) + runtime::display(rval)};
-            if (lval.type == "float" || rval.type == "float")
-                return {"float", runtime::realResult(number(lval, "left") + number(rval, "right"))};
-            return {"int", runtime::intResult(integer(lval, "left") + integer(rval, "right"), op)};
+            if (concatenation) {
+                if (lval.isString() && rval.isString()) return Value::string(lval.str() + rval.str());
+                return Value::string(runtime::display(lval) + runtime::display(rval));
+            }
+            if (lval.isFloat() || rval.isFloat())
+                return runtime::realResult(number(lval, "left") + number(rval, "right"));
+            return runtime::intResult(integer(lval, "left") + integer(rval, "right"), op);
         case Kind::Sub:
         case Kind::Mul:
         case Kind::Div:
         case Kind::Mod: {
             bool division = kind == Kind::Div || kind == Kind::Mod;
-            if (lval.type == "float" || rval.type == "float") {
+            if (lval.isFloat() || rval.isFloat()) {
                 double l = number(lval, "left"), r = number(rval, "right");
                 if (r == 0.0 && division) throw std::runtime_error("Runtime Error: Division by zero");
                 double result = kind == Kind::Sub ? l - r : kind == Kind::Mul ? l * r : kind == Kind::Div ? l / r : std::fmod(l, r);
-                return {"float", runtime::realResult(result)};
+                return runtime::realResult(result);
             }
             long long l = integer(lval, "left"), r = integer(rval, "right");
             if (r == 0 && division) throw std::runtime_error("Runtime Error: Division by zero");
             long long result = kind == Kind::Sub ? l - r : kind == Kind::Mul ? l * r : kind == Kind::Div ? l / r : l % r;
-            return {"int", runtime::intResult(result, op)};
+            return runtime::intResult(result, op);
         }
         case Kind::Eq: case Kind::Ne: case Kind::Lt: case Kind::Le: case Kind::Gt: case Kind::Ge: {
             auto decide = [&](auto l, auto r) {
@@ -326,18 +365,18 @@ Value BinOpNode::eval(Context& ctx) {
                 }
             };
             bool result;
-            if (lval.type == "string" && rval.type == "string") {
-                result = decide(lval.value.str(), rval.value.str());
-            } else if (lval.type == "bool" && rval.type == "bool") {
-                result = decide(truth(lval, "left"), truth(rval, "right"));
-            } else if (lval.ref || rval.ref) {
+            if (lval.isString() && rval.isString()) {
+                result = decide(lval.str(), rval.str());
+            } else if (lval.isBool() && rval.isBool()) {
+                result = decide(lval.asBool(), rval.asBool());
+            } else if (lval.ref() || rval.ref()) {
                 // Arrays, maps and structs are equal when their contents are.
-                if (!equality) throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref ? lval : rval));
+                if (!equality) throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref() ? lval : rval));
                 result = runtime::deepEqual(lval, rval) == (kind == Kind::Eq);
             } else {
                 result = decide(number(lval, "left"), number(rval, "right"));
             }
-            return {"bool", result ? "true" : "false"};
+            return Value::boolean(result);
         }
         default:
             throw std::runtime_error("Runtime Error: unknown operator '" + op + "'");
@@ -357,36 +396,35 @@ long long BinOpNode::integer(const Value& value, const char* side) const {
 }
 
 bool BinOpNode::truth(const Value& value, const char* side) const {
-    if (value.type != "bool") throw std::runtime_error("Type Error: " + describe(side) + " must be bool, got '" + value.type + "'");
-    return value.value == "true";
+    if (!value.isBool()) throw std::runtime_error("Type Error: " + describe(side) + " must be bool, got '" + value.typeName() + "'");
+    return value.asBool();
 }
 
 Value UnaryOpNode::eval(Context& ctx) {
     Value val = operand->eval(ctx);
     if (op == "!") {
-        if (val.type != "bool") throw std::runtime_error("Type Error: operand of '!' must be bool, got '" + val.type + "'");
-        return {"bool", val.value == "true" ? "false" : "true"};
+        if (!val.isBool()) throw std::runtime_error("Type Error: operand of '!' must be bool, got '" + val.typeName() + "'");
+        return Value::boolean(!val.asBool());
     }
-    if (val.type == "int") return {"int", runtime::intResult(-intArg(val, "operand of unary '-'"), "-")};
-    if (val.type == "float") return {"float", runtime::realResult(-runtime::toNumber(val, "operand of unary '-'"))};
-    throw std::runtime_error("Type Error: operand of unary '-' must be a number, got '" + val.type + "'");
+    if (val.isInt()) return runtime::intResult(-intArg(val, "operand of unary '-'"), "-");
+    if (val.isFloat()) return runtime::realResult(-val.asFloat());
+    throw std::runtime_error("Type Error: operand of unary '-' must be a number, got '" + val.typeName() + "'");
 }
 
 Value PostIncNode::eval(Context& ctx) {
     Value* target = ref.find(ctx, name);
     if (!target) notFound(name);
     const char* op = delta > 0 ? "++" : "--";
-    if (target->type.is(TypeName::Kind::Float)) {
+    if (target->isFloat()) {
         Value old = *target;
-        double value = runtime::toNumber(old, "variable '" + name + "'");
-        target->value = runtime::realResult(value + delta);
+        *target = runtime::realResult(old.asFloat() + delta);
         return old;
     }
-    if (!target->type.is(TypeName::Kind::Int))
-        throw std::runtime_error("Type Error: '" + std::string(op) + "' needs an int or float variable, '" + name + "' is " + target->type);
+    if (!target->isInt())
+        throw std::runtime_error("Type Error: '" + std::string(op) + "' needs an int or float variable, '" + name + "' is " + target->typeName());
     long long value = intArg(*target, "variable", name);
-    target->value = runtime::intResult(value + delta, op);
-    return {"int", Text::integer(value)};
+    *target = runtime::intResult(value + delta, op);
+    return Value::integer(value);
 }
 
 Value ArrayDeclNode::eval(Context& ctx) {
@@ -401,11 +439,11 @@ Value ArrayDeclNode::eval(Context& ctx) {
     } else {
         long long size = sizeNode ? intArg(sizeNode->eval(ctx), "size of array", name) : 0;
         if (size < 0) throw std::runtime_error("Runtime Error: Array size cannot be negative");
-        value = runtime::makeArray(std::vector<Value>(static_cast<size_t>(size), {"int", Text::integer(0)}));
+        value = runtime::makeArray(std::vector<Value>(static_cast<size_t>(size), Value::integer(0)));
     }
     if (slot >= 0 && ctx.slots) ctx.slots[slot] = std::move(value);
     else scope.defineVar(name, "array", value);
-    return {"void", ""};
+    return Value();
 }
 
 Value ArrayLiteralNode::eval(Context& ctx) {
@@ -420,8 +458,9 @@ Value ArrayLiteralNode::eval(Context& ctx) {
 namespace {
 
 std::string keyOf(const Value& key) {
-    if (key.type == "string" || key.type == "int") return key.value.str();
-    throw std::runtime_error("Type Error: a map key must be string or int, got '" + key.type + "'");
+    if (key.isString()) return key.str();
+    if (key.isInt()) return std::to_string(key.asInt());
+    throw std::runtime_error("Type Error: a map key must be string or int, got '" + key.typeName() + "'");
 }
 
 size_t positionIn(const Object& array, const Value& indexValue) {
@@ -445,9 +484,9 @@ Value& missingKey(const std::string& key) {
 
 // base[index] on a container value; create inserts a new map key.
 Value& element(Value& base, const Value& index, bool create) {
-    if (!base.ref || base.ref->kind == Object::Kind::Struct)
-        throw std::runtime_error("Type Error: '[]' needs an array or a map, got '" + base.type + "'");
-    Object& object = *base.ref;
+    if (!base.is(Value::Kind::Array) && !base.is(Value::Kind::Map))
+        throw std::runtime_error("Type Error: '[]' needs an array or a map, got '" + base.typeName() + "'");
+    Object& object = *base.ref();
     if (object.kind == Object::Kind::Array) return object.items[positionIn(object, index)];
     std::string key = keyOf(index);
     if (create) return object.slot(key);
@@ -456,17 +495,18 @@ Value& element(Value& base, const Value& index, bool create) {
 }
 
 Value& member(Value& base, const std::string& name, bool create, const std::string** declared = nullptr) {
-    if (base.ref && base.ref->kind == Object::Kind::Struct) {
-        size_t at = fieldIn(*base.ref, name);
-        if (declared) *declared = &base.ref->structType->fields[at].type;
-        return base.ref->items[at];
+    Object* object = base.ref();
+    if (base.is(Value::Kind::Struct)) {
+        size_t at = fieldIn(*object, name);
+        if (declared) *declared = &object->structType->fields[at].type;
+        return object->items[at];
     }
-    if (base.ref && base.ref->kind == Object::Kind::Map) {
-        if (create) return base.ref->slot(name);
-        long at = base.ref->find(name);
-        return at < 0 ? missingKey(name) : base.ref->items[static_cast<size_t>(at)];
+    if (base.is(Value::Kind::Map)) {
+        if (create) return object->slot(name);
+        long at = object->find(name);
+        return at < 0 ? missingKey(name) : object->items[static_cast<size_t>(at)];
     }
-    throw std::runtime_error("Type Error: '." + name + "' needs a struct or a map, got '" + base.type + "'");
+    throw std::runtime_error("Type Error: '." + name + "' needs a struct or a map, got '" + base.typeName() + "'");
 }
 
 // The slot an assignment writes to: a variable, then elements and fields inside it.
@@ -515,7 +555,7 @@ Value SetNode::eval(Context& ctx) {
     // A struct field keeps its declared type; elements and map values take any value.
     if (declared) runtime::coerce(*declared, assigned, "field '" + static_cast<FieldNode*>(target.get())->name + "'");
     slot = std::move(assigned);
-    return {"void", ""};
+    return Value();
 }
 
 Value MapLiteralNode::eval(Context& ctx) {
@@ -523,14 +563,14 @@ Value MapLiteralNode::eval(Context& ctx) {
     for (auto& entry : entries) {
         std::string key = keyOf(entry.first->eval(ctx));
         Value value = entry.second->eval(ctx);
-        map.ref->slot(key) = std::move(value);
+        map.ref()->slot(key) = std::move(value);
     }
     return map;
 }
 
 Value StructDefNode::eval(Context& ctx) {
     ctx.getRoot()->structs[type->name] = type;
-    return {"void", ""};
+    return Value();
 }
 
 Value TryNode::eval(Context& ctx) {
@@ -581,12 +621,12 @@ Value TryNode::eval(Context& ctx) {
         Context scope(ctx);
         SlotReset reset{errorSlot >= 0 ? scope.slots : nullptr, errorSlot, errorSlot + 1};
         if (!errorName.empty()) {
-            if (errorSlot >= 0 && scope.slots) scope.slots[errorSlot] = {"string", message};
-            else scope.defineVar(errorName, "string", {"string", message});
+            if (errorSlot >= 0 && scope.slots) scope.slots[errorSlot] = Value::string(message);
+            else scope.defineVar(errorName, "string", Value::string(message));
         }
         handler->eval(scope);
     });
-    return {"void", ""};
+    return Value();
 }
 
 Value ThrowNode::eval(Context& ctx) {
@@ -595,13 +635,22 @@ Value ThrowNode::eval(Context& ctx) {
 }
 
 Value BlockNode::eval(Context& ctx) {
-    Context inner(ctx);
-    Context& scope = scoped ? inner : ctx;
-    SlotReset reset{endSlot > firstSlot ? scope.slots : nullptr, firstSlot, endSlot};
-    if (DebugHook* hook = runtime::debugHook()) {
-        evalDebugged(*this, scope, *hook);
-        return {"void", ""};
+    DebugHook* hook = runtime::debugHook();
+    // The debugger shows every block as a scope of its own, so it always gets one.
+    if (scoped && (!resolved || !ctx.slots || hook)) {
+        Context inner(ctx);
+        SlotReset reset{endSlot > firstSlot ? inner.slots : nullptr, firstSlot, endSlot};
+        if (hook) evalDebugged(*this, inner, *hook);
+        else run(inner);
+        return Value();
     }
+    SlotReset reset{endSlot > firstSlot ? ctx.slots : nullptr, firstSlot, endSlot};
+    if (hook) evalDebugged(*this, ctx, *hook);
+    else run(ctx);
+    return Value();
+}
+
+void BlockNode::run(Context& scope) {
     runtime::StackGuard& guard = runtime::stackGuard();
     for (auto& stmt : stmts) {
         if (!stmt) continue;
@@ -615,7 +664,6 @@ Value BlockNode::eval(Context& ctx) {
         stmt->eval(scope);
         if (guard.flow != runtime::StackGuard::Flow::None) break;
     }
-    return {"void", ""};
 }
 
 Value SwitchNode::eval(Context& ctx) {
@@ -633,20 +681,20 @@ Value SwitchNode::eval(Context& ctx) {
             Value caseValue = caseItem.first->eval(ctx);
             double l = 0, r = 0;
             bool numeric = runtime::tryNumber(switchValue, l) && runtime::tryNumber(caseValue, r) &&
-                           switchValue.type != "string" && caseValue.type != "string";
+                           !switchValue.isString() && !caseValue.isString();
             matched = numeric ? l == r : runtime::deepEqual(switchValue, caseValue);
         }
         // Without break, execution falls through into the following cases.
         if (matched) {
             caseItem.second->eval(ctx);
-            if (finished()) return {"void", ""};
+            if (finished()) return Value();
         }
     }
     if (defaultCase) {
         defaultCase->eval(ctx);
         finished();
     }
-    return {"void", ""};
+    return Value();
 }
 
 } // namespace foxlang

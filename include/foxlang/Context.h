@@ -6,6 +6,7 @@
 #include <memory>
 #include <iosfwd>
 #include <stdexcept>
+#include <utility>
 #include "foxlang/SourceLocation.h"
 
 namespace foxlang {
@@ -24,121 +25,116 @@ struct FuncParam {
     FuncParam(std::string t, std::string n, SourceRange r = {}) : type(std::move(t)), name(std::move(n)), range(r) {}
 };
 
-// The runtime exposes every value as text, because that is what the language
-// stores: variables, arrays, builtins and the embedding API all read Value::value.
-// A number additionally carries its binary form, so a chain of arithmetic neither
-// formats nor parses text until something actually reads the text. Materialization
-// happens on the interpreter thread, like everything else in the runtime.
-class Text {
-public:
-    Text() = default;
-    Text(std::string characters) : text_(std::move(characters)) {}
-    Text(const char* characters) : text_(characters) {}
-
-    static Text integer(long long value);
-    static Text real(double value);
-
-    const std::string& str() const {
-        if (!ready_) materialize();
-        return text_;
-    }
-    operator const std::string&() const { return str(); }
-    const char* c_str() const { return str().c_str(); }
-    bool empty() const { return ready_ ? text_.empty() : false; }
-    std::size_t size() const { return str().size(); }
-    std::size_t length() const { return str().length(); }
-    std::size_t find(const std::string& needle) const { return str().find(needle); }
-
-    bool isInteger() const { return kind_ == Kind::Integer; }
-    bool isReal() const { return kind_ == Kind::Real; }
-    long long integerValue() const { return integer_; }
-    double realValue() const { return real_; }
-
-private:
-    enum class Kind { Characters, Integer, Real };
-    mutable std::string text_;
-    mutable bool ready_ = true;
-    Kind kind_ = Kind::Characters;
-    long long integer_ = 0;
-    double real_ = 0;
-    void materialize() const;
-};
-
-// std::string's own operators are templates, so they never see the conversion above.
-inline bool operator==(const Text& a, const Text& b) { return a.str() == b.str(); }
-inline bool operator==(const Text& a, const char* b) { return a.str() == b; }
-inline bool operator==(const char* a, const Text& b) { return a == b.str(); }
-inline bool operator==(const Text& a, const std::string& b) { return a.str() == b; }
-inline bool operator==(const std::string& a, const Text& b) { return a == b.str(); }
-inline bool operator!=(const Text& a, const Text& b) { return !(a == b); }
-inline bool operator!=(const Text& a, const char* b) { return !(a == b); }
-inline bool operator!=(const char* a, const Text& b) { return !(a == b); }
-inline bool operator!=(const Text& a, const std::string& b) { return !(a == b); }
-inline bool operator!=(const std::string& a, const Text& b) { return !(a == b); }
-inline bool operator<(const Text& a, const Text& b) { return a.str() < b.str(); }
-inline bool operator<=(const Text& a, const Text& b) { return a.str() <= b.str(); }
-inline bool operator>(const Text& a, const Text& b) { return a.str() > b.str(); }
-inline bool operator>=(const Text& a, const Text& b) { return a.str() >= b.str(); }
-inline std::string operator+(const Text& a, const Text& b) { return a.str() + b.str(); }
-inline std::string operator+(const Text& a, const char* b) { return a.str() + b; }
-inline std::string operator+(const char* a, const Text& b) { return a + b.str(); }
-inline std::string operator+(const Text& a, const std::string& b) { return a.str() + b; }
-inline std::string operator+(const std::string& a, const Text& b) { return a + b.str(); }
-std::ostream& operator<<(std::ostream& out, const Text& text);
-
 struct Object;
 
-// The type of a value: "int", "float", "string", "bool", "void", "array", "map" or
-// the name of a struct. It reads and compares like a string, but is a kind and a
-// pointer to one shared copy of the name, so values are cheap to make and copy and
-// the interpreter can switch on kind() instead of comparing text.
-class TypeName {
-public:
-    enum class Kind : unsigned char { Void, Int, Float, String, Bool, Array, Map, Named };
+// The text of a string value. It never changes once made, so every copy of the value
+// shares it; the count is not atomic because values live on the interpreter thread.
+struct StringData {
+    unsigned refs = 1;
+    std::string text;
+    explicit StringData(std::string t) : text(std::move(t)) {}
+};
 
-    TypeName() : kind_(Kind::Void), name_(&names()[0]) {}
-    TypeName(const char* name) { assign(name, std::char_traits<char>::length(name)); }
-    TypeName(const std::string& name) { assign(name.data(), name.size()); }
+// A value is its kind and one machine word: an int, a float or a bool are stored in
+// it, a string and a container (array, map, struct) are pointers to shared data that
+// the value counts references to. Copying a value never copies text or elements.
+class Value {
+public:
+    enum class Kind : unsigned char { Void, Int, Float, Bool, String, Array, Map, Struct };
+
+    Value() noexcept { data_.bits = 0; }
+    Value(const Value& other) noexcept : kind_(other.kind_), data_(other.data_) { retain(); }
+    Value(Value&& other) noexcept : kind_(other.kind_), data_(other.data_) { other.kind_ = Kind::Void; }
+    Value& operator=(const Value& other) noexcept {
+        Value copy(other);
+        swap(copy);
+        return *this;
+    }
+    Value& operator=(Value&& other) noexcept {
+        Value moved(std::move(other));
+        swap(moved);
+        return *this;
+    }
+    ~Value() { release(); }
+    void swap(Value& other) noexcept {
+        std::swap(kind_, other.kind_);
+        std::swap(data_, other.data_);
+    }
+
+    static Value integer(long long value) noexcept {
+        Value v;
+        v.kind_ = Kind::Int;
+        v.data_.integer = value;
+        return v;
+    }
+    static Value real(double value) noexcept {
+        Value v;
+        v.kind_ = Kind::Float;
+        v.data_.real = value;
+        return v;
+    }
+    static Value boolean(bool value) noexcept {
+        Value v;
+        v.kind_ = Kind::Bool;
+        v.data_.boolean = value;
+        return v;
+    }
+    static Value string(std::string text) {
+        Value v;
+        v.data_.string = new StringData(std::move(text));
+        v.kind_ = Kind::String;
+        return v;
+    }
+    // A new, empty array, map or struct.
+    static Value container(Kind kind);
 
     Kind kind() const { return kind_; }
     bool is(Kind kind) const { return kind_ == kind; }
-    const std::string& str() const { return *name_; }
-    operator const std::string&() const { return *name_; }
-    bool empty() const { return name_->empty(); }
-    size_t size() const { return name_->size(); }
+    bool isVoid() const { return kind_ == Kind::Void; }
+    bool isInt() const { return kind_ == Kind::Int; }
+    bool isFloat() const { return kind_ == Kind::Float; }
+    bool isNumber() const { return kind_ == Kind::Int || kind_ == Kind::Float; }
+    bool isBool() const { return kind_ == Kind::Bool; }
+    bool isString() const { return kind_ == Kind::String; }
+    bool isContainer() const { return kind_ >= Kind::Array; }
 
-    friend bool operator==(const TypeName& a, const TypeName& b) { return a.name_ == b.name_; }
-    friend bool operator!=(const TypeName& a, const TypeName& b) { return a.name_ != b.name_; }
-    friend bool operator==(const TypeName& a, const char* b) { return *a.name_ == b; }
-    friend bool operator!=(const TypeName& a, const char* b) { return *a.name_ != b; }
-    friend bool operator==(const TypeName& a, const std::string& b) { return *a.name_ == b; }
-    friend bool operator!=(const TypeName& a, const std::string& b) { return *a.name_ != b; }
-    friend bool operator==(const std::string& a, const TypeName& b) { return a == *b.name_; }
-    friend bool operator!=(const std::string& a, const TypeName& b) { return a != *b.name_; }
-    friend std::string operator+(const std::string& a, const TypeName& b) { return a + *b.name_; }
-    friend std::string operator+(const char* a, const TypeName& b) { return a + *b.name_; }
-    friend std::string operator+(const TypeName& a, const std::string& b) { return *a.name_ + b; }
-    friend std::string operator+(const TypeName& a, const char* b) { return *a.name_ + b; }
+    // The payload of a value known to be of that kind.
+    long long asInt() const { return data_.integer; }
+    double asFloat() const { return data_.real; }
+    bool asBool() const { return data_.boolean; }
+    const std::string& str() const { return data_.string->text; }
+    // An array, a map or a struct; null for everything else.
+    Object* ref() const { return isContainer() ? data_.object : nullptr; }
+
+    // A scalar as text: 42, 2.5, true, the string itself; empty for void and containers.
+    std::string text() const;
+    // "void", "int", "float", "bool", "string", "array", "map" or the struct's name.
+    const std::string& typeName() const;
+    static const std::string& nameOf(Kind kind);
 
 private:
-    Kind kind_;
-    const std::string* name_; // the builtin names, or one interned copy per struct name
-    static const std::string* names();
-    void assign(const char* text, size_t length);
-};
-std::ostream& operator<<(std::ostream& out, const TypeName& type);
+    Kind kind_ = Kind::Void;
+    union Data {
+        long long integer;
+        double real;
+        bool boolean;
+        StringData* string;
+        Object* object;
+        unsigned long long bits;
+    } data_;
 
-// A scalar keeps its text in `value`; an array, a map or a struct lives in `ref`,
-// shared by every Value that names it.
-struct Value {
-    TypeName type;
-    Text value;
-    std::shared_ptr<Object> ref;
-
-    Value() = default;
-    Value(TypeName t, Text v, std::shared_ptr<Object> r = nullptr)
-        : type(t), value(std::move(v)), ref(std::move(r)) {}
+    void retain() const noexcept {
+        if (kind_ >= Kind::String) retainShared();
+    }
+    void release() noexcept {
+        if (kind_ >= Kind::String) releaseShared();
+    }
+    void retainShared() const noexcept;
+    void releaseShared() noexcept;
+    friend struct Object;
 };
+
+std::ostream& operator<<(std::ostream& out, const Value& value);
 
 struct StructType {
     std::string name;
@@ -149,7 +145,10 @@ struct StructType {
 struct Object {
     enum class Kind { Array, Map, Struct };
     explicit Object(Kind k) : kind(k) {}
+    Object(const Object&) = delete;
+    Object& operator=(const Object&) = delete;
     Kind kind;
+    unsigned refs = 0; // the values naming this container
     // Array: the elements. Struct: the fields in declaration order.
     std::vector<Value> items;
     // Map: keys in insertion order, items[i] belongs to keys[i].
@@ -167,6 +166,20 @@ private:
     // Only big maps pay for it: every array, struct and small map keeps a null pointer.
     mutable std::unique_ptr<std::unordered_map<std::string, size_t>> index_;
 };
+
+inline void Value::retainShared() const noexcept {
+    if (kind_ == Kind::String) ++data_.string->refs;
+    else ++data_.object->refs;
+}
+
+inline void Value::releaseShared() noexcept {
+    if (kind_ == Kind::String) {
+        if (--data_.string->refs == 0) delete data_.string;
+    } else if (--data_.object->refs == 0) {
+        delete data_.object;
+    }
+    kind_ = Kind::Void;
+}
 
 // exit(code) unwinds the whole program; it is deliberately not a std::exception,
 // so handlers that report runtime errors never swallow it.
@@ -202,8 +215,16 @@ struct Context {
     Value getVar(const std::string& name) const;
     // The variable itself, for assignment through it; null when it is not declared.
     Value* findVar(const std::string& name);
-    Context* getRoot();
-    const Context* getRoot() const;
+    Context* getRoot() {
+        Context* root = this;
+        while (root->parent) root = root->parent;
+        return root;
+    }
+    const Context* getRoot() const {
+        const Context* root = this;
+        while (root->parent) root = root->parent;
+        return root;
+    }
 
     void defineFunc(const std::string& name, std::shared_ptr<Node> func);
     std::shared_ptr<Node> getFunc(const std::string& name) const;

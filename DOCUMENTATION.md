@@ -1772,7 +1772,7 @@ int main() {
     interpreter.setGlobal("limit", "int", "10");
     foxlang::RunResult result = interpreter.runSource("int doubled = limit * 2;");
     if (result.success) {
-        std::cout << interpreter.getGlobal("doubled").value << std::endl;   // 20
+        std::cout << interpreter.getGlobal("doubled").text() << std::endl;   // 20
     } else {
         std::cerr << result.errorMessage << std::endl;
     }
@@ -1787,6 +1787,17 @@ int main() {
   `arguments` (аргументы для `os_args`).
 * `foxlang::RunResult`: `success`, `exitCode` (1 при ошибке или код из `exit`),
   `errorMessage`.
+* `interpreter.setGlobal(имя, тип, текст)` объявляет глобальную переменную типа `int`,
+  `float`, `bool` или `string` из текста (`"10"`, `"2.5"`, `"true"`); текст, который не
+  подходит к типу, — ошибка `Type Error`.
+* `foxlang::Value` — значение FoxLang, 16 байт. Вид — `kind()`
+  (`Value::Kind::Int`, `Float`, `Bool`, `String`, `Array`, `Map`, `Struct` или `Void`);
+  содержимое — `asInt()`, `asFloat()`, `asBool()`, `str()` для строки, `ref()` для
+  массива, словаря или структуры (их элементы в `ref()->items`). `text()` даёт число,
+  `bool` или строку текстом, `typeName()` — имя типа, как `type_of()`. Новые значения:
+  `Value::integer(42)`, `Value::real(2.5)`, `Value::boolean(true)`,
+  `Value::string("Лис")`. Копия значения не копирует ни текст, ни элементы: строки и
+  контейнеры общие, со счётчиком ссылок. Значения принадлежат потоку интерпретатора.
 * `foxlang::builtinCatalog()` — описание всех встроенных функций: имя, параметры,
   тип результата, документация.
 * `foxlang::Lexer`, `foxlang::Parser`, `foxlang::SemanticAnalyzer` — разбор и

@@ -11,52 +11,38 @@
 
 namespace foxlang {
 
-Text Text::integer(long long value) {
-    Text result;
-    result.kind_ = Kind::Integer;
-    result.integer_ = value;
-    result.ready_ = false;
-    return result;
+Value Value::container(Kind kind) {
+    Object::Kind objectKind = kind == Kind::Array ? Object::Kind::Array
+                            : kind == Kind::Map   ? Object::Kind::Map
+                                                  : Object::Kind::Struct;
+    Value v;
+    v.data_.object = new Object(objectKind);
+    v.data_.object->refs = 1;
+    v.kind_ = kind;
+    return v;
 }
 
-Text Text::real(double value) {
-    Text result;
-    result.kind_ = Kind::Real;
-    result.real_ = value;
-    result.ready_ = false;
-    return result;
-}
-
-void Text::materialize() const {
-    text_ = kind_ == Kind::Integer ? std::to_string(integer_) : runtime::formatNumber(real_);
-    ready_ = true;
-}
-
-std::ostream& operator<<(std::ostream& out, const Text& text) { return out << text.str(); }
-std::ostream& operator<<(std::ostream& out, const TypeName& type) { return out << type.str(); }
-
-const std::string* TypeName::names() {
-    static const std::string builtin[] = {"void", "int", "float", "string", "bool", "array", "map"};
-    return builtin;
-}
-
-void TypeName::assign(const char* text, size_t length) {
-    static const Kind kinds[] = {Kind::Void, Kind::Int, Kind::Float, Kind::String, Kind::Bool, Kind::Array, Kind::Map};
-    const std::string* builtin = names();
-    for (int i = 0; i < 7; ++i) {
-        if (builtin[i].size() == length && builtin[i].compare(0, length, text, length) == 0) {
-            kind_ = kinds[i];
-            name_ = &builtin[i];
-            return;
-        }
+std::string Value::text() const {
+    switch (kind_) {
+        case Kind::Int: return std::to_string(data_.integer);
+        case Kind::Float: return runtime::formatNumber(data_.real);
+        case Kind::Bool: return data_.boolean ? "true" : "false";
+        case Kind::String: return data_.string->text;
+        default: return "";
     }
-    // Struct names are kept once each; a set never moves the strings it holds.
-    static std::unordered_set<std::string> interned;
-    static std::mutex guard;
-    std::lock_guard<std::mutex> lock(guard);
-    kind_ = Kind::Named;
-    name_ = &*interned.emplace(text, length).first;
 }
+
+const std::string& Value::nameOf(Kind kind) {
+    static const std::string names[] = {"void", "int", "float", "bool", "string", "array", "map", "struct"};
+    return names[static_cast<int>(kind)];
+}
+
+const std::string& Value::typeName() const {
+    if (kind_ == Kind::Struct && data_.object->structType) return data_.object->structType->name;
+    return nameOf(kind_);
+}
+
+std::ostream& operator<<(std::ostream& out, const Value& value) { return out << runtime::display(value); }
 
 long Object::find(const std::string& key) const {
     constexpr size_t scanned = 8;
@@ -80,7 +66,7 @@ Value& Object::slot(const std::string& key) {
     if (at >= 0) return items[static_cast<size_t>(at)];
     if (index_ && !index_->empty()) index_->emplace(key, keys.size());
     keys.push_back(key);
-    items.push_back({"void", ""});
+    items.emplace_back();
     return items.back();
 }
 
@@ -109,55 +95,67 @@ Value* Context::findVar(const std::string& name) {
             frameSearched = true;
             const auto& names = *scope->slotNames;
             for (size_t i = names.size(); i-- > 0;)
-                if (names[i] == name && !scope->slots[i].type.is(TypeName::Kind::Void)) return &scope->slots[i];
+                if (names[i] == name && !scope->slots[i].isVoid()) return &scope->slots[i];
         }
     }
     return nullptr;
 }
 
 std::vector<Value>& Context::arrayOf(const Value& value, const std::string& what) {
-    if (value.type != "array" || !value.ref)
-        throw std::runtime_error("Type Error: " + what + " must be an array, got '" + value.type + "'");
-    return value.ref->items;
+    if (!value.is(Value::Kind::Array))
+        throw std::runtime_error("Type Error: " + what + " must be an array, got '" + value.typeName() + "'");
+    return value.ref()->items;
 }
 
 namespace runtime {
 
 Value makeArray(std::vector<Value> items) {
-    auto object = std::make_shared<Object>(Object::Kind::Array);
-    object->items = std::move(items);
-    return {"array", "", std::move(object)};
+    Value array = Value::container(Value::Kind::Array);
+    array.ref()->items = std::move(items);
+    return array;
 }
 
-Value makeMap() { return {"map", "", std::make_shared<Object>(Object::Kind::Map)}; }
+Value makeMap() { return Value::container(Value::Kind::Map); }
 
 namespace {
 
 // A container that holds itself (a[0] = a) is copied once, not forever.
-Value copyOf(const Value& value, std::map<const Object*, std::shared_ptr<Object>>& copies) {
-    if (!value.ref) return value;
-    auto done = copies.find(value.ref.get());
-    if (done != copies.end()) return {value.type, value.value, done->second};
-    auto copy = std::make_shared<Object>(value.ref->kind);
-    copies[value.ref.get()] = copy;
-    copy->keys = value.ref->keys;
-    copy->structType = value.ref->structType;
-    copy->items.reserve(value.ref->items.size());
-    for (const auto& item : value.ref->items) copy->items.push_back(copyOf(item, copies));
-    return {value.type, value.value, std::move(copy)};
+Value copyOf(const Value& value, std::map<const Object*, Value>& copies) {
+    const Object* original = value.ref();
+    if (!original) return value;
+    auto done = copies.find(original);
+    if (done != copies.end()) return done->second;
+    Value result = Value::container(value.kind());
+    Object* copy = result.ref();
+    copies[original] = result;
+    copy->keys = original->keys;
+    copy->structType = original->structType;
+    copy->items.reserve(original->items.size());
+    for (const auto& item : original->items) copy->items.push_back(copyOf(item, copies));
+    return result;
 }
 
 // Two containers that are being compared already, higher up, count as equal there.
 bool equalTo(const Value& a, const Value& b, std::vector<std::pair<const Object*, const Object*>>& open) {
-    if (a.type != b.type) return false;
-    if (!a.ref || !b.ref) return !a.ref && !b.ref && a.value == b.value;
-    if (a.ref == b.ref) return true;
-    std::pair<const Object*, const Object*> pair{a.ref.get(), b.ref.get()};
+    if (a.kind() != b.kind()) return false;
+    switch (a.kind()) {
+        case Value::Kind::Void: return true;
+        case Value::Kind::Int: return a.asInt() == b.asInt();
+        case Value::Kind::Float: return a.asFloat() == b.asFloat();
+        case Value::Kind::Bool: return a.asBool() == b.asBool();
+        case Value::Kind::String: return a.str() == b.str();
+        default: break;
+    }
+    const Object* left = a.ref();
+    const Object* right = b.ref();
+    if (left == right) return true;
+    if (a.typeName() != b.typeName()) return false;
+    std::pair<const Object*, const Object*> pair{left, right};
     if (std::find(open.begin(), open.end(), pair) != open.end()) return true;
-    if (a.ref->keys != b.ref->keys || a.ref->items.size() != b.ref->items.size()) return false;
+    if (left->keys != right->keys || left->items.size() != right->items.size()) return false;
     open.push_back(pair);
     bool equal = true;
-    for (size_t i = 0; equal && i < a.ref->items.size(); ++i) equal = equalTo(a.ref->items[i], b.ref->items[i], open);
+    for (size_t i = 0; equal && i < left->items.size(); ++i) equal = equalTo(left->items[i], right->items[i], open);
     open.pop_back();
     return equal;
 }
@@ -165,7 +163,7 @@ bool equalTo(const Value& a, const Value& b, std::vector<std::pair<const Object*
 } // namespace
 
 Value deepCopy(const Value& value) {
-    std::map<const Object*, std::shared_ptr<Object>> copies;
+    std::map<const Object*, Value> copies;
     return copyOf(value, copies);
 }
 
@@ -175,18 +173,6 @@ bool deepEqual(const Value& a, const Value& b) {
 }
 
 } // namespace runtime
-
-Context* Context::getRoot() {
-    Context* curr = this;
-    while (curr->parent) curr = curr->parent;
-    return curr;
-}
-
-const Context* Context::getRoot() const {
-    const Context* curr = this;
-    while (curr->parent) curr = curr->parent;
-    return curr;
-}
 
 void Context::defineFunc(const std::string& name, std::shared_ptr<Node> func) {
     functions[name] = std::move(func);
@@ -206,18 +192,18 @@ std::shared_ptr<const StructType> Context::getStruct(const std::string& name) co
     return it == root->structs.end() ? nullptr : it->second;
 }
 
-void Context::defineVar(const std::string& name, const std::string& type, const Value& value) {
-    variables[name] = {type, value.value, value.ref};
+void Context::defineVar(const std::string& name, const std::string& /*type*/, const Value& value) {
+    variables[name] = value;
 }
 
 namespace runtime {
 void assign(Value& target, Value val, const std::string& name) {
     // The usual case, a value of the variable's own type, needs no conversion.
-    bool sameType = target.type == val.type && (!val.type.is(TypeName::Kind::Int) || val.value.isInteger());
-    if (!sameType) coerce(target.type, val, "variable '" + name + "'");
+    bool sameType = target.kind() == val.kind() &&
+                    (!val.is(Value::Kind::Struct) || target.typeName() == val.typeName());
+    if (!sameType) coerce(target.typeName(), val, "variable '" + name + "'");
     // Arrays, maps and structs are shared: the variable names the same container.
-    target.value = std::move(val.value);
-    target.ref = std::move(val.ref);
+    target = std::move(val);
 }
 } // namespace runtime
 

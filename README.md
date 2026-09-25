@@ -185,7 +185,7 @@ docker run --rm -v "$(pwd)":/app ghcr.io/skrinvex/foxlang:latest script.fox
 int main() {
     foxlang::Interpreter interpreter;
     foxlang::RunResult result = interpreter.runSource("int answer = 40 + 2;");
-    if (result.success) std::cout << interpreter.getGlobal("answer").value << std::endl;
+    if (result.success) std::cout << interpreter.getGlobal("answer").text() << std::endl;
     return result.exitCode;
 }
 ```

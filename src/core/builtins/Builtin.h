@@ -1,6 +1,7 @@
 #pragma once
 #include "foxlang/Builtins.h"
 #include "foxlang/Runtime.h"
+#include <forward_list>
 #include <string>
 #include <vector>
 
@@ -24,25 +25,43 @@ public:
 
     long long integer(size_t index) const;
     double number(size_t index) const;
-    const std::string& text(size_t index) const { return args[index].value.str(); }
-    bool flag(size_t index) const { return args[index].value == "true"; }
-    std::vector<Value>& array(size_t index) const { return ctx.arrayOf(args[index], what(index)); }
+    // A string argument as it is; any other value as its text.
+    const std::string& text(size_t index) const {
+        const Value& value = args[index];
+        if (value.isString()) return value.str();
+        return scratch_.emplace_front(value.text());
+    }
+    bool flag(size_t index) const { return args[index].isBool() && args[index].asBool(); }
+    std::vector<Value>& array(size_t index) const {
+        if (args[index].is(Value::Kind::Array)) return args[index].ref()->items;
+        return ctx.arrayOf(args[index], what(index)); // reports the wrong type
+    }
     // A non-negative int that must not exceed limit, for sizes and counts.
     size_t amount(size_t index, size_t limit) const;
+
+private:
+    mutable std::forward_list<std::string> scratch_; // texts of non-string arguments, alive for the call
 };
 
 using Handler = Value (*)(Call&);
 
 struct Builtin {
+    Builtin(BuiltinSpec s, Handler h) : spec(std::move(s)), handler(h) {}
     BuiltinSpec spec;
     Handler handler = nullptr;
+    // What each parameter accepts, worked out from its type name when registered.
+    struct Accepts {
+        enum class Rule : unsigned char { Any, Number, Kind, Named } rule = Rule::Any;
+        Value::Kind kind = Value::Kind::Void;
+    };
+    std::vector<Accepts> accepts;
 };
 
-inline Value nothing() { return {"void", ""}; }
-inline Value boolean(bool value) { return {"bool", value ? "true" : "false"}; }
-inline Value integer(long long value) { return {"int", intResult(value, "result")}; }
-inline Value real(double value) { return {"float", realResult(value)}; }
-inline Value text(std::string value) { return {"string", std::move(value)}; }
+inline Value nothing() { return Value(); }
+inline Value boolean(bool value) { return Value::boolean(value); }
+inline Value integer(long long value) { return intResult(value, "result"); }
+inline Value real(double value) { return realResult(value); }
+inline Value text(std::string value) { return Value::string(std::move(value)); }
 
 // Each area contributes its part of the catalog.
 void addCoreBuiltins(std::vector<Builtin>& out);

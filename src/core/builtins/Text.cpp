@@ -91,8 +91,8 @@ std::string changeCase(const std::string& text, bool upper) {
 }
 
 std::string scalarText(const Value& value, const std::string& what) {
-    if (value.type == "array") throw std::runtime_error("Type Error: " + what + " cannot contain nested arrays");
-    return value.value.str();
+    if (value.is(Value::Kind::Array)) throw std::runtime_error("Type Error: " + what + " cannot contain nested arrays");
+    return value.isString() ? value.str() : value.text();
 }
 
 constexpr size_t maxText = size_t{64} * 1024 * 1024;
@@ -100,18 +100,18 @@ constexpr size_t maxText = size_t{64} * 1024 * 1024;
 // A FoxLang value as JSON: numbers and bools as literals, strings quoted, arrays as
 // JSON arrays, maps and structs as objects.
 std::string toJson(const Value& value, int depth = 0) {
-    if (value.type == "string") return "\"" + jsonEscape(value.value.str()).value.str() + "\"";
-    if (value.type == "int" || value.type == "float" || value.type == "bool") return value.value.str();
-    if (!value.ref) throw std::runtime_error("Type Error: json_value() cannot convert '" + value.type + "'");
+    if (value.isString()) return "\"" + jsonEscape(value.str()).str() + "\"";
+    if (value.isNumber() || value.isBool()) return value.text();
+    if (!value.ref()) throw std::runtime_error("Type Error: json_value() cannot convert '" + value.typeName() + "'");
     if (depth > 64) throw std::runtime_error("Runtime Error: json_value() nesting is too deep");
-    const Object& object = *value.ref;
+    const Object& object = *value.ref();
     bool isArray = object.kind == Object::Kind::Array;
     std::string out = isArray ? "[" : "{";
     for (size_t i = 0; i < object.items.size(); ++i) {
         if (i > 0) out += ",";
         if (!isArray) {
             const std::string& key = object.kind == Object::Kind::Map ? object.keys[i] : object.structType->fields[i].name;
-            out += "\"" + jsonEscape(key).value.str() + "\":";
+            out += "\"" + jsonEscape(key).str() + "\":";
         }
         out += toJson(object.items[i], depth + 1);
     }
@@ -133,13 +133,13 @@ Value fromJson(const std::string& raw, int depth = 0) {
         Value result = kind == "object" ? makeMap() : makeArray({});
         for (auto& entry : jsonEntries(raw)) {
             Value item = fromJson(entry.second, depth + 1);
-            if (kind == "object") result.ref->slot(entry.first) = std::move(item);
-            else result.ref->items.push_back(std::move(item));
+            if (kind == "object") result.ref()->slot(entry.first) = std::move(item);
+            else result.ref()->items.push_back(std::move(item));
         }
         return result;
     }
     if (kind == "string") return jsonGet(raw, "");
-    if (kind == "bool") return {"bool", trimmedText(raw) == "true" ? "true" : "false"};
+    if (kind == "bool") return boolean(trimmedText(raw) == "true");
     if (kind == "null") return text("");
     if (kind == "number") {
         std::string number = trimmedText(raw);

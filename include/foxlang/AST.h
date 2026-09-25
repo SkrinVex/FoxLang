@@ -31,7 +31,16 @@ struct VarRef {
     unsigned cachedGeneration = 0;
 
     // The variable itself, or null when it does not exist.
-    Value* find(Context& ctx, const std::string& name);
+    Value* find(Context& ctx, const std::string& name) {
+        if (slot >= 0 && ctx.slots) {
+            Value& value = ctx.slots[slot];
+            return value.isVoid() ? nullptr : &value;
+        }
+        return findSlow(ctx, name);
+    }
+
+private:
+    Value* findSlow(Context& ctx, const std::string& name);
 };
 
 // The numbered slots of a function body or of the program's blocks.
@@ -41,14 +50,15 @@ struct FrameLayout {
 
 // A bool is the only thing a condition may be; an int used to silently count as false.
 inline bool conditionTruth(const Value& value, const char* statement) {
-    if (value.type != "bool")
-        throw std::runtime_error("Type Error: " + std::string(statement) + " condition must be bool, got '" + value.type + "'");
-    return value.value == "true";
+    if (!value.isBool())
+        throw std::runtime_error("Type Error: " + std::string(statement) + " condition must be bool, got '" + value.typeName() + "'");
+    return value.asBool();
 }
 
 // Hot paths must not pay for an error message they will not use: the description of
 // the value is assembled only when the value turns out to be unusable.
 inline long long intArg(const Value& value, const char* what) {
+    if (value.isInt() && value.asInt() >= -2147483648LL && value.asInt() <= 2147483647LL) return value.asInt();
     long long result = 0;
     if (runtime::tryInt(value, result)) return result;
     return runtime::toInt(value, what);
@@ -58,13 +68,6 @@ inline long long intArg(const Value& value, const char* role, const std::string&
     long long result = 0;
     if (runtime::tryInt(value, result)) return result;
     return runtime::toInt(value, role + std::string(" '") + name + "'");
-}
-
-// Narrows a value to int text, leaving canonical in-range text untouched.
-inline void narrowToInt(Value& value, const char* role, const std::string& name) {
-    long long probe = 0;
-    if (runtime::tryInt(value, probe)) return;
-    value.value = runtime::intText(value, role + std::string(" '") + name + "'");
 }
 
 // Runaway recursion used to kill the process with a stack overflow instead of an error.
@@ -106,6 +109,8 @@ struct CallDepth {
     CallDepth& operator=(const CallDepth&) = delete;
 };
 
+struct BlockNode;
+
 struct FuncDefNode : Node {
     std::string returnType;
     std::string name;
@@ -113,13 +118,19 @@ struct FuncDefNode : Node {
     std::shared_ptr<Node> body;
     SourceRange nameRange;
 
-    FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b, SourceRange nr = {})
-        : returnType(std::move(rt)), name(std::move(n)), params(std::move(p)), body(std::move(b)), nameRange(nr) {}
+    FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b, SourceRange nr = {});
 
     Value eval(Context& ctx) override;
     // Runs the body in a fresh scope below the globals and converts the result to
     // the declared return type. Used by calls and by the HTTP server for handlers.
     Value invoke(std::vector<Value> args, Context& caller) const;
+    // The same with the arguments in place; they are moved into the function's slots.
+    Value invoke(Value* args, size_t count, Context& caller) const;
+
+private:
+    BlockNode* block_ = nullptr; // the body, when it is a block (it always is from the parser)
+    std::vector<Value::Kind> paramKinds_;
+    Value::Kind returnKind_ = Value::Kind::Void;
 };
 
 struct ReturnNode : Node {
@@ -152,21 +163,32 @@ struct NumberNode : Node {
     std::string val;
     bool isFloat;
     explicit NumberNode(std::string v);
-    Value eval(Context& /*ctx*/) override { return literal; }
+    Value eval(Context& /*ctx*/) override {
+        if (tooBig)
+            throw std::runtime_error("Runtime Error: int literal '" + val +
+                                     "' does not fit in int (int holds -2147483648..2147483647)");
+        return literal;
+    }
 private:
     Value literal;
+    bool tooBig = false; // digits beyond even 64 bits
 };
 
 struct StringNode : Node {
     std::string val;
     explicit StringNode(std::string v) : val(std::move(v)) {}
-    Value eval(Context& /*ctx*/) override { return {"string", val}; }
+    Value eval(Context& /*ctx*/) override {
+        if (!literal.isString()) literal = Value::string(val);
+        return literal;
+    }
+private:
+    Value literal; // made on first use, then shared by every evaluation
 };
 
 struct BoolNode : Node {
     bool val;
     explicit BoolNode(bool v) : val(v) {}
-    Value eval(Context& /*ctx*/) override { return {"bool", val ? "true" : "false"}; }
+    Value eval(Context& /*ctx*/) override { return Value::boolean(val); }
 };
 
 struct VarAccessNode : Node {
@@ -184,8 +206,10 @@ struct VarDeclNode : Node {
     bool global = false;
     int slot = VarRef::byName;
     bool duplicate = false; // declared twice in one scope: an error when it runs
+    Value::Kind kind;       // what `type` holds, looked up once
     VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e, SourceRange nr = {}, bool isGlobal = false)
-        : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr), global(isGlobal) {}
+        : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr), global(isGlobal),
+          kind(runtime::declaredKind(type)) {}
     Value eval(Context& ctx) override;
 };
 
@@ -313,11 +337,17 @@ struct BlockNode : Node {
     const std::string* file = nullptr; // Source file of the statements, for error locations.
     // The program and an imported module are the global scope itself, not a block inside it.
     bool scoped = true;
+    // Set by the resolver: every declaration inside has a slot, so while the frame's
+    // slots exist the block needs no scope of its own for names.
+    bool resolved = false;
     // Slots declared inside this block, emptied when it ends; the layout of a function
     // body or of the program, set by the resolver.
     int firstSlot = 0, endSlot = 0;
     std::shared_ptr<FrameLayout> layout;
     Value eval(Context& ctx) override;
+
+private:
+    void run(Context& scope);
 };
 
 struct IfNode : Node {
@@ -330,7 +360,7 @@ struct IfNode : Node {
         } else if (elseB) {
             elseB->eval(ctx);
         }
-        return {"void", ""};
+        return Value();
     }
 };
 
@@ -348,7 +378,7 @@ struct WhileNode : Node {
             guard.flow = runtime::StackGuard::Flow::None;
             if (stop) break;
         }
-        return {"void", ""};
+        return Value();
     }
 };
 
@@ -373,21 +403,21 @@ struct ForNode : Node {
             if (step) step->eval(loop);
         }
         for (int slot = firstSlot; slot < endSlot && loop.slots; ++slot) loop.slots[slot] = Value();
-        return {"void", ""};
+        return Value();
     }
 };
 
 struct BreakNode : Node {
     Value eval(Context& /*ctx*/) override {
         runtime::stackGuard().flow = runtime::StackGuard::Flow::Break;
-        return {"void", ""};
+        return Value();
     }
 };
 
 struct ContinueNode : Node {
     Value eval(Context& /*ctx*/) override {
         runtime::stackGuard().flow = runtime::StackGuard::Flow::Continue;
-        return {"void", ""};
+        return Value();
     }
 };
 
@@ -411,7 +441,7 @@ struct UsingNode : Node {
         : libName(std::move(lib)), currentFile(std::move(curFile)) {}
     Value eval(Context& ctx) override {
         executeUsingHook(libName, ctx, currentFile);
-        return {"void", ""};
+        return Value();
     }
 };
 
@@ -422,7 +452,7 @@ struct IncludeNode : Node {
         : filename(std::move(file)), currentFile(std::move(curFile)) {}
     Value eval(Context& ctx) override {
         executeIncludeHook(filename, ctx, currentFile, true);
-        return {"void", ""};
+        return Value();
     }
 };
 

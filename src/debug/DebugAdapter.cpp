@@ -125,7 +125,7 @@ private:
         enum class Kind { Locals, Globals, Container } kind;
         size_t frame = 0;
         // Keeps the array, map or struct alive while the editor looks at it.
-        std::shared_ptr<Object> container;
+        Value container;
     };
     enum class Step { None, In, Over, Out };
 
@@ -523,8 +523,8 @@ bool Session::accepts(Breakpoint& breakpoint) {
     if (!breakpoint.condition.empty()) {
         try {
             Value result = evaluate(breakpoint.condition, *frames_.back().scope, false);
-            if (result.type != "bool") throw std::runtime_error("условие должно быть bool, получено '" + result.type + "'");
-            if (result.value != "true") return false;
+            if (!result.isBool()) throw std::runtime_error("условие должно быть bool, получено '" + result.typeName() + "'");
+            if (!result.asBool()) return false;
         } catch (const std::exception& error) {
             sendOutput("Условие точки останова «" + breakpoint.condition + "»: " + error.what() + "\n", "stderr");
             return true;
@@ -669,7 +669,7 @@ Value Session::evaluate(const std::string& text, Context& scope, bool statements
                 throw std::runtime_error("return, break и continue в консоли отладчика не выполняются");
             }
         }
-        return {"void", ""};
+        return Value();
     } catch (const ExitRequest&) {
         throw std::runtime_error("exit() в консоли отладчика не выполняется: остановите отладку");
     }
@@ -690,7 +690,7 @@ std::string Session::interpolate(const std::string& message, Context& scope) {
         std::string expression = message.substr(i + 1, close - i - 1);
         try {
             Value value = evaluate(expression, scope, false);
-            out += value.type == "string" ? value.value.str() : preview(value, 0);
+            out += value.isString() ? value.str() : preview(value, 0);
         } catch (const std::exception& error) {
             out += std::string("<") + error.what() + ">";
         }
@@ -700,10 +700,9 @@ std::string Session::interpolate(const std::string& message, Context& scope) {
 }
 
 std::string Session::preview(const Value& value, int depth) {
-    if (value.type == "string") return quoted(value.value.str(), 500);
-    if (value.type == "void") return "";
-    if (!value.ref) return value.value.str();
-    const Object& object = *value.ref;
+    if (value.isString()) return quoted(value.str(), 500);
+    if (!value.ref()) return value.text();
+    const Object& object = *value.ref();
     if (depth > 1) return object.kind == Object::Kind::Array ? "[…]" : "{…}";
     bool isArray = object.kind == Object::Kind::Array;
     bool isStruct = object.kind == Object::Kind::Struct;
@@ -726,16 +725,16 @@ int Session::referenceFor(Reference reference) {
 }
 
 JsonValue Session::variable(const std::string& name, const Value& value) {
-    JsonValue out = Fields{{"name", name}, {"value", preview(value, 0)}, {"type", value.type.str()}, {"variablesReference", 0}};
-    if (value.ref) {
-        out["variablesReference"] = JsonValue(referenceFor({Reference::Kind::Container, 0, value.ref}));
-        size_t size = value.ref->items.size();
-        if (value.ref->kind == Object::Kind::Array) {
+    JsonValue out = Fields{{"name", name}, {"value", preview(value, 0)}, {"type", value.typeName()}, {"variablesReference", 0}};
+    if (const Object* object = value.ref()) {
+        out["variablesReference"] = JsonValue(referenceFor({Reference::Kind::Container, 0, value}));
+        size_t size = object->items.size();
+        if (object->kind == Object::Kind::Array) {
             out["indexedVariables"] = JsonValue(size);
             out["type"] = "array (" + std::to_string(size) + ")";
         } else {
             out["namedVariables"] = JsonValue(size);
-            if (value.ref->kind == Object::Kind::Map) out["type"] = "map (" + std::to_string(size) + ")";
+            if (object->kind == Object::Kind::Map) out["type"] = "map (" + std::to_string(size) + ")";
         }
     }
     return out;
@@ -788,9 +787,9 @@ JsonValue Session::scopes(const JsonValue& arguments) {
     if (frame >= frames_.size()) throw std::runtime_error("Нет такого кадра стека");
     std::vector<JsonValue> list;
     list.push_back(Fields{{"name", "Локальные"}, {"presentationHint", "locals"}, {"expensive", false},
-                          {"variablesReference", referenceFor({Reference::Kind::Locals, frame, nullptr})}});
+                          {"variablesReference", referenceFor({Reference::Kind::Locals, frame, Value()})}});
     list.push_back(Fields{{"name", "Глобальные"}, {"expensive", false},
-                          {"variablesReference", referenceFor({Reference::Kind::Globals, frame, nullptr})}});
+                          {"variablesReference", referenceFor({Reference::Kind::Globals, frame, Value()})}});
     return Fields{{"scopes", list}};
 }
 
@@ -800,7 +799,7 @@ JsonValue Session::variables(const JsonValue& arguments) {
     Reference reference = references_[static_cast<size_t>(id) - 1];
     std::vector<JsonValue> list;
     if (reference.kind == Reference::Kind::Container) {
-        const Object& object = *reference.container;
+        const Object& object = *reference.container.ref();
         size_t size = object.items.size();
         size_t start = static_cast<size_t>(std::max(0, arguments["start"].asInt()));
         size_t count = arguments.has("count") ? static_cast<size_t>(std::max(0, arguments["count"].asInt())) : size;
@@ -824,7 +823,7 @@ JsonValue Session::variables(const JsonValue& arguments) {
                 const auto& names = *scope->slotNames;
                 for (size_t i = names.size(); i-- > 0;) {
                     const Value& slot = scope->slots[i];
-                    if (!slot.type.is(TypeName::Kind::Void) && seen.insert(names[i]).second) list.push_back(variable(names[i], slot));
+                    if (!slot.isVoid() && seen.insert(names[i]).second) list.push_back(variable(names[i], slot));
                 }
                 break;
             }
@@ -841,7 +840,7 @@ JsonValue Session::setVariable(const JsonValue& arguments) {
     Context& scope = *frames_[reference.kind == Reference::Kind::Container ? frames_.size() - 1 : reference.frame].scope;
     Value value = evaluate(arguments["value"].asString(), scope, false);
     if (reference.kind == Reference::Kind::Container) {
-        Object& object = *reference.container;
+        Object& object = *reference.container.ref();
         size_t index = object.items.size();
         for (size_t i = 0; i < object.items.size(); ++i)
             if (childName(object, i) == name) index = i;

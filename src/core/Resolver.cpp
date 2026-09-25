@@ -44,6 +44,7 @@ private:
 
     void block(BlockNode& block) {
         if (block.scoped) push();
+        block.resolved = block.scoped;
         block.firstSlot = size();
         for (auto& stmt : block.stmts) visit(stmt.get());
         block.endSlot = size();

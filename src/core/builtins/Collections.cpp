@@ -6,7 +6,7 @@
 namespace foxlang::runtime {
 namespace {
 
-bool isNumber(const Value& value) { return value.type == "int" || value.type == "float"; }
+bool isNumber(const Value& value) { return value.isNumber(); }
 
 // Numbers compare by value, everything else by text, so a FoxLang wrapper that
 // passes the needle as a string still finds the number 5 when asked for "5".
@@ -15,8 +15,9 @@ bool sameValue(const Value& a, const Value& b) {
         double x = 0, y = 0;
         return tryNumber(a, x) && tryNumber(b, y) && x == y;
     }
-    if (a.ref || b.ref) return deepEqual(a, b);
-    return a.value == b.value;
+    if (a.ref() || b.ref()) return deepEqual(a, b);
+    if (a.isString() && b.isString()) return a.str() == b.str();
+    return a.text() == b.text();
 }
 
 size_t bound(Call& call, size_t argument, size_t size) {
@@ -36,7 +37,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
         [](Call& c) {
             auto& items = c.array(0);
             bool numbers = std::all_of(items.begin(), items.end(), isNumber);
-            bool strings = std::all_of(items.begin(), items.end(), [](const Value& v) { return v.type == "string"; });
+            bool strings = std::all_of(items.begin(), items.end(), [](const Value& v) { return v.isString(); });
             if (numbers) {
                 std::stable_sort(items.begin(), items.end(), [](const Value& a, const Value& b) {
                     double x = 0, y = 0;
@@ -45,7 +46,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
                     return x < y;
                 });
             } else if (strings) {
-                std::stable_sort(items.begin(), items.end(), [](const Value& a, const Value& b) { return a.value < b.value; });
+                std::stable_sort(items.begin(), items.end(), [](const Value& a, const Value& b) { return a.str() < b.str(); });
             } else {
                 throw std::runtime_error("Runtime Error: array_sort() needs all numbers or all strings");
             }

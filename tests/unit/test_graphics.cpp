@@ -125,10 +125,10 @@ int main() {
     CHECK(keysymToUnicode(0xFF08) == 0 && keysymToUnicode(0xFFE1) == 0); // BackSpace, Shift type nothing
     foxlang::Interpreter interpreter;
     auto measured = interpreter.runSource("using graphics; int w = text_width(\"FoxLang\", 2);");
-    CHECK(measured.success && interpreter.getGlobal("w").value == "82");
+    CHECK(measured.success && interpreter.getGlobal("w").text() == "82");
     auto result = interpreter.runSource("using graphics; int c = rgb(18, 52, 86); close_window(); close_window();");
     CHECK(result.success);
-    CHECK(interpreter.getGlobal("c").value == "1193046");
+    CHECK(interpreter.getGlobal("c").text() == "1193046");
     result = interpreter.runSource("gfx_rgb(256, 0, 0);");
     CHECK(!result.success);
     result = interpreter.runSource("gfx_rect(0, 0, 20, 20, 0);");

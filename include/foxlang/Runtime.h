@@ -39,23 +39,43 @@ struct StackGuard {
 };
 StackGuard& stackGuard();
 
-// Numeric access to stringly stored values. These report the offending text and
-// the place that asked for it, instead of letting std::stoi/std::stod escape.
-// Probes parse without building any message; the *what* overloads below describe
-// the failure and are only reached when a value really is wrong.
+// Numeric access to values: a number as it is, a string by parsing its text. These
+// report the offending text and the place that asked for it. Probes build no message;
+// the *what* overloads below describe the failure and are only reached when a value
+// really is wrong.
 bool tryNumber(const Value& value, double& out);
 bool tryInt(const Value& value, long long& out);
 
 double toNumber(const Value& value, const std::string& what);
 int toInt(const Value& value, const std::string& what);
-Text intText(const Value& value, const std::string& what);
-Text intResult(long long result, const std::string& op);
-Text realResult(double result);
+// An int value made from any number, truncating a float, checked to fit in int.
+Value intValue(const Value& value, const std::string& what);
+// Results of arithmetic: an int must fit in int, a float must be finite.
+[[noreturn]] void intOverflow(long long result, const char* op);
+inline Value intResult(long long result, const char* op) {
+    if (result < -2147483648LL || result > 2147483647LL) intOverflow(result, op);
+    return Value::integer(result);
+}
+inline Value intResult(long long result, const std::string& op) { return intResult(result, op.c_str()); }
+Value realResult(double result);
+// A value of a scalar type from its text, as the embedding API and the debugger
+// receive it: "42" for int, "2.5" for float, "true" for bool, anything for string.
+Value parseScalar(const std::string& type, const std::string& text, const std::string& what);
 
 // Converts a value for storage in a slot of the given type: a variable, a parameter
 // or a return value. int and float convert both ways (float to int truncates, and
 // must fit), any scalar becomes text in a string slot, everything else is an error.
 void coerce(const std::string& type, Value& value, const std::string& what);
+// The kind of value a declared type holds: Struct for the name of a struct, Void for
+// "void". Declarations look it up once, so storing checks a byte instead of a name.
+Value::Kind declaredKind(const std::string& type);
+// True when a value can be stored as it is in a slot of the declared kind; otherwise
+// coerce() converts it or reports the mismatch. A struct always takes the slow path,
+// because its name has to match too.
+inline bool storesAsIs(Value::Kind declared, const Value& value) {
+    if (value.kind() != declared || declared == Value::Kind::Struct) return false;
+    return declared != Value::Kind::Int || (value.asInt() >= -2147483648LL && value.asInt() <= 2147483647LL);
+}
 
 // A value as print() shows it: numbers and text as they are, arrays as [1, 2],
 // maps as {key: value}, structs as Name{field: value}.

@@ -142,7 +142,7 @@ private:
         const Frame& current = frames.back();
         if (path == ".") { out = current.value; return true; }
         if (path == "@index") { out = current.index < 0 ? "" : std::to_string(current.index); return current.index >= 0; }
-        if (path == "@key") { out = "\"" + jsonEscape(current.key).value.str() + "\""; return !current.key.empty(); }
+        if (path == "@key") { out = "\"" + jsonEscape(current.key).str() + "\""; return !current.key.empty(); }
         for (auto frame = frames.rbegin(); frame != frames.rend(); ++frame)
             if (jsonRaw(frame->value, path, out)) return true;
         return false;
@@ -151,14 +151,14 @@ private:
     std::string text(const std::string& path) const {
         std::string raw;
         if (!lookup(path, raw) || raw == "null") return "";
-        if (!raw.empty() && raw[0] == '"') return jsonGet(raw, "").value.str();
+        if (!raw.empty() && raw[0] == '"') return jsonGet(raw, "").str();
         return raw;
     }
 
     static bool truthy(const std::string& raw) {
         if (raw == "false" || raw == "null" || raw == "\"\"") return false;
         std::string type = jsonType(raw, "");
-        if (type == "number") return jsonGet(raw, "").value.str().find_first_not_of("-0.") != std::string::npos;
+        if (type == "number") return jsonGet(raw, "").str().find_first_not_of("-0.") != std::string::npos;
         if (type == "array" || type == "object") return jsonCount(raw, "") > 0;
         return !raw.empty();
     }

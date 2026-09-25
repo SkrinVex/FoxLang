@@ -88,7 +88,7 @@ void Interpreter::reset() {
 }
 
 void Interpreter::setGlobal(const std::string& name, const std::string& type, const std::string& value) {
-    globalContext.defineVar(name, type, {type, value});
+    globalContext.defineVar(name, type, runtime::parseScalar(type, value, "global variable '" + name + "'"));
 }
 
 Value Interpreter::getGlobal(const std::string& name) const {
