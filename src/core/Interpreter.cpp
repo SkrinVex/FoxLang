@@ -154,7 +154,7 @@ RunResult Interpreter::runSource(const std::string& source, const std::string& s
     runtime::StackGuard& guard = runtime::stackGuard();
     guard.line = 0;
     guard.file = nullptr;
-    guard.located = nullptr;
+    guard.placed = false;
     auto located = [&](const std::string& message) { return runtime::locate(message, scriptPath); };
     try {
         auto program = parseSource(source, scriptPath);

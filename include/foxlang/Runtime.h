@@ -39,8 +39,11 @@ struct StackGuard {
     const std::string* file = nullptr; // and its source file (an interned name, never freed).
     int tryDepth = 0;                  // try blocks the running code is inside of
     // The bytecode VM learns the line of an error from the innermost function it leaves;
-    // the error it last placed is kept so that outer functions do not move it.
-    std::exception_ptr located;
+    // the error it last placed is kept so that outer functions do not move it. It is
+    // known by its message: MSVC hands every frame a copy of the exception, so pointers
+    // to it never compare equal. A catch that takes the error forgets it.
+    bool placed = false;
+    std::string placedMessage;
 };
 StackGuard& stackGuard();
 

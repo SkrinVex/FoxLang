@@ -447,8 +447,10 @@ inline void call(Proto& proto, const Instr& in, Value* R, Context& root) {
 
 // ---------------------------------------------------------------- the loop
 
-// An error left instruction pc: where the handler that takes it begins. Called while
-// the error is being handled; raises it again when no handler of this function takes it.
+// An error left instruction pc: where the handler that takes it begins, or -1 when no
+// handler of this function takes it and the caller must raise it again. It does not
+// raise it itself: under MSVC a catch block runs on top of the frames the error left,
+// so raising from inside it at every level would stack up until the stack overflows.
 FOXLANG_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug, std::exception_ptr* pending) {
     runtime::StackGuard& guard = runtime::stackGuard();
     std::exception_ptr error = std::current_exception();
@@ -463,8 +465,10 @@ FOXLANG_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug
     }
     // The innermost function that sees an error names its line; the functions it
     // passes through on the way out keep that.
-    if (runtimeError && guard.located != error && proto.lines[static_cast<size_t>(pc)] > 0) {
-        guard.located = error;
+    bool alreadyPlaced = guard.placed && guard.placedMessage == message;
+    if (runtimeError && !alreadyPlaced && proto.lines[static_cast<size_t>(pc)] > 0) {
+        guard.placed = true;
+        guard.placedMessage = message;
         guard.line = proto.lines[static_cast<size_t>(pc)];
         guard.file = proto.file;
     }
@@ -474,8 +478,9 @@ FOXLANG_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug
     if (!handler) {
         guard.tryDepth -= depth;
         if (debug) debug->leaveTo(0);
-        throw;
+        return -1;
     }
+    if (!handler->finally) guard.placed = false; // caught: the next error is a new one
     guard.tryDepth += depthAt(proto, handler->target) - depth;
     if (debug) debug->leaveTo(static_cast<size_t>(handler->scopes));
     for (int i = handler->clearFrom; i < handler->clearTo; ++i) R[i] = Value();
@@ -655,6 +660,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
     std::unique_ptr<std::exception_ptr[]> pending;
     if (proto.pendingErrors > 0) pending.reset(new std::exception_ptr[static_cast<size_t>(proto.pendingErrors)]);
     runtime::StackGuard& guard = runtime::stackGuard();
+    std::exception_ptr escaping;
 
     for (;;) {
         try {
@@ -961,8 +967,15 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                 }
             }
         } catch (...) {
-            ip = code + recover(proto, static_cast<int>(ip - code) - 1, R, debug, pending.get());
+            int target = recover(proto, static_cast<int>(ip - code) - 1, R, debug, pending.get());
+            if (target >= 0) {
+                ip = code + target;
+                continue;
+            }
+            escaping = std::current_exception();
         }
+        // Raised again only now, outside the catch block, once this frame's handling is over.
+        std::rethrow_exception(escaping);
     }
 }
 
@@ -1031,6 +1044,8 @@ Value callValue(const Value& function, Arguments args, Context& ctx) {
 }
 
 Value callValue(const Value& function, Value* args, size_t count, Context& ctx) {
+    // A call from outside any FoxLang code (an HTTP handler) starts with no error placed.
+    if (stackGuard().depth == 0) stackGuard().placed = false;
     return vm::callFunctionValue(function, args, count, *ctx.getRoot(), "function");
 }
 

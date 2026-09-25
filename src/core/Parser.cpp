@@ -503,7 +503,7 @@ void Parser::checkContainerType(const std::string& type) {
     size_t open = bare.find('<');
     std::string inner = bare.substr(open + 1, bare.size() - open - 2);
     if (bare.compare(0, 4, "map<") == 0) inner = inner.substr(7);
-    if (inner.empty() || inner == "void" || inner.find(',') != std::string::npos && inner.compare(0, 4, "map<") != 0)
+    if (inner.empty() || inner == "void" || (inner.find(',') != std::string::npos && inner.compare(0, 4, "map<") != 0))
         error("unexpected element type in " + bare);
     if (inner.back() == '>') checkContainerType(inner);
 }
