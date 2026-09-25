@@ -21,3 +21,7 @@ examples/website/uploads/
 
 # Profiler output (gprof)
 gmon.out
+
+# Benchmark results: the release attaches them, the site downloads them
+/benchmarks.json
+site/benchmarks.json

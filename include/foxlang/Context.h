@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <iosfwd>
 #include <stdexcept>
@@ -159,6 +160,11 @@ struct Object {
     long find(const std::string& key) const;
     Value& slot(const std::string& key); // inserts a void value for a new key
     bool erase(const std::string& key);
+
+private:
+    // Where each key sits in `keys`, built once the map is big enough for a scan to
+    // cost more than hashing; it is in step whenever it has as many entries as `keys`.
+    mutable std::unordered_map<std::string, size_t> index_;
 };
 
 // exit(code) unwinds the whole program; it is deliberately not a std::exception,

@@ -317,6 +317,34 @@ footer { max-width: 1120px; margin: 40px auto 0; color: var(--muted); font-size:
 @media (prefers-reduced-motion: no-preference) {
   html { scroll-behavior: smooth; }
 }
+
+/* Benchmarks */
+.bench-meta { font-size: 14px; color: var(--muted); margin: 0 0 16px; }
+.bench-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 14px; font-size: 14px; }
+.bench-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.bench-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.bench-chart { display: grid; gap: 18px; margin: 0 0 22px; }
+.bench-row h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.bench-row h4 small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.bar {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 76px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+.bar-name { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { height: 14px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; min-width: 2px; }
+.bar-value { font-family: var(--mono); font-size: 12.5px; text-align: right; white-space: nowrap; }
+.bar.is-fox .bar-name, .bar.is-fox .bar-value { color: var(--ink); font-weight: 600; }
+.speedup { font-family: var(--mono); font-size: 12.5px; color: var(--green); font-weight: 600; }
+.speedup.worse { color: var(--fox); }
+@media (max-width: 480px) {
+  .bar { grid-template-columns: 74px minmax(0, 1fr) 64px; gap: 8px; }
+}
 </style>
 <style>
 body { margin: 0; }
@@ -328,7 +356,7 @@ img { max-width: 100%; }
 <header class="hero">
   <div>
     <canvas class="pixel-fox" id="fox" width="12" height="12" aria-hidden="true"></canvas>
-    <p class="eyebrow">FoxLang 7.0 · объяснение с нуля</p>
+    <p class="eyebrow">FoxLang 8.1 · объяснение с нуля</p>
     <h1>Как устроен язык FoxLang</h1>
     <p class="lede">Что происходит между строчкой <code>print("Привет!");</code> и словом на экране: как язык читает текст, хранит числа и списки, вызывает функции, ловит ошибки, рисует окно точка за точкой, отвечает браузеру и почему для него есть отладчик.</p>
   </div>
@@ -336,7 +364,7 @@ img { max-width: 100%; }
     <div><b>3</b><span>шага от текста до результата</span></div>
     <div><b>≈220</b><span>встроенных функций</span></div>
     <div><b>16</b><span>модулей библиотеки</span></div>
-    <div><b>95</b><span>автотестов на Linux и Windows</span></div>
+    <div><b>97</b><span>автотестов на Linux и Windows</span></div>
   </div>
 </header>
 
@@ -587,7 +615,7 @@ close_window();</pre>
         <div class="frame-wrap"><canvas id="frame" width="448" height="280" aria-label="Кадр из пикселей"></canvas></div>
         <div class="frame-status"><code id="frame-code">нажми clear_window, чтобы начать кадр</code><span id="frame-pos"></span></div>
         <label class="frame-text" for="frame-input">Текст для draw_text (шрифт FoxLang, масштаб 1)</label>
-        <input id="frame-input" type="text" value="Fox 7.0" maxlength="10" spellcheck="false" autocomplete="off">
+        <input id="frame-input" type="text" value="Fox 8.1" maxlength="10" spellcheck="false" autocomplete="off">
       </div>
 
       <h3>Как рисуются фигуры</h3>
@@ -712,7 +740,7 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
 └── VERSION         <i>номер версии, одно место на весь проект</i></pre>
       <ul class="plain">
         <li><strong>Сборка.</strong> CMake собирает около 13 тысяч строк C++ в две программы: <code>foxlang</code> и <code>foxlang-lsp</code>.</li>
-        <li><strong>Тесты.</strong> 95 проверок: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши.</li>
+        <li><strong>Тесты.</strong> 97 проверок: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши.</li>
         <li><strong>Релизы.</strong> Когда меняется <code>VERSION</code> и изменения попадают в ветку <code>master</code>, GitHub сам собирает версии для Linux и Windows, гоняет все тесты на обеих системах и публикует релиз с архивами и расширениями для редакторов.</li>
       </ul>
     </section>
@@ -741,6 +769,36 @@ void test_add() {
       <p>Когда меняется номер в файле <code>VERSION</code>, GitHub собирает FoxLang для Linux и Windows, прогоняет все тесты на обеих системах и только после этого публикует релиз. Если хоть один тест упал, релиза нет.</p>
     </section>
 
+    <section id="speed">
+      <h2>Насколько FoxLang быстрый</h2>
+      <p>Тесты отвечают на вопрос «работает ли». Для вопроса «насколько быстро» есть <strong>бенчмарки</strong> — небольшие программы, которые делают одну типичную работу много раз, а мы засекаем время. Они лежат в папке <code>benchmarks/</code>, и каждая написана пять раз: на FoxLang, Python, Lua, Ruby и JavaScript.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Бенчмарк</th><th>Что делает</th></tr></thead>
+          <tbody id="bench-list"></tbody>
+        </table>
+      </div>
+      <p>Каждая программа в конце печатает контрольное число, например сумму. У всех языков оно обязано совпасть. Так ни один язык не выиграет за счёт того, что сделал меньше работы. Каждую программу запускают пять раз, по очереди с остальными, и берут лучший результат: остальные запуски больше говорят о загруженности машины, чем о языке.</p>
+
+      <h3>Проверка перед релизом</h3>
+      <p>Когда собирается новый релиз, GitHub скачивает предыдущий и запускает обе версии на одной и той же машине. Если новая версия хоть на одном бенчмарке медленнее старой больше чем на 10% (и больше чем на 0,03 секунды, чтобы не реагировать на случайный шум), релиз не выходит. Результаты прикладываются к релизу файлом <code>benchmarks.json</code>, и эта страница берёт числа оттуда.</p>
+      <pre class="fox">python3 benchmarks/run.py                       <span class="c"># FoxLang и другие языки</span>
+python3 benchmarks/run.py --baseline old/foxlang <span class="c"># сравнить с другой версией</span></pre>
+      <p>Бенчмарки сразу окупились. В первый же запуск они нашли две проблемы, которых не видел ни один тест. Словарь искал ключ, перебирая все ключи подряд: 200&nbsp;000 ключей обрабатывались больше четырёх минут, сейчас меньше секунды. А каждый вызов функции с верхнего уровня программы заново спрашивал у системы размер стека, и это чтение файла стоило в 60 раз дороже самого вызова.</p>
+
+      <h3>FoxLang и другие языки</h3>
+      <p class="bench-meta" id="bench-meta"></p>
+      <div class="bench-legend" id="bench-legend"></div>
+      <div class="bench-chart" id="bench-langs" role="img" aria-label="Время бенчмарков на FoxLang и других языках"></div>
+      <div class="note">
+        <p>Честно о том, что видно на графике. FoxLang выполняет дерево программы напрямую, а Python, Lua и Ruby сначала переводят его в байткод и гоняют быстрый цикл по командам, поэтому они быстрее в несколько раз, а в тесных циклах — в десятки. JavaScript в Node.js ещё и превращает горячий код в машинный прямо во время работы, об этом было в таблице <a href="#pipeline">выше</a>. Там, где работа уходит во встроенные функции на C++ — сортировка, разбор JSON, склейка строк, — FoxLang ближе к остальным: внутри них дерево уже не обходится. Эти языки развивают большие команды десятки лет, так что сравнение — это ориентир, а не соревнование.</p>
+      </div>
+
+      <h3>Новая версия и предыдущая</h3>
+      <p id="bench-versions-intro"></p>
+      <div class="bench-chart" id="bench-versions" role="img" aria-label="Время бенчмарков в новой и предыдущей версии FoxLang"></div>
+    </section>
+
     <section id="walk">
       <h2>Одна программа от начала до конца</h2>
       <pre class="fox" data-fox>int square(int n) {
@@ -766,8 +824,11 @@ print(square(4));</pre>
   </article>
 </div>
 
-<footer>FoxLang 7.0.0 · исходники и документация — <a href="https://github.com/SkrinVex/FoxLang" target="_blank" rel="noopener">github.com/SkrinVex/FoxLang</a></footer>
+<footer>FoxLang 8.1.0 · исходники и документация — <a href="https://github.com/SkrinVex/FoxLang" target="_blank" rel="noopener">github.com/SkrinVex/FoxLang</a></footer>
 
+<script type="application/json" id="bench-data">
+{"version":"8.1.0","date":"2026-09-25","machine":{"os":"Linux x86_64","cpu":"Intel(R) Celeron(R) N4020C CPU @ 1.10GHz"},"runs":5,"languages":{"foxlang":{"name":"FoxLang","version":"FoxLang 8.1.0"},"foxlang_baseline":{"name":"FoxLang (previous)","version":"FoxLang 8.0.0"},"python":{"name":"Python","version":"Python 3.14.7"},"lua":{"name":"Lua","version":"Lua 5.4.9"},"javascript":{"name":"JavaScript (Node.js)","version":"v26.10.0"}},"benchmarks":[{"name":"array_sum","about":"Growing an array and reading it back by index.","seconds":{"foxlang":0.8220495040004607,"foxlang_baseline":0.8046430410031462,"python":0.11204682500101626,"lua":0.04474602800473804,"javascript":0.08812319800199475}},{"name":"fib","about":"Function calls: naive recursive Fibonacci.","seconds":{"foxlang":0.6164286349958275,"foxlang_baseline":0.6133975439952337,"python":0.07494633600435918,"lua":0.02926724500139244,"javascript":0.07089768599689705}},{"name":"json_roundtrip","about":"Turning records into JSON text and back.","seconds":{"foxlang":0.3555030940042343,"foxlang_baseline":0.34874510599911446,"python":0.20824911999807227,"javascript":0.135121507999429}},{"name":"loop","about":"Integer arithmetic in a tight loop.","seconds":{"foxlang":2.797177840999211,"foxlang_baseline":2.7681683769988013,"python":0.5878342849973706,"lua":0.10385304999363143,"javascript":0.08476455699565122}},{"name":"map_lookup","about":"Inserting keys into a map and looking every one of them up.","seconds":{"foxlang":0.6534529349955847,"foxlang_baseline":null,"python":0.28541876199597027,"lua":0.6466928770023515,"javascript":0.4442104150002706}},{"name":"records","about":"Creating many small records and reading their fields.","seconds":{"foxlang":0.9637308169985772,"foxlang_baseline":0.9543194729994866,"python":0.25225184000009904,"lua":0.19137996299832594,"javascript":0.13434408799366793}},{"name":"sort_numbers","about":"Sorting numbers with the language's own sort.","seconds":{"foxlang":0.5961958159969072,"foxlang_baseline":0.5898370669965516,"python":0.25797608100401703,"lua":0.254622147003829,"javascript":0.23630277100164676}},{"name":"split_join","about":"Building text, joining and splitting it.","seconds":{"foxlang":0.600587403998361,"foxlang_baseline":19.539538478995382,"python":0.14139736899960553,"lua":0.4179613119995338,"javascript":0.17239006900490494}}]}
+</script>
 <script>
 (function () {
   // A fox face drawn cell by cell, like FoxLang's own 5x7 pixel font.
@@ -1131,6 +1192,141 @@ print(square(4));</pre>
     lineBox.appendChild(num); lineBox.appendChild(bits);
     table.appendChild(lineBox);
   });
+
+})();
+</script>
+<script>
+(function () {
+  // ---- Benchmarks: the numbers carried by the page, replaced by the latest release's if the site has them
+  var ABOUT = {
+    array_sum: "добавляет полмиллиона чисел в массив и складывает их, читая по индексу",
+    fib: "рекурсивно считает 27-е число Фибоначчи: около 300 тысяч вызовов функции",
+    json_roundtrip: "превращает 50\u00a0000 записей в текст JSON и разбирает обратно",
+    loop: "три миллиона раз считает остаток от деления и складывает",
+    map_lookup: "кладёт в словарь 200\u00a0000 ключей и находит каждый",
+    records: "создаёт 300\u00a0000 структур из двух полей и читает поля",
+    sort_numbers: "сортирует 300\u00a0000 чисел встроенной сортировкой",
+    split_join: "склеивает 200\u00a0000 строк через запятую и режет обратно"
+  };
+  var ORDER = ["foxlang", "python", "lua", "ruby", "javascript"];
+  var SHORT = { foxlang: "FoxLang", python: "Python", lua: "Lua", ruby: "Ruby", javascript: "JavaScript" };
+
+  function seconds(t) {
+    if (t === null) return "лимит";
+    return (t < 0.1 ? t.toFixed(3) : t.toFixed(2)).replace(".", ",") + " с";
+  }
+  function bar(name, value, max, color, isFox) {
+    var row = document.createElement("div");
+    row.className = "bar" + (isFox ? " is-fox" : "");
+    var label = document.createElement("span"); label.className = "bar-name"; label.textContent = name;
+    var track = document.createElement("span"); track.className = "bar-track";
+    var fill = document.createElement("span"); fill.className = "bar-fill";
+    fill.style.display = "block";
+    fill.style.width = (value === null ? 100 : Math.max(0.5, 100 * value / max)) + "%";
+    fill.style.background = color;
+    if (value === null) fill.style.opacity = "0.35";
+    track.appendChild(fill);
+    var shown = document.createElement("span"); shown.className = "bar-value"; shown.textContent = seconds(value);
+    row.appendChild(label); row.appendChild(track); row.appendChild(shown);
+    return row;
+  }
+  function heading(text, extra, extraClass) {
+    var h = document.createElement("h4");
+    var code = document.createElement("code"); code.textContent = text;
+    h.appendChild(code);
+    if (extra) {
+      var small = document.createElement("small");
+      if (extraClass) small.className = extraClass;
+      small.textContent = extra;
+      h.appendChild(small);
+    }
+    return h;
+  }
+  // "в 2,5 раза", "в 5 раз", "в 22 раза": a fraction always takes "раза".
+  function times(ratio) {
+    var fixed = ratio.toFixed(1).replace(".", ",").replace(/,0$/, "");
+    if (fixed.indexOf(",") >= 0) return fixed + "\u00a0раза";
+    var n = Number(fixed), last = n % 10, tens = n % 100;
+    var word = last >= 2 && last <= 4 && (tens < 12 || tens > 14) ? "раза" : "раз";
+    return fixed + "\u00a0" + word;
+  }
+
+  function renderBenchmarks(data) {
+    var list = document.getElementById("bench-list");
+    var langs = document.getElementById("bench-langs");
+    var versions = document.getElementById("bench-versions");
+    var legend = document.getElementById("bench-legend");
+    list.textContent = ""; langs.textContent = ""; versions.textContent = ""; legend.textContent = "";
+    var present = ORDER.filter(function (key) { return data.languages[key]; });
+
+    data.benchmarks.forEach(function (b) {
+      var tr = document.createElement("tr");
+      var name = document.createElement("td"); var code = document.createElement("code"); code.textContent = b.name; name.appendChild(code);
+      var about = document.createElement("td"); about.textContent = ABOUT[b.name] || b.about;
+      tr.appendChild(name); tr.appendChild(about); list.appendChild(tr);
+
+      var row = document.createElement("div"); row.className = "bench-row";
+      var own = b.seconds.foxlang;
+      var measured = present.filter(function (key) { return key in b.seconds; });
+      var others = measured.filter(function (key) { return key !== "foxlang" && b.seconds[key] !== null; })
+                           .map(function (key) { return b.seconds[key]; });
+      var note = "";
+      if (own && others.length) {
+        var fastest = Math.min.apply(null, others);
+        note = own <= fastest ? "FoxLang быстрее всех" : "самый быстрый быстрее FoxLang в " + times(own / fastest);
+      }
+      row.appendChild(heading(b.name, note));
+      var max = Math.max.apply(null, measured.map(function (key) { return b.seconds[key] || 0; }));
+      measured.forEach(function (key) {
+        row.appendChild(bar(SHORT[key], b.seconds[key], max, key === "foxlang" ? "var(--fox)" : "var(--blue)", key === "foxlang"));
+      });
+      langs.appendChild(row);
+    });
+
+    [["var(--fox)", "FoxLang"], ["var(--blue)", "другие языки"]].forEach(function (item) {
+      var span = document.createElement("span"); var dot = document.createElement("i");
+      dot.style.background = item[0]; span.appendChild(dot); span.appendChild(document.createTextNode(item[1]));
+      legend.appendChild(span);
+    });
+
+    var names = present.map(function (key) { return data.languages[key].name + " " + data.languages[key].version.replace(/^[A-Za-z]+ /, ""); });
+    document.getElementById("bench-meta").textContent =
+      "Замер от " + data.date.split("-").reverse().join(".") + ", " + data.machine.cpu + ", " + data.machine.os +
+      ". Лучший из " + data.runs + " запусков. " + names.join(" · ") + ".";
+
+    var intro = document.getElementById("bench-versions-intro");
+    var previous = data.languages.foxlang_baseline;
+    if (!previous) {
+      intro.textContent = "В этом замере не с чем сравнивать: предыдущей версии не было.";
+      return;
+    }
+    intro.textContent = data.languages.foxlang.version + " против " + previous.version +
+      " на той же машине. Серым — предыдущая версия, оранжевым — новая; «лимит» значит, что программа не уложилась в отведённое время.";
+    data.benchmarks.forEach(function (b) {
+      var now = b.seconds.foxlang, before = b.seconds.foxlang_baseline;
+      if (now === undefined || before === undefined) return;
+      var row = document.createElement("div"); row.className = "bench-row";
+      var note = "", cls = "speedup";
+      if (before === null) note = "раньше не укладывалась в лимит";
+      else if (now < before * 0.95) note = "быстрее в " + times(before / now);
+      else if (now > before * 1.05) { note = "медленнее на " + Math.round(100 * (now / before - 1)) + "%"; cls = "speedup worse"; }
+      else note = "без изменений";
+      row.appendChild(heading(b.name, note, cls));
+      var max = before === null ? now : Math.max(now, before);
+      row.appendChild(bar("было", before, max, "var(--muted)", false));
+      row.appendChild(bar("стало", now, max, "var(--fox)", true));
+      versions.appendChild(row);
+    });
+  }
+
+  var carried = JSON.parse(document.getElementById("bench-data").textContent);
+  renderBenchmarks(carried);
+  if (location.protocol !== "file:" && window.fetch) {
+    fetch("benchmarks.json", { cache: "no-cache" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { if (data && data.benchmarks && data.languages) renderBenchmarks(data); })
+      .catch(function () {});
+  }
 })();
 </script>
 </body>

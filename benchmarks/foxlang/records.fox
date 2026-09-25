@@ -1,0 +1,19 @@
+// Creating many small records and reading their fields.
+using os;
+
+struct Point {
+    int x;
+    int y;
+}
+
+int n = to_int(arg_or(0, "300000"));
+array points;
+for (int i = 0; i < n; i++) {
+    push(points, Point(i % 1000, i % 7));
+}
+int total = 0;
+for (int i = 0; i < size(points); i++) {
+    Point p = points[i];
+    total = total + p.x + p.y;
+}
+print(total);

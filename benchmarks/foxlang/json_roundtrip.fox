@@ -1,0 +1,16 @@
+// Turning records into JSON text and back.
+using os;
+using string;
+
+int n = to_int(arg_or(0, "50000"));
+array records;
+for (int i = 0; i < n; i++) {
+    push(records, {"id": i, "name": "user" + i});
+}
+string text = json_value(records);
+array back = json_decode(text);
+int total = 0;
+for (int i = 0; i < size(back); i++) {
+    total = total + back[i]["id"] % 1000;
+}
+print(size(back), total, length(text));

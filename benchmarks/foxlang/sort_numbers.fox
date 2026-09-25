@@ -1,0 +1,13 @@
+// Sorting numbers with the language's own sort.
+using os;
+using arrays;
+
+int n = to_int(arg_or(0, "300000"));
+array numbers;
+int seed = 1;
+for (int i = 0; i < n; i++) {
+    seed = (seed * 75 + 74) % 65537;
+    push(numbers, seed);
+}
+sort(numbers);
+print(numbers[0], numbers[n / 2], numbers[n - 1]);

@@ -1,0 +1,10 @@
+// Integer arithmetic in a tight loop.
+using os;
+
+int n = to_int(arg_or(0, "3000000"));
+int total = 0;
+for (int i = 0; i < n; i++) {
+    int r = i % 1000;
+    total = total + r * r % 7;
+}
+print(total);

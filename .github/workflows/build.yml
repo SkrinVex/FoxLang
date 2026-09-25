@@ -4,6 +4,11 @@ on:
   # Started by hand as well: a failed release build is otherwise a dead end, because
   # only a change to VERSION starts this workflow and fixing the code does not change it.
   workflow_dispatch:
+    inputs:
+      allow_slower:
+        description: Release even if the benchmarks got slower (a deliberate trade-off)
+        type: boolean
+        default: false
   push:
     branches: [master]
     paths:
@@ -129,8 +134,47 @@ jobs:
           name: windows-release
           path: FoxLang-*-windows-x86_64.zip
 
+  # The release waits for this: the new build against the last release on the same
+  # machine, and the same programs in other languages for the site's comparison.
+  benchmarks:
+    needs: [version, build-linux]
+    if: needs.version.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-release
+          path: new
+      - name: Install the languages compared
+        run: sudo apt-get update && sudo apt-get install -y lua5.4 ruby
+      - name: Download the previous release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p old
+          if gh release download --repo "$GITHUB_REPOSITORY" --pattern '*-linux-x86_64.tar.gz' --dir old; then
+            tar -xzf old/*.tar.gz -C old
+          else
+            echo "No previous release: nothing to compare with."
+          fi
+      - name: Run benchmarks
+        shell: bash
+        run: |
+          tar -xzf new/*.tar.gz -C new
+          NEW="$(echo new/FoxLang-*/foxlang.bin)"
+          OLD="$(ls old/FoxLang-*/foxlang.bin 2>/dev/null || true)"
+          python3 benchmarks/run.py --foxlang "$NEW" ${OLD:+--baseline "$OLD"} \
+            --require python --require lua --require ruby --require javascript \
+            --json benchmarks.json ${{ inputs.allow_slower && '--max-slowdown 1000' || '' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmarks-release
+          path: benchmarks.json
+
   release:
-    needs: [version, build-linux, build-windows]
+    needs: [version, build-linux, build-windows, benchmarks]
     if: needs.version.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:

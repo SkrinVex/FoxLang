@@ -1,0 +1,13 @@
+// Growing an array and reading it back by index.
+using os;
+
+int n = to_int(arg_or(0, "500000"));
+array items;
+for (int i = 0; i < n; i++) {
+    push(items, i % 100);
+}
+int total = 0;
+for (int i = 0; i < size(items); i++) {
+    total = total + items[i];
+}
+print(total);

@@ -23,6 +23,18 @@ map numbered = {};
 numbered[7] = "seven";
 check(numbered["7"] == "seven", "int keys are text");
 
+// A map past a few keys finds them through an index; removing and copying keep it right
+map big = {};
+for (int i = 0; i < 50; i++) {
+    big["k" + i] = i;
+}
+check(remove_key(big, "k10") && !has(big, "k10") && big["k11"] == 11 && big.k49 == 49, "big map after removal");
+big["k10"] = 100;
+check(big["k10"] == 100 && size(big) == 50 && keys(big)[49] == "k10", "re-added key goes last");
+map bigCopy = copy(big);
+bigCopy["k0"] = -1;
+check(bigCopy["k0"] == -1 && big["k0"] == 0 && bigCopy["k30"] == 30, "copied big map has its own index");
+
 // --- Sharing on assignment and with functions; copy() makes an independent copy
 map original = {"list": [1, 2]};
 map alias = original;

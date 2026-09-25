@@ -50,6 +50,9 @@ add_test(NAME lsp_catalog COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_D
 set_tests_properties(lsp_catalog PROPERTIES TIMEOUT 30)
 add_test(NAME lsp_edits COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_lsp_edits.py $<TARGET_FILE:foxlang-lsp>)
 add_test(NAME cli_tools COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cli_tools.py $<TARGET_FILE:foxlang>)
+# Every benchmark once on a tiny input: the programs run and all languages agree.
+add_test(NAME benchmarks_smoke
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/benchmarks/run.py --smoke --foxlang $<TARGET_FILE:foxlang>)
 add_test(NAME packaging_versions COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_versions.py ${CMAKE_SOURCE_DIR})
 add_executable(test_bundle unit/test_bundle.cpp)
 target_link_libraries(test_bundle PRIVATE foxlang_bundle)

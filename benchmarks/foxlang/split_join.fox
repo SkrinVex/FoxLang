@@ -1,0 +1,16 @@
+// Building text, joining and splitting it.
+using os;
+using string;
+
+int n = to_int(arg_or(0, "200000"));
+array parts;
+for (int i = 0; i < n; i++) {
+    push(parts, "item" + i);
+}
+string text = join(parts, ",");
+array back = split(text, ",");
+int total = 0;
+for (int i = 0; i < size(back); i++) {
+    total = total + length(back[i]);
+}
+print(size(back), total, length(text));

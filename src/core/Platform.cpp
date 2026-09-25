@@ -39,6 +39,10 @@ std::string pathToUtf8(const std::filesystem::path& path) {
 // call costs a different number of kilobytes per compiler. Three fifths leaves room
 // for the unwinding and for the error report itself.
 size_t stackBudget() {
+    // Asking is slow on Linux (it reads /proc/self/maps), and the answer never changes
+    // for a thread, while every call made from the top level asks again.
+    thread_local size_t cached = 0;
+    if (cached) return cached;
     size_t size = 0;
 #ifdef _WIN32
     ULONG_PTR low = 0, high = 0;
@@ -57,7 +61,8 @@ size_t stackBudget() {
     if (size > (8u << 20)) size = 8u << 20;  // and one larger than we ever ask for is not believed.
     // A third leaves room for the throw itself, for unwinding, and for whatever the
     // host of an embedded interpreter had already put on the stack below us.
-    return size / 3;
+    cached = size / 3;
+    return cached;
 }
 
 std::string getch() {

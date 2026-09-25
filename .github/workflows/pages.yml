@@ -7,10 +7,15 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/pages.yml'
+  # A new release brings new benchmark results for the page.
+  workflow_run:
+    workflows: ["Build and Auto Release FoxLang"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -20,12 +25,19 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Take the latest release's benchmark results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern benchmarks.json --dir site --clobber \
+            || echo "The latest release has no benchmarks.json; the page shows the numbers it carries."
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1,0 +1,11 @@
+// Function calls: naive recursive Fibonacci.
+using os;
+
+int fib(int n) {
+    if (n < 2) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+print(fib(to_int(arg_or(0, "27"))));

@@ -209,6 +209,20 @@ ctest --test-dir build -C Release --output-on-failure
 сам проставляет в манифесты расширений редакторов. Изменение `VERSION` в `master`
 запускает сборку и публикацию выпуска.
 
+### Бенчмарки
+
+Перед каждым выпуском новая сборка соревнуется с предыдущим выпуском на одной машине:
+если хоть один бенчмарк стал медленнее больше чем на 10%, выпуска нет. Те же задачи
+написаны на Python, Lua, Ruby и JavaScript для сравнения; результаты прикладываются к
+выпуску файлом `benchmarks.json` и показываются на [сайте](https://skrinvex.github.io/FoxLang/#speed).
+
+```bash
+python3 benchmarks/run.py                            # FoxLang и другие языки
+python3 benchmarks/run.py --baseline путь/к/foxlang  # сравнение с другой версией
+```
+
+Подробно: [benchmarks/README.md](benchmarks/README.md).
+
 ```text
 FoxLang/
 ├── VERSION              # единственное место с номером версии
@@ -223,6 +237,7 @@ FoxLang/
 ├── examples/            # примеры программ
 ├── editors/             # VS Code, Kate, Zed
 ├── tests/               # unit, регрессионные, standalone и LSP-тесты
+├── benchmarks/          # бенчмарки на FoxLang и других языках, run.py
 └── docs/                # руководства: редакторы, графика, standalone
 ```
 

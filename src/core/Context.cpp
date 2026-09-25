@@ -59,14 +59,25 @@ void TypeName::assign(const char* text, size_t length) {
 }
 
 long Object::find(const std::string& key) const {
-    for (size_t i = 0; i < keys.size(); ++i)
-        if (keys[i] == key) return static_cast<long>(i);
-    return -1;
+    constexpr size_t scanned = 8;
+    if (keys.size() <= scanned) {
+        for (size_t i = 0; i < keys.size(); ++i)
+            if (keys[i] == key) return static_cast<long>(i);
+        return -1;
+    }
+    if (index_.size() != keys.size()) {
+        index_.clear();
+        index_.reserve(keys.size());
+        for (size_t i = 0; i < keys.size(); ++i) index_.emplace(keys[i], i);
+    }
+    auto found = index_.find(key);
+    return found == index_.end() ? -1 : static_cast<long>(found->second);
 }
 
 Value& Object::slot(const std::string& key) {
     long at = find(key);
     if (at >= 0) return items[static_cast<size_t>(at)];
+    if (!index_.empty()) index_.emplace(key, keys.size());
     keys.push_back(key);
     items.push_back({"void", ""});
     return items.back();
@@ -77,6 +88,7 @@ bool Object::erase(const std::string& key) {
     if (at < 0) return false;
     keys.erase(keys.begin() + at);
     items.erase(items.begin() + at);
+    index_.clear(); // the keys after it moved; rebuilt on the next lookup
     return true;
 }
 
