@@ -51,10 +51,11 @@ def run(*args, cwd):
 with tempfile.TemporaryDirectory(prefix='fox-tools-') as directory:
     root = Path(directory)
     (root / 'lib').mkdir()
-    (root / 'lib' / 'math.fox').write_text('int add(int a, int b) {\n    return a + b;\n}\nint counter = 0;\n', encoding='utf-8')
-    (root / 'math_test.fox').write_text(TESTS, encoding='utf-8')
+    # Bytes, not text: Python on Windows would write CRLF, which fmt rightly changes to LF.
+    (root / 'lib' / 'math.fox').write_bytes(b'int add(int a, int b) {\n    return a + b;\n}\nint counter = 0;\n')
+    (root / 'math_test.fox').write_bytes(TESTS.encode('utf-8'))
     (root / 'build').mkdir()
-    (root / 'build' / 'ignored_test.fox').write_text('void test_never() { assert(false); }\n', encoding='utf-8')
+    (root / 'build' / 'ignored_test.fox').write_bytes(b'void test_never() { assert(false); }\n')
 
     code, out = run('test', cwd=root)
     assert code == 1, out

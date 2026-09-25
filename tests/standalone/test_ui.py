@@ -37,7 +37,8 @@ string picked = "";
 while (window_poll()) {
     frame++;
     clear_window(rgb(250, 250, 250));
-    wheel += mouse_wheel();
+    int turned = mouse_wheel();
+    wheel += turned;
     if (key_pressed("MOUSE_LEFT")) {
         append_file("events.txt", "frame " + frame + " click " + mouse_x() + "," + mouse_y() + " dialog " + dialog + " typing " + ui_typing() + "\n");
     }
@@ -75,6 +76,9 @@ while (window_poll()) {
         draw_text(24, row_y + 6, "row " + i, 1, rgb(0, 0, 0));
     }
     ui_scroll_end();
+    if (turned != 0) {
+        append_file("events.txt", "frame " + frame + " wheel " + turned + " at " + mouse_x() + "," + mouse_y() + " scroll " + scroll + "\n");
+    }
     if (ui_button("report", 280, 210, 100, 30, "Report")) {
         write_file("scroll.txt", "" + scroll + "|" + picked);
     }
