@@ -229,7 +229,7 @@ std::unique_ptr<Node> Parser::statement() {
     return node;
 }
 
-// struct Name { type field; type field = default; }
+// struct Name { type field; type field = default; type method(params) { ... } }
 std::unique_ptr<Node> Parser::structDefinition() {
     SourcePosition start = peek().range.start;
     consume(TokenType::STRUCT);
@@ -241,11 +241,30 @@ std::unique_ptr<Node> Parser::structDefinition() {
     consume(TokenType::LBRACE);
     while (!check(TokenType::RBRACE)) {
         if (check(TokenType::END)) fail("expected '}' to close the struct");
-        if (!(isTypeKeyword() || check(TokenType::IDENTIFIER)) || check(TokenType::VOID_KW)) fail("expected a field type");
+        if (!(isTypeKeyword() || check(TokenType::IDENTIFIER))) fail("expected a field type");
+        SourcePosition memberStart = peek().range.start;
         std::string type = tokens[pos++].value;
         Token field = consume(TokenType::IDENTIFIER);
-        for (const auto& existing : node->type->fields)
-            if (existing.name == field.value) fail("field '" + field.value + "' is declared twice");
+        auto taken = [&](const std::string& member) {
+            for (const auto& existing : node->type->fields)
+                if (existing.name == member) return true;
+            return node->type->methods.count(member) > 0;
+        };
+        if (taken(field.value)) fail("'" + field.value + "' is declared twice in struct '" + name.value + "'");
+        if (check(TokenType::LPAREN)) {
+            // A method: a function whose hidden first parameter `this` is the value it was called on.
+            auto parsed = functionDefinition(type, field, memberStart);
+            auto* definition = static_cast<FuncDefNode*>(parsed.get());
+            for (const auto& param : definition->params)
+                if (param.name == "this") fail("a method's parameter cannot be named 'this'");
+            definition->params.insert(definition->params.begin(), FuncParam(name.value, "this"));
+            definition->name = name.value + "." + field.value; // for messages and the debugger's stack
+            std::shared_ptr<FuncDefNode> method(static_cast<FuncDefNode*>(parsed.release()));
+            node->type->methods[field.value] = method;
+            node->methods.push_back(method);
+            continue;
+        }
+        if (type == "void") fail("a field cannot have type void");
         std::shared_ptr<Node> initial;
         if (match(TokenType::ASSIGN)) initial = expression();
         consume(TokenType::SEMICOLON);
@@ -563,7 +582,21 @@ std::unique_ptr<Node> Parser::postfix(std::unique_ptr<Node> node, SourcePosition
             node = at(std::make_unique<IndexNode>(std::move(node), std::move(index)), start, previousEnd());
         } else if (match(TokenType::DOT)) {
             Token field = consume(TokenType::IDENTIFIER);
-            node = at(std::make_unique<FieldNode>(std::move(node), field.value, field.range), start, previousEnd());
+            if (match(TokenType::LPAREN)) {
+                auto call = std::make_unique<MethodCallNode>();
+                call->base = std::move(node);
+                call->name = field.value;
+                call->nameRange = field.range;
+                call->args = arguments(TokenType::RPAREN);
+                node = at(std::move(call), start, previousEnd());
+            } else {
+                node = at(std::make_unique<FieldNode>(std::move(node), field.value, field.range), start, previousEnd());
+            }
+        } else if (match(TokenType::LPAREN)) {
+            auto call = std::make_unique<CallNode>();
+            call->callee = std::move(node);
+            call->args = arguments(TokenType::RPAREN);
+            node = at(std::move(call), start, previousEnd());
         } else {
             return node;
         }

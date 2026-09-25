@@ -164,6 +164,20 @@ struct FuncCallNode : Node {
         : name(std::move(n)), args(std::move(a)), nameRange(nr) {}
 };
 
+// base.name(args): a struct's method, or a function stored in a field or map key.
+struct MethodCallNode : Node {
+    std::unique_ptr<Node> base;
+    std::string name;
+    SourceRange nameRange;
+    std::vector<std::unique_ptr<Node>> args;
+};
+
+// callee(args) where the callee is any expression: make_adder(1)(2), handlers[0]()
+struct CallNode : Node {
+    std::unique_ptr<Node> callee;
+    std::vector<std::unique_ptr<Node>> args;
+};
+
 struct NumberNode : Node {
     std::string val;
     bool isFloat;
@@ -298,6 +312,7 @@ struct StructDefNode : Declaration {
     std::shared_ptr<StructType> type;
     SourceRange nameRange;
     std::vector<SourceRange> fieldRanges;
+    std::vector<std::shared_ptr<FuncDefNode>> methods; // also in type->methods, in source order
     void declare(Context& root) override;
     bool exists(const Context& root) const override { return root.structs.count(type->name) > 0; }
 };

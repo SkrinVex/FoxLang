@@ -139,6 +139,10 @@
         {
           "name": "constant.language.boolean.fox",
           "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "variable.language.this.fox",
+          "match": "\\bthis\\b"
         }
       ]
     },

@@ -65,16 +65,52 @@ std::string fileKey(const std::string& path) {
 }
 
 // Lines where the interpreter reports a statement: breakpoints elsewhere never hit.
+void statementLines(const Node* node, std::set<int>& lines);
+
+// The statements of lambdas written inside an expression.
+void lambdaLines(const Node* node, std::set<int>& lines) {
+    if (!node) return;
+    if (auto* lambda = dynamic_cast<const LambdaNode*>(node)) {
+        statementLines(lambda->body.get(), lines);
+    } else if (auto* declaration = dynamic_cast<const VarDeclNode*>(node)) {
+        lambdaLines(declaration->expr.get(), lines);
+    } else if (auto* assignment = dynamic_cast<const VarAssignNode*>(node)) {
+        lambdaLines(assignment->expr.get(), lines);
+    } else if (auto* set = dynamic_cast<const SetNode*>(node)) {
+        lambdaLines(set->value.get(), lines);
+    } else if (auto* result = dynamic_cast<const ReturnNode*>(node)) {
+        lambdaLines(result->expr.get(), lines);
+    } else if (auto* call = dynamic_cast<const FuncCallNode*>(node)) {
+        for (const auto& arg : call->args) lambdaLines(arg.get(), lines);
+    } else if (auto* method = dynamic_cast<const MethodCallNode*>(node)) {
+        lambdaLines(method->base.get(), lines);
+        for (const auto& arg : method->args) lambdaLines(arg.get(), lines);
+    } else if (auto* call = dynamic_cast<const CallNode*>(node)) {
+        lambdaLines(call->callee.get(), lines);
+        for (const auto& arg : call->args) lambdaLines(arg.get(), lines);
+    } else if (auto* binary = dynamic_cast<const BinOpNode*>(node)) {
+        lambdaLines(binary->left.get(), lines);
+        lambdaLines(binary->right.get(), lines);
+    } else if (auto* list = dynamic_cast<const ArrayLiteralNode*>(node)) {
+        for (const auto& element : list->elements) lambdaLines(element.get(), lines);
+    } else if (auto* map = dynamic_cast<const MapLiteralNode*>(node)) {
+        for (const auto& entry : map->entries) lambdaLines(entry.second.get(), lines);
+    }
+}
+
 void statementLines(const Node* node, std::set<int>& lines) {
     if (!node) return;
     if (auto* block = dynamic_cast<const BlockNode*>(node)) {
         for (const auto& stmt : block->stmts) {
             if (!stmt) continue;
-            if (!dynamic_cast<const FuncDefNode*>(stmt.get()) && stmt->range.start.line > 0) lines.insert(stmt->range.start.line);
+            bool declaration = dynamic_cast<const FuncDefNode*>(stmt.get()) || dynamic_cast<const StructDefNode*>(stmt.get());
+            if (!declaration && stmt->range.start.line > 0) lines.insert(stmt->range.start.line);
             statementLines(stmt.get(), lines);
         }
     } else if (auto* function = dynamic_cast<const FuncDefNode*>(node)) {
         statementLines(function->body.get(), lines);
+    } else if (auto* type = dynamic_cast<const StructDefNode*>(node)) {
+        for (const auto& method : type->methods) statementLines(method->body.get(), lines);
     } else if (auto* branch = dynamic_cast<const IfNode*>(node)) {
         statementLines(branch->thenB.get(), lines);
         statementLines(branch->elseB.get(), lines);
@@ -82,9 +118,17 @@ void statementLines(const Node* node, std::set<int>& lines) {
         statementLines(loop->body.get(), lines);
     } else if (auto* counted = dynamic_cast<const ForNode*>(node)) {
         statementLines(counted->body.get(), lines);
+    } else if (auto* each = dynamic_cast<const ForInNode*>(node)) {
+        statementLines(each->body.get(), lines);
+    } else if (auto* guarded = dynamic_cast<const TryNode*>(node)) {
+        statementLines(guarded->body.get(), lines);
+        statementLines(guarded->handler.get(), lines);
+        statementLines(guarded->cleanup.get(), lines);
     } else if (auto* choice = dynamic_cast<const SwitchNode*>(node)) {
         for (const auto& item : choice->cases) statementLines(item.second.get(), lines);
         statementLines(choice->defaultCase.get(), lines);
+    } else {
+        lambdaLines(node, lines);
     }
 }
 

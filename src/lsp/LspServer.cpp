@@ -1,6 +1,7 @@
 #include "LspServer.h"
 #include "foxlang/FoxLang.h"
 #include "foxlang/Formatter.h"
+#include <cctype>
 #include <iostream>
 
 namespace foxlang {
@@ -108,10 +109,23 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
         if (doc && doc->analyzer) {
             int line = utf::lspLineToLine(pos.line);
             int col = utf::lspCharacterToColumn(pos.character);
-            auto compItems = doc->analyzer->getCompletions(line, col);
+            // After `name.` only the fields and methods of name's struct fit.
+            std::vector<CompletionItem> compItems;
+            size_t cursor = utf::lspPositionToByteOffset(doc->text, pos.line, pos.character);
+            auto word = [&](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+            size_t dot = cursor;
+            while (dot > 0 && word(doc->text[dot - 1])) --dot;
+            if (dot > 0 && doc->text[dot - 1] == '.') {
+                size_t end = dot - 1, begin = end;
+                while (begin > 0 && word(doc->text[begin - 1])) --begin;
+                if (begin < end) compItems = doc->analyzer->getMemberCompletions(doc->text.substr(begin, end - begin), line, col);
+            }
+            if (compItems.empty()) compItems = doc->analyzer->getCompletions(line, col);
             for (const auto& ci : compItems) {
                 int kindVal = 1;
                 if (ci.kind == "Keyword") kindVal = 14;
+                else if (ci.kind == "Field") kindVal = 5;
+                else if (ci.kind == "Method") kindVal = 2;
                 else if (ci.kind == "Function") kindVal = 3;
                 else if (ci.kind == "Variable") kindVal = 6;
                 else if (ci.kind == "Type") kindVal = 7;

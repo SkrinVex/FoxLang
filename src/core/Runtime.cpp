@@ -204,6 +204,7 @@ Value zeroValue(const std::string& type, Context& ctx) {
     if (type == "array") return makeArray({});
     if (type == "map") return makeMap();
     if (auto structType = ctx.getStruct(type)) return construct(*structType, {}, ctx);
+    if (type == "func") throw std::runtime_error("Type Error: a func has no empty value; give it a function");
     throw std::runtime_error("Type Error: unknown type '" + type + "'");
 }
 

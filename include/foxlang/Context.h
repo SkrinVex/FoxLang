@@ -186,6 +186,8 @@ struct StructType {
     std::string name;
     std::vector<FuncParam> fields;
     std::vector<std::shared_ptr<Node>> defaults; // an initial value per field, or null
+    // Methods by name: FoxLang functions (FuncDefNode) whose first parameter is `this`.
+    std::unordered_map<std::string, std::shared_ptr<const Node>> methods;
     // What each field's type holds, worked out when the first value is built, and the
     // defaults' compiled code.
     mutable std::vector<Value::Kind> kinds;

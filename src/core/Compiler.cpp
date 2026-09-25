@@ -502,6 +502,10 @@ private:
             increment(*n, dest);
         } else if (auto* n = dynamic_cast<FuncCallNode*>(&node)) {
             call(*n, dest);
+        } else if (auto* n = dynamic_cast<MethodCallNode*>(&node)) {
+            callThrough(Op::Method, *n->base, n->args, stringConstant(n->name), dest);
+        } else if (auto* n = dynamic_cast<CallNode*>(&node)) {
+            callThrough(Op::CallValue, *n->callee, n->args, stringConstant("value"), dest);
         } else if (auto* n = dynamic_cast<IndexNode*>(&node)) {
             int base = operand(*n->base, *n->index);
             int index = any(*n->index);
@@ -554,15 +558,28 @@ private:
         emit(ops[static_cast<int>(node.kind)], dest, left, right, 0, opText);
     }
 
+    // Where a call's first register goes: straight into dest when dest is the newest
+    // temporary, else the next free register.
+    int callBase(int dest) {
+        if (dest == next - 1 && dest >= p.slots && dest < constantBase) {
+            next = dest;
+            return dest;
+        }
+        return next;
+    }
+
+    // first(args) or first.name(args): the value of `first` goes first, the arguments after it.
+    void callThrough(Op op, Node& first, std::vector<std::unique_ptr<Node>>& args, int name, int dest) {
+        int base = callBase(dest);
+        into(first, temp());
+        for (auto& arg : args) into(*arg, temp());
+        emit(op, base, name, static_cast<int>(args.size()));
+        if (base != dest) emit(Op::Move, dest, base, 0, 1);
+    }
+
     void call(FuncCallNode& node, int dest) {
         // The arguments go to consecutive registers; the result replaces the first.
-        int base;
-        if (dest == next - 1 && dest >= p.slots && dest < constantBase) {
-            base = dest;
-            next = dest;
-        } else {
-            base = next;
-        }
+        int base = callBase(dest);
         if (node.ref.slot >= 0 || node.ref.slot == VarRef::captured) {
             // A local variable holds the function: it goes first, the arguments after it.
             readVariable(node.ref, node.name, temp());
@@ -974,6 +991,8 @@ std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug) 
     proto->debug = debug;
     proto->slotNames = std::make_shared<std::vector<std::string>>(body->layout->names);
     proto->slots = static_cast<int>(body->layout->names.size());
+    proto->method = !function.params.empty() && function.params[0].name == "this" &&
+                    function.name.find('.') != std::string::npos;
     for (const auto& param : function.params) {
         if (param.type.empty()) proto->params.push_back({Value::Kind::Void, "", ""});
         else proto->params.push_back({runtime::declaredKind(param.type), param.type,
@@ -1048,7 +1067,7 @@ const char* opName(Op op) {
         "fail", "add", "sub", "mul", "div", "mod", "eq", "ne", "lt", "le", "gt", "ge", "neg", "not", "truth",
         "jump", "jumpif-false", "jumpif-true", "compare", "for-in", "call", "return", "return-void", "newarray", "newmap",
         "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "box", "unbox", "box-store", "box-assign", "get-capture",
-        "set-capture", "inc-ref", "closure", "call-value", "declare", "throw", "rethrow", "try-enter",
+        "set-capture", "inc-ref", "closure", "call-value", "method", "declare", "throw", "rethrow", "try-enter",
         "try-leave", "match", "statement", "scope-enter", "scope-leave"};
     return names[static_cast<int>(op)];
 }
@@ -1155,6 +1174,11 @@ void disassemble(const Proto& proto, std::ostream& out) {
                 out << (in.x ? "capture " + std::to_string(in.b) : "box " + reg(in.b)) << (in.c & 1 ? "++" : "--");
                 break;
             case Op::Closure: out << reg(in.a) << " = lambda #" << in.b; break;
+            case Op::Method:
+                out << reg(in.a) << " = " << reg(in.a) << "." << proto.constants[static_cast<size_t>(in.b)].str() << "(";
+                for (int i = 1; i <= in.c; ++i) out << (i > 1 ? ", " : "") << reg(in.a + i);
+                out << ")";
+                break;
             case Op::CallValue:
                 out << reg(in.a) << " = " << reg(in.a) << "(";
                 for (int i = 1; i <= in.c; ++i) out << (i > 1 ? ", " : "") << reg(in.a + i);

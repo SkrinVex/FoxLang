@@ -41,6 +41,7 @@
     <list name="constants">
       <item>true</item>
       <item>false</item>
+      <item>this</item>
     </list>
     <list name="builtins">
       <item>abs</item>

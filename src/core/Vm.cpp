@@ -267,8 +267,10 @@ FOXLANG_COLD void convert(const Conversion& conversion, Value& value) {
 }
 
 [[noreturn]] FOXLANG_COLD void wrongCount(const Proto& proto, size_t count) {
-    throw std::runtime_error("Runtime Error: function '" + proto.name + "' expects " + std::to_string(proto.params.size()) +
-                             " arguments, got " + std::to_string(count));
+    size_t hidden = proto.method ? 1 : 0; // a method's `this`
+    throw std::runtime_error("Runtime Error: " + std::string(proto.method ? "method '" : "function '") + proto.name +
+                             "' expects " + std::to_string(proto.params.size() - hidden) + " arguments, got " +
+                             std::to_string(count - hidden));
 }
 
 [[noreturn]] FOXLANG_COLD void noResult(const Proto& proto) {
@@ -331,6 +333,38 @@ FOXLANG_APART void callValueInPlace(Value* R, int base, int count, Context& root
     Value function = std::move(R[base]); // kept alive while it runs
     Value result = callFunctionValue(function, R + base + 1, static_cast<size_t>(count), root, name);
     R[base] = std::move(result);
+}
+
+// value.name(args): R[base] is the value, the arguments follow it.
+FOXLANG_APART void callMethod(Value* R, int base, int count, Context& root, const std::string& name) {
+    Value self = R[base]; // kept alive while the method runs
+    if (self.is(Value::Kind::Struct)) {
+        const StructType& type = *self.ref()->structType;
+        auto method = type.methods.find(name);
+        if (method != type.methods.end()) {
+            Value result = callFunction(*static_cast<const FuncDefNode*>(method->second.get()), R + base,
+                                        static_cast<size_t>(count) + 1, root);
+            R[base] = std::move(result);
+            return;
+        }
+        for (size_t i = 0; i < type.fields.size(); ++i) {
+            if (type.fields[i].name != name) continue;
+            Value function = self.ref()->items[i];
+            Value result = callFunctionValue(function, R + base + 1, static_cast<size_t>(count), root, name);
+            R[base] = std::move(result);
+            return;
+        }
+        throw std::runtime_error("Runtime Error: struct '" + type.name + "' has no method '" + name + "'");
+    }
+    if (self.is(Value::Kind::Map)) {
+        long at = self.ref()->find(name);
+        if (at < 0) throw std::runtime_error("Runtime Error: map has no key '" + name + "' to call");
+        Value function = self.ref()->items[static_cast<size_t>(at)];
+        Value result = callFunctionValue(function, R + base + 1, static_cast<size_t>(count), root, name);
+        R[base] = std::move(result);
+        return;
+    }
+    throw std::runtime_error("Type Error: '." + name + "()' needs a struct or a map, got '" + self.typeName() + "'");
 }
 
 FOXLANG_APART void makeClosure(Proto& proto, int index, Value& out, Value* R, Object* current) {
@@ -855,6 +889,9 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         break;
                     case Op::CallValue:
                         callValueInPlace(R, in.a, in.c, root, K[in.b].str());
+                        break;
+                    case Op::Method:
+                        callMethod(R, in.a, in.c, root, K[in.b].str());
                         break;
                     case Op::Declare: {
                         Declaration* declaration = proto.declarations[static_cast<size_t>(in.b)];

@@ -1,6 +1,6 @@
 id = "foxlang"
 name = "FoxLang"
-version = "8.4.0"
+version = "8.5.0"
 schema_version = 1
 authors = ["SkrinVex <skrinvex@gmail.com>"]
 description = "Official FoxLang language support for Zed: syntax highlighting, brackets, LSP integration (diagnostics, completions, hover, goto definition) and a debugger."

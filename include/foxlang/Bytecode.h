@@ -74,6 +74,8 @@ enum class Op : std::uint8_t {
     IncrementRef,  // R[a] = old value of the box R[b] (x=0) or capture b (x=1); ++ when c&1, name K[c>>1]
     Closure,       // R[a] = lambda b of this code, with its captured variables
     CallValue,     // R[a] = call the function R[a] with c arguments in R[a+1] ..
+    Method,        // R[a] = call method K[b] of R[a] with c arguments in R[a+1] ..; a field
+                   // or map key of that name that holds a function is called without R[a]
     // Statements
     Declare,       // run declaration node b: a function, a struct, using or include;
                    // c: 1 to declare only a name that does not exist yet
@@ -183,6 +185,7 @@ struct Proto {
     std::vector<std::shared_ptr<const Callee>> callees; // what each lambda's values call
     std::vector<Capture> captures;     // a lambda's: where each captured variable comes from
     bool lambda = false;
+    bool method = false; // a struct's method: parameter 0 is `this`, not counted in messages
     int registers = 0;
     int pendingErrors = 0;
     std::vector<int> boxedParams;      // parameters a lambda captures: boxed when a call begins             // finally blocks that can hold an error

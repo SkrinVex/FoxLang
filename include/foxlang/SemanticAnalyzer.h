@@ -29,6 +29,7 @@ struct Symbol {
     std::string returnType;        // If function
     std::string documentation;     // Description for hover/completion
     std::string fileUri;           // URI or path of declaration
+    std::vector<Symbol> methods;   // If a struct: its methods, without the `this` parameter
 };
 
 struct Scope {
@@ -138,6 +139,8 @@ public:
     HoverInfo getHover(int line, int col, const std::string& code = "") const;
     DefinitionInfo getDefinition(int line, int col) const;
     std::vector<CompletionItem> getCompletions(int line, int col) const;
+    // Fields and methods after `name.`, when the type of the variable `name` is a struct.
+    std::vector<CompletionItem> getMemberCompletions(const std::string& name, int line, int col) const;
     std::vector<DocumentSymbolInfo> getDocumentSymbols() const;
     SignatureHelpResult getSignatureHelp(const std::string& code, int line, int col) const;
     const Symbol* findFunction(const std::string& name) const;
@@ -171,6 +174,10 @@ private:
     void visitBlock(const BlockNode* node);
     void declareFunction(const FuncDefNode* node);
     void visitFuncDef(const FuncDefNode* node);
+    void visitFunctionBody(const FuncDefNode* node, SourceRange declRange);
+    void visitMethodCall(const MethodCallNode* node);
+    void visitField(const FieldNode* node);
+    const Symbol* structOf(const Node* base);
     void visitVarDecl(const VarDeclNode* node);
     void visitVarAssign(const VarAssignNode* node);
     void visitFuncCall(const FuncCallNode* node);

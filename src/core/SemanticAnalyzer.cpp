@@ -294,7 +294,12 @@ void SemanticAnalyzer::visitNode(const Node* node) {
         visitNode(index->base.get());
         visitNode(index->index.get());
     } else if (auto* field = dynamic_cast<const FieldNode*>(node)) {
-        visitNode(field->base.get());
+        visitField(field);
+    } else if (auto* method = dynamic_cast<const MethodCallNode*>(node)) {
+        visitMethodCall(method);
+    } else if (auto* call = dynamic_cast<const CallNode*>(node)) {
+        visitNode(call->callee.get());
+        for (const auto& arg : call->args) visitNode(arg.get());
     } else if (auto* set = dynamic_cast<const SetNode*>(node)) {
         visitNode(set->value.get());
         visitNode(set->target.get());
@@ -351,7 +356,12 @@ void SemanticAnalyzer::visitFuncDef(const FuncDefNode* node) {
     docSym.range = node->range;
     docSym.selectionRange = fnSym.declRange;
     documentSymbols.push_back(docSym);
+    visitFunctionBody(node, fnSym.declRange);
+}
 
+void SemanticAnalyzer::visitFunctionBody(const FuncDefNode* node, SourceRange declRange) {
+    Symbol fnSym;
+    fnSym.declRange = declRange;
     enterScope();
     std::string oldReturn = currentFuncReturnType;
     currentFuncReturnType = node->returnType;
@@ -405,6 +415,22 @@ void SemanticAnalyzer::declareStruct(const StructDefNode* node, const std::strin
     sym.fileUri = uri;
     std::string shape = "struct " + sym.name + " {";
     for (const auto& field : node->type->fields) shape += " " + field.type + " " + field.name + ";";
+    for (const auto& method : node->methods) {
+        Symbol m;
+        m.name = method->name.substr(method->name.find('.') + 1);
+        m.type = method->returnType;
+        m.kind = SymbolKind::Function;
+        m.returnType = method->returnType;
+        m.params.assign(method->params.begin() + 1, method->params.end());
+        m.declRange = method->nameRange.start.line > 0 ? method->nameRange : method->range;
+        m.fileUri = uri;
+        std::string sig = method->returnType + " " + method->name + "(";
+        for (size_t i = 0; i < m.params.size(); ++i)
+            sig += (i ? ", " : "") + (m.params[i].type.empty() ? "" : m.params[i].type + " ") + m.params[i].name;
+        m.documentation = sig + ")";
+        shape += " " + method->returnType + " " + m.name + "(...);";
+        sym.methods.push_back(std::move(m));
+    }
     sym.documentation = (documentation.empty() ? "" : documentation + "\n\n") + shape + " }";
     rootScope->symbols[sym.name] = sym;
 }
@@ -419,6 +445,60 @@ void SemanticAnalyzer::visitStructDef(const StructDefNode* node) {
         checkType(node->type->fields[i].type, where);
         if (i < node->type->defaults.size()) visitNode(node->type->defaults[i].get());
     }
+    for (size_t i = 0; i < node->methods.size() && i < sym.methods.size(); ++i) {
+        const Symbol& method = sym.methods[i];
+        symbolRefs.push_back({method.declRange, method});
+        documentSymbols.push_back({node->type->name + "." + method.name, "Method", node->methods[i]->range, method.declRange, {}});
+        visitFunctionBody(node->methods[i].get(), method.declRange);
+    }
+}
+
+// The struct that a variable (or `this`) holds, when its declared type says so.
+const Symbol* SemanticAnalyzer::structOf(const Node* base) {
+    auto* access = dynamic_cast<const VarAccessNode*>(base);
+    if (!access) return nullptr;
+    Symbol* variable = currentScope->find(access->name);
+    if ((!variable || variable->kind == SymbolKind::Builtin || variable->kind == SymbolKind::Function) &&
+        !currentFuncReturnType.empty()) {
+        auto global = fileGlobals.find(access->name);
+        if (global != fileGlobals.end()) variable = &global->second;
+    }
+    if (!variable || (variable->kind != SymbolKind::Variable && variable->kind != SymbolKind::Parameter)) return nullptr;
+    Symbol* type = rootScope->find(variable->type);
+    return type && type->kind == SymbolKind::Type ? type : nullptr;
+}
+
+void SemanticAnalyzer::visitMethodCall(const MethodCallNode* node) {
+    visitNode(node->base.get());
+    for (const auto& arg : node->args) visitNode(arg.get());
+    const Symbol* type = structOf(node->base.get());
+    if (!type) return;
+    for (const auto& method : type->methods) {
+        if (method.name != node->name) continue;
+        symbolRefs.push_back({node->nameRange, method});
+        if (method.params.size() != node->args.size())
+            diagnostics.push_back({DiagnosticSeverity::Error,
+                "Method '" + type->name + "." + node->name + "' expects " + std::to_string(method.params.size()) +
+                " arguments, but got " + std::to_string(node->args.size()), node->range});
+        return;
+    }
+    for (const auto& field : type->params) {
+        if (field.name != node->name) continue;
+        if (field.type != "func")
+            diagnostics.push_back({DiagnosticSeverity::Error,
+                "Field '" + type->name + "." + node->name + "' is " + field.type + ", not a function", node->nameRange});
+        return;
+    }
+    diagnostics.push_back({DiagnosticSeverity::Error, "Struct '" + type->name + "' has no method '" + node->name + "'", node->nameRange});
+}
+
+void SemanticAnalyzer::visitField(const FieldNode* node) {
+    visitNode(node->base.get());
+    const Symbol* type = structOf(node->base.get());
+    if (!type) return;
+    for (const auto& field : type->params)
+        if (field.name == node->name) return;
+    diagnostics.push_back({DiagnosticSeverity::Error, "Struct '" + type->name + "' has no field '" + node->name + "'", node->nameRange});
 }
 
 void SemanticAnalyzer::visitTry(const TryNode* node) {
@@ -847,6 +927,32 @@ DefinitionInfo SemanticAnalyzer::getDefinition(int line, int col) const {
     return {};
 }
 
+std::vector<CompletionItem> SemanticAnalyzer::getMemberCompletions(const std::string& name, int line, int col) const {
+    // The declaration of `name` nearest before the cursor gives its type.
+    const Symbol* variable = nullptr;
+    SourcePosition best{0, 0};
+    for (const auto& ref : symbolRefs) {
+        const Symbol& symbol = ref.symbol;
+        if (symbol.name != name || (symbol.kind != SymbolKind::Variable && symbol.kind != SymbolKind::Parameter)) continue;
+        SourcePosition at = ref.range.start;
+        bool before = at.line < line || (at.line == line && at.column <= col);
+        bool later = at.line > best.line || (at.line == best.line && at.column >= best.column);
+        if (before && later) {
+            variable = &symbol;
+            best = at;
+        }
+    }
+    std::vector<CompletionItem> items;
+    if (!variable) return items;
+    const Symbol* type = rootScope ? rootScope->find(variable->type) : nullptr;
+    if (!type || type->kind != SymbolKind::Type) return items;
+    for (const auto& field : type->params)
+        items.push_back({field.name, "Field", field.type + " " + type->name + "." + field.name, ""});
+    for (const auto& method : type->methods)
+        items.push_back({method.name, "Method", method.documentation, ""});
+    return items;
+}
+
 std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) const {
     (void)line;
     (void)col;
@@ -888,6 +994,7 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         {"func", "(type) func", "Функция как значение: лямбда `(int x) => x * 2`, имя функции или встроенной функции. "
             "Переменную типа `func` вызывают как функцию.\n\n```foxlang\nfunc twice = (int x) => x * 2;\nprint(twice(21));\n```"},
         {"true", "(keyword) true", "Логическая истина."},
+        {"this", "(keyword) this", "Внутри метода структуры — значение, у которого метод вызван: `this.x`."},
         {"false", "(keyword) false", "Логическая ложь."},
         {"array", "(keyword) array <name> [size | = value];", "Массив: `array имя размер;`, `array имя = [1, 2, 3];` или пустой `array имя;`. "
             "Элементы читаются и пишутся как `имя[i]`, размер меняют `push`, `pop` и `resize`. Тип `array` допустим у параметров и результата функции."}

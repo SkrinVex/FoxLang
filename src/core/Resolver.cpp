@@ -166,6 +166,12 @@ void Resolver::visit(Node* node) {
         // A local variable of this name holds the function to call.
         n->ref = find(n->name);
         for (auto& arg : n->args) visit(arg.get());
+    } else if (auto* n = dynamic_cast<MethodCallNode*>(node)) {
+        visit(n->base.get());
+        for (auto& arg : n->args) visit(arg.get());
+    } else if (auto* n = dynamic_cast<CallNode*>(node)) {
+        visit(n->callee.get());
+        for (auto& arg : n->args) visit(arg.get());
     } else if (auto* n = dynamic_cast<LambdaNode*>(node)) {
         lambda(*n);
     } else if (auto* n = dynamic_cast<ReturnNode*>(node)) {

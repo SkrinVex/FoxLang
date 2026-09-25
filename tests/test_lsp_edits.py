@@ -131,6 +131,15 @@ with tempfile.TemporaryDirectory(prefix='fox-lsp-') as directory:
     formatted = server.request('textDocument/formatting', {'textDocument': {'uri': doc_uri}, 'options': {'tabSize': 4, 'insertSpaces': True}})
     assert formatted['result'][0]['newText'] == 'int  x=1;\n\nif (x > 0) {\n    print(x);\n}\n', formatted
 
+    # After `name.` the completion lists the fields and methods of name's struct, even
+    # while the line is still unfinished.
+    shapes = 'struct Point {\n    int x;\n    int y;\n    float length() { return 1.0; }\n}\nPoint p = Point(1, 2);\np.'
+    shapes_uri = uri(root / 'shapes.fox')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': shapes_uri, 'languageId': 'fox', 'version': 1, 'text': shapes}})
+    listed = server.request('textDocument/completion', {'textDocument': {'uri': shapes_uri},
+                                                        'position': {'line': 6, 'character': 2}})['result']
+    assert sorted(item['label'] for item in listed) == ['length', 'x', 'y'], listed
+
     server.request('shutdown', None)
     server.notify('exit', None)
     server.process.wait(timeout=10)

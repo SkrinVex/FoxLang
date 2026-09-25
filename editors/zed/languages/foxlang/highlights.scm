@@ -30,6 +30,9 @@
 ((identifier) @boolean
   (#match? @boolean "^(true|false)$"))
 
+((identifier) @variable.special
+  (#match? @variable.special "^this$"))
+
 (null) @constant.builtin
 
 ; Built-in Standard Library Functions
