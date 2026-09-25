@@ -1,0 +1,115 @@
+// FoxLang regression: numbered variable slots behave exactly like named scopes
+include("helper_struct.fox");
+
+void check(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+int counter = 0;
+
+int shadowing(int x) {
+    int result = x;
+    if (true) {
+        int x = 100;
+        result += x;
+        {
+            int x = 1000;
+            result += x;
+        }
+        result += x;
+    }
+    return result + x;
+}
+check(shadowing(1) == 1 + 100 + 1000 + 100 + 1, "inner declarations hide outer ones and end with their block");
+
+int loops() {
+    int total = 0;
+    for (int i = 0; i < 3; i++) {
+        int square = i * i;
+        total += square;
+    }
+    for (int i = 10; i < 12; i++) {
+        total += i;
+    }
+    int k = 0;
+    while (k < 2) {
+        int step = 5;
+        total += step;
+        k++;
+    }
+    return total;
+}
+check(loops() == 0 + 1 + 4 + 10 + 11 + 5 + 5, "loop variables start over in every loop");
+
+int factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+check(factorial(10) == 3628800, "every call has its own slots");
+
+string caught() {
+    string seen = "";
+    try {
+        throw "first";
+    } catch (e) {
+        seen += e;
+    }
+    try {
+        throw "second";
+    } catch (e) {
+        seen += e;
+    }
+    return seen;
+}
+check(caught() == "firstsecond", "catch variables");
+
+void bump() {
+    counter += 1;
+    global int made_inside = 42;
+}
+bump();
+bump();
+check(counter == 2 && made_inside == 42, "globals from inside functions");
+
+bool duplicate = false;
+try {
+    int twice = 1;
+    int twice = 2;
+} catch (e) {
+    duplicate = str_contains(e, "already declared");
+}
+check(duplicate, "a name declared twice in one block is an error");
+
+int later() {
+    return 1;
+}
+int call_later() {
+    return later();
+}
+check(call_later() == 1, "call before redefinition");
+int defined = 0;
+void redefine() {
+    int later() {
+        return 2;
+    }
+    defined = 1;
+}
+redefine();
+check(call_later() == 2, "a redefined function is found again");
+
+Vec v = Vec(3);
+check(vec_sum(v) == 10 && v.y == 7, "a struct from an included file");
+
+int sum_in_block = 0;
+for (int i = 0; i < 4; i++) {
+    int doubled = i * 2;
+    sum_in_block += doubled;
+}
+check(sum_in_block == 12, "slots in the program's own blocks");
+
+print("SLOTS_OK");

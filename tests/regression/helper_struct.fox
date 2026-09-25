@@ -1,0 +1,9 @@
+// A struct declared in an included file (see test_slots.fox).
+struct Vec {
+    int x;
+    int y = 7;
+}
+
+int vec_sum(Vec v) {
+    return v.x + v.y;
+}

@@ -17,6 +17,28 @@ struct Node {
     SourceRange range;
 };
 
+// Where a variable lives, decided once by the resolver (Resolver.cpp) before the code
+// first runs: a numbered slot of the function's frame, a global, or unknown (code
+// the resolver has not seen, such as the debugger's console), found by name.
+struct VarRef {
+    static constexpr int byName = -2;
+    static constexpr int global = -1;
+    int slot = byName;
+    // A global is found by name once and then read through this pointer; the root's
+    // generation changes when its variables are cleared.
+    Value* cached = nullptr;
+    const Context* cachedRoot = nullptr;
+    unsigned cachedGeneration = 0;
+
+    // The variable itself, or null when it does not exist.
+    Value* find(Context& ctx, const std::string& name);
+};
+
+// The numbered slots of a function body or of the program's blocks.
+struct FrameLayout {
+    std::vector<std::string> names;
+};
+
 // A bool is the only thing a condition may be; an int used to silently count as false.
 inline bool conditionTruth(const Value& value, const char* statement) {
     if (value.type != "bool")
@@ -119,6 +141,11 @@ struct FuncCallNode : Node {
 private:
     const runtime::Builtin* builtin = nullptr;
     bool resolved = false;
+    // The FoxLang function of this name, found once per version of the function table.
+    // Weak: a recursive function's own call must not keep the function alive forever.
+    std::weak_ptr<Node> function;
+    const Context* functionRoot = nullptr;
+    unsigned functionGeneration = 0;
 };
 
 struct NumberNode : Node {
@@ -145,8 +172,9 @@ struct BoolNode : Node {
 struct VarAccessNode : Node {
     std::string name;
     SourceRange nameRange;
+    VarRef ref;
     explicit VarAccessNode(std::string n, SourceRange nr = {}) : name(std::move(n)), nameRange(nr) {}
-    Value eval(Context& ctx) override { return ctx.getVar(name); }
+    Value eval(Context& ctx) override;
 };
 
 struct VarDeclNode : Node {
@@ -154,6 +182,8 @@ struct VarDeclNode : Node {
     std::unique_ptr<Node> expr;
     SourceRange nameRange;
     bool global = false;
+    int slot = VarRef::byName;
+    bool duplicate = false; // declared twice in one scope: an error when it runs
     VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e, SourceRange nr = {}, bool isGlobal = false)
         : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr), global(isGlobal) {}
     Value eval(Context& ctx) override;
@@ -163,12 +193,10 @@ struct VarAssignNode : Node {
     std::string name;
     std::unique_ptr<Node> expr;
     SourceRange nameRange;
+    VarRef ref;
     VarAssignNode(std::string n, std::unique_ptr<Node> e, SourceRange nr = {})
         : name(std::move(n)), expr(std::move(e)), nameRange(nr) {}
-    Value eval(Context& ctx) override {
-        ctx.setVar(name, expr->eval(ctx));
-        return {"void", ""};
-    }
+    Value eval(Context& ctx) override;
 };
 
 struct BinOpNode : Node {
@@ -198,6 +226,7 @@ struct UnaryOpNode : Node {
 struct PostIncNode : Node {
     std::string name;
     int delta;
+    VarRef ref;
     explicit PostIncNode(std::string n, int d = 1) : name(std::move(n)), delta(d) {}
     Value eval(Context& ctx) override;
 };
@@ -209,6 +238,8 @@ struct ArrayDeclNode : Node {
     std::unique_ptr<Node> initializer;
     SourceRange nameRange;
     bool global = false;
+    int slot = VarRef::byName;
+    bool duplicate = false;
     ArrayDeclNode(std::string n, std::unique_ptr<Node> s, std::unique_ptr<Node> init = nullptr, SourceRange nr = {})
         : name(std::move(n)), sizeNode(std::move(s)), initializer(std::move(init)), nameRange(nr) {}
     Value eval(Context& ctx) override;
@@ -266,6 +297,7 @@ struct TryNode : Node {
     std::unique_ptr<Node> body, handler, cleanup;
     std::string errorName;
     SourceRange errorRange;
+    int errorSlot = VarRef::byName;
     Value eval(Context& ctx) override;
 };
 
@@ -281,6 +313,10 @@ struct BlockNode : Node {
     const std::string* file = nullptr; // Source file of the statements, for error locations.
     // The program and an imported module are the global scope itself, not a block inside it.
     bool scoped = true;
+    // Slots declared inside this block, emptied when it ends; the layout of a function
+    // body or of the program, set by the resolver.
+    int firstSlot = 0, endSlot = 0;
+    std::shared_ptr<FrameLayout> layout;
     Value eval(Context& ctx) override;
 };
 
@@ -318,12 +354,11 @@ struct WhileNode : Node {
 
 struct ForNode : Node {
     std::unique_ptr<Node> init, condition, step, body;
+    int firstSlot = 0, endSlot = 0; // the loop's own variables
     ForNode(std::unique_ptr<Node> i, std::unique_ptr<Node> c, std::unique_ptr<Node> s, std::unique_ptr<Node> b)
         : init(std::move(i)), condition(std::move(c)), step(std::move(s)), body(std::move(b)) {}
     Value eval(Context& ctx) override {
-        Context loop;
-        loop.parent = &ctx;
-        loop.interpreter = ctx.interpreter;
+        Context loop(ctx);
         if (init) init->eval(loop);
         runtime::StackGuard& guard = runtime::stackGuard();
         while (!condition || conditionTruth(condition->eval(loop), "for")) {
@@ -337,6 +372,7 @@ struct ForNode : Node {
             }
             if (step) step->eval(loop);
         }
+        for (int slot = firstSlot; slot < endSlot && loop.slots; ++slot) loop.slots[slot] = Value();
         return {"void", ""};
     }
 };

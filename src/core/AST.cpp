@@ -1,5 +1,6 @@
 #include "foxlang/AST.h"
 #include "foxlang/Debug.h"
+#include "foxlang/Resolver.h"
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
@@ -13,6 +14,17 @@ namespace {
 struct ScopeMark {
     DebugHook& hook;
     ~ScopeMark() { hook.leaveScope(); }
+};
+
+// The slots declared in a block are emptied when it ends, however it ends: their
+// values (and the containers they hold) do not outlive the block.
+struct SlotReset {
+    Value* slots;
+    int first, end;
+    ~SlotReset() {
+        if (slots)
+            for (int slot = first; slot < end; ++slot) slots[slot] = Value();
+    }
 };
 
 struct FrameMark {
@@ -63,20 +75,27 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
     auto scope = std::make_unique<Context>();
     scope->parent = caller.getRoot();
     scope->interpreter = caller.interpreter;
-    // Arrays, maps and structs are shared with the caller: the function may change them.
+    // The body's variables are numbered once; each call gets its own row of slots,
+    // the parameters first. Arrays, maps and structs are shared with the caller.
+    auto* block = dynamic_cast<BlockNode*>(body.get());
+    if (block && !block->layout) resolveFunction(const_cast<FuncDefNode&>(*this));
+    std::vector<Value> frameSlots(block && block->layout ? block->layout->names.size() : 0);
+    if (block && block->layout) {
+        scope->slots = frameSlots.data();
+        scope->slotNames = &block->layout->names;
+        scope->frame = true;
+    }
     for (size_t i = 0; i < params.size(); ++i) {
         const auto& param = params[i];
         runtime::coerce(param.type, args[i], "parameter '" + param.name + "' of '" + name + "'");
-        scope->defineVar(param.name, param.type, args[i]);
+        if (scope->frame) frameSlots[i] = std::move(args[i]);
+        else scope->defineVar(param.name, param.type, args[i]);
     }
 
     CallDepth guard(name);
     DebugHook* hook = runtime::debugHook();
     FrameMark frame{hook};
-    if (hook) {
-        auto* block = dynamic_cast<const BlockNode*>(body.get());
-        hook->enterFunction(name, block ? block->file : nullptr, range.start.line, *scope);
-    }
+    if (hook) hook->enterFunction(name, block ? block->file : nullptr, range.start.line, *scope);
     // After a normal return the caller's statement is the one running again, so an
     // error later in it must not be reported at the callee's last line.
     runtime::StackGuard& location = runtime::stackGuard();
@@ -127,17 +146,27 @@ Value FuncCallNode::eval(Context& ctx) {
         builtin = runtime::findBuiltin(name);
         resolved = true;
     }
-    auto function = ctx.getFunc(name);
+    const Context* root = ctx.getRoot();
+    std::shared_ptr<Node> callee;
+    if (functionRoot == root && functionGeneration == root->functionGeneration) {
+        callee = function.lock();
+    } else {
+        callee = ctx.getFunc(name);
+        function = callee;
+        functionRoot = root;
+        functionGeneration = root->functionGeneration;
+    }
     // A builtin and a FoxLang function may share a name, like get(items, i) and the
     // server's get(path, handler). The builtin wins whenever the arguments fit it.
-    if (builtin && (!function || runtime::acceptsArguments(*builtin, argValues)))
+    if (builtin && (!callee || runtime::acceptsArguments(*builtin, argValues)))
         return runtime::invoke(*builtin, argValues, ctx);
-    if (!function) {
+    if (!callee) {
         // A struct's name called like a function builds a value of it.
         if (auto type = ctx.getStruct(name)) return runtime::construct(*type, std::move(argValues), ctx);
         throw std::runtime_error("Runtime Error: Function '" + name + "' not found!");
     }
-    return static_cast<const FuncDefNode*>(function.get())->invoke(std::move(argValues), ctx);
+    // `callee` keeps the function alive even if it redefines itself meanwhile.
+    return static_cast<const FuncDefNode*>(callee.get())->invoke(std::move(argValues), ctx);
 }
 
 NumberNode::NumberNode(std::string v) : val(std::move(v)) {
@@ -152,7 +181,52 @@ NumberNode::NumberNode(std::string v) : val(std::move(v)) {
     }
 }
 
+Value* VarRef::find(Context& ctx, const std::string& name) {
+    if (slot >= 0 && ctx.slots) {
+        Value& value = ctx.slots[slot];
+        return value.type.is(TypeName::Kind::Void) ? nullptr : &value;
+    }
+    if (slot == global) {
+        Context* root = ctx.getRoot();
+        if (cached && cachedRoot == root && cachedGeneration == root->generation) return cached;
+        auto found = root->variables.find(name);
+        if (found == root->variables.end()) return nullptr;
+        cached = &found->second;
+        cachedRoot = root;
+        cachedGeneration = root->generation;
+        return cached;
+    }
+    return ctx.findVar(name);
+}
+
+namespace {
+[[noreturn]] void notFound(const std::string& name) {
+    throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
+}
+} // namespace
+
+Value VarAccessNode::eval(Context& ctx) {
+    Value* value = ref.find(ctx, name);
+    if (!value) notFound(name);
+    return *value;
+}
+
+Value VarAssignNode::eval(Context& ctx) {
+    Value assigned = expr->eval(ctx);
+    Value* target = ref.find(ctx, name);
+    if (!target) notFound(name);
+    runtime::assign(*target, std::move(assigned), name);
+    return {"void", ""};
+}
+
 Value VarDeclNode::eval(Context& ctx) {
+    if (duplicate) throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
+    if (slot >= 0 && ctx.slots) {
+        Value val = expr ? expr->eval(ctx) : runtime::zeroValue(type, ctx);
+        runtime::coerce(type, val, "variable '" + name + "'");
+        ctx.slots[slot] = std::move(val);
+        return {"void", ""};
+    }
     Context& scope = global ? *ctx.getRoot() : ctx;
     if (!global && scope.variables.count(name))
         throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
@@ -299,23 +373,26 @@ Value UnaryOpNode::eval(Context& ctx) {
 }
 
 Value PostIncNode::eval(Context& ctx) {
-    Value current = ctx.getVar(name);
+    Value* target = ref.find(ctx, name);
+    if (!target) notFound(name);
     const char* op = delta > 0 ? "++" : "--";
-    if (current.type == "float") {
-        double value = runtime::toNumber(current, "variable '" + name + "'");
-        ctx.setVar(name, {"float", runtime::realResult(value + delta)});
-        return current;
+    if (target->type.is(TypeName::Kind::Float)) {
+        Value old = *target;
+        double value = runtime::toNumber(old, "variable '" + name + "'");
+        target->value = runtime::realResult(value + delta);
+        return old;
     }
-    if (current.type != "int")
-        throw std::runtime_error("Type Error: '" + std::string(op) + "' needs an int or float variable, '" + name + "' is " + current.type);
-    long long value = intArg(current, "variable", name);
-    ctx.setVar(name, {"int", runtime::intResult(value + delta, op)});
+    if (!target->type.is(TypeName::Kind::Int))
+        throw std::runtime_error("Type Error: '" + std::string(op) + "' needs an int or float variable, '" + name + "' is " + target->type);
+    long long value = intArg(*target, "variable", name);
+    target->value = runtime::intResult(value + delta, op);
     return {"int", Text::integer(value)};
 }
 
 Value ArrayDeclNode::eval(Context& ctx) {
+    if (duplicate) throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
     Context& scope = global ? *ctx.getRoot() : ctx;
-    if (!global && scope.variables.count(name))
+    if (slot < 0 && !global && scope.variables.count(name))
         throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
     Value value;
     if (initializer) {
@@ -326,7 +403,8 @@ Value ArrayDeclNode::eval(Context& ctx) {
         if (size < 0) throw std::runtime_error("Runtime Error: Array size cannot be negative");
         value = runtime::makeArray(std::vector<Value>(static_cast<size_t>(size), {"int", Text::integer(0)}));
     }
-    scope.defineVar(name, "array", value);
+    if (slot >= 0 && ctx.slots) ctx.slots[slot] = std::move(value);
+    else scope.defineVar(name, "array", value);
     return {"void", ""};
 }
 
@@ -395,8 +473,8 @@ Value& member(Value& base, const std::string& name, bool create, const std::stri
 // A struct field reports its declared type, which the stored value must keep.
 Value& place(Node& target, Context& ctx, bool create, const std::string** declared = nullptr) {
     if (auto* variable = dynamic_cast<VarAccessNode*>(&target)) {
-        Value* found = ctx.findVar(variable->name);
-        if (!found) throw std::runtime_error("Runtime Error: Variable '" + variable->name + "' not found!");
+        Value* found = variable->ref.find(ctx, variable->name);
+        if (!found) notFound(variable->name);
         return *found;
     }
     if (auto* index = dynamic_cast<IndexNode*>(&target)) {
@@ -500,10 +578,12 @@ Value TryNode::eval(Context& ctx) {
             }
         }
         if (!failed) return;
-        Context scope;
-        scope.parent = &ctx;
-        scope.interpreter = ctx.interpreter;
-        if (!errorName.empty()) scope.defineVar(errorName, "string", {"string", message});
+        Context scope(ctx);
+        SlotReset reset{errorSlot >= 0 ? scope.slots : nullptr, errorSlot, errorSlot + 1};
+        if (!errorName.empty()) {
+            if (errorSlot >= 0 && scope.slots) scope.slots[errorSlot] = {"string", message};
+            else scope.defineVar(errorName, "string", {"string", message});
+        }
         handler->eval(scope);
     });
     return {"void", ""};
@@ -515,12 +595,9 @@ Value ThrowNode::eval(Context& ctx) {
 }
 
 Value BlockNode::eval(Context& ctx) {
-    Context inner;
-    if (scoped) {
-        inner.parent = &ctx;
-        inner.interpreter = ctx.interpreter;
-    }
+    Context inner(ctx);
     Context& scope = scoped ? inner : ctx;
+    SlotReset reset{endSlot > firstSlot ? scope.slots : nullptr, firstSlot, endSlot};
     if (DebugHook* hook = runtime::debugHook()) {
         evalDebugged(*this, scope, *hook);
         return {"void", ""};

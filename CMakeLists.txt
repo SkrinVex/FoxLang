@@ -54,6 +54,7 @@ add_library(foxlang_core STATIC
     src/core/Process.cpp
     src/core/Template.cpp
     src/core/Formatter.cpp
+    src/core/Resolver.cpp
     src/core/Interpreter.cpp
     src/core/SemanticAnalyzer.cpp
     src/core/builtins/Registry.cpp

@@ -726,7 +726,7 @@ int Session::referenceFor(Reference reference) {
 }
 
 JsonValue Session::variable(const std::string& name, const Value& value) {
-    JsonValue out = Fields{{"name", name}, {"value", preview(value, 0)}, {"type", value.type}, {"variablesReference", 0}};
+    JsonValue out = Fields{{"name", name}, {"value", preview(value, 0)}, {"type", value.type.str()}, {"variablesReference", 0}};
     if (value.ref) {
         out["variablesReference"] = JsonValue(referenceFor({Reference::Kind::Container, 0, value.ref}));
         size_t size = value.ref->items.size();
@@ -812,11 +812,23 @@ JsonValue Session::variables(const JsonValue& arguments) {
     } else if (reference.kind == Reference::Kind::Globals) {
         for (const auto& entry : root().variables) list.push_back(variable(entry.first, entry.second));
     } else {
-        // The innermost declaration hides outer ones of the same name, as in the program.
+        // The innermost declaration hides outer ones of the same name, as in the program:
+        // block scopes first, then the frame's slots from the latest declared, until the
+        // frame that owns them. The program's own frame is the root's slots.
         std::set<std::string> seen;
-        for (Context* scope = frames_[reference.frame].scope; scope && scope->parent; scope = scope->parent)
-            for (const auto& entry : scope->variables)
-                if (seen.insert(entry.first).second) list.push_back(variable(entry.first, entry.second));
+        for (Context* scope = frames_[reference.frame].scope; scope; scope = scope->parent) {
+            if (scope->parent)
+                for (const auto& entry : scope->variables)
+                    if (seen.insert(entry.first).second) list.push_back(variable(entry.first, entry.second));
+            if (scope->frame && scope->slots && scope->slotNames) {
+                const auto& names = *scope->slotNames;
+                for (size_t i = names.size(); i-- > 0;) {
+                    const Value& slot = scope->slots[i];
+                    if (!slot.type.is(TypeName::Kind::Void) && seen.insert(names[i]).second) list.push_back(variable(names[i], slot));
+                }
+                break;
+            }
+        }
     }
     return Fields{{"variables", list}};
 }
@@ -838,11 +850,16 @@ JsonValue Session::setVariable(const JsonValue& arguments) {
         object.items[index] = value;
         return variable(name, object.items[index]);
     }
-    Context* owner = reference.kind == Reference::Kind::Globals ? &root() : &scope;
-    while (owner && !owner->variables.count(name)) owner = owner->parent;
-    if (!owner) throw std::runtime_error("Переменная '" + name + "' не найдена");
-    owner->setVar(name, value);
-    return variable(name, owner->variables.at(name));
+    Value* target = nullptr;
+    if (reference.kind == Reference::Kind::Globals) {
+        auto found = root().variables.find(name);
+        if (found != root().variables.end()) target = &found->second;
+    } else {
+        target = scope.findVar(name);
+    }
+    if (!target) throw std::runtime_error("Переменная '" + name + "' не найдена");
+    runtime::assign(*target, value, name);
+    return variable(name, *target);
 }
 
 JsonValue Session::evaluateRequest(const JsonValue& arguments) {

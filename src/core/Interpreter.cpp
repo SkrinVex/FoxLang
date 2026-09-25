@@ -1,4 +1,5 @@
 #include "foxlang/FoxLang.h"
+#include "foxlang/Resolver.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -11,7 +12,7 @@ namespace {
 bool isDeclaration(const Node* stmt) {
     return dynamic_cast<const FuncDefNode*>(stmt) || dynamic_cast<const VarDeclNode*>(stmt) ||
            dynamic_cast<const ArrayDeclNode*>(stmt) || dynamic_cast<const UsingNode*>(stmt) ||
-           dynamic_cast<const IncludeNode*>(stmt);
+           dynamic_cast<const IncludeNode*>(stmt) || dynamic_cast<const StructDefNode*>(stmt);
 }
 
 // Imports bring in declarations; calls on a module's top level are its own demo code.
@@ -79,7 +80,9 @@ void Interpreter::reset() {
     globalContext.graphics.reset();
     globalContext.server.reset();
     globalContext.variables.clear();
+    ++globalContext.generation;
     globalContext.functions.clear();
+    ++globalContext.functionGeneration;
     globalContext.structs.clear();
     loadedModules.clear();
 }
@@ -143,6 +146,20 @@ RunResult Interpreter::runSource(const std::string& source, const std::string& s
         auto program = parseSource(source, scriptPath);
         loadedModules.insert(scriptPath);
         guard.flow = runtime::StackGuard::Flow::None;
+        // The blocks of the program keep their variables in numbered slots, alive while it runs.
+        resolveProgram(*program);
+        std::vector<Value> programSlots(program->layout->names.size());
+        struct Frame {
+            Context& root;
+            ~Frame() {
+                root.slots = nullptr;
+                root.slotNames = nullptr;
+                root.frame = false;
+            }
+        } frame{globalContext};
+        globalContext.slots = programSlots.data();
+        globalContext.slotNames = &program->layout->names;
+        globalContext.frame = true;
         program->eval(globalContext);
         auto flow = guard.flow;
         guard.flow = runtime::StackGuard::Flow::None;

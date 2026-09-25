@@ -2,6 +2,8 @@
 #include "foxlang/AST.h"
 #include "foxlang/Runtime.h"
 #include <algorithm>
+#include <mutex>
+#include <unordered_set>
 #include <map>
 #include <ostream>
 #include <string>
@@ -31,6 +33,30 @@ void Text::materialize() const {
 }
 
 std::ostream& operator<<(std::ostream& out, const Text& text) { return out << text.str(); }
+std::ostream& operator<<(std::ostream& out, const TypeName& type) { return out << type.str(); }
+
+const std::string* TypeName::names() {
+    static const std::string builtin[] = {"void", "int", "float", "string", "bool", "array", "map"};
+    return builtin;
+}
+
+void TypeName::assign(const char* text, size_t length) {
+    static const Kind kinds[] = {Kind::Void, Kind::Int, Kind::Float, Kind::String, Kind::Bool, Kind::Array, Kind::Map};
+    const std::string* builtin = names();
+    for (int i = 0; i < 7; ++i) {
+        if (builtin[i].size() == length && builtin[i].compare(0, length, text, length) == 0) {
+            kind_ = kinds[i];
+            name_ = &builtin[i];
+            return;
+        }
+    }
+    // Struct names are kept once each; a set never moves the strings it holds.
+    static std::unordered_set<std::string> interned;
+    static std::mutex guard;
+    std::lock_guard<std::mutex> lock(guard);
+    kind_ = Kind::Named;
+    name_ = &*interned.emplace(text, length).first;
+}
 
 long Object::find(const std::string& key) const {
     for (size_t i = 0; i < keys.size(); ++i)
@@ -55,17 +81,23 @@ bool Object::erase(const std::string& key) {
 }
 
 Value Context::getVar(const std::string& name) const {
-    for (const Context* scope = this; scope; scope = scope->parent) {
-        auto it = scope->variables.find(name);
-        if (it != scope->variables.end()) return it->second;
-    }
+    if (Value* found = const_cast<Context*>(this)->findVar(name)) return *found;
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
 }
 
+// By name: the scopes' own variables, the numbered slots of the frame they belong to
+// (the latest declaration of the name that is alive), then the globals.
 Value* Context::findVar(const std::string& name) {
+    bool frameSearched = false;
     for (Context* scope = this; scope; scope = scope->parent) {
         auto it = scope->variables.find(name);
         if (it != scope->variables.end()) return &it->second;
+        if (scope->frame && !frameSearched && scope->slots && scope->slotNames) {
+            frameSearched = true;
+            const auto& names = *scope->slotNames;
+            for (size_t i = names.size(); i-- > 0;)
+                if (names[i] == name && !scope->slots[i].type.is(TypeName::Kind::Void)) return &scope->slots[i];
+        }
     }
     return nullptr;
 }
@@ -145,6 +177,7 @@ const Context* Context::getRoot() const {
 
 void Context::defineFunc(const std::string& name, std::shared_ptr<Node> func) {
     functions[name] = std::move(func);
+    ++functionGeneration;
 }
 
 std::shared_ptr<Node> Context::getFunc(const std::string& name) const {
@@ -164,17 +197,20 @@ void Context::defineVar(const std::string& name, const std::string& type, const 
     variables[name] = {type, value.value, value.ref};
 }
 
+namespace runtime {
+void assign(Value& target, Value val, const std::string& name) {
+    // The usual case, a value of the variable's own type, needs no conversion.
+    bool sameType = target.type == val.type && (!val.type.is(TypeName::Kind::Int) || val.value.isInteger());
+    if (!sameType) coerce(target.type, val, "variable '" + name + "'");
+    // Arrays, maps and structs are shared: the variable names the same container.
+    target.value = std::move(val.value);
+    target.ref = std::move(val.ref);
+}
+} // namespace runtime
+
 void Context::setVar(const std::string& name, Value val) {
-    for (Context* scope = this; scope; scope = scope->parent) {
-        auto it = scope->variables.find(name);
-        if (it == scope->variables.end()) continue;
-        Value& target = it->second;
-        // The usual case, a value of the variable's own type, needs no conversion.
-        bool sameType = target.type == val.type && (val.type != "int" || val.value.isInteger());
-        if (!sameType) runtime::coerce(target.type, val, "variable '" + name + "'");
-        // Arrays, maps and structs are shared: the variable names the same container.
-        target.value = std::move(val.value);
-        target.ref = std::move(val.ref);
+    if (Value* target = findVar(name)) {
+        runtime::assign(*target, std::move(val), name);
         return;
     }
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
