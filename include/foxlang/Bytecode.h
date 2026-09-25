@@ -14,6 +14,7 @@
 namespace foxlang {
 
 struct Node;
+struct Declaration;
 struct BlockNode;
 struct FuncDefNode;
 
@@ -89,6 +90,9 @@ struct Conversion {
 // A global variable read or written by name; the lookup is kept until the globals change.
 struct GlobalSite {
     std::string name;
+    // Code compiled for a scope (the debugger's console, a field's default value) finds
+    // the name through that scope: its blocks, the paused function's slots, the globals.
+    bool byName = false;
     Value* cached = nullptr;
     const Context* root = nullptr;
     unsigned generation = 0;
@@ -155,7 +159,7 @@ struct Proto {
     std::vector<FieldSite> fields;
     std::vector<Handler> handlers;
     std::vector<std::pair<int, int>> tryBodies; // [start, end) of every try block
-    std::vector<Node*> declarations;
+    std::vector<Declaration*> declarations;
     std::vector<std::string> texts;    // operator texts and statement names, for messages
     int registers = 0;
     int pendingErrors = 0;             // finally blocks that can hold an error
@@ -175,18 +179,26 @@ std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug);
 // statements to a debugger, as it always has.
 enum class Unit { Program, Module, Declarations };
 std::shared_ptr<Proto> compileProgram(BlockNode& program, Unit unit, bool debug);
+// Code to run in a given scope and find names through it: statements typed into the
+// debugger's console, or an expression (whose value the code returns). `outside` is the
+// error for return, break or continue that would leave the statements.
+std::shared_ptr<Proto> compileStatements(BlockNode& statements, const std::string& outside);
+std::shared_ptr<Proto> compileExpression(Node& expression);
 // The instructions as text, for `foxlang disasm`.
 void disassemble(const Proto& proto, std::ostream& out);
 
 } // namespace bytecode
 
 namespace vm {
-// True when FOXLANG_TREE=1 asks for the old tree walker instead of the VM.
-bool treeWalker();
 // Calls a FoxLang function with its arguments (moved from), as a call in the program would.
 Value call(const FuncDefNode& function, Value* args, size_t count, Context& caller);
 // Runs a program's top level (or a module's) in the root scope.
 void run(BlockNode& program, Context& root, bytecode::Unit unit);
+// Runs code compiled for a scope (compileStatements, compileExpression) in that scope.
+Value run(bytecode::Proto& proto, Context& scope);
+// Compiles and runs: an expression's value, or statements, in the scope.
+Value evaluate(Node& expression, Context& scope);
+void execute(BlockNode& statements, Context& scope, const std::string& outside);
 } // namespace vm
 
 } // namespace foxlang

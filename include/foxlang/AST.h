@@ -13,36 +13,26 @@ namespace foxlang {
 
 namespace bytecode { struct Proto; }
 
+// The parser's tree. The compiler (Compiler.cpp) turns it into bytecode; only the
+// declarations below also act on their own, when the code reaches them.
 struct Node {
     virtual ~Node() = default;
-    virtual Value eval(Context& ctx) = 0;
     SourceRange range;
 };
 
-// Where a variable lives, decided once by the resolver (Resolver.cpp) before the code
-// first runs: a numbered slot of the function's frame, a global, or unknown (code
-// the resolver has not seen, such as the debugger's console), found by name.
+// A statement that registers something in the program: a function, a struct type, a
+// module brought in by using or include.
+struct Declaration : Node {
+    virtual void declare(Context& root) = 0;
+};
+
+// Where a variable lives, decided once by the resolver (Resolver.cpp) before the code is
+// compiled: a numbered slot of the function's frame, a global, or unknown (code the
+// resolver has not seen, such as the debugger's console), found by name.
 struct VarRef {
     static constexpr int byName = -2;
     static constexpr int global = -1;
     int slot = byName;
-    // A global is found by name once and then read through this pointer; the root's
-    // generation changes when its variables are cleared.
-    Value* cached = nullptr;
-    const Context* cachedRoot = nullptr;
-    unsigned cachedGeneration = 0;
-
-    // The variable itself, or null when it does not exist.
-    Value* find(Context& ctx, const std::string& name) {
-        if (slot >= 0 && ctx.slots) {
-            Value& value = ctx.slots[slot];
-            return value.isVoid() ? nullptr : &value;
-        }
-        return findSlow(ctx, name);
-    }
-
-private:
-    Value* findSlow(Context& ctx, const std::string& name);
 };
 
 // The numbered slots of a function body or of the program's blocks.
@@ -113,7 +103,7 @@ struct CallDepth {
 
 struct BlockNode;
 
-struct FuncDefNode : Node {
+struct FuncDefNode : Declaration {
     std::string returnType;
     std::string name;
     std::vector<FuncParam> params;
@@ -122,24 +112,20 @@ struct FuncDefNode : Node {
 
     FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b, SourceRange nr = {});
 
-    Value eval(Context& ctx) override;
-    // Runs the body in a fresh scope below the globals and converts the result to
-    // the declared return type. Used by calls and by the HTTP server for handlers.
+    void declare(Context& root) override;
+    // Calls the function as a call in the program would: the arguments are converted to
+    // the parameters' types, the result to the return type. Used by the HTTP server for
+    // handlers and by foxlang test.
     Value invoke(std::vector<Value> args, Context& caller) const;
-    // The same with the arguments in place; they are moved into the function's slots.
-    Value invoke(Value* args, size_t count, Context& caller) const;
     BlockNode* block() const { return block_; }
 
 private:
     BlockNode* block_ = nullptr; // the body, when it is a block (it always is from the parser)
-    std::vector<Value::Kind> paramKinds_;
-    Value::Kind returnKind_ = Value::Kind::Void;
 };
 
 struct ReturnNode : Node {
     std::unique_ptr<Node> expr;
     explicit ReturnNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
-    Value eval(Context& ctx) override;
 };
 
 struct FuncCallNode : Node {
@@ -149,28 +135,16 @@ struct FuncCallNode : Node {
 
     FuncCallNode(std::string n, std::vector<std::unique_ptr<Node>> a, SourceRange nr = {})
         : name(std::move(n)), args(std::move(a)), nameRange(nr) {}
-
-    Value eval(Context& ctx) override;
-
-private:
-    const runtime::Builtin* builtin = nullptr;
-    bool resolved = false;
-    // The FoxLang function of this name, found once per version of the function table.
-    // Weak: a recursive function's own call must not keep the function alive forever.
-    std::weak_ptr<Node> function;
-    const Context* functionRoot = nullptr;
-    unsigned functionGeneration = 0;
 };
 
 struct NumberNode : Node {
     std::string val;
     bool isFloat;
     explicit NumberNode(std::string v);
-    Value eval(Context& /*ctx*/) override {
-        if (tooBig)
-            throw std::runtime_error("Runtime Error: int literal '" + val +
-                                     "' does not fit in int (int holds -2147483648..2147483647)");
-        return literal;
+    // The number; false for an int whose digits do not fit even 64 bits.
+    bool value(Value& out) const {
+        out = literal;
+        return !tooBig;
     }
 private:
     Value literal;
@@ -180,18 +154,11 @@ private:
 struct StringNode : Node {
     std::string val;
     explicit StringNode(std::string v) : val(std::move(v)) {}
-    Value eval(Context& /*ctx*/) override {
-        if (!literal.isString()) literal = Value::string(val);
-        return literal;
-    }
-private:
-    Value literal; // made on first use, then shared by every evaluation
 };
 
 struct BoolNode : Node {
     bool val;
     explicit BoolNode(bool v) : val(v) {}
-    Value eval(Context& /*ctx*/) override { return Value::boolean(val); }
 };
 
 struct VarAccessNode : Node {
@@ -199,7 +166,6 @@ struct VarAccessNode : Node {
     SourceRange nameRange;
     VarRef ref;
     explicit VarAccessNode(std::string n, SourceRange nr = {}) : name(std::move(n)), nameRange(nr) {}
-    Value eval(Context& ctx) override;
 };
 
 struct VarDeclNode : Node {
@@ -213,7 +179,6 @@ struct VarDeclNode : Node {
     VarDeclNode(std::string t, std::string n, std::unique_ptr<Node> e, SourceRange nr = {}, bool isGlobal = false)
         : type(std::move(t)), name(std::move(n)), expr(std::move(e)), nameRange(nr), global(isGlobal),
           kind(runtime::declaredKind(type)) {}
-    Value eval(Context& ctx) override;
 };
 
 struct VarAssignNode : Node {
@@ -223,7 +188,6 @@ struct VarAssignNode : Node {
     VarRef ref;
     VarAssignNode(std::string n, std::unique_ptr<Node> e, SourceRange nr = {})
         : name(std::move(n)), expr(std::move(e)), nameRange(nr) {}
-    Value eval(Context& ctx) override;
 };
 
 struct BinOpNode : Node {
@@ -231,7 +195,6 @@ struct BinOpNode : Node {
     std::unique_ptr<Node> left, right;
     BinOpNode(std::string o, std::unique_ptr<Node> l, std::unique_ptr<Node> r)
         : op(std::move(o)), left(std::move(l)), right(std::move(r)), kind(runtime::operatorOf(op)) {}
-    Value eval(Context& ctx) override;
     // The operator decided once when the node is built, not by comparing text on every run.
     runtime::Operator kind;
 };
@@ -241,7 +204,6 @@ struct UnaryOpNode : Node {
     std::string op;
     std::unique_ptr<Node> operand;
     UnaryOpNode(std::string o, std::unique_ptr<Node> n) : op(std::move(o)), operand(std::move(n)) {}
-    Value eval(Context& ctx) override;
 };
 
 // Postfix i++ and i--: returns the old value, stores the new one.
@@ -250,7 +212,6 @@ struct PostIncNode : Node {
     int delta;
     VarRef ref;
     explicit PostIncNode(std::string n, int d = 1) : name(std::move(n)), delta(d) {}
-    Value eval(Context& ctx) override;
 };
 
 // array name size;   array name = expression;   array name;
@@ -264,20 +225,17 @@ struct ArrayDeclNode : Node {
     bool duplicate = false;
     ArrayDeclNode(std::string n, std::unique_ptr<Node> s, std::unique_ptr<Node> init = nullptr, SourceRange nr = {})
         : name(std::move(n)), sizeNode(std::move(s)), initializer(std::move(init)), nameRange(nr) {}
-    Value eval(Context& ctx) override;
 };
 
 // [a, b, c] creates a temporary array owned by the scope that evaluates it.
 struct ArrayLiteralNode : Node {
     std::vector<std::unique_ptr<Node>> elements;
-    Value eval(Context& ctx) override;
 };
 
 // base[index]: an array element by position or a map value by key.
 struct IndexNode : Node {
     std::unique_ptr<Node> base, index;
     IndexNode(std::unique_ptr<Node> b, std::unique_ptr<Node> i) : base(std::move(b)), index(std::move(i)) {}
-    Value eval(Context& ctx) override;
 };
 
 // base.name: a struct field, or a map value whose key is a plain word.
@@ -287,7 +245,6 @@ struct FieldNode : Node {
     SourceRange nameRange;
     FieldNode(std::unique_ptr<Node> b, std::string n, SourceRange nr = {})
         : base(std::move(b)), name(std::move(n)), nameRange(nr) {}
-    Value eval(Context& ctx) override;
 };
 
 // target = value (also +=, -=, *=, /=, %=), where the target is a chain of indexes and
@@ -297,21 +254,19 @@ struct SetNode : Node {
     std::string op;
     SetNode(std::unique_ptr<Node> t, std::unique_ptr<Node> v, std::string o = "=")
         : target(std::move(t)), value(std::move(v)), op(std::move(o)) {}
-    Value eval(Context& ctx) override;
 };
 
 // {"key": value, ...} creates a map.
 struct MapLiteralNode : Node {
     std::vector<std::pair<std::unique_ptr<Node>, std::unique_ptr<Node>>> entries;
-    Value eval(Context& ctx) override;
 };
 
 // struct Name { type field; type field = default; }
-struct StructDefNode : Node {
+struct StructDefNode : Declaration {
     std::shared_ptr<StructType> type;
     SourceRange nameRange;
     std::vector<SourceRange> fieldRanges;
-    Value eval(Context& ctx) override;
+    void declare(Context& root) override;
 };
 
 // try { ... } catch (string error) { ... } finally { ... }
@@ -320,14 +275,12 @@ struct TryNode : Node {
     std::string errorName;
     SourceRange errorRange;
     int errorSlot = VarRef::byName;
-    Value eval(Context& ctx) override;
 };
 
 // throw expression;  raises an error with the value as its message.
 struct ThrowNode : Node {
     std::unique_ptr<Node> message;
     explicit ThrowNode(std::unique_ptr<Node> m) : message(std::move(m)) {}
-    Value eval(Context& ctx) override;
 };
 
 struct BlockNode : Node {
@@ -335,9 +288,6 @@ struct BlockNode : Node {
     const std::string* file = nullptr; // Source file of the statements, for error locations.
     // The program and an imported module are the global scope itself, not a block inside it.
     bool scoped = true;
-    // Set by the resolver: every declaration inside has a slot, so while the frame's
-    // slots exist the block needs no scope of its own for names.
-    bool resolved = false;
     // Slots declared inside this block, emptied when it ends; the layout of a function
     // body or of the program, set by the resolver.
     int firstSlot = 0, endSlot = 0;
@@ -345,42 +295,18 @@ struct BlockNode : Node {
     // A function body's bytecode, compiled at its first call; the second version reports
     // statements and scopes to a debugger.
     std::shared_ptr<bytecode::Proto> proto, debugProto;
-    Value eval(Context& ctx) override;
-
-private:
-    void run(Context& scope);
 };
 
 struct IfNode : Node {
     std::unique_ptr<Node> condition, thenB, elseB;
     IfNode(std::unique_ptr<Node> c, std::unique_ptr<Node> t, std::unique_ptr<Node> e = nullptr)
         : condition(std::move(c)), thenB(std::move(t)), elseB(std::move(e)) {}
-    Value eval(Context& ctx) override {
-        if (conditionTruth(condition->eval(ctx), "if")) {
-            if (thenB) thenB->eval(ctx);
-        } else if (elseB) {
-            elseB->eval(ctx);
-        }
-        return Value();
-    }
 };
 
 struct WhileNode : Node {
     std::unique_ptr<Node> condition, body;
     WhileNode(std::unique_ptr<Node> c, std::unique_ptr<Node> b)
         : condition(std::move(c)), body(std::move(b)) {}
-    Value eval(Context& ctx) override {
-        runtime::StackGuard& guard = runtime::stackGuard();
-        while (conditionTruth(condition->eval(ctx), "while")) {
-            if (body) body->eval(ctx);
-            if (guard.flow == runtime::StackGuard::Flow::None) continue;
-            if (guard.flow == runtime::StackGuard::Flow::Return) break;
-            bool stop = guard.flow == runtime::StackGuard::Flow::Break;
-            guard.flow = runtime::StackGuard::Flow::None;
-            if (stop) break;
-        }
-        return Value();
-    }
 };
 
 struct ForNode : Node {
@@ -388,39 +314,11 @@ struct ForNode : Node {
     int firstSlot = 0, endSlot = 0; // the loop's own variables
     ForNode(std::unique_ptr<Node> i, std::unique_ptr<Node> c, std::unique_ptr<Node> s, std::unique_ptr<Node> b)
         : init(std::move(i)), condition(std::move(c)), step(std::move(s)), body(std::move(b)) {}
-    Value eval(Context& ctx) override {
-        Context loop(ctx);
-        if (init) init->eval(loop);
-        runtime::StackGuard& guard = runtime::stackGuard();
-        while (!condition || conditionTruth(condition->eval(loop), "for")) {
-            if (body) body->eval(loop);
-            if (guard.flow != runtime::StackGuard::Flow::None) {
-                if (guard.flow == runtime::StackGuard::Flow::Return) break;
-                bool stop = guard.flow == runtime::StackGuard::Flow::Break;
-                guard.flow = runtime::StackGuard::Flow::None;
-                if (stop) break;
-                // continue still runs the step
-            }
-            if (step) step->eval(loop);
-        }
-        for (int slot = firstSlot; slot < endSlot && loop.slots; ++slot) loop.slots[slot] = Value();
-        return Value();
-    }
 };
 
-struct BreakNode : Node {
-    Value eval(Context& /*ctx*/) override {
-        runtime::stackGuard().flow = runtime::StackGuard::Flow::Break;
-        return Value();
-    }
-};
+struct BreakNode : Node {};
 
-struct ContinueNode : Node {
-    Value eval(Context& /*ctx*/) override {
-        runtime::stackGuard().flow = runtime::StackGuard::Flow::Continue;
-        return Value();
-    }
-};
+struct ContinueNode : Node {};
 
 struct SwitchNode : Node {
     std::unique_ptr<Node> expr;
@@ -428,33 +326,26 @@ struct SwitchNode : Node {
     std::unique_ptr<Node> defaultCase;
 
     explicit SwitchNode(std::unique_ptr<Node> e) : expr(std::move(e)) {}
-    Value eval(Context& ctx) override;
 };
 
 // Forward declaration of interpreter execution hooks
 void executeIncludeHook(const std::string& path, Context& ctx, const std::string& currentFile, bool importOnly);
 void executeUsingHook(const std::string& libName, Context& ctx, const std::string& currentFile);
 
-struct UsingNode : Node {
+struct UsingNode : Declaration {
     std::string libName;
     std::string currentFile;
     UsingNode(std::string lib, std::string curFile = "")
         : libName(std::move(lib)), currentFile(std::move(curFile)) {}
-    Value eval(Context& ctx) override {
-        executeUsingHook(libName, ctx, currentFile);
-        return Value();
-    }
+    void declare(Context& root) override { executeUsingHook(libName, root, currentFile); }
 };
 
-struct IncludeNode : Node {
+struct IncludeNode : Declaration {
     std::string filename;
     std::string currentFile;
     IncludeNode(std::string file, std::string curFile = "")
         : filename(std::move(file)), currentFile(std::move(curFile)) {}
-    Value eval(Context& ctx) override {
-        executeIncludeHook(filename, ctx, currentFile, true);
-        return Value();
-    }
+    void declare(Context& root) override { executeIncludeHook(filename, root, currentFile, true); }
 };
 
 } // namespace foxlang

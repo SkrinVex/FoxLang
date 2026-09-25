@@ -1,4 +1,5 @@
 #include "DebugAdapter.h"
+#include "foxlang/Bytecode.h"
 #include "Channel.h"
 #include "Json.h"
 #include "foxlang/FoxLang.h"
@@ -652,7 +653,7 @@ Value Session::evaluate(const std::string& text, Context& scope, bool statements
             Lexer lexer(text);
             Parser parser(lexer.tokenize(), "<консоль>");
             auto expression = parser.parseExpression();
-            return expression->eval(scope);
+            return vm::evaluate(*expression, scope);
         } catch (const SyntaxError&) {
             if (!statements) throw;
         }
@@ -661,14 +662,7 @@ Value Session::evaluate(const std::string& text, Context& scope, bool statements
         Lexer lexer(source);
         Parser parser(lexer.tokenize(), "<консоль>");
         auto program = parser.parseProgram();
-        for (auto& stmt : program->stmts) {
-            if (stmt) stmt->eval(scope);
-            if (guard.flow != runtime::StackGuard::Flow::None) {
-                guard.flow = runtime::StackGuard::Flow::None;
-                guard.returned = Value();
-                throw std::runtime_error("return, break и continue в консоли отладчика не выполняются");
-            }
-        }
+        vm::execute(*program, scope, "return, break и continue в консоли отладчика не выполняются");
         return Value();
     } catch (const ExitRequest&) {
         throw std::runtime_error("exit() в консоли отладчика не выполняется: остановите отладку");

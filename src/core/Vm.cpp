@@ -23,11 +23,6 @@ namespace foxlang::vm {
 
 using namespace bytecode;
 
-bool treeWalker() {
-    static const bool tree = platform::getEnvVar("FOXLANG_TREE") == "1";
-    return tree;
-}
-
 namespace {
 
 // ---------------------------------------------------------------- registers
@@ -126,7 +121,12 @@ struct DebugFrame {
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
 }
 
-FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root) {
+FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root, Context& scope) {
+    if (site.byName) {
+        Value* found = scope.findVar(site.name);
+        if (!found) notFound(site.name);
+        return found;
+    }
     auto found = root.variables.find(site.name);
     if (found == root.variables.end()) notFound(site.name);
     site.cached = &found->second;
@@ -135,9 +135,9 @@ FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root) {
     return site.cached;
 }
 
-inline Value* global(GlobalSite& site, Context& root) {
+inline Value* global(GlobalSite& site, Context& root, Context& scope) {
     if (site.cached && site.root == &root && site.generation == root.generation) return site.cached;
-    return lookUp(site, root);
+    return lookUp(site, root, scope);
 }
 
 bool fitsInt(long long value) { return value >= -2147483648LL && value <= 2147483647LL; }
@@ -168,8 +168,8 @@ bool truth(const Value& value, int kind) {
     return conditionTruth(value, statementName(kind)); // raises the error
 }
 
-FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& assigned, Context& root) {
-    Value* at = path.slot >= 0 ? &R[path.slot] : global(proto.globals[static_cast<size_t>(path.global)], root);
+FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& assigned, Context& root, Context& scope) {
+    Value* at = path.slot >= 0 ? &R[path.slot] : global(proto.globals[static_cast<size_t>(path.global)], root, scope);
     const std::string* declared = nullptr;
     bool create = path.op == "=";
     for (size_t i = 0; i < path.steps.size(); ++i) {
@@ -184,7 +184,7 @@ FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& a
     *at = std::move(value);
 }
 
-Value execute(Proto& proto, Value* R, Context& root, DebugFrame* debug);
+Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame* debug);
 
 FOXLANG_COLD const Proto& compile(const FuncDefNode& function, bool debug) {
     auto& slot = debug ? function.block()->debugProto : function.block()->proto;
@@ -217,7 +217,7 @@ FOXLANG_COLD Value executeDebugged(Proto& proto, Value* R, Context& root, DebugH
     };
     hook->enterFunction(proto.name, proto.file, proto.line, scope);
     Leave leave{frame};
-    return execute(proto, R, root, &frame);
+    return execute(proto, R, root, root, &frame);
 }
 
 FOXLANG_COLD void convert(const Conversion& conversion, Value& value) {
@@ -248,7 +248,7 @@ Value callFunction(const FuncDefNode& function, Value* args, size_t count, Conte
             if (!runtime::storesAsIs(param.kind, R[i])) convert(param, R[i]);
         }
         CallDepth depth(proto.name);
-        result = hook ? executeDebugged(proto, R, root, hook) : execute(proto, R, root, nullptr);
+        result = hook ? executeDebugged(proto, R, root, hook) : execute(proto, R, root, root, nullptr);
     }
     if (proto.result.kind == Value::Kind::Void) return Value();
     if (result.isVoid()) noResult(proto);
@@ -316,7 +316,7 @@ FOXLANG_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug
     }
     // The innermost function that sees an error names its line; the functions it
     // passes through on the way out keep that.
-    if (runtimeError && guard.located != error) {
+    if (runtimeError && guard.located != error && proto.lines[static_cast<size_t>(pc)] > 0) {
         guard.located = error;
         guard.line = proto.lines[static_cast<size_t>(pc)];
         guard.file = proto.file;
@@ -398,16 +398,19 @@ FOXLANG_APART void unary(Op op, Value& out, const Value& operand) {
     out = op == Op::Negate ? runtime::negate(operand) : runtime::logicalNot(operand);
 }
 
-FOXLANG_APART void defineGlobal(Context& root, const std::string& name, Value* value) {
+// A declaration outside any function: a global, or in code compiled for a scope, a
+// variable of that scope.
+FOXLANG_APART void defineGlobal(const GlobalSite& site, Context& root, Context& scope, Value* value) {
+    Context& owner = site.byName ? scope : root;
     if (!value) {
-        if (root.variables.count(name)) alreadyDeclared(name);
+        if (owner.variables.count(site.name)) alreadyDeclared(site.name);
     } else {
-        root.variables[name] = std::move(*value);
+        owner.variables[site.name] = std::move(*value);
     }
 }
 
-FOXLANG_APART void setGlobal(GlobalSite& site, Context& root, Value& value) {
-    runtime::assign(*global(site, root), std::move(value), site.name);
+FOXLANG_APART void setGlobal(GlobalSite& site, Context& root, Context& scope, Value& value) {
+    runtime::assign(*global(site, root, scope), std::move(value), site.name);
 }
 
 FOXLANG_APART void assignSlow(Value& target, Value& value, const std::string& name) {
@@ -422,7 +425,7 @@ FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key))
     std::rethrow_exception(error);
 }
 
-Value execute(Proto& proto, Value* R, Context& root, DebugFrame* debug) {
+Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame* debug) {
     for (const auto& constant : proto.preload) R[constant.first] = proto.constants[static_cast<size_t>(constant.second)];
     const Instr* code = proto.code.data();
     const Instr* ip = code;
@@ -447,18 +450,18 @@ Value execute(Proto& proto, Value* R, Context& root, DebugFrame* debug) {
                         for (int i = in.a; i < in.b; ++i) R[i] = Value();
                         break;
                     case Op::GetGlobal:
-                        R[in.a] = *global(proto.globals[static_cast<size_t>(in.b)], root);
+                        R[in.a] = *global(proto.globals[static_cast<size_t>(in.b)], root, scope);
                         break;
                     case Op::SetGlobal: {
                         GlobalSite& site = proto.globals[static_cast<size_t>(in.b)];
-                        Value& target = *global(site, root);
+                        Value& target = *global(site, root, scope);
                         Value& value = R[in.a];
                         if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
-                        else setGlobal(site, root, value);
+                        else setGlobal(site, root, scope, value);
                         break;
                     }
                     case Op::DefineGlobal:
-                        defineGlobal(root, proto.globals[static_cast<size_t>(in.b)].name, in.a < 0 ? nullptr : &R[in.a]);
+                        defineGlobal(proto.globals[static_cast<size_t>(in.b)], root, scope, in.a < 0 ? nullptr : &R[in.a]);
                         break;
                     case Op::Coerce: {
                         const Conversion& conversion = proto.conversions[static_cast<size_t>(in.b)];
@@ -628,7 +631,7 @@ Value execute(Proto& proto, Value* R, Context& root, DebugFrame* debug) {
                         break;
                     }
                     case Op::SetPath:
-                        setPath(proto, proto.paths[static_cast<size_t>(in.b)], R, R[in.a], root);
+                        setPath(proto, proto.paths[static_cast<size_t>(in.b)], R, R[in.a], root, scope);
                         break;
                     case Op::Increment: {
                         Value& target = R[in.b];
@@ -644,12 +647,12 @@ Value execute(Proto& proto, Value* R, Context& root, DebugFrame* debug) {
                     }
                     case Op::IncrementGlobal: {
                         GlobalSite& site = proto.globals[static_cast<size_t>(in.b)];
-                        incrementSlow(in.a >= 0 ? &R[in.a] : nullptr, *global(site, root), in.c ? 1 : -1, site.name);
+                        incrementSlow(in.a >= 0 ? &R[in.a] : nullptr, *global(site, root, scope), in.c ? 1 : -1, site.name);
                         break;
                     }
 
                     case Op::Declare:
-                        proto.declarations[static_cast<size_t>(in.b)]->eval(root);
+                        proto.declarations[static_cast<size_t>(in.b)]->declare(root);
                         break;
                     case Op::Throw:
                         raise(runtime::display(R[in.a]));
@@ -695,7 +698,7 @@ void run(BlockNode& program, Context& root, Unit unit) {
     std::shared_ptr<Proto> proto = compileProgram(program, unit, hook != nullptr);
     Window window(static_cast<size_t>(proto->registers));
     if (unit != Unit::Program) {
-        execute(*proto, window.base(), root, nullptr);
+        execute(*proto, window.base(), root, root, nullptr);
         return;
     }
     // The blocks of the program keep their variables in numbered slots, alive while it
@@ -715,7 +718,7 @@ void run(BlockNode& program, Context& root, Unit unit) {
     root.slotNames = proto->slotNames.get();
     root.frame = true;
     if (!hook) {
-        execute(*proto, window.base(), root, nullptr);
+        execute(*proto, window.base(), root, root, nullptr);
         return;
     }
     DebugFrame frame{hook, &root, {}, {}};
@@ -723,7 +726,20 @@ void run(BlockNode& program, Context& root, Unit unit) {
         DebugFrame& frame;
         ~Leave() { frame.leaveTo(0); }
     } leave{frame};
-    execute(*proto, window.base(), root, &frame);
+    execute(*proto, window.base(), root, root, &frame);
+}
+
+Value run(Proto& proto, Context& scope) {
+    Window window(static_cast<size_t>(proto.registers));
+    return execute(proto, window.base(), *scope.getRoot(), scope, nullptr);
+}
+
+Value evaluate(Node& expression, Context& scope) {
+    return run(*compileExpression(expression), scope);
+}
+
+void execute(BlockNode& statements, Context& scope, const std::string& outside) {
+    run(*compileStatements(statements, outside), scope);
 }
 
 } // namespace foxlang::vm

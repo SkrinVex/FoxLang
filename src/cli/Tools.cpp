@@ -133,7 +133,6 @@ int test(const std::vector<std::string>& arguments) {
             RunResult setup = interpreter.runFile(file);
             std::string failure = setup.success ? "" : setup.errorMessage;
             if (setup.success) {
-                runtime::StackGuard& guard = runtime::stackGuard();
                 try {
                     auto function = interpreter.getContext().getFunc(name);
                     static_cast<const FuncDefNode*>(function.get())->invoke({}, interpreter.getContext());
@@ -142,7 +141,6 @@ int test(const std::vector<std::string>& arguments) {
                 } catch (const std::exception& error) {
                     failure = runtime::locate(error.what(), file);
                 }
-                guard.flow = runtime::StackGuard::Flow::None;
             }
             double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
             std::ostringstream time;

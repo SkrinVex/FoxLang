@@ -59,6 +59,11 @@ bool mutates(const Node* node) {
 
 class Compiler {
 public:
+    // In code compiled for a scope, names that are not local are found through the scope,
+    // and `return`, `break` and `continue` outside a loop raise `outside`.
+    bool names = false;
+    std::string outside;
+
     Compiler(Proto& proto, bool debug, bool function) : p(proto), debug(debug), function(function) {
         next = p.slots;
         p.registers = p.slots;
@@ -99,9 +104,8 @@ public:
 
     void statement(Node& node) {
         int mark = next;
-        if (dynamic_cast<FuncDefNode*>(&node) || dynamic_cast<StructDefNode*>(&node) || dynamic_cast<UsingNode*>(&node) ||
-            dynamic_cast<IncludeNode*>(&node)) {
-            p.declarations.push_back(&node);
+        if (auto* declaration = dynamic_cast<Declaration*>(&node)) {
+            p.declarations.push_back(declaration);
             emit(Op::Declare, 0, static_cast<int>(p.declarations.size()) - 1);
         } else if (auto* n = dynamic_cast<VarDeclNode*>(&node)) {
             variable(*n);
@@ -155,6 +159,15 @@ public:
         for (size_t i = 0; i < constantOrder.size(); ++i)
             p.preload.push_back({base + static_cast<int>(i), constantOrder[i]});
         p.registers = base + static_cast<int>(constantOrder.size());
+    }
+
+    // An expression's code: its value is what the code returns. It names no line of its
+    // own (it does not know its file), so an error in it is placed at the code that ran it.
+    void value(Node& expression) {
+        line = 0;
+        int reg = temp();
+        into(expression, reg);
+        emit(Op::Return, reg);
     }
 
     // The implicit return at the end of the code belongs to its last line.
@@ -281,12 +294,17 @@ private:
         return constantRegisters[index] = constantBase + static_cast<int>(constantOrder.size()) - 1;
     }
 
-    int globalSite(const std::string& name) {
-        auto found = globalSites.find(name);
+    // A name that is not local: a global, or in code compiled for a scope, looked up
+    // there. `root` asks for the global itself, as `global int x` does.
+    int globalSite(const std::string& name, bool root = false) {
+        bool byName = names && !root;
+        std::string key = (byName ? "~" : "") + name;
+        auto found = globalSites.find(key);
         if (found != globalSites.end()) return found->second;
         p.globals.push_back({});
         p.globals.back().name = name;
-        return globalSites[name] = static_cast<int>(p.globals.size()) - 1;
+        p.globals.back().byName = byName;
+        return globalSites[key] = static_cast<int>(p.globals.size()) - 1;
     }
 
     int callSite(const std::string& name) {
@@ -347,16 +365,7 @@ private:
         return reg;
     }
 
-    // A number literal's value; false when it does not fit even 64 bits.
-    static bool literal(NumberNode& node, Value& out) {
-        try {
-            Context none;
-            out = node.eval(none);
-            return true;
-        } catch (const std::runtime_error&) {
-            return false;
-        }
-    }
+    static bool literal(NumberNode& node, Value& out) { return node.value(out); }
 
     // The left operand of an operator, copied when the right one could change it.
     int operand(Node& left, Node& right) {
@@ -500,7 +509,7 @@ private:
             emit(Op::Coerce, node.slot, conversion(node.kind, node.type, "variable '" + node.name + "'"));
             return;
         }
-        int site = globalSite(node.name);
+        int site = globalSite(node.name, node.global);
         if (!node.global) emit(Op::DefineGlobal, -1, site, 1);
         int reg = temp();
         if (node.expr) into(*node.expr, reg);
@@ -516,7 +525,7 @@ private:
             return;
         }
         bool slotted = isSlotted(node.slot);
-        int site = slotted ? -1 : globalSite(node.name);
+        int site = slotted ? -1 : globalSite(node.name, node.global);
         if (!slotted && !node.global) emit(Op::DefineGlobal, -1, site, 1);
         int reg = slotted ? node.slot : temp();
         if (node.initializer) {
@@ -542,7 +551,7 @@ private:
 
     void setPath(SetNode& node) {
         // The value first: it may change the containers the target lives in. Then the
-        // indexes, from the outermost in, as the tree walker has always done.
+        // indexes, from the outermost in, as FoxLang always has.
         int value = temp();
         into(*node.value, value);
         SetPath path;
@@ -590,7 +599,7 @@ private:
         }
         if (!function) {
             if (!leave(0)) return;
-            failAfter("Runtime Error: 'return' outside of a function");
+            failAfter(outside.empty() ? "Runtime Error: 'return' outside of a function" : outside);
             return;
         }
         if (!leave(0)) return;
@@ -611,7 +620,8 @@ private:
         if (!target) {
             if (!leave(0)) return;
             std::string word = isContinue ? "continue" : "break";
-            failAfter(function ? "Runtime Error: '" + word + "' outside of loop in function '" + p.name + "'"
+            if (!outside.empty()) failAfter(outside);
+            else failAfter(function ? "Runtime Error: '" + word + "' outside of loop in function '" + p.name + "'"
                                : "Runtime Error: '" + word + "' outside of loop in global scope");
             return;
         }
@@ -821,6 +831,33 @@ std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug) 
     Compiler compiler(*proto, debug, true);
     compiler.block(*body, false, true);
     compiler.end(body->range.end.line);
+    compiler.epilogue();
+    compiler.finish();
+    return proto;
+}
+
+std::shared_ptr<Proto> compileStatements(BlockNode& statements, const std::string& outside) {
+    resolveProgram(statements);
+    auto proto = std::make_shared<Proto>();
+    proto->file = statements.file;
+    proto->slotNames = std::make_shared<std::vector<std::string>>(statements.layout->names);
+    proto->slots = static_cast<int>(statements.layout->names.size());
+    Compiler compiler(*proto, false, false);
+    compiler.names = true;
+    compiler.outside = outside;
+    compiler.topLevel(statements, Unit::Module);
+    compiler.end(statements.range.end.line);
+    compiler.epilogue();
+    compiler.finish();
+    return proto;
+}
+
+std::shared_ptr<Proto> compileExpression(Node& expression) {
+    auto proto = std::make_shared<Proto>();
+    proto->slotNames = std::make_shared<std::vector<std::string>>();
+    Compiler compiler(*proto, false, false);
+    compiler.names = true;
+    compiler.value(expression);
     compiler.epilogue();
     compiler.finish();
     return proto;

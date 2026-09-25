@@ -1301,7 +1301,6 @@ math_test.fox
 | `FOXLANG_LOG_LEVEL` | порог логов: `debug`, `info` (по умолчанию), `warn`, `error`, `off` |
 | `FOXLANG_CA_BUNDLE` | доверенные CA для HTTPS: путь к PEM, `embedded` или `system` |
 | `FOXLANG_ABSOLUTE_PATHS` | непустое значение — полные пути файлов в сообщениях об ошибках |
-| `FOXLANG_TREE` | `1` — выполнять программу прежним обходом дерева вместо байткода; для сравнения, временно |
 
 ---
 

@@ -1,7 +1,6 @@
 #pragma once
-// What the language's operators, indexes and fields do to values. The tree walker and
-// the bytecode VM both call these, so the two cannot disagree about a result or an
-// error message.
+// What the language's operators, indexes and fields do to values, apart from the VM's
+// fast paths: the slow cases, the conversions and every error message.
 #include "foxlang/Context.h"
 #include "foxlang/Runtime.h"
 #include <string>

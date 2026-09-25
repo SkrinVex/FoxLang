@@ -13,6 +13,7 @@ namespace foxlang {
 
 struct Node;
 class Interpreter;
+namespace bytecode { struct Proto; }
 namespace graphics { class Window; }
 namespace platform { struct ServerState; }
 
@@ -180,8 +181,10 @@ struct StructType {
     std::string name;
     std::vector<FuncParam> fields;
     std::vector<std::shared_ptr<Node>> defaults; // an initial value per field, or null
-    // What each field's type holds, worked out when the first value is built.
+    // What each field's type holds, worked out when the first value is built, and the
+    // defaults' compiled code.
     mutable std::vector<Value::Kind> kinds;
+    mutable std::vector<std::shared_ptr<bytecode::Proto>> defaultCode;
 };
 
 struct Object {

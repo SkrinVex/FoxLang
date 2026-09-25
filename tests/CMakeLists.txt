@@ -50,9 +50,9 @@ add_test(NAME lsp_catalog COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_D
 set_tests_properties(lsp_catalog PROPERTIES TIMEOUT 30)
 add_test(NAME lsp_edits COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_lsp_edits.py $<TARGET_FILE:foxlang-lsp>)
 add_test(NAME cli_tools COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cli_tools.py $<TARGET_FILE:foxlang>)
-# The bytecode VM and the tree walker (FOXLANG_TREE=1) run the same programs alike.
-add_test(NAME vm_parity COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_vm_parity.py $<TARGET_FILE:foxlang> ${CMAKE_SOURCE_DIR})
-set_tests_properties(vm_parity PROPERTIES TIMEOUT 300 ENVIRONMENT "FOXLANG_HOME=${CMAKE_SOURCE_DIR};FOXLANG_TEST_VALUE=works;FOXLANG_LOG_LEVEL=info")
+# Short programs with their exact output, errors and exit codes (test_programs.json).
+add_test(NAME programs COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_programs.py $<TARGET_FILE:foxlang>)
+set_tests_properties(programs PROPERTIES TIMEOUT 300 ENVIRONMENT "FOXLANG_HOME=${CMAKE_SOURCE_DIR}")
 # Every benchmark once on a tiny input: the programs run and all languages agree.
 add_test(NAME benchmarks_smoke
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/benchmarks/run.py --smoke --foxlang $<TARGET_FILE:foxlang>)

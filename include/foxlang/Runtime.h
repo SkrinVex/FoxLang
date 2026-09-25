@@ -33,10 +33,6 @@ struct StackGuard {
     int line = 0;                     // Line of the statement being executed, for the error report,
     const std::string* file = nullptr; // and its source file (an interned name, never freed).
     int tryDepth = 0;                  // try blocks the running code is inside of
-    // return, break and continue leave statements by this flag, not by an exception:
-    // every block stops after the statement that set it, loops and calls consume it.
-    enum class Flow { None, Return, Break, Continue } flow = Flow::None;
-    Value returned;
     // The bytecode VM learns the line of an error from the innermost function it leaves;
     // the error it last placed is kept so that outer functions do not move it.
     std::exception_ptr located;

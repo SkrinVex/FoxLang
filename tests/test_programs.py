@@ -1,12 +1,16 @@
-"""The bytecode VM and the tree walker must agree: every program here runs both ways
-(FOXLANG_TREE=1 selects the tree walker) and must print the same output, the same
-errors with the same file and line, and exit with the same code."""
+"""Short programs whose whole behaviour is pinned down: what they print, the errors
+they report with file and line, and their exit code, as recorded in
+test_programs.json. Run with --update to record the current behaviour after a
+deliberate change; the diff of the JSON file then shows what changed."""
+import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+EXPECTED = Path(__file__).with_name("test_programs.json")
 
 CASES = {
     # Errors and the lines they are reported at
@@ -119,7 +123,7 @@ CASES = {
         "        case 2: if (i == 1) { return \"two at 1\"; } break;\n        default: continue;\n      }\n    } finally {\n"
         "      print(\"finally\", i);\n    }\n  }\n  return \"none\";\n}\nprint(pick(1));\nprint(pick(2));\nprint(pick(3));\n"
     ),
-    "deferred_include": "void load() { include(\"regression/helper_module.fox\"); }\nload();\nprint(\"loaded\");\n",
+    "deferred_include": "void load() { include(\"tests/regression/helper_module.fox\"); }\nload();\nprint(\"loaded\");\n",
     "struct_default_error": "struct S {\n  int a = 1 / 0;\n}\nprint(\"before\");\nS s = S();\n",
     "struct_default_call": "int made = 0;\nint make() { made++; return made * 10; }\nstruct S { int a = make(); string t = \"x\"; }\nS one = S();\nS two = S(5);\nprint(one, two, made);\n",
     "nested_try_return": (
@@ -139,66 +143,35 @@ CASES = {
     "conditions_bool": "bool ok = true;\nif (ok) { print(\"yes\"); }\nwhile (!ok) { }\nfor (int i = 0; ok; i++) { ok = i < 2; print(i); }\n",
 }
 
-# Where the VM is deliberately right and the tree walker was not: an error is reported
-# at the line where it happened, not at the last line that ran before it (a finally
-# block's, or the loop body's when a loop condition fails).
-IMPROVED = {
-    "uncaught_after_finally": "uncaught_after_finally.fox:2: Runtime Error: escapes",
-    "condition_after_body": "condition_after_body.fox:2: Runtime Error: Division by zero",
-}
-
-
-def run(binary, script, tree, args=(), cwd=None):
+def run(binary, script, cwd):
     env = dict(os.environ)
-    if tree:
-        env["FOXLANG_TREE"] = "1"
-    else:
-        env.pop("FOXLANG_TREE", None)
-    result = subprocess.run([binary, str(script), *args], capture_output=True, text=True, env=env, cwd=cwd,
+    result = subprocess.run([binary, str(script)], capture_output=True, text=True, env=env, cwd=cwd,
                             timeout=120, input="")
-    return result.returncode, result.stdout, result.stderr
-
-
-def normalize(text):
     # How many calls fit on the native stack is not part of the language.
-    return re.sub(r"after \d+ nested calls", "after N nested calls", text)
+    normalize = lambda text: re.sub(r"after \d+ nested calls", "after N nested calls", text)
+    return {"exit": result.returncode, "stdout": normalize(result.stdout), "stderr": normalize(result.stderr)}
 
 
 def main():
     binary = Path(sys.argv[1]).resolve()
-    root = Path(sys.argv[2]).resolve()
+    update = "--update" in sys.argv
+    expected = {} if update else json.loads(EXPECTED.read_text(encoding="utf-8"))
+    actual = {}
     failures = []
-    programs = []
     with tempfile.TemporaryDirectory() as work:
         for name, source in CASES.items():
             path = Path(work) / f"{name}.fox"
             path.write_text(source, encoding="utf-8")
-            programs.append((path, (), Path(work)))
-        for path in sorted((root / "tests").glob("*.fox")):
-            if path.name != "server_smoke.fox":
-                programs.append((path, (), root))
-        for path in sorted((root / "tests" / "regression").glob("test_*.fox")):
-            programs.append((path, ("first", "второй аргумент"), root))
-        for path in sorted((root / "benchmarks" / "foxlang").glob("*.fox")):
-            programs.append((path, ("15" if path.stem == "fib" else "2000",), root))
-        for path in sorted((root / "examples").glob("*.fox")):
-            if path.stem in ("hello", "word_count", "terminal_colors"):
-                programs.append((path, (), root))
-        for path, args, cwd in programs:
-            vm = run(binary, path, False, args, cwd)
-            tree = run(binary, path, True, args, cwd)
-            vm = (vm[0], normalize(vm[1]), normalize(vm[2]))
-            tree = (tree[0], normalize(tree[1]), normalize(tree[2]))
-            if path.stem in IMPROVED and path.parent == Path(work):
-                if vm[:2] != tree[:2] or IMPROVED[path.stem] not in vm[2]:
-                    failures.append((path.name, vm, tree))
-            elif vm != tree:
-                failures.append((path.name, vm, tree))
-        for name, vm, tree in failures:
-            print(f"MISMATCH {name}")
-            print(f"  vm   exit {vm[0]}\n  stdout: {vm[1]!r}\n  stderr: {vm[2]!r}")
-            print(f"  tree exit {tree[0]}\n  stdout: {tree[1]!r}\n  stderr: {tree[2]!r}")
-    print(f"{len(programs)} programs, {len(failures)} differ")
+            actual[name] = run(binary, path.name, work)
+            if not update and actual[name] != expected.get(name):
+                failures.append(name)
+    if update:
+        EXPECTED.write_text(json.dumps(actual, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"recorded {len(actual)} programs")
+        return 0
+    for name in failures:
+        print(f"MISMATCH {name}\n  expected: {expected.get(name)!r}\n  actual:   {actual[name]!r}")
+    print(f"{len(actual)} programs, {len(failures)} differ")
     return 1 if failures else 0
 
 

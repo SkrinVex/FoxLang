@@ -1,4 +1,5 @@
 #include "foxlang/Runtime.h"
+#include "foxlang/Bytecode.h"
 #include "foxlang/AST.h"
 #include "foxlang/Debug.h"
 #include "foxlang/Platform.h"
@@ -204,6 +205,17 @@ Value zeroValue(const std::string& type, Context& ctx) {
     throw std::runtime_error("Type Error: unknown type '" + type + "'");
 }
 
+namespace {
+// A field's default is an expression of the program, compiled once per struct type and
+// run in the global scope each time a value leaves the field out.
+Value defaultOf(const StructType& type, size_t field, Context& ctx) {
+    if (type.defaultCode.size() != type.defaults.size()) type.defaultCode.assign(type.defaults.size(), nullptr);
+    auto& code = type.defaultCode[field];
+    if (!code) code = bytecode::compileExpression(*type.defaults[field]);
+    return vm::run(*code, *ctx.getRoot());
+}
+} // namespace
+
 Value construct(const StructType& type, std::vector<Value> args, Context& ctx) {
     auto registered = ctx.getStruct(type.name);
     if (!registered) throw std::runtime_error("Type Error: unknown type '" + type.name + "'");
@@ -227,7 +239,7 @@ Value construct(const std::shared_ptr<const StructType>& type, Value* args, size
         const auto& field = fields[i];
         Value value;
         if (i < count) value = std::move(args[i]);
-        else if (i < type->defaults.size() && type->defaults[i]) value = type->defaults[i]->eval(ctx);
+        else if (i < type->defaults.size() && type->defaults[i]) value = defaultOf(*type, i, ctx);
         else value = zeroValue(field.type, ctx);
         if (!storesAsIs(type->kinds[i], value))
             coerce(field.type, value, "field '" + field.name + "' of '" + type->name + "'");
