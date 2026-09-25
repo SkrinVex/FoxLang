@@ -52,7 +52,13 @@ size_t fieldIn(const Object& object, const std::string& name) {
     throw std::runtime_error("Runtime Error: struct '" + object.structType->name + "' has no field '" + name + "'");
 }
 
-// A value as print() shows it, added to the end of out.
+
+[[noreturn]] void missingKey(const std::string& key) {
+    throw std::runtime_error("Runtime Error: map has no key '" + key + "' (has(map, key) checks, get_or(map, key, default) reads safely)");
+}
+
+} // namespace
+
 void appendDisplay(std::string& out, const Value& value) {
     switch (value.kind()) {
         case Value::Kind::String: out += value.str(); break;
@@ -67,12 +73,6 @@ void appendDisplay(std::string& out, const Value& value) {
         default: out += display(value); break;
     }
 }
-
-[[noreturn]] void missingKey(const std::string& key) {
-    throw std::runtime_error("Runtime Error: map has no key '" + key + "' (has(map, key) checks, get_or(map, key, default) reads safely)");
-}
-
-} // namespace
 
 void divisionByZero() { throw std::runtime_error("Runtime Error: Division by zero"); }
 

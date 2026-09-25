@@ -31,6 +31,8 @@ const char* tokenTypeName(TokenType type) {
     switch (type) {
         case TokenType::NUMBER: return "number";
         case TokenType::STRING_LITERAL: return "string literal";
+        case TokenType::STRING_BEGIN: return "string with ${";
+        case TokenType::STRING_MIDDLE: case TokenType::STRING_END: return "the rest of a string after ${ }";
         case TokenType::PLUS: return "'+'";
         case TokenType::MINUS: return "'-'";
         case TokenType::STAR: return "'*'";
@@ -235,48 +237,7 @@ std::vector<Token> Lexer::tokenize() {
         } 
         else if (current == '"') {
             advanceChar(); // consume opening quote
-            std::string str;
-            bool closed = false;
-            while (pos < source.length()) {
-                if (source[pos] == '"') {
-                    closed = true;
-                    advanceChar(); // consume closing quote
-                    break;
-                }
-                if (source[pos] == '\\' && pos + 1 < source.length()) {
-                    advanceChar(); // consume backslash
-                    char escaped = source[pos];
-                    if (escaped == 'u') {
-                        advanceChar();
-                        str += unicodeEscape(startPos);
-                        continue;
-                    }
-                    switch (escaped) {
-                        case 'n': str += '\n'; break;
-                        case 't': str += '\t'; break;
-                        case 'r': str += '\r'; break;
-                        case '0': str += '\0'; break;
-                        case '\\': str += '\\'; break;
-                        case '"': str += '"'; break;
-                        default: str += escaped; break;
-                    }
-                    advanceChar();
-                } else {
-                    size_t curPos = pos;
-                    advanceChar();
-                    str.append(source.data() + curPos, pos - curPos);
-                }
-            }
-            SourcePosition endPos = currentPosition();
-            if (!closed) {
-                std::string msg = "Unclosed string literal";
-                if (collectDiagnostics) {
-                    diagnostics.push_back({DiagnosticSeverity::Error, msg, {startPos, endPos}});
-                } else {
-                    throw SyntaxError("Syntax Error: " + msg, startPos.line);
-                }
-            }
-            tokens.push_back({TokenType::STRING_LITERAL, str, startPos.line, startPos.column, {startPos, endPos}});
+            scanString(tokens, startPos, false);
         } 
         else if (std::isalpha(static_cast<unsigned char>(current)) || current == '_') {
             std::string id;
@@ -372,8 +333,21 @@ std::vector<Token> Lexer::tokenize() {
                 case '%': singleType = TokenType::MOD; break;
                 case '(': singleType = TokenType::LPAREN; break;
                 case ')': singleType = TokenType::RPAREN; break;
-                case '{': singleType = TokenType::LBRACE; break;
-                case '}': singleType = TokenType::RBRACE; break;
+                case '{':
+                    singleType = TokenType::LBRACE;
+                    if (!interpolations.empty()) ++interpolations.back();
+                    break;
+                case '}':
+                    if (!interpolations.empty() && interpolations.back() == 0) {
+                        // The end of a ${ } expression: the string goes on.
+                        interpolations.pop_back();
+                        advanceChar();
+                        scanString(tokens, startPos, true);
+                        continue;
+                    }
+                    if (!interpolations.empty()) --interpolations.back();
+                    singleType = TokenType::RBRACE;
+                    break;
                 case '[': singleType = TokenType::LBRACKET; break;
                 case ']': singleType = TokenType::RBRACKET; break;
                 case ';': singleType = TokenType::SEMICOLON; break;
@@ -402,8 +376,68 @@ std::vector<Token> Lexer::tokenize() {
     }
 
     SourcePosition eofPos = currentPosition();
+    if (!interpolations.empty()) {
+        interpolations.clear();
+        std::string msg = "Unclosed ${ in a string: expected '}'";
+        if (!collectDiagnostics) throw SyntaxError("Syntax Error: " + msg, eofPos.line);
+        diagnostics.push_back({DiagnosticSeverity::Error, msg, {eofPos, eofPos}});
+    }
     tokens.push_back({TokenType::END, "", eofPos.line, eofPos.column, {eofPos, eofPos}});
     return tokens;
+}
+
+void Lexer::scanString(std::vector<Token>& tokens, SourcePosition startPos, bool resumed) {
+    std::string str;
+    bool closed = false, interpolation = false;
+    while (pos < source.length()) {
+        if (source[pos] == '"') {
+            closed = true;
+            advanceChar(); // consume closing quote
+            break;
+        }
+        if (source[pos] == '$' && pos + 1 < source.length() && source[pos + 1] == '{') {
+            interpolation = true;
+            advanceChar();
+            advanceChar();
+            break;
+        }
+        if (source[pos] == '\\' && pos + 1 < source.length()) {
+            advanceChar(); // consume backslash
+            char escaped = source[pos];
+            if (escaped == 'u') {
+                advanceChar();
+                str += unicodeEscape(startPos);
+                continue;
+            }
+            switch (escaped) {
+                case 'n': str += '\n'; break;
+                case 't': str += '\t'; break;
+                case 'r': str += '\r'; break;
+                case '0': str += '\0'; break;
+                case '\\': str += '\\'; break;
+                case '"': str += '"'; break;
+                default: str += escaped; break; // \$ is a dollar sign that starts no ${
+            }
+            advanceChar();
+        } else {
+            size_t curPos = pos;
+            advanceChar();
+            str.append(source.data() + curPos, pos - curPos);
+        }
+    }
+    SourcePosition endPos = currentPosition();
+    if (!closed && !interpolation) {
+        std::string msg = "Unclosed string literal";
+        if (collectDiagnostics) {
+            diagnostics.push_back({DiagnosticSeverity::Error, msg, {startPos, endPos}});
+        } else {
+            throw SyntaxError("Syntax Error: " + msg, startPos.line);
+        }
+    }
+    TokenType type = interpolation ? (resumed ? TokenType::STRING_MIDDLE : TokenType::STRING_BEGIN)
+                                   : (resumed ? TokenType::STRING_END : TokenType::STRING_LITERAL);
+    if (interpolation) interpolations.push_back(0);
+    tokens.push_back({type, str, startPos.line, startPos.column, {startPos, endPos}});
 }
 
 } // namespace foxlang

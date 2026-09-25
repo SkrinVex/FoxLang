@@ -282,6 +282,8 @@ void SemanticAnalyzer::visitNode(const Node* node) {
         checkVariable(inc->name, inc->range);
     } else if (auto* arr = dynamic_cast<const ArrayDeclNode*>(node)) {
         visitArrayDecl(arr);
+    } else if (auto* text = dynamic_cast<const InterpolationNode*>(node)) {
+        for (const auto& part : text->parts) visitNode(part.get());
     } else if (auto* lit = dynamic_cast<const ArrayLiteralNode*>(node)) {
         for (const auto& element : lit->elements) visitNode(element.get());
     } else if (auto* index = dynamic_cast<const IndexNode*>(node)) {

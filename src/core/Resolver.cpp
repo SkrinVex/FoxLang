@@ -126,6 +126,8 @@ void Resolver::visit(Node* node) {
             visit(entry.first.get());
             visit(entry.second.get());
         }
+    } else if (auto* n = dynamic_cast<InterpolationNode*>(node)) {
+        for (auto& part : n->parts) visit(part.get());
     } else if (auto* n = dynamic_cast<ThrowNode*>(node)) {
         visit(n->message.get());
     }

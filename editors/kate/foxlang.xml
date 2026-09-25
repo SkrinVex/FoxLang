@@ -526,11 +526,17 @@
       <context name="String" attribute="String" lineEndContext="#stay">
         <DetectChar char="&quot;" attribute="String" context="#pop"/>
         <DetectChar char="\" attribute="Char" context="StringEscape"/>
+        <Detect2Chars char="$" char1="{" attribute="Char" context="Interpolation"/>
+      </context>
+
+      <context name="Interpolation" attribute="Normal Text" lineEndContext="#stay">
+        <DetectChar char="}" attribute="Char" context="#pop"/>
+        <IncludeRules context="Normal"/>
       </context>
 
       <context name="StringEscape" attribute="Char" lineEndContext="#pop">
         <Detect2Chars char="\" char1="u" attribute="Char" context="UnicodeEscape"/>
-        <AnyChar String="&quot;\/bfnrt0" attribute="Char" context="#pop"/>
+        <AnyChar String="&quot;\/bfnrt0$" attribute="Char" context="#pop"/>
       </context>
 
       <context name="UnicodeEscape" attribute="Char" lineEndContext="#pop" fallthrough="true" fallthroughContext="#pop">

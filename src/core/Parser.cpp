@@ -556,11 +556,48 @@ std::unique_ptr<Node> Parser::atom() {
             Token number = tokens[pos++];
             return at(std::make_unique<NumberNode>(number.value), start, previousEnd());
         }
-        case TokenType::STRING_LITERAL: {
-            // Adjacent literals join, so long text can span several lines.
-            std::string value;
-            while (check(TokenType::STRING_LITERAL)) value += tokens[pos++].value;
-            return at(std::make_unique<StringNode>(value), start, previousEnd());
+        case TokenType::STRING_LITERAL:
+        case TokenType::STRING_BEGIN: {
+            // Adjacent literals join, so long text can span several lines; ${expression}
+            // parts make the string an interpolation.
+            std::vector<std::unique_ptr<Node>> parts;
+            std::string text;
+            SourcePosition textStart = peek().range.start;
+            auto flush = [&] {
+                if (!text.empty()) parts.push_back(at(std::make_unique<StringNode>(text), textStart, previousEnd()));
+                text.clear();
+            };
+            while (check(TokenType::STRING_LITERAL) || check(TokenType::STRING_BEGIN)) {
+                if (match(TokenType::STRING_LITERAL)) {
+                    text += tokens[pos - 1].value;
+                    continue;
+                }
+                text += tokens[pos++].value;
+                for (;;) {
+                    flush();
+                    if (check(TokenType::STRING_MIDDLE) || check(TokenType::STRING_END)) fail("expected an expression inside ${ }");
+                    parts.push_back(expression());
+                    textStart = peek().range.start;
+                    if (match(TokenType::STRING_END)) {
+                        text += tokens[pos - 1].value;
+                        break;
+                    }
+                    if (!check(TokenType::STRING_MIDDLE)) fail("expected '}' to close ${ in the string");
+                    text += tokens[pos++].value;
+                }
+            }
+            bool interpolated = false;
+            for (const auto& part : parts)
+                if (!dynamic_cast<StringNode*>(part.get())) interpolated = true;
+            if (!interpolated) {
+                std::string whole;
+                for (const auto& part : parts) whole += static_cast<StringNode*>(part.get())->val;
+                return at(std::make_unique<StringNode>(whole + text), start, previousEnd());
+            }
+            flush();
+            auto node = std::make_unique<InterpolationNode>();
+            node->parts = std::move(parts);
+            return at(std::move(node), start, previousEnd());
         }
         case TokenType::TRUE_KW:
         case TokenType::FALSE_KW: {

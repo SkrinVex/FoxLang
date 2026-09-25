@@ -55,6 +55,7 @@ enum class Op : std::uint8_t {
     NewArray,      // R[a] = [R[b] .. R[b+c-1]]
     NewMap,        // R[a] = {R[b]: R[b+1], ...} for c pairs
     MapKey,        // R[a] = the map key R[a] stands for: a string, or an int as text
+    Concat,        // R[a] = the text of R[b] .. R[b+c-1] joined, as print() shows each
     Index,         // R[a] = R[b][R[c]]
     Field,         // R[a] = R[b].name, through field site c
     SetPath,       // store R[a] through path b: items[i].name = value

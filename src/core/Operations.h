@@ -29,6 +29,8 @@ Value postIncrement(Value& target, int delta, const std::string& name);
 bool switchMatches(const Value& value, const Value& candidate);
 
 [[noreturn]] void divisionByZero();
+// A value as print() shows it, added to the end of out.
+void appendDisplay(std::string& out, const Value& value);
 
 inline bool binaryInts(Operator op, long long l, long long r, const std::string& text, Value& out) {
     switch (op) {

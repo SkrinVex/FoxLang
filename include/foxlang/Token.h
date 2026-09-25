@@ -8,6 +8,9 @@ namespace foxlang {
 // program calls print, size or read_file exactly like a function it defined itself.
 enum class TokenType {
     NUMBER, STRING_LITERAL,
+    // A string with ${expression} parts: "a ${x} b ${y} c" is STRING_BEGIN("a "), the
+    // tokens of x, STRING_MIDDLE(" b "), the tokens of y, STRING_END(" c").
+    STRING_BEGIN, STRING_MIDDLE, STRING_END,
     PLUS, MINUS, STAR, SLASH, MOD, INC, DEC,
     LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET,
     SEMICOLON, COMMA, ASSIGN, DOT, COLON,

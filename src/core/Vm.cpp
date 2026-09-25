@@ -417,6 +417,12 @@ FOXLANG_APART void assignSlow(Value& target, Value& value, const std::string& na
     runtime::assign(target, std::move(value), name);
 }
 
+FOXLANG_APART void concat(Value& out, const Value* parts, int count) {
+    std::string text;
+    for (int i = 0; i < count; ++i) runtime::appendDisplay(text, parts[i]);
+    out = Value::string(std::move(text));
+}
+
 FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key)); }
 
 [[noreturn]] FOXLANG_APART void rethrow(std::exception_ptr& pending) {
@@ -601,6 +607,9 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         break;
                     case Op::NewMap:
                         newMap(R[in.a], R + in.b, in.c);
+                        break;
+                    case Op::Concat:
+                        concat(R[in.a], R + in.b, in.c);
                         break;
                     case Op::MapKey:
                         if (!R[in.a].isString()) mapKey(R[in.a]);

@@ -54,6 +54,11 @@ bool mutates(const Node* node) {
             if (mutates(entry.first.get()) || mutates(entry.second.get())) return true;
         return false;
     }
+    if (auto* n = dynamic_cast<const InterpolationNode*>(node)) {
+        for (const auto& part : n->parts)
+            if (mutates(part.get())) return true;
+        return false;
+    }
     return false;
 }
 
@@ -434,6 +439,10 @@ private:
             int base = any(*n->base);
             p.fields.push_back({n->name});
             emit(Op::Field, dest, base, static_cast<int>(p.fields.size()) - 1);
+        } else if (auto* n = dynamic_cast<InterpolationNode*>(&node)) {
+            int first = next;
+            for (auto& part : n->parts) into(*part, temp());
+            emit(Op::Concat, dest, first, static_cast<int>(n->parts.size()));
         } else if (auto* n = dynamic_cast<ArrayLiteralNode*>(&node)) {
             int first = next;
             for (auto& element : n->elements) into(*element, temp());
@@ -906,7 +915,7 @@ const char* opName(Op op) {
         "move", "loadk", "clear", "getglobal", "setglobal", "defglobal", "coerce", "assign", "zero", "newsized",
         "fail", "add", "sub", "mul", "div", "mod", "eq", "ne", "lt", "le", "gt", "ge", "neg", "not", "truth",
         "jump", "jumpif-false", "jumpif-true", "compare", "call", "return", "return-void", "newarray", "newmap",
-        "mapkey", "index", "field", "setpath", "inc", "inc-global", "declare", "throw", "rethrow", "try-enter",
+        "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "declare", "throw", "rethrow", "try-enter",
         "try-leave", "match", "statement", "scope-enter", "scope-leave"};
     return names[static_cast<int>(op)];
 }
@@ -981,6 +990,7 @@ void disassemble(const Proto& proto, std::ostream& out) {
             case Op::NewArray: out << reg(in.a) << " [" << in.c << " from " << reg(in.b) << "]"; break;
             case Op::NewMap: out << reg(in.a) << " {" << in.c << " from " << reg(in.b) << "}"; break;
             case Op::MapKey: out << reg(in.a); break;
+            case Op::Concat: out << reg(in.a) << " [" << in.c << " from " << reg(in.b) << "]"; break;
             case Op::Index: out << reg(in.a) << " " << reg(in.b) << "[" << reg(in.c) << "]"; break;
             case Op::Field: out << reg(in.a) << " " << reg(in.b) << "." << proto.fields[in.c].name; break;
             case Op::SetPath: {

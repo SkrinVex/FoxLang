@@ -52,4 +52,14 @@ assert_true(to_string(5) + to_string(true) == "5true", "to_string");
 string label = "n=" + 5 + ", f=" + 0.5 + ", b=" + false;
 assert_true(label == "n=5, f=0.5, b=false", "concatenation");
 
+// 8. Interpolation: ${expression} inside a string, shown as print() shows it
+string who = "Лис";
+int years = 3;
+assert_true("Привет, ${who}! Тебе ${years + 1}" == "Привет, Лис! Тебе 4", "interpolation of names and expressions");
+map info = {"tags": ["рыжий"], "n": 2.5};
+assert_true("${info["tags"][0]}/${info.n}/${[1, 2]}/${true}" == "рыжий/2.5/[1, 2]/true", "interpolation of containers and values");
+assert_true("${"x${years}y"}" == "x3y" && "${ {"k": 1}.k }" == "1", "strings and braces inside an interpolation");
+assert_true("\${who} costs $5" == "$" + "{who} costs $5", "an escaped dollar and a lone one stay text");
+assert_true("a ${years}" " b" == "a 3 b", "an interpolation joins the next literal");
+
 print("STRINGS_OK");

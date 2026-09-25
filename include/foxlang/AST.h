@@ -160,6 +160,11 @@ struct StringNode : Node {
     explicit StringNode(std::string v) : val(std::move(v)) {}
 };
 
+// "Привет, ${name}!": text and expressions, joined as print() shows each value.
+struct InterpolationNode : Node {
+    std::vector<std::unique_ptr<Node>> parts; // StringNode for the text between expressions
+};
+
 struct BoolNode : Node {
     bool val;
     explicit BoolNode(bool v) : val(v) {}

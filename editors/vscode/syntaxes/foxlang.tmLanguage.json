@@ -54,16 +54,25 @@
       "end": "\"",
       "patterns": [
         {
+          "name": "meta.interpolation.fox",
+          "begin": "\\$\\{",
+          "end": "\\}",
+          "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.fox" } },
+          "endCaptures": { "0": { "name": "punctuation.section.interpolation.end.fox" } },
+          "contentName": "source.fox.embedded",
+          "patterns": [{ "include": "$self" }]
+        },
+        {
           "name": "constant.character.escape.unicode.fox",
           "match": "\\\\u([0-9a-fA-F]{4}|\\{[0-9a-fA-F]{1,6}\\})"
         },
         {
           "name": "constant.character.escape.fox",
-          "match": "\\\\[\"\\\\/bfnrt0]"
+          "match": "\\\\[\"\\\\/bfnrt0$]"
         },
         {
           "name": "invalid.illegal.unknown-escape.fox",
-          "match": "\\\\[^\"\\\\/bfnrtu0]"
+          "match": "\\\\[^\"\\\\/bfnrtu0$]"
         },
         {
           "name": "markup.underline.link.fox",
