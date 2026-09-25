@@ -2266,8 +2266,11 @@ ctest --test-dir build -C Release --output-on-failure
 VS Code и Zed. Без сборки то же делает `cmake -P cmake/Version.cmake`. Изменение
 `VERSION` в ветке `master` запускает выпуск новой версии в GitHub Actions.
 
-**Цифры на сайте** — версия, число встроенных функций, модулей и тестов в шапке
-`site/index.html` — сверяет тест `site_facts`. Когда они устарели, их обновляет
-`python3 packaging/site_facts.py --build build --write`.
+**Цифры на сайте** — версия, число встроенных функций, модулей и тестов в
+`site/index.html` — руками не правятся. Их берёт из кода
+`packaging/site_facts.py`: версию из `VERSION`, функции из каталога встроенных,
+модули из `std/`, тесты из `ctest -N`. Скрипт запускает каждая сборка (цель
+`site_facts`) и выкладка сайта, а одноимённый тест сообщает, если закоммичена
+страница со старыми цифрами.
 
 Состав тестов описан в [tests/README.md](tests/README.md).
