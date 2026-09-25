@@ -164,7 +164,8 @@ struct Object {
 private:
     // Where each key sits in `keys`, built once the map is big enough for a scan to
     // cost more than hashing; it is in step whenever it has as many entries as `keys`.
-    mutable std::unordered_map<std::string, size_t> index_;
+    // Only big maps pay for it: every array, struct and small map keeps a null pointer.
+    mutable std::unique_ptr<std::unordered_map<std::string, size_t>> index_;
 };
 
 // exit(code) unwinds the whole program; it is deliberately not a std::exception,
