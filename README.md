@@ -63,7 +63,8 @@ for (int i = 0; i < size(words); i++) {
 - `foxlang build` — самостоятельное приложение для Linux или Windows.
 - Библиотека `foxlang_core` для встраивания в программы на C++.
 
-Полный справочник языка: [DOCUMENTATION.md](DOCUMENTATION.md).
+Полный справочник языка: [DOCUMENTATION.md](DOCUMENTATION.md). Как язык устроен
+изнутри, простыми словами и с живыми примерами: [skrinvex.github.io/FoxLang](https://skrinvex.github.io/FoxLang/).
 
 ## Установка
 

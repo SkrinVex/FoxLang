@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Как устроен язык программирования FoxLang: от текста программы до окна, сервера и отладчика — объяснение с нуля с живыми примерами.">
+<meta property="og:title" content="Как устроен FoxLang">
+<meta property="og:description" content="Объяснение с нуля: лексер, парсер, интерпретатор, графика точка за точкой, веб-сервер и инструменты языка FoxLang.">
+<meta name="color-scheme" content="light dark">
+<title>Как устроен FoxLang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #e9edf2;
+  --ink: #1d222a;
+  --muted: #5f6975;
+  --line: #d3d9e1;
+  --fox: #d9620f;
+  --fox-soft: #fbe6d4;
+  --blue: #2d69af;
+  --blue-soft: #dde9f7;
+  --green: #2f8a46;
+  --code-bg: #1b2029;
+  --code-ink: #e3e7ee;
+  --code-kw: #ff9a4d;
+  --code-str: #9fd48a;
+  --code-num: #8cc3ff;
+  --code-com: #7d8896;
+  --display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+  --body: "Onest", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #12161c;
+    --surface: #1a2029;
+    --surface-2: #232b36;
+    --ink: #e6eaf0;
+    --muted: #98a2ae;
+    --line: #2f3845;
+    --fox: #ff8a33;
+    --fox-soft: #3a2616;
+    --blue: #74a8e6;
+    --blue-soft: #1d2d42;
+    --green: #6cc382;
+    --code-bg: #0e1116;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12161c;
+  --surface: #1a2029;
+  --surface-2: #232b36;
+  --ink: #e6eaf0;
+  --muted: #98a2ae;
+  --line: #2f3845;
+  --fox: #ff8a33;
+  --fox-soft: #3a2616;
+  --blue: #74a8e6;
+  --blue-soft: #1d2d42;
+  --green: #6cc382;
+  --code-bg: #0e1116;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.62;
+  padding-inline: 16px;
+  padding-block: 0 64px;
+}
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 56px;
+}
+@media (max-width: 900px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .toc { display: none; }
+}
+
+/* Hero */
+.hero {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: 56px 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 40px;
+}
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--fox);
+  margin: 0 0 14px;
+}
+h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(34px, 6vw, 60px);
+  line-height: 1.04;
+  letter-spacing: -.02em;
+  margin: 0 0 18px;
+  text-wrap: balance;
+}
+.lede { font-size: 20px; color: var(--muted); max-width: 60ch; margin: 0; }
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 10px 28px;
+  font-variant-numeric: tabular-nums;
+}
+.facts div { display: flex; flex-direction: column; }
+.facts b { font-family: var(--display); font-size: 26px; font-weight: 500; line-height: 1.1; }
+.facts span { font-size: 13px; color: var(--muted); }
+@media (max-width: 700px) {
+  .hero { grid-template-columns: minmax(0, 1fr); padding-block: 36px 28px; }
+}
+.pixel-fox { image-rendering: pixelated; width: 84px; height: 84px; margin-bottom: 18px; }
+
+/* Table of contents */
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; }
+.toc p { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; counter-reset: toc; }
+.toc li { counter-increment: toc; }
+.toc a {
+  display: flex; gap: 10px;
+  padding: 5px 8px; border-radius: 6px;
+  color: var(--muted); text-decoration: none; font-size: 14.5px; line-height: 1.35;
+}
+.toc a::before { content: counter(toc, decimal-leading-zero); font-family: var(--mono); font-size: 12px; padding-top: 2px; color: var(--line); }
+.toc a:hover, .toc a.active { color: var(--ink); background: var(--surface-2); }
+.toc a.active::before { color: var(--fox); }
+
+/* Article */
+article { max-width: 70ch; min-width: 0; }
+section { padding-block: 8px 28px; scroll-margin-top: 24px; }
+h2 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(24px, 3.4vw, 32px);
+  line-height: 1.15;
+  letter-spacing: -.01em;
+  margin: 28px 0 14px;
+  text-wrap: balance;
+}
+h2 .num { font-family: var(--mono); font-size: 14px; color: var(--fox); display: block; margin-bottom: 8px; letter-spacing: .04em; }
+h3 { font-family: var(--body); font-weight: 600; font-size: 19px; margin: 26px 0 8px; }
+p { margin: 0 0 14px; }
+a { color: var(--blue); }
+strong { font-weight: 600; }
+code {
+  font-family: var(--mono); font-size: .86em;
+  background: var(--surface-2); padding: .1em .38em; border-radius: 4px;
+}
+ul.plain, ol.steps { margin: 0 0 16px; padding-left: 1.2em; }
+ul.plain li, ol.steps li { margin-bottom: 6px; }
+
+pre.fox {
+  background: var(--code-bg); color: var(--code-ink);
+  font-family: var(--mono); font-size: 14.5px; line-height: 1.6;
+  padding: 16px 18px; border-radius: 10px; overflow-x: auto; margin: 0 0 18px;
+}
+pre.fox code { background: none; padding: 0; font-size: inherit; color: inherit; }
+.k { color: var(--code-kw); }
+.s { color: var(--code-str); }
+.n { color: var(--code-num); }
+.c { color: var(--code-com); font-style: italic; }
+
+.note {
+  border-left: 3px solid var(--fox);
+  background: var(--fox-soft);
+  padding: 12px 16px; border-radius: 0 8px 8px 0;
+  margin: 0 0 18px;
+}
+.note p:last-child { margin-bottom: 0; }
+
+.table-wrap { overflow-x: auto; margin: 0 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+td code { white-space: nowrap; }
+
+/* Pipeline */
+.pipeline {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px; margin: 6px 0 22px;
+}
+.stage {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; position: relative;
+}
+.stage small { font-family: var(--mono); font-size: 11.5px; color: var(--fox); letter-spacing: .06em; text-transform: uppercase; }
+.stage b { display: block; font-size: 16px; margin: 2px 0 4px; }
+.stage span { font-size: 14px; color: var(--muted); line-height: 1.45; display: block; }
+@media (max-width: 640px) { .pipeline { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+/* Live demo */
+.demo {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 18px; margin: 8px 0 22px;
+}
+.demo label { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+.demo input {
+  width: 100%; font-family: var(--mono); font-size: 17px;
+  padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink);
+}
+.demo input:focus-visible { outline: 2px solid var(--fox); outline-offset: 1px; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 16px; }
+.examples button {
+  font-family: var(--mono); font-size: 13px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+  padding: 4px 10px; border-radius: 999px;
+}
+.examples button:hover { border-color: var(--fox); }
+.examples button:focus-visible { outline: 2px solid var(--fox); }
+.demo-grid { display: grid; gap: 14px; }
+.panel h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+.panel h4 em { font-style: normal; color: var(--fox); font-family: var(--mono); margin-right: 6px; }
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; }
+.tok {
+  font-family: var(--mono); font-size: 14px;
+  border-radius: 6px; padding: 3px 8px; border: 1px solid var(--line);
+  display: inline-flex; flex-direction: column; line-height: 1.25;
+}
+.tok small { font-size: 10px; color: var(--muted); letter-spacing: .04em; }
+.tok.keyword { background: var(--fox-soft); border-color: transparent; }
+.tok.number { background: var(--blue-soft); border-color: transparent; }
+.tok.name { background: var(--surface-2); border-color: transparent; }
+.tree, .trace {
+  font-family: var(--mono); font-size: 14px; line-height: 1.55;
+  background: var(--bg); border-radius: 8px; padding: 12px 14px; margin: 0;
+  overflow-x: auto; white-space: pre;
+}
+.trace { white-space: normal; }
+.trace ol { margin: 0; padding-left: 1.4em; }
+.result { font-family: var(--mono); color: var(--green); font-weight: 600; }
+.error { color: var(--fox); font-family: var(--mono); font-size: 14px; }
+
+/* Scopes */
+.rooms { margin: 6px 0 20px; }
+.room {
+  border: 1.5px dashed var(--line); border-radius: 12px;
+  padding: 10px 14px 14px; background: var(--surface);
+}
+.room .room { background: var(--bg); margin-top: 10px; }
+.room .room .room { background: var(--surface); }
+.room-label { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.vars { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.var { font-family: var(--mono); font-size: 13.5px; background: var(--blue-soft); padding: 2px 8px; border-radius: 5px; }
+.var.fn { background: var(--fox-soft); }
+
+/* Project tree */
+.files { font-family: var(--mono); font-size: 14px; line-height: 1.7; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; white-space: pre; margin: 0 0 18px; }
+.files i { color: var(--muted); font-style: normal; }
+
+.walk { counter-reset: w; list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 8px; }
+.walk li { counter-increment: w; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.walk li::before { content: counter(w); font-family: var(--display); font-weight: 500; color: var(--fox); font-size: 18px; text-align: right; }
+
+.summary {
+  background: var(--ink); color: var(--bg);
+  border-radius: 14px; padding: 22px 24px; margin-top: 12px;
+}
+.summary h2 { margin-top: 0; }
+.summary p:last-child { margin-bottom: 0; }
+
+/* Frame demo */
+.frame-demo { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 8px 0 22px; }
+.frame-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.frame-controls button {
+  font-family: var(--mono); font-size: 13px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+  padding: 5px 10px; border-radius: 6px;
+}
+.frame-controls button:hover { border-color: var(--fox); }
+.frame-controls button:focus-visible { outline: 2px solid var(--fox); }
+.frame-controls button.done { background: var(--fox-soft); border-color: transparent; }
+.frame-controls button.present { margin-left: auto; }
+.frame-wrap { overflow-x: auto; border-radius: 8px; background: #000; }
+#frame { display: block; width: 448px; max-width: 100%; height: auto; image-rendering: pixelated; cursor: crosshair; }
+.frame-status { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 10px 0 12px; font-size: 14px; }
+.frame-status code { white-space: normal; }
+#frame-pos { font-family: var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.frame-text { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+#frame-input { width: 100%; max-width: 260px; font-family: var(--mono); font-size: 16px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+#frame-input:focus-visible { outline: 2px solid var(--fox); outline-offset: 1px; }
+
+/* Glyph */
+.glyph-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: start; margin: 4px 0 18px; }
+@media (max-width: 560px) { .glyph-row { grid-template-columns: minmax(0, 1fr); } }
+.glyph-table { display: grid; gap: 3px; font-family: var(--mono); font-size: 13px; }
+.glyph-line { display: grid; grid-template-columns: repeat(5, 18px) 30px 56px; gap: 3px; align-items: center; }
+.glyph-cell { width: 18px; height: 18px; border-radius: 3px; background: var(--surface-2); }
+.glyph-cell.on { background: var(--fox); }
+.glyph-line span { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.glyph-note p { font-size: 15.5px; }
+
+footer { max-width: 1120px; margin: 40px auto 0; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+</style>
+<style>
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div>
+    <canvas class="pixel-fox" id="fox" width="12" height="12" aria-hidden="true"></canvas>
+    <p class="eyebrow">FoxLang 7.0 · объяснение с нуля</p>
+    <h1>Как устроен язык FoxLang</h1>
+    <p class="lede">Что происходит между строчкой <code>print("Привет!");</code> и словом на экране: как язык читает текст, хранит числа и списки, вызывает функции, ловит ошибки, рисует окно точка за точкой, отвечает браузеру и почему для него есть отладчик.</p>
+  </div>
+  <div class="facts" aria-label="FoxLang в цифрах">
+    <div><b>3</b><span>шага от текста до результата</span></div>
+    <div><b>≈220</b><span>встроенных функций</span></div>
+    <div><b>16</b><span>модулей библиотеки</span></div>
+    <div><b>95</b><span>автотестов на Linux и Windows</span></div>
+  </div>
+</header>
+
+<div class="page">
+  <nav class="toc" aria-label="Содержание">
+    <p>Содержание</p>
+    <ol id="toc"></ol>
+  </nav>
+
+  <article>
+    <section id="what">
+      <h2>Что вообще такое язык программирования</h2>
+      <p>Процессор понимает только числа и очень простые команды: сложить, сравнить, перейти. Писать так человеку неудобно, поэтому придумали языки, похожие на обычную речь.</p>
+      <p>FoxLang — такой язык. Ты пишешь файл <code>hello.fox</code>:</p>
+      <pre class="fox" data-fox>print("Привет!");</pre>
+      <p>и запускаешь <code>foxlang hello.fox</code>. Программа <code>foxlang</code> читает текст, понимает его и выполняет. Сама она написана на C++, быстром «взрослом» языке. Получается, что FoxLang живёт внутри программы на C++, примерно как игра внутри игровой приставки.</p>
+    </section>
+
+    <section id="pipeline">
+      <h2>Путь программы: три шага</h2>
+      <p>Когда ты читаешь предложение на чужом языке, ты сначала выделяешь слова, потом понимаешь грамматику, потом смысл. <code>foxlang</code> делает то же самое.</p>
+      <div class="pipeline">
+        <div class="stage"><small>вход</small><b>Текст</b><span>файл .fox, просто буквы</span></div>
+        <div class="stage"><small>шаг 1</small><b>Лексер</b><span>режет текст на токены-слова</span></div>
+        <div class="stage"><small>шаг 2</small><b>Парсер</b><span>строит из слов дерево смысла</span></div>
+        <div class="stage"><small>шаг 3</small><b>Интерпретатор</b><span>обходит дерево и выполняет</span></div>
+      </div>
+
+      <h3>Попробуй сам</h3>
+      <p>Ниже маленькая копия этих трёх шагов, написанная для страницы. Она понимает объявление переменной и арифметику, как настоящий FoxLang. Меняй строку и смотри, что получается на каждом шаге.</p>
+      <div class="demo">
+        <label for="expr">Строка FoxLang</label>
+        <input id="expr" type="text" value="int x = 5 + 2 * 3;" spellcheck="false" autocomplete="off">
+        <div class="examples" aria-label="Примеры">
+          <button type="button" data-ex="int x = 5 + 2 * 3;">5 + 2 * 3</button>
+          <button type="button" data-ex="int y = (5 + 2) * 3;">(5 + 2) * 3</button>
+          <button type="button" data-ex="float half = 7 / 2.0;">7 / 2.0</button>
+          <button type="button" data-ex="int bad = 10 / (3 - 3);">деление на ноль</button>
+          <button type="button" data-ex="int oops = 5 + ;">ошибка синтаксиса</button>
+        </div>
+        <div class="demo-grid">
+          <div class="panel"><h4><em>1</em>Лексер: токены</h4><div class="tokens" id="tokens"></div></div>
+          <div class="panel"><h4><em>2</em>Парсер: дерево</h4><pre class="tree" id="tree"></pre></div>
+          <div class="panel"><h4><em>3</em>Интерпретатор: вычисление</h4><div class="trace" id="trace"></div></div>
+        </div>
+      </div>
+
+      <h3>Шаг 1. Лексер</h3>
+      <p>Лексер (<code>src/core/Lexer.cpp</code>) идёт по тексту буква за буквой и собирает <strong>токены</strong>: ключевые слова (<code>int</code>, <code>if</code>), имена (<code>x</code>), числа, строки и знаки. Пробелы и комментарии <code>//</code> он выбрасывает. У каждого токена запоминается строка и столбец: когда что-то сломается, ошибка скажет «строка 12».</p>
+      <h3>Шаг 2. Парсер</h3>
+      <p>Парсер (<code>src/core/Parser.cpp</code>) знает грамматику: что после <code>int</code> идёт имя, потом <code>=</code>, потом выражение и <code>;</code>. Из токенов он строит <strong>дерево</strong>, его ещё называют AST. Умножение оказывается глубже сложения, поэтому считается раньше. Так и получается правило «умножение раньше сложения». Если грамматика нарушена, парсер сообщает <code>Syntax Error</code> с номером строки.</p>
+      <h3>Шаг 3. Интерпретатор</h3>
+      <p>У каждого вида узла дерева есть метод <code>eval</code> — «вычисли себя». Число возвращает себя. Сложение просит посчитать левую и правую ветку и складывает их. Объявление переменной кладёт результат в ячейку. Все виды узлов описаны в <code>include/foxlang/AST.h</code>: <code>if</code>, <code>while</code>, вызов функции, <code>a[i]</code>, <code>p.x</code>, <code>try</code> и остальные.</p>
+      <div class="note"><p>Такой способ называется <strong>интерпретатором по дереву</strong>. Он самый понятный. Быстрее бывают компиляция в байткод или в машинный код, но после оптимизаций 7.0 FoxLang вызывает функции примерно в 8 раз быстрее, чем раньше.</p></div>
+    </section>
+
+    <section id="types">
+      <h2>Значения и типы</h2>
+      <p>Каждое значение — это пара «тип + содержимое». Тип говорит, что можно делать со значением.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Тип</th><th>Что хранит</th><th>Пример</th></tr></thead>
+          <tbody>
+            <tr><td><code>int</code></td><td>целое число от −2 147 483 648 до 2 147 483 647</td><td><code>42</code></td></tr>
+            <tr><td><code>float</code></td><td>дробное число</td><td><code>3.14</code></td></tr>
+            <tr><td><code>string</code></td><td>текст в UTF-8, кириллица и эмодзи тоже</td><td><code>"лиса"</code></td></tr>
+            <tr><td><code>bool</code></td><td>да или нет</td><td><code>true</code></td></tr>
+            <tr><td><code>array</code></td><td>список чего угодно</td><td><code>[1, 2, 3]</code></td></tr>
+            <tr><td><code>map</code></td><td>словарь «ключ → значение»</td><td><code>{"age": 3}</code></td></tr>
+            <tr><td>структура</td><td>твой тип с именованными полями</td><td><code>Point(1, 2)</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Типы проверяются. В переменную <code>int x</code> нельзя положить текст, будет <code>Type Error</code>. Безопасные превращения язык делает сам: целое в дробное, число в текст.</p>
+      <h3>Коробки и номерки</h3>
+      <p>Числа и текст лежат прямо в значении. Числа хранятся как настоящие числа и превращаются в текст, только когда их печатают. Контейнеры (массив, словарь, структура) устроены иначе: они лежат отдельно, как коробка на складе, а значение держит <strong>номерок</strong> на эту коробку. Коробка помнит, сколько номерков выдано, и исчезает сама, когда их не осталось. Поэтому память вручную освобождать не нужно.</p>
+      <pre class="fox" data-fox>array a = [1, 2, 3];
+array b = a;        // b получает свою копию коробки
+b[0] = 100;
+print(a, b);        // [1, 2, 3] [100, 2, 3]
+
+void reset(array items) {
+    items[0] = 0;   // функция получает ту же коробку
+}
+reset(a);
+print(a);           // [0, 2, 3]</pre>
+      <p>Правило простое: присваивание копирует, передача в функцию даёт ту же коробку, и функция может её поменять.</p>
+      <pre class="fox" data-fox>struct Point {
+    int x;
+    int y = 0;
+}
+map fox = {name: "Лис", tags: ["рыжий"]};
+Point p = Point(3, 4);
+print(fox.name, fox["tags"][0], p.x + p.y);   // Лис рыжий 7</pre>
+    </section>
+
+    <section id="scopes">
+      <h2>Переменные живут в комнатах</h2>
+      <p>Переменные хранятся в «комнатах» — областях видимости. В коде комната называется <code>Context</code>.</p>
+      <div class="rooms" aria-label="Схема областей видимости">
+        <div class="room">
+          <span class="room-label">главная комната — весь файл</span>
+          <div class="vars"><span class="var">int total</span><span class="var fn">функция add</span></div>
+          <div class="room">
+            <span class="room-label">комната функции add(a, b)</span>
+            <div class="vars"><span class="var">int a</span><span class="var">int b</span></div>
+            <div class="room">
+              <span class="room-label">комната блока if { … }</span>
+              <div class="vars"><span class="var">int tmp</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul class="plain">
+        <li>Когда ты пишешь имя, поиск идёт из текущей комнаты наружу, до главной. Не нашлось — «Variable not found».</li>
+        <li>Каждый блок <code>{ … }</code> — своя комната: переменная из <code>if</code> снаружи не видна.</li>
+        <li>Функция видит свои переменные и глобальные, но не переменные того, кто её вызвал.</li>
+      </ul>
+    </section>
+
+    <section id="functions">
+      <h2>Функции и флажок return</h2>
+      <pre class="fox" data-fox>int add(int a, int b) {
+    return a + b;
+}
+print(add(2, 3));   // 5</pre>
+      <ol class="steps">
+        <li>Считаются аргументы: 2 и 3.</li>
+        <li>Создаётся новая комната, в ней <code>a = 2</code>, <code>b = 3</code>.</li>
+        <li>Выполняется тело функции.</li>
+        <li><code>return</code> кладёт результат рядом и <strong>поднимает флажок</strong> «пора выходить». Каждый блок после каждой строки смотрит на флажок и, если он поднят, заканчивает работу.</li>
+        <li>Функция забирает результат, опускает флажок и отдаёт 5.</li>
+      </ol>
+      <p>Раньше <code>return</code> был сделан через исключение C++, а это медленная операция. Флажок сделал вызовы примерно в 8 раз быстрее. <code>break</code> и <code>continue</code> в циклах работают тем же флажком.</p>
+      <p>Есть и защита от бесконечной рекурсии: если функция вызывает себя слишком глубоко, программа получит понятную ошибку вместо аварийного падения.</p>
+    </section>
+
+    <section id="errors">
+      <h2>Ошибки и как их ловить</h2>
+      <p>Деление на ноль, индекс за пределами массива, неверный тип — всё это ошибки выполнения. Ошибка летит вверх через блоки и функции. Если её никто не поймал, программа печатает</p>
+      <pre class="fox"><code>FoxLang: main.fox:12: Runtime Error: Division by zero</code></pre>
+      <p>и завершается. Если по дороге есть <code>try</code>, ошибка ловится:</p>
+      <pre class="fox" data-fox>try {
+    int r = 10 / 0;
+} catch (e) {
+    print("не вышло:", e);
+} finally {
+    print("это выполнится всегда");
+}
+
+throw "своя ошибка";   // бросить ошибку самому</pre>
+    </section>
+
+    <section id="library">
+      <h2>Встроенные функции и библиотека</h2>
+      <p><strong>Встроенные функции</strong> написаны на C++: <code>print</code>, <code>size</code>, <code>read_file</code>, <code>push</code>, <code>json_decode</code> и ещё около двухсот. Про каждую записаны имя, типы параметров и описание. Перед вызовом язык сам проверяет, подходят ли аргументы, а редактор показывает то же описание в подсказке.</p>
+      <p><strong>Стандартная библиотека</strong> — 16 модулей на самом FoxLang в папке <code>std/</code>: <code>string</code>, <code>fs</code>, <code>http</code>, <code>server</code>, <code>graphics</code>, <code>ui</code>, <code>sound</code> и другие. Строка <code>using fs;</code> подключает <code>std/fs.fox</code> с удобными короткими именами. Эти файлы вшиты прямо в программу <code>foxlang</code>, отдельно их устанавливать не нужно.</p>
+      <p>Свои файлы подключаются через <code>include("utils.fox");</code>. Когда интерпретатор встречает <code>include</code>, он читает этот файл, разбирает его тем же лексером и парсером и регистрирует его функции, структуры и глобальные переменные. Каждый файл подключается один раз, даже если его просят из нескольких мест. Проект из нескольких файлов — одна программа: функции из одного файла видны в другом.</p>
+      <pre class="fox" data-fox>// utils.fox
+int double_it(int n) {
+    return n * 2;
+}
+
+// main.fox
+include("utils.fox");
+using string;
+print(double_it(21), upper("лиса"));   // 42 ЛИСА</pre>
+    </section>
+
+    <section id="abilities">
+      <h2>Что язык умеет из коробки</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Область</th><th>Что можно</th><th>Как устроено</th></tr></thead>
+          <tbody>
+            <tr><td>Файлы и система</td><td>читать, писать, права, копировать папки, запускать программы</td><td>стандартная библиотека C++ и системные вызовы</td></tr>
+            <tr><td>Сеть</td><td>HTTP и HTTPS, TCP, DNS</td><td>встроенные библиотеки curl и mbedTLS</td></tr>
+            <tr><td>Веб-сервер</td><td>маршруты <code>/users/:id</code>, файлы, шаблоны, формы, cookies, HTTPS</td><td>свой сервер внутри <code>foxlang</code></td></tr>
+            <tr><td>JSON</td><td>текст в словари и массивы и обратно</td><td><code>json_decode</code>, <code>json_value</code></td></tr>
+            <tr><td>Графика</td><td>окно, фигуры, текст, картинки PNG, мышь, клавиатура</td><td>X11 на Linux, Win32 на Windows</td></tr>
+            <tr><td>Интерфейс</td><td>кнопки, поля ввода, модальные окна, прокрутка</td><td>модуль <code>ui</code></td></tr>
+            <tr><td>Звук</td><td>WAV-файлы и тоны</td><td>PlaySound на Windows, pw-play или aplay на Linux</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Графику, интерфейс и звук разберём подробно в следующем разделе: там больше всего интересного.</p>
+    </section>
+
+    <section id="graphics">
+      <h2>Графика: как FoxLang рисует окно</h2>
+      <p>Это самая «волшебная» часть языка, хотя внутри она очень простая. Видеокарта не используется. FoxLang сам решает, какого цвета каждая точка окна, и отдаёт готовую картинку операционной системе.</p>
+
+      <h3>Цикл кадра</h3>
+      <p>Любая графическая программа на FoxLang — это цикл. Один оборот цикла — один кадр, примерно 60 раз в секунду:</p>
+      <pre class="fox" data-fox>using graphics;
+
+open_window(320, 200, "Лиса");        // открыть окно 320×200 точек
+int x = 0;
+while (window_poll()) {               // 1. забрать события: клавиши, мышь, закрытие
+    if (key_down("RIGHT")) {
+        x += 2;                       // 2. изменить состояние игры
+    }
+    clear_window(rgb(20, 24, 36));    // 3. залить весь кадр фоном
+    draw_circle(x, 100, 12, rgb(255, 140, 0));
+    draw_text(10, 10, "Привет", 2, rgb(255, 255, 255));
+    present_window();                 // 4. показать готовый кадр
+    wait(16);                         // 5. подождать ≈16 мс, это и есть 60 кадров в секунду
+}
+close_window();</pre>
+      <p>Каждый кадр рисуется <strong>заново целиком</strong>. Кружок не «переезжает» из старого места: в новом кадре его просто рисуют в новом месте, а старый кадр затёрт фоном. Так работают почти все игры.</p>
+
+      <h3>Кадр — это массив чисел</h3>
+      <p>Внутри окна лежит <code>Surface</code>, «поверхность»: массив чисел по одному на каждую точку. У окна 320×200 это 64 000 чисел. Каждое число — цвет в виде <code>0xRRGGBB</code>: сколько красного, зелёного и синего, от 0 до 255. Функция <code>rgb(255, 140, 0)</code> просто собирает такое число. Координаты начинаются в левом верхнем углу: <code>x</code> растёт вправо, <code>y</code> — вниз.</p>
+      <p>Вот маленький кадр 64×40 точек, увеличенный в 7 раз. Нажимай команды по очереди и смотри, как каждая закрашивает точки. Наведи мышь на кадр, и увидишь координаты точки, как их вернули бы <code>mouse_x()</code> и <code>mouse_y()</code>.</p>
+      <div class="frame-demo">
+        <div class="frame-controls" role="group" aria-label="Команды кадра">
+          <button type="button" data-step="0">clear_window</button>
+          <button type="button" data-step="1">draw_rect</button>
+          <button type="button" data-step="2">draw_circle</button>
+          <button type="button" data-step="3">draw_line</button>
+          <button type="button" data-step="4">draw_text</button>
+          <button type="button" data-step="5" class="present">present_window</button>
+        </div>
+        <div class="frame-wrap"><canvas id="frame" width="448" height="280" aria-label="Кадр из пикселей"></canvas></div>
+        <div class="frame-status"><code id="frame-code">нажми clear_window, чтобы начать кадр</code><span id="frame-pos"></span></div>
+        <label class="frame-text" for="frame-input">Текст для draw_text (шрифт FoxLang, масштаб 1)</label>
+        <input id="frame-input" type="text" value="Fox 7.0" maxlength="10" spellcheck="false" autocomplete="off">
+      </div>
+
+      <h3>Как рисуются фигуры</h3>
+      <ul class="plain">
+        <li><strong>Прямоугольник</strong> — самое простое: для каждой строки от верха до низа закрасить точки от левого края до правого.</li>
+        <li><strong>Круг</strong> рисуется тоже по строкам. Для строки на расстоянии <code>dy</code> от центра половина ширины круга равна √(r² − dy²) — это теорема Пифагора. Остаётся закрасить отрезок этой строки.</li>
+        <li><strong>Линия</strong> идёт по алгоритму Брезенхэма: шагаем по точкам от начала к концу и на каждом шаге решаем, сдвинуться ли ещё и по второй оси. Всё делается в целых числах, без дробей.</li>
+        <li><strong>Отсечение.</strong> Всё, что выходит за край окна, не рисуется. Функция <code>clip_begin</code> добавляет свой прямоугольник-рамку: так прокручиваемый список не залезает на соседние элементы.</li>
+      </ul>
+
+      <h3>Шрифт из единичек и ноликов</h3>
+      <p>Никаких файлов шрифтов FoxLang не использует. Каждая буква — это 7 строк по 5 точек, а каждая строка хранится одним числом, у которого биты означают «точка есть» или «точки нет». Буква <code>A</code> записана в исходниках так: <code>{14, 17, 17, 31, 17, 17, 17}</code>.</p>
+      <div class="glyph-row">
+        <div class="glyph-table" id="glyph-table" aria-label="Буква A по строкам"></div>
+        <div class="glyph-note">
+          <p>14 в двоичном виде — <code>01110</code>: три точки в середине, верх буквы. 17 — <code>10001</code>: две боковые палки. 31 — <code>11111</code>: перекладина.</p>
+          <p>Строчные <code>g p q y j д ц щ</code> имеют ещё две строки ниже для хвостиков. Русские буквы, похожие на латинские (А, В, Е, О, Р, С…), используют одни и те же точки. Буква с масштабом 2 рисуется квадратиками 2×2.</p>
+        </div>
+      </div>
+
+      <h3>Картинки PNG</h3>
+      <p>PNG-файл хранит картинку в сжатом виде, как архив. Функция <code>load_image</code> делает то же, что любая программа просмотра:</p>
+      <ol class="steps">
+        <li>Читает файл и находит в нём куски: размер картинки, палитру, прозрачность, сжатые данные.</li>
+        <li><strong>Распаковывает</strong> данные алгоритмом DEFLATE, тем же, что в ZIP-архивах. Распаковщик в FoxLang написан свой, внешних библиотек нет.</li>
+        <li><strong>Снимает фильтры строк.</strong> Чтобы картинка лучше сжималась, PNG хранит не сами цвета, а разницу с соседней точкой слева или сверху. Эту разницу надо сложить обратно.</li>
+        <li>Превращает всё в точки с прозрачностью. Картинка готова к рисованию.</li>
+      </ol>
+      <p>При рисовании полупрозрачная точка <strong>смешивается</strong> с тем, что уже нарисовано: новый цвет = старый × (1 − α) + цвет картинки × α, где α — непрозрачность от 0 до 1. Так тень или стекло пропускают фон.</p>
+
+      <h3>Окно, клавиатура и мышь</h3>
+      <p>С операционной системой FoxLang разговаривает напрямую: на Linux через протокол X11 (он работает и под Wayland), на Windows через Win32. Когда ты жмёшь клавишу или двигаешь мышь, система кладёт в очередь окна <strong>событие</strong>. <code>window_poll()</code> в начале кадра разбирает всю очередь и запоминает состояние:</p>
+      <ul class="plain">
+        <li><code>key_down("A")</code> — клавиша сейчас зажата, пригодно для движения;</li>
+        <li><code>key_pressed("A")</code> — клавишу нажали именно в этом кадре, пригодно для прыжка или выстрела;</li>
+        <li><code>text_input()</code> — набранные буквы с учётом раскладки, в том числе русской;</li>
+        <li><code>mouse_x()</code>, <code>mouse_y()</code>, <code>mouse_wheel()</code> — где мышь и сколько повернули колесо.</li>
+      </ul>
+      <p><code>present_window()</code> отправляет массив точек в окно. Если окну разрешено менять размер (<code>set_window_resizable(true)</code>), при изменении FoxLang пересоздаёт массив точек под новый размер, а <code>window_resized()</code> подсказывает программе, что пора заново расставить элементы.</p>
+
+      <h3>Интерфейс без объектов</h3>
+      <p>В модуле <code>ui</code> нет объектов «кнопка», которые где-то хранятся. Кнопка существует ровно тогда, когда ты её рисуешь. Такой подход называется immediate mode, «немедленный режим».</p>
+      <ol class="steps">
+        <li>Каждый кадр <code>ui_button("save", x, y, w, h, "Сохранить")</code> сообщает: «кнопка save сейчас здесь, на таком-то слое».</li>
+        <li>В начале следующего кадра система смотрит, какой из записанных прямоугольников под мышью, и выбирает самый верхний.</li>
+        <li>Если по нему щёлкнули, <code>ui_button</code> возвращает <code>true</code>. Один щелчок достаётся только одному элементу.</li>
+        <li>Модальное окно — отдельный слой, который выключает все слои под собой. Поэтому клик сквозь диалог не проходит.</li>
+        <li>Поле ввода с фокусом забирает себе клавиатуру: пока ты печатаешь, <code>ui_typing()</code> истинно, и горячие клавиши программы молчат.</li>
+      </ol>
+
+      <h3>Звук</h3>
+      <p>Модуль <code>sound</code> проигрывает WAV-файлы и тоны, не останавливая программу. Тон FoxLang строит сам: считает 44 100 значений синусоиды на каждую секунду звука, плавно поднимает и опускает громкость в начале и в конце, чтобы не было щелчка, и отдаёт звук системе: на Windows через <code>PlaySound</code>, на Linux через проигрыватель рабочего стола.</p>
+      <pre class="fox" data-fox>using sound;
+beep(440, 200);                  // «ля» первой октавы, 0.2 секунды
+play_sound("sounds/jump.wav");</pre>
+    </section>
+
+    <section id="server">
+      <h2>Веб-сервер и JSON</h2>
+      <p>На FoxLang можно написать сайт или API. Сервер встроен прямо в <code>foxlang</code>:</p>
+      <pre class="fox" data-fox>using server;
+
+void hello() {
+    respond_text("Привет, " + param("name") + "!");
+}
+
+route("GET", "/hello/:name", "hello");
+static_files("/", "public");     // файлы сайта из папки public
+listen(8080);                    // ждать запросов на порту 8080</pre>
+      <ol class="steps">
+        <li><code>route</code> записывает правило: запрос <code>GET /hello/…</code> обрабатывает функция <code>hello</code>.</li>
+        <li><code>listen</code> открывает сетевой порт и ждёт. Браузер присылает запрос — текст вида <code>GET /hello/Лис HTTP/1.1</code>.</li>
+        <li>Сервер разбирает запрос, находит подходящий маршрут и кладёт <code>:name</code> в параметры.</li>
+        <li>Вызывается функция <code>hello</code>. Она читает <code>param("name")</code> и отвечает через <code>respond_text</code>.</li>
+        <li>Если в функции случилась ошибка, браузер получает ответ 500, а сервер работает дальше.</li>
+      </ol>
+      <p><strong>JSON</strong> — формат, в котором сайты и программы обмениваются данными. <code>json_decode</code> превращает его текст в словари и массивы FoxLang, <code>json_value</code> — обратно:</p>
+      <pre class="fox" data-fox>map user = json_decode("{\"name\": \"Лис\", \"tags\": [\"рыжий\"]}");
+print(user.name, user["tags"][0]);         // Лис рыжий
+print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
+    </section>
+
+    <section id="tools">
+      <h2>Инструменты вокруг языка</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Команда</th><th>Что делает</th></tr></thead>
+          <tbody>
+            <tr><td><code>foxlang файл.fox</code></td><td>запускает программу</td></tr>
+            <tr><td><code>foxlang check файл.fox</code></td><td>ищет ошибки, не запуская программу</td></tr>
+            <tr><td><code>foxlang test</code></td><td>запускает тесты из файлов <code>*_test.fox</code></td></tr>
+            <tr><td><code>foxlang fmt</code></td><td>приводит оформление кода к одному виду</td></tr>
+            <tr><td><code>foxlang build файл.fox -o app</code></td><td>собирает отдельное приложение</td></tr>
+            <tr><td><code>foxlang debug-adapter</code></td><td>отладчик для редакторов</td></tr>
+            <tr><td><code>foxlang-lsp</code></td><td>помощник для редакторов: ошибки, подсказки, переходы</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Проверка без запуска</h3>
+      <p>Лексер и парсер строят дерево, а <strong>анализатор</strong> (<code>SemanticAnalyzer.cpp</code>) обходит его, ничего не выполняя. Он проверяет, объявлены ли имена, правильное ли число аргументов и существуют ли типы. Это и есть <code>foxlang check</code>.</p>
+      <h3>Помощник в редакторе</h3>
+      <p>VS Code, Kate и Zed разговаривают с <code>foxlang-lsp</code> по стандартному протоколу LSP. На каждое изменение в файле сервер заново прогоняет анализатор и отвечает: где подчеркнуть ошибку, что подсказать при вводе, где объявлена функция, как переименовать имя во всех файлах.</p>
+      <h3>Отладчик</h3>
+      <p>Перед каждой строкой интерпретатор спрашивает отладчика: «остановиться?». Если на строке стоит точка останова, программа замирает, а редактор по протоколу DAP смотрит переменные, стек вызовов и вычисляет выражения. Без отладчика этот вопрос стоит одну проверку указателя, то есть почти ничего.</p>
+      <h3>Отдельное приложение</h3>
+      <p><code>foxlang build</code> берёт копию самого <code>foxlang</code> и дописывает в её конец твои исходники. Запущенная программа видит «у меня в хвосте есть код» и выполняет его. Поэтому готовому приложению не нужен установленный FoxLang.</p>
+    </section>
+
+    <section id="project">
+      <h2>Как устроен сам проект</h2>
+      <pre class="files">FoxLang/
+├── src/core/       <i>сердце: лексер, парсер, дерево, интерпретатор, анализатор</i>
+│   └── builtins/   <i>встроенные функции на C++</i>
+├── src/graphics/   <i>окно, рисование, картинки, интерфейс</i>
+├── src/lsp/        <i>помощник для редакторов</i>
+├── src/debug/      <i>отладчик</i>
+├── src/cli/        <i>команда foxlang: запуск, check, test, fmt</i>
+├── std/            <i>стандартная библиотека на FoxLang</i>
+├── editors/        <i>расширения для VS Code, Kate и Zed</i>
+├── tests/          <i>95 автотестов</i>
+├── docs/           <i>документация</i>
+└── VERSION         <i>номер версии, одно место на весь проект</i></pre>
+      <ul class="plain">
+        <li><strong>Сборка.</strong> CMake собирает около 13 тысяч строк C++ в две программы: <code>foxlang</code> и <code>foxlang-lsp</code>.</li>
+        <li><strong>Тесты.</strong> 95 проверок: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши.</li>
+        <li><strong>Релизы.</strong> Когда меняется <code>VERSION</code> и изменения попадают в ветку <code>master</code>, GitHub сам собирает версии для Linux и Windows, гоняет все тесты на обеих системах и публикует релиз с архивами и расширениями для редакторов.</li>
+      </ul>
+    </section>
+
+    <section id="checks">
+      <h2>Как проверяется, что всё работает</h2>
+      <p>У языка много движущихся частей, и сломать одну, чиня другую, очень легко. Поэтому почти каждое изменение сопровождается тестами, а тесты запускаются автоматически на двух системах.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Вид теста</th><th>Что проверяет</th></tr></thead>
+          <tbody>
+            <tr><td>Модульные на C++</td><td>отдельные детали: лексер, парсер, рисование точек, шрифт</td></tr>
+            <tr><td>Регрессионные на FoxLang</td><td>программы на самом языке, которые проверяют словари, ошибки, файлы и печатают «OK»</td></tr>
+            <tr><td>Окна и мышь</td><td>настоящее окно, в которое тест посылает щелчки и нажатия: модальное окно не пропускает клик, прокрутка работает</td></tr>
+            <tr><td>Протоколы</td><td>тест разговаривает с отладчиком и языковым сервером так же, как редактор</td></tr>
+            <tr><td>Документация</td><td>каждая функция описана, каждый пример в документации проходит проверку</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Для своих программ есть <code>foxlang test</code>: он находит файлы <code>*_test.fox</code> и запускает в них функции <code>test_…</code>, каждую в чистой программе.</p>
+      <pre class="fox" data-fox>// math_test.fox
+void test_add() {
+    assert_equal(2 + 3, 5);
+    assert([1, 2] == [1, 2], "массивы сравниваются по содержимому");
+}</pre>
+      <p>Когда меняется номер в файле <code>VERSION</code>, GitHub собирает FoxLang для Linux и Windows, прогоняет все тесты на обеих системах и только после этого публикует релиз. Если хоть один тест упал, релиза нет.</p>
+    </section>
+
+    <section id="walk">
+      <h2>Одна программа от начала до конца</h2>
+      <pre class="fox" data-fox>int square(int n) {
+    return n * n;
+}
+print(square(4));</pre>
+      <ol class="walk">
+        <li><span><code>foxlang</code> читает файл целиком.</span></li>
+        <li><span><strong>Лексер</strong> выдаёт токены: <code>int</code> <code>square</code> <code>(</code> <code>int</code> <code>n</code> <code>)</code> <code>{</code> <code>return</code> <code>n</code> <code>*</code> <code>n</code> <code>;</code> <code>}</code> <code>print</code> …</span></li>
+        <li><span><strong>Парсер</strong> строит дерево из двух частей: «объявление функции square» и «вызов print с аргументом square(4)».</span></li>
+        <li><span><strong>Интерпретатор</strong> запоминает функцию <code>square</code>.</span></li>
+        <li><span>Видит <code>print(…)</code> и сначала считает аргумент, то есть вызывает <code>square(4)</code>.</span></li>
+        <li><span>Создаёт комнату с <code>n = 4</code> и считает <code>n * n</code> = 16.</span></li>
+        <li><span><code>return</code> поднимает флажок, функция отдаёт 16.</span></li>
+        <li><span><code>print</code> выводит <span class="result">16</span>, программа завершается с кодом 0 — «всё хорошо».</span></li>
+      </ol>
+    </section>
+
+    <section id="short" class="summary">
+      <h2>Если совсем коротко</h2>
+      <p>FoxLang — программа на C++, которая режет твой текст на слова, строит из слов дерево смысла и обходит это дерево, выполняя каждый узел. Вокруг этого ядра построены стандартная библиотека, графика, веб-сервер, проверка ошибок, помощник для редакторов, отладчик, тесты и автоматические релизы.</p>
+    </section>
+  </article>
+</div>
+
+<footer>FoxLang 7.0.0 · исходники и документация — <a href="https://github.com/SkrinVex/FoxLang" target="_blank" rel="noopener">github.com/SkrinVex/FoxLang</a></footer>
+
+<script>
+(function () {
+  // A fox face drawn cell by cell, like FoxLang's own 5x7 pixel font.
+  var art = [
+    "o..........o",
+    "oo........oo",
+    "ooo......ooo",
+    "oooooooooooo",
+    "oowoooooowoo",
+    "oobwooooobwo",
+    "ooooooooooo.",
+    ".ooowwwwooo.",
+    "..oowwwwoo..",
+    "...owbbwo...",
+    "....wwww....",
+    "............"
+  ];
+  var canvas = document.getElementById("fox");
+  var ctx = canvas.getContext("2d");
+  var fox = getComputedStyle(document.documentElement).getPropertyValue("--fox").trim() || "#d9620f";
+  var colors = { o: fox, w: "#ffffff", b: "#1d222a" };
+  art.forEach(function (row, y) {
+    for (var x = 0; x < row.length; x++) {
+      var c = colors[row[x]];
+      if (c) { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); }
+    }
+  });
+
+  // Table of contents from the section headings.
+  var toc = document.getElementById("toc");
+  var sections = Array.prototype.slice.call(document.querySelectorAll("article section"));
+  sections.forEach(function (section) {
+    var li = document.createElement("li");
+    var a = document.createElement("a");
+    a.href = "#" + section.id;
+    a.textContent = section.querySelector("h2").textContent;
+    li.appendChild(a);
+    toc.appendChild(li);
+  });
+  var links = toc.querySelectorAll("a");
+  if ("IntersectionObserver" in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        links.forEach(function (link) { link.classList.toggle("active", link.getAttribute("href") === "#" + entry.target.id); });
+      });
+    }, { rootMargin: "-20% 0px -70% 0px" });
+    sections.forEach(function (s) { observer.observe(s); });
+  }
+
+  // FoxLang highlighting for the code samples.
+  var keywords = /^(int|float|string|bool|void|array|map|struct|if|else|while|for|return|using|include|try|catch|finally|throw|true|false|break|continue)$/;
+  function escapeHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  document.querySelectorAll("pre[data-fox]").forEach(function (pre) {
+    var src = pre.textContent, out = "", i = 0;
+    while (i < src.length) {
+      var ch = src[i], rest = src.slice(i), m;
+      if (rest.indexOf("//") === 0) {
+        var end = src.indexOf("\n", i); if (end < 0) end = src.length;
+        out += '<span class="c">' + escapeHtml(src.slice(i, end)) + "</span>"; i = end;
+      } else if (ch === '"') {
+        var j = i + 1; while (j < src.length && src[j] !== '"') { if (src[j] === "\\") j++; j++; }
+        out += '<span class="s">' + escapeHtml(src.slice(i, j + 1)) + "</span>"; i = j + 1;
+      } else if ((m = rest.match(/^[0-9]+(\.[0-9]+)?/))) {
+        out += '<span class="n">' + m[0] + "</span>"; i += m[0].length;
+      } else if ((m = rest.match(/^[A-Za-z_][A-Za-z0-9_]*/))) {
+        out += keywords.test(m[0]) ? '<span class="k">' + m[0] + "</span>" : m[0]; i += m[0].length;
+      } else { out += escapeHtml(ch); i++; }
+    }
+    pre.innerHTML = "<code>" + out + "</code>";
+  });
+
+  // The live demo: a tiny lexer, parser and tree-walking evaluator.
+  var input = document.getElementById("expr");
+  var tokensBox = document.getElementById("tokens");
+  var treeBox = document.getElementById("tree");
+  var traceBox = document.getElementById("trace");
+  var types = { "int": 1, "float": 1, "string": 1, "bool": 1 };
+
+  function lex(text) {
+    var out = [], i = 0;
+    while (i < text.length) {
+      var ch = text[i], m, rest = text.slice(i);
+      if (/\s/.test(ch)) { i++; continue; }
+      if ((m = rest.match(/^[0-9]+(\.[0-9]+)?/))) { out.push({ kind: "number", text: m[0], label: "число" }); i += m[0].length; continue; }
+      if ((m = rest.match(/^[A-Za-z_][A-Za-z0-9_]*/))) {
+        var kw = types[m[0]];
+        out.push({ kind: kw ? "keyword" : "name", text: m[0], label: kw ? "тип" : "имя" }); i += m[0].length; continue;
+      }
+      if ("+-*/%()=;".indexOf(ch) >= 0) { out.push({ kind: "symbol", text: ch, label: "знак" }); i++; continue; }
+      throw { stage: 1, message: "Лексер не знает символ «" + ch + "»" };
+    }
+    return out;
+  }
+
+  function parse(tokens) {
+    var pos = 0;
+    function peek() { return tokens[pos]; }
+    function expect(text) {
+      var t = tokens[pos];
+      if (!t || t.text !== text) throw { stage: 2, message: "Syntax Error: ожидалось «" + text + "», а " + (t ? "встретилось «" + t.text + "»" : "строка кончилась") };
+      pos++; return t;
+    }
+    function primary() {
+      var t = peek();
+      if (!t) throw { stage: 2, message: "Syntax Error: ожидалось выражение, а строка кончилась" };
+      if (t.kind === "number") { pos++; return { type: "Число", value: t.text }; }
+      if (t.kind === "name") { pos++; return { type: "Переменная", value: t.text }; }
+      if (t.text === "(") { pos++; var inner = additive(); expect(")"); return inner; }
+      if (t.text === "-") { pos++; return { type: "Минус", children: [primary()] }; }
+      throw { stage: 2, message: "Syntax Error: ожидалось выражение, а встретилось «" + t.text + "»" };
+    }
+    function multiplicative() {
+      var node = primary();
+      while (peek() && "*/%".indexOf(peek().text) >= 0 && peek().kind === "symbol") {
+        var op = tokens[pos++].text;
+        node = { type: op === "*" ? "Умножение" : op === "/" ? "Деление" : "Остаток", op: op, children: [node, primary()] };
+      }
+      return node;
+    }
+    function additive() {
+      var node = multiplicative();
+      while (peek() && (peek().text === "+" || peek().text === "-") && peek().kind === "symbol") {
+        var op = tokens[pos++].text;
+        node = { type: op === "+" ? "Сложение" : "Вычитание", op: op, children: [node, multiplicative()] };
+      }
+      return node;
+    }
+    var root;
+    if (peek() && peek().kind === "keyword") {
+      var type = tokens[pos++].text;
+      var name = peek();
+      if (!name || name.kind !== "name") throw { stage: 2, message: "Syntax Error: после типа нужно имя переменной" };
+      pos++;
+      expect("=");
+      root = { type: "Объявление", value: type + " " + name.text, declared: type, name: name.text, children: [additive()] };
+    } else {
+      root = additive();
+    }
+    expect(";");
+    if (pos < tokens.length) throw { stage: 2, message: "Syntax Error: лишнее «" + tokens[pos].text + "» после «;»" };
+    return root;
+  }
+
+  function drawTree(node, prefix, last, isRoot) {
+    var label = node.type + (node.value !== undefined ? " " + node.value : "") + (node.op ? " (" + node.op + ")" : "");
+    var line = isRoot ? label : prefix + (last ? "└── " : "├── ") + label;
+    var lines = [line];
+    var kids = node.children || [];
+    kids.forEach(function (child, i) {
+      lines = lines.concat(drawTree(child, isRoot ? "" : prefix + (last ? "    " : "│   "), i === kids.length - 1, false));
+    });
+    return lines;
+  }
+
+  function evaluate(node, steps) {
+    if (node.type === "Число") {
+      var isFloat = node.value.indexOf(".") >= 0;
+      var v = { value: parseFloat(node.value), float: isFloat };
+      steps.push("Число " + node.value + " → " + format(v));
+      return v;
+    }
+    if (node.type === "Переменная") throw { stage: 3, message: "Runtime Error: Variable '" + node.value + "' not found!" };
+    if (node.type === "Минус") {
+      var inner = evaluate(node.children[0], steps);
+      var neg = { value: -inner.value, float: inner.float };
+      steps.push("Минус → " + format(neg));
+      return neg;
+    }
+    if (node.type === "Объявление") {
+      var val = evaluate(node.children[0], steps);
+      if (node.declared === "int" && val.float) { val = { value: Math.trunc(val.value), float: false }; steps.push("float превращается в int, дробная часть отбрасывается → " + format(val)); }
+      if (node.declared === "float") val = { value: val.value, float: true };
+      if (node.declared === "string") { steps.push("число превращается в текст \"" + format(val) + "\""); }
+      if (node.declared === "bool") throw { stage: 3, message: "Type Error: variable '" + node.name + "' has type 'bool' and cannot hold a value of type '" + (val.float ? "float" : "int") + "'" };
+      steps.push("в ячейку " + node.name + " кладётся " + format(val));
+      return val;
+    }
+    var l = evaluate(node.children[0], steps), r = evaluate(node.children[1], steps);
+    var isF = l.float || r.float, res;
+    if ((node.op === "/" || node.op === "%") && r.value === 0) throw { stage: 3, message: "Runtime Error: Division by zero" };
+    if (node.op === "+") res = l.value + r.value;
+    else if (node.op === "-") res = l.value - r.value;
+    else if (node.op === "*") res = l.value * r.value;
+    else if (node.op === "/") res = isF ? l.value / r.value : Math.trunc(l.value / r.value);
+    else res = isF ? l.value % r.value : Math.trunc(l.value % r.value);
+    var out = { value: res, float: isF };
+    steps.push(node.type + ": " + format(l) + " " + node.op + " " + format(r) + " = " + format(out));
+    return out;
+  }
+
+  function format(v) {
+    if (!v.float) return String(v.value);
+    var text = String(v.value);
+    return text.indexOf(".") < 0 && text.indexOf("e") < 0 ? text + ".0" : text;
+  }
+
+  function render() {
+    tokensBox.innerHTML = ""; treeBox.textContent = ""; traceBox.innerHTML = "";
+    var tokens, tree;
+    try {
+      tokens = lex(input.value);
+      tokens.forEach(function (t) {
+        var chip = document.createElement("span");
+        chip.className = "tok " + t.kind;
+        chip.innerHTML = escapeHtml(t.text) + "<small>" + t.label + "</small>";
+        tokensBox.appendChild(chip);
+      });
+      if (!tokens.length) { tokensBox.textContent = "пусто"; return; }
+      tree = parse(tokens);
+      treeBox.textContent = drawTree(tree, "", true, true).join("\n");
+      var steps = [];
+      var result = evaluate(tree, steps);
+      var ol = document.createElement("ol");
+      steps.forEach(function (s) { var li = document.createElement("li"); li.textContent = s; ol.appendChild(li); });
+      traceBox.appendChild(ol);
+      var done = document.createElement("p");
+      done.style.margin = "8px 0 0";
+      done.innerHTML = 'Итог: <span class="result">' + escapeHtml(tree.name ? tree.name + " = " + format(result) : format(result)) + "</span>";
+      traceBox.appendChild(done);
+    } catch (e) {
+      var box = e.stage === 1 ? tokensBox : e.stage === 2 ? treeBox : traceBox;
+      var msg = document.createElement("span");
+      msg.className = "error";
+      msg.textContent = e.message || String(e);
+      if (box === treeBox) { treeBox.textContent = ""; treeBox.appendChild(msg); } else { box.appendChild(msg); }
+      if (e.stage <= 2) traceBox.innerHTML = '<span class="error">до выполнения дело не дошло</span>';
+    }
+  }
+  input.addEventListener("input", render);
+  document.querySelectorAll("[data-ex]").forEach(function (b) {
+    b.addEventListener("click", function () { input.value = b.getAttribute("data-ex"); render(); });
+  });
+  render();
+
+  // ---- FoxLang's pixel font and a tiny Surface, the same drawing rules as the real one
+  var FONT = {"lower":{"a":[0,0,14,1,15,17,15],"b":[16,16,22,25,17,17,30],"c":[0,0,14,16,16,17,14],"d":[1,1,13,19,17,17,15],"e":[0,0,14,17,31,16,14],"f":[6,9,8,28,8,8,8],"g":[0,0,15,17,17,17,15,1,14],"h":[16,16,22,25,17,17,17],"i":[4,0,12,4,4,4,14],"j":[2,0,6,2,2,2,2,18,12],"k":[16,16,18,20,24,20,18],"l":[12,4,4,4,4,4,14],"m":[0,0,26,21,21,17,17],"n":[0,0,22,25,17,17,17],"o":[0,0,14,17,17,17,14],"p":[0,0,30,17,17,17,30,16,16],"q":[0,0,15,17,17,17,15,1,1],"r":[0,0,22,25,16,16,16],"s":[0,0,15,16,14,1,30],"t":[8,8,28,8,8,9,6],"u":[0,0,17,17,17,19,13],"v":[0,0,17,17,17,10,4],"w":[0,0,17,17,21,21,10],"x":[0,0,17,10,4,10,17],"y":[0,0,17,17,17,17,15,1,14],"z":[0,0,31,2,4,8,31],"б":[15,16,30,17,17,17,14],"в":[0,0,30,17,30,17,30],"г":[0,0,31,16,16,16,16],"д":[0,0,14,10,10,10,31,17],"ё":[10,0,14,17,31,16,14],"ж":[0,0,21,21,14,21,21],"з":[0,0,30,1,6,1,30],"и":[0,0,17,19,21,25,17],"й":[10,4,17,19,21,25,17],"к":[0,0,18,20,24,20,18],"л":[0,0,7,9,9,9,17],"м":[0,0,17,27,21,17,17],"н":[0,0,17,17,31,17,17],"п":[0,0,31,17,17,17,17],"т":[0,0,31,4,4,4,4],"ф":[0,4,14,21,21,14,4],"ц":[0,0,18,18,18,18,31,1],"ч":[0,0,17,17,15,1,1],"ш":[0,0,21,21,21,21,31],"щ":[0,0,21,21,21,21,31,1],"ъ":[0,0,24,8,14,9,14],"ы":[0,0,17,17,29,21,29],"ь":[0,0,16,16,30,17,30],"э":[0,0,14,1,7,1,14],"ю":[0,0,18,21,29,21,18],"я":[0,0,15,17,15,9,17]},"upper":{"A":[14,17,17,31,17,17,17],"B":[30,17,17,30,17,17,30],"C":[14,17,16,16,16,17,14],"D":[30,17,17,17,17,17,30],"E":[31,16,16,30,16,16,31],"F":[31,16,16,30,16,16,16],"G":[14,17,16,23,17,17,15],"H":[17,17,17,31,17,17,17],"I":[14,4,4,4,4,4,14],"J":[7,2,2,2,18,18,12],"K":[17,18,20,24,20,18,17],"L":[16,16,16,16,16,16,31],"M":[17,27,21,21,17,17,17],"N":[17,25,21,19,17,17,17],"O":[14,17,17,17,17,17,14],"P":[30,17,17,30,16,16,16],"Q":[14,17,17,17,21,18,13],"R":[30,17,17,30,20,18,17],"S":[15,16,16,14,1,1,30],"T":[31,4,4,4,4,4,4],"U":[17,17,17,17,17,17,14],"V":[17,17,17,17,17,10,4],"W":[17,17,17,21,21,27,17],"X":[17,17,10,4,10,17,17],"Y":[17,17,10,4,4,4,4],"Z":[31,1,2,4,8,16,31],"0":[14,17,19,21,25,17,14],"1":[4,12,4,4,4,4,14],"2":[14,17,1,2,4,8,31],"3":[30,1,1,14,1,1,30],"4":[2,6,10,18,31,2,2],"5":[31,16,16,30,1,1,30],"6":[14,16,16,30,17,17,14],"7":[31,1,2,4,8,8,8],"8":[14,17,17,14,17,17,14],"9":[14,17,17,15,1,1,14]," ":[0,0,0,0,0,0,0],".":[0,0,0,0,0,6,6],",":[0,0,0,0,6,6,4],":":[0,6,6,0,6,6,0],";":[0,6,6,0,6,6,4],"!":[4,4,4,4,4,0,4],"?":[14,17,1,2,4,0,4],"-":[0,0,0,31,0,0,0],"+":[0,4,4,31,4,4,0],"/":[1,1,2,4,8,16,16],"=":[0,0,31,0,31,0,0],"(":[2,4,8,8,8,4,2],")":[8,4,2,2,2,4,8],"[":[14,8,8,8,8,8,14],"]":[14,2,2,2,2,2,14],"♥":[0,10,31,31,14,4,0],"←":[0,4,8,31,8,4,0],"→":[0,4,2,31,2,4,0],"Б":[31,16,16,30,17,17,30],"Г":[31,16,16,16,16,16,16],"Д":[7,9,9,9,17,31,17],"Ё":[10,0,31,16,30,16,31],"Ж":[21,21,14,4,14,21,21],"З":[30,1,1,14,1,1,30],"И":[17,17,19,21,25,17,17],"Й":[10,4,17,19,21,25,17],"Л":[7,9,9,9,9,9,17],"П":[31,17,17,17,17,17,17],"У":[17,17,17,15,1,17,14],"Ф":[4,14,21,21,21,14,4],"Ц":[18,18,18,18,18,31,1],"Ч":[17,17,17,15,1,1,1],"Ш":[21,21,21,21,21,21,31],"Щ":[21,21,21,21,21,31,1],"Ъ":[24,8,8,14,9,9,14],"Ы":[17,17,17,29,21,21,29],"Ь":[16,16,16,30,17,17,30],"Э":[14,17,1,7,1,17,14],"Ю":[18,21,21,29,21,21,18],"Я":[15,17,17,15,5,9,17],"\"":[10,10,0,0,0,0,0],"'":[4,4,0,0,0,0,0],"`":[8,4,0,0,0,0,0],"%":[24,25,2,4,8,19,3],"*":[0,4,21,14,21,4,0],"#":[10,10,31,10,31,10,10],"<":[2,4,8,16,8,4,2],">":[8,4,2,1,2,4,8],"@":[14,17,23,21,23,16,14],"&":[12,18,20,8,21,18,13],"{":[2,4,4,8,4,4,2],"}":[8,4,4,2,4,4,8],"|":[4,4,4,4,4,4,4],"$":[4,15,20,14,5,30,4],"^":[4,10,17,0,0,0,0],"~":[0,0,8,21,2,0,0],"\\":[16,16,8,4,2,1,1],"°":[6,9,9,6,0,0,0],"№":[18,26,26,22,22,18,18],"«":[0,5,10,20,10,5,0],"»":[0,20,10,5,10,20,0],"—":[0,0,0,31,0,0,0],"–":[0,0,0,14,0,0,0],"×":[0,17,10,4,10,17,0],"…":[0,0,0,0,0,0,21],"↑":[4,14,21,4,4,4,4],"↓":[4,4,4,4,21,14,4]}};
+  function glyph(ch) {
+    var lookalikes = "аеорсух", latinLower = "aeopcyx";
+    var at = lookalikes.indexOf(ch);
+    if (at >= 0) ch = latinLower[at];
+    if (FONT.lower[ch]) return FONT.lower[ch];
+    var code = ch.charCodeAt(0);
+    if (code >= 97 && code <= 122) ch = String.fromCharCode(code - 32);
+    if (code >= 0x430 && code <= 0x44f) ch = String.fromCharCode(code - 32);
+    if (ch === "ё") ch = "Ё";
+    var russian = "АВЕКМНОРСТХ", latin = "ABEKMHOPCTX";
+    at = russian.indexOf(ch);
+    if (at >= 0) ch = latin[at];
+    return FONT.upper[ch] || FONT.upper["?"];
+  }
+
+  var W = 64, H = 40, SCALE = 7;
+  var pixels = new Array(W * H).fill(null);
+  var frame = document.getElementById("frame");
+  var fctx = frame.getContext("2d");
+  var frameCode = document.getElementById("frame-code");
+  var framePos = document.getElementById("frame-pos");
+  var frameInput = document.getElementById("frame-input");
+  var shown = new Array(W * H).fill(null);
+  var presented = false;
+
+  function hex(c) { return "#" + ("000000" + c.toString(16)).slice(-6); }
+  function rgbText(c) { return "rgb(" + ((c >> 16) & 255) + ", " + ((c >> 8) & 255) + ", " + (c & 255) + ")"; }
+  function put(x, y, c) { if (x >= 0 && y >= 0 && x < W && y < H) pixels[y * W + x] = c; }
+  function rect(x, y, w, h, c) { for (var r = y; r < y + h; r++) for (var q = x; q < x + w; q++) put(q, r, c); }
+  function circle(cx, cy, radius, c) {
+    for (var row = cy - radius; row <= cy + radius; row++) {
+      var dy = row - cy, dx = Math.floor(Math.sqrt(radius * radius - dy * dy));
+      rect(cx - dx, row, dx * 2 + 1, 1, c);
+    }
+  }
+  function line(x1, y1, x2, y2, c) {
+    var dx = Math.abs(x2 - x1), dy = -Math.abs(y2 - y1), sx = x1 < x2 ? 1 : -1, sy = y1 < y2 ? 1 : -1, err = dx + dy;
+    for (;;) {
+      put(x1, y1, c);
+      if (x1 === x2 && y1 === y2) break;
+      var e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x1 += sx; }
+      if (e2 <= dx) { err += dx; y1 += sy; }
+    }
+  }
+  function text(x, y, value, c) {
+    Array.from(value).forEach(function (ch, i) {
+      var rows = glyph(ch);
+      for (var r = 0; r < rows.length; r++) for (var col = 0; col < 5; col++)
+        if (rows[r] & (1 << (4 - col))) put(x + i * 6 + col, y + r, c);
+    });
+  }
+
+  var BG = 0x14182a, GROUND = 0x3c8c3c, FOX = 0xff8c00, SUN = 0xffd24a, WHITE = 0xffffff;
+  var steps = [
+    function () { pixels.fill(BG); return "clear_window(" + rgbText(BG) + ");"; },
+    function () { rect(0, 30, 64, 10, GROUND); return "draw_rect(0, 30, 64, 10, " + rgbText(GROUND) + ");"; },
+    function () { circle(50, 10, 6, SUN); return "draw_circle(50, 10, 6, " + rgbText(SUN) + ");"; },
+    function () { line(2, 29, 30, 18, FOX); return "draw_line(2, 29, 30, 18, " + rgbText(FOX) + ");"; },
+    function () { var t = frameInput.value || " "; text(3, 3, t, WHITE); return 'draw_text(3, 3, "' + t + '", 1, rgb(255, 255, 255));'; },
+    function () { presented = true; return "present_window(); // кадр ушёл в окно"; }
+  ];
+  var done = 0;
+  var buttons = document.querySelectorAll("[data-step]");
+
+  function paint() {
+    var source = presented ? pixels : shown;
+    for (var i = 0; i < W * H; i++) {
+      var c = source[i];
+      fctx.fillStyle = c === null ? ((i % W + Math.floor(i / W)) % 2 ? "#0b0d11" : "#101319") : hex(c);
+      fctx.fillRect((i % W) * SCALE, Math.floor(i / W) * SCALE, SCALE, SCALE);
+    }
+    // Work in progress shows through faintly until present_window.
+    if (!presented) {
+      fctx.globalAlpha = 0.45;
+      for (var j = 0; j < W * H; j++) {
+        if (pixels[j] === null) continue;
+        fctx.fillStyle = hex(pixels[j]);
+        fctx.fillRect((j % W) * SCALE, Math.floor(j / W) * SCALE, SCALE, SCALE);
+      }
+      fctx.globalAlpha = 1;
+    }
+    fctx.strokeStyle = "rgba(255,255,255,0.06)";
+    fctx.lineWidth = 1;
+    for (var gx = 0; gx <= W; gx++) { fctx.beginPath(); fctx.moveTo(gx * SCALE + .5, 0); fctx.lineTo(gx * SCALE + .5, H * SCALE); fctx.stroke(); }
+    for (var gy = 0; gy <= H; gy++) { fctx.beginPath(); fctx.moveTo(0, gy * SCALE + .5); fctx.lineTo(W * SCALE, gy * SCALE + .5); fctx.stroke(); }
+  }
+  function run(upTo) {
+    pixels.fill(null);
+    presented = false;
+    var last = "";
+    for (var i = 0; i <= upTo; i++) last = steps[i]();
+    if (presented) shown = pixels.slice();
+    done = upTo + 1;
+    buttons.forEach(function (b, i) { b.classList.toggle("done", i < done); });
+    frameCode.textContent = upTo === 5 ? last : last + "  // ещё в памяти, окно пока показывает прошлый кадр";
+    paint();
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () { run(Number(b.getAttribute("data-step"))); });
+  });
+  frameInput.addEventListener("input", function () { if (done >= 5) run(done - 1); });
+  frame.addEventListener("mousemove", function (e) {
+    var box = frame.getBoundingClientRect();
+    var x = Math.floor((e.clientX - box.left) / box.width * W), y = Math.floor((e.clientY - box.top) / box.height * H);
+    var c = (presented ? pixels : shown)[y * W + x];
+    framePos.textContent = "mouse_x() = " + x + ", mouse_y() = " + y + (c === null || c === undefined ? "" : " · " + rgbText(c));
+  });
+  frame.addEventListener("mouseleave", function () { framePos.textContent = ""; });
+  run(5);
+
+  // ---- The letter A, row by row
+  var table = document.getElementById("glyph-table");
+  FONT.upper["A"].forEach(function (value) {
+    var lineBox = document.createElement("div");
+    lineBox.className = "glyph-line";
+    for (var col = 0; col < 5; col++) {
+      var cell = document.createElement("i");
+      cell.className = "glyph-cell" + (value & (1 << (4 - col)) ? " on" : "");
+      lineBox.appendChild(cell);
+    }
+    var num = document.createElement("span"); num.textContent = value;
+    var bits = document.createElement("span"); bits.textContent = ("00000" + value.toString(2)).slice(-5);
+    lineBox.appendChild(num); lineBox.appendChild(bits);
+    table.appendChild(lineBox);
+  });
+})();
+</script>
+</body>
+</html>
