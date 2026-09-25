@@ -1,5 +1,6 @@
 #include "Operations.h"
 #include "foxlang/Runtime.h"
+#include <charconv>
 #include <cmath>
 #include <stdexcept>
 
@@ -51,6 +52,22 @@ size_t fieldIn(const Object& object, const std::string& name) {
     throw std::runtime_error("Runtime Error: struct '" + object.structType->name + "' has no field '" + name + "'");
 }
 
+// A value as print() shows it, added to the end of out.
+void appendDisplay(std::string& out, const Value& value) {
+    switch (value.kind()) {
+        case Value::Kind::String: out += value.str(); break;
+        case Value::Kind::Int: {
+            char digits[24];
+            auto end = std::to_chars(digits, digits + sizeof digits, value.asInt()).ptr;
+            out.append(digits, end);
+            break;
+        }
+        case Value::Kind::Bool: out += value.asBool() ? "true" : "false"; break;
+        case Value::Kind::Void: break;
+        default: out += display(value); break;
+    }
+}
+
 [[noreturn]] void missingKey(const std::string& key) {
     throw std::runtime_error("Runtime Error: map has no key '" + key + "' (has(map, key) checks, get_or(map, key, default) reads safely)");
 }
@@ -90,8 +107,12 @@ Value binary(Operator op, const std::string& text, const Value& lval, const Valu
     switch (op) {
         case Operator::Add:
             if (concatenation) {
-                if (lval.isString() && rval.isString()) return Value::string(lval.str() + rval.str());
-                return Value::string(display(lval) + display(rval));
+                std::string text;
+                size_t known = (lval.isString() ? lval.str().size() : 0) + (rval.isString() ? rval.str().size() : 0);
+                if (known > 15) text.reserve(known + 16); // short text stays inside the string, allocating nothing
+                appendDisplay(text, lval);
+                appendDisplay(text, rval);
+                return Value::string(std::move(text));
             }
             if (lval.isFloat() || rval.isFloat())
                 return realResult(number(lval, "left", text) + number(rval, "right", text));
@@ -164,7 +185,9 @@ Value& element(Value& base, const Value& index, bool create) {
         throw std::runtime_error("Type Error: '[]' needs an array or a map, got '" + base.typeName() + "'");
     Object& object = *base.ref();
     if (object.kind == Object::Kind::Array) return object.items[positionIn(object, index)];
-    std::string key = keyOf(index);
+    // A string key is used as it is; only an int one needs its text made.
+    std::string made;
+    const std::string& key = index.isString() ? index.str() : (made = keyOf(index));
     if (create) return object.slot(key);
     long at = object.find(key);
     if (at < 0) missingKey(key);

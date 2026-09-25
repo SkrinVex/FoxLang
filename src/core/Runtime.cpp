@@ -205,20 +205,32 @@ Value zeroValue(const std::string& type, Context& ctx) {
 }
 
 Value construct(const StructType& type, std::vector<Value> args, Context& ctx) {
-    if (args.size() > type.fields.size())
-        throw std::runtime_error("Runtime Error: struct '" + type.name + "' has " + std::to_string(type.fields.size()) +
-                                 " fields, got " + std::to_string(args.size()) + " values");
+    auto registered = ctx.getStruct(type.name);
+    if (!registered) throw std::runtime_error("Type Error: unknown type '" + type.name + "'");
+    return construct(registered, args.data(), args.size(), ctx);
+}
+
+Value construct(const std::shared_ptr<const StructType>& type, Value* args, size_t count, Context& ctx) {
+    const auto& fields = type->fields;
+    if (count > fields.size())
+        throw std::runtime_error("Runtime Error: struct '" + type->name + "' has " + std::to_string(fields.size()) +
+                                 " fields, got " + std::to_string(count) + " values");
+    if (type->kinds.size() != fields.size()) {
+        type->kinds.clear();
+        for (const auto& field : fields) type->kinds.push_back(declaredKind(field.type));
+    }
     Value result = Value::container(Value::Kind::Struct);
     Object* object = result.ref();
-    object->structType = ctx.getStruct(type.name);
-    object->items.reserve(type.fields.size());
-    for (size_t i = 0; i < type.fields.size(); ++i) {
-        const auto& field = type.fields[i];
+    object->structType = type;
+    object->items.reserve(fields.size());
+    for (size_t i = 0; i < fields.size(); ++i) {
+        const auto& field = fields[i];
         Value value;
-        if (i < args.size()) value = std::move(args[i]);
-        else if (i < type.defaults.size() && type.defaults[i]) value = type.defaults[i]->eval(ctx);
+        if (i < count) value = std::move(args[i]);
+        else if (i < type->defaults.size() && type->defaults[i]) value = type->defaults[i]->eval(ctx);
         else value = zeroValue(field.type, ctx);
-        coerce(field.type, value, "field '" + field.name + "' of '" + type.name + "'");
+        if (!storesAsIs(type->kinds[i], value))
+            coerce(field.type, value, "field '" + field.name + "' of '" + type->name + "'");
         object->items.push_back(std::move(value));
     }
     return result;

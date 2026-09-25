@@ -157,6 +157,12 @@ public:
         p.registers = base + static_cast<int>(constantOrder.size());
     }
 
+    // The implicit return at the end of the code belongs to its last line.
+    void end(int endLine) {
+        if (endLine > 0) line = endLine;
+        emit(Op::ReturnVoid);
+    }
+
     int emit(Op op, int a = 0, int b = 0, int c = 0, int x = 0, int y = 0) {
         Instr instr;
         instr.op = op;
@@ -401,7 +407,8 @@ private:
             emit(Op::Index, dest, base, index);
         } else if (auto* n = dynamic_cast<FieldNode*>(&node)) {
             int base = any(*n->base);
-            emit(Op::Field, dest, base, stringConstant(n->name));
+            p.fields.push_back({n->name});
+            emit(Op::Field, dest, base, static_cast<int>(p.fields.size()) - 1);
         } else if (auto* n = dynamic_cast<ArrayLiteralNode*>(&node)) {
             int first = next;
             for (auto& element : n->elements) into(*element, temp());
@@ -813,7 +820,7 @@ std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug) 
     proto->result = {runtime::declaredKind(function.returnType), function.returnType, "return value of '" + function.name + "'"};
     Compiler compiler(*proto, debug, true);
     compiler.block(*body, false, true);
-    compiler.emit(Op::ReturnVoid);
+    compiler.end(body->range.end.line);
     compiler.epilogue();
     compiler.finish();
     return proto;
@@ -829,7 +836,7 @@ std::shared_ptr<Proto> compileProgram(BlockNode& program, Unit unit, bool debug)
     Compiler compiler(*proto, proto->debug, false);
     if (unit == Unit::Program) compiler.block(program);
     else compiler.topLevel(program, unit);
-    compiler.emit(Op::ReturnVoid);
+    compiler.end(program.range.end.line);
     compiler.epilogue();
     compiler.finish();
     return proto;
@@ -918,7 +925,7 @@ void disassemble(const Proto& proto, std::ostream& out) {
             case Op::NewMap: out << reg(in.a) << " {" << in.c << " from " << reg(in.b) << "}"; break;
             case Op::MapKey: out << reg(in.a); break;
             case Op::Index: out << reg(in.a) << " " << reg(in.b) << "[" << reg(in.c) << "]"; break;
-            case Op::Field: out << reg(in.a) << " " << reg(in.b) << "." << K[in.c].str(); break;
+            case Op::Field: out << reg(in.a) << " " << reg(in.b) << "." << proto.fields[in.c].name; break;
             case Op::SetPath: {
                 const SetPath& path = proto.paths[in.b];
                 out << path.variable;

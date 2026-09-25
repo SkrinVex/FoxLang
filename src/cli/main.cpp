@@ -126,6 +126,7 @@ int main(int argc, char* argv[]) {
                   << "  foxlang fmt [--check] [paths...] Lay out .fox files (indentation, blank lines, spaces)\n"
                   << "  foxlang test [--filter text] [paths...]\n"
                   << "                                  Run test_ functions of *_test.fox files\n"
+                  << "  foxlang disasm <script.fox>     Print the bytecode the program runs as\n"
                   << "  foxlang debug-adapter [--connect host:port]\n"
                   << "                                  Debug Adapter Protocol server for editors (VS Code, Kate, Zed)\n"
                   << "  foxlang --version               Show version\n"
@@ -156,6 +157,7 @@ int main(int argc, char* argv[]) {
 
     if (std::string(argv[1]) == "fmt") return foxlang::cli::format(std::vector<std::string>(args.begin() + 2, args.end()));
     if (std::string(argv[1]) == "test") return foxlang::cli::test(std::vector<std::string>(args.begin() + 2, args.end()));
+    if (std::string(argv[1]) == "disasm") return foxlang::cli::disassemble(std::vector<std::string>(args.begin() + 2, args.end()));
 
     if (std::string(argv[1]) == "debug-adapter") {
         return foxlang::debug::runAdapter(std::vector<std::string>(args.begin() + 2, args.end()));

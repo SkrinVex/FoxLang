@@ -46,13 +46,19 @@ public:
     Value(const Value& other) noexcept : kind_(other.kind_), data_(other.data_) { retain(); }
     Value(Value&& other) noexcept : kind_(other.kind_), data_(other.data_) { other.kind_ = Kind::Void; }
     Value& operator=(const Value& other) noexcept {
-        Value copy(other);
-        swap(copy);
+        other.retain(); // first: assigning a value to itself must not free it
+        release();
+        kind_ = other.kind_;
+        data_ = other.data_;
         return *this;
     }
     Value& operator=(Value&& other) noexcept {
-        Value moved(std::move(other));
-        swap(moved);
+        if (this != &other) {
+            release();
+            kind_ = other.kind_;
+            data_ = other.data_;
+            other.kind_ = Kind::Void;
+        }
         return *this;
     }
     ~Value() { release(); }
@@ -174,6 +180,8 @@ struct StructType {
     std::string name;
     std::vector<FuncParam> fields;
     std::vector<std::shared_ptr<Node>> defaults; // an initial value per field, or null
+    // What each field's type holds, worked out when the first value is built.
+    mutable std::vector<Value::Kind> kinds;
 };
 
 struct Object {

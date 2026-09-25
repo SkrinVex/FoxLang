@@ -94,6 +94,8 @@ Value zeroValue(const std::string& type, Context& ctx);
 // A struct value built from positional arguments; missing trailing fields take their
 // defaults.
 Value construct(const StructType& type, std::vector<Value> args, Context& ctx);
+// The same from arguments in place (moved from), for a type already looked up.
+Value construct(const std::shared_ptr<const StructType>& type, Value* args, size_t count, Context& ctx);
 
 // JSON navigation by a dotted path. Object keys and array indexes are both path
 // segments: "message.chat.id", "items.0.name". The empty path is the document itself.

@@ -126,14 +126,18 @@ struct DebugFrame {
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
 }
 
-Value* global(GlobalSite& site, Context& root) {
-    if (site.cached && site.root == &root && site.generation == root.generation) return site.cached;
+FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root) {
     auto found = root.variables.find(site.name);
     if (found == root.variables.end()) notFound(site.name);
     site.cached = &found->second;
     site.root = &root;
     site.generation = root.generation;
     return site.cached;
+}
+
+inline Value* global(GlobalSite& site, Context& root) {
+    if (site.cached && site.root == &root && site.generation == root.generation) return site.cached;
+    return lookUp(site, root);
 }
 
 bool fitsInt(long long value) { return value >= -2147483648LL && value <= 2147483647LL; }
@@ -279,8 +283,7 @@ FOXLANG_APART void callOther(const CallSite& site, Value* args, size_t count, Co
     }
     // A struct's name called like a function builds a value of it.
     if (auto type = root.getStruct(site.name)) {
-        std::vector<Value> values(std::make_move_iterator(args), std::make_move_iterator(args + count));
-        Value result = runtime::construct(*type, std::move(values), root);
+        Value result = runtime::construct(type, args, count, root);
         args[0] = std::move(result);
         return;
     }
@@ -374,8 +377,15 @@ FOXLANG_APART void index(Value& out, Value& base, const Value& key) {
     out = std::move(element);
 }
 
-FOXLANG_APART void field(Value& out, Value& base, const std::string& name) {
-    Value member = runtime::member(base, name, false);
+FOXLANG_APART void field(Value& out, Value& base, FieldSite& site) {
+    Value member = runtime::member(base, site.name, false);
+    if (base.is(Value::Kind::Struct)) {
+        const Object& object = *base.ref();
+        const auto& fields = object.structType->fields;
+        for (size_t i = 0; i < fields.size(); ++i)
+            if (fields[i].name == site.name) site.index = i;
+        site.type = object.structType.get();
+    }
     out = std::move(member);
 }
 
@@ -439,9 +449,14 @@ Value execute(Proto& proto, Value* R, Context& root, DebugFrame* debug) {
                     case Op::GetGlobal:
                         R[in.a] = *global(proto.globals[static_cast<size_t>(in.b)], root);
                         break;
-                    case Op::SetGlobal:
-                        setGlobal(proto.globals[static_cast<size_t>(in.b)], root, R[in.a]);
+                    case Op::SetGlobal: {
+                        GlobalSite& site = proto.globals[static_cast<size_t>(in.b)];
+                        Value& target = *global(site, root);
+                        Value& value = R[in.a];
+                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
+                        else setGlobal(site, root, value);
                         break;
+                    }
                     case Op::DefineGlobal:
                         defineGlobal(root, proto.globals[static_cast<size_t>(in.b)].name, in.a < 0 ? nullptr : &R[in.a]);
                         break;
@@ -587,12 +602,31 @@ Value execute(Proto& proto, Value* R, Context& root, DebugFrame* debug) {
                     case Op::MapKey:
                         if (!R[in.a].isString()) mapKey(R[in.a]);
                         break;
-                    case Op::Index:
+                    case Op::Index: {
+                        // An array element by an int in range is the common case.
+                        const Value& base = R[in.b];
+                        const Value& key = R[in.c];
+                        if (base.is(Value::Kind::Array) && key.isInt() && in.a != in.b) {
+                            const auto& items = base.ref()->items;
+                            long long at = key.asInt();
+                            if (at >= 0 && static_cast<unsigned long long>(at) < items.size()) {
+                                R[in.a] = items[static_cast<size_t>(at)];
+                                break;
+                            }
+                        }
                         index(R[in.a], R[in.b], R[in.c]);
                         break;
-                    case Op::Field:
-                        field(R[in.a], R[in.b], K[in.c].str());
+                    }
+                    case Op::Field: {
+                        FieldSite& site = proto.fields[static_cast<size_t>(in.c)];
+                        const Value& base = R[in.b];
+                        if (base.is(Value::Kind::Struct) && base.ref()->structType.get() == site.type && in.a != in.b) {
+                            R[in.a] = base.ref()->items[site.index];
+                            break;
+                        }
+                        field(R[in.a], R[in.b], site);
                         break;
+                    }
                     case Op::SetPath:
                         setPath(proto, proto.paths[static_cast<size_t>(in.b)], R, R[in.a], root);
                         break;

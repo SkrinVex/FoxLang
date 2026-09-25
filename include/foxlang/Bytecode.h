@@ -55,7 +55,7 @@ enum class Op : std::uint8_t {
     NewMap,        // R[a] = {R[b]: R[b+1], ...} for c pairs
     MapKey,        // R[a] = the map key R[a] stands for: a string, or an int as text
     Index,         // R[a] = R[b][R[c]]
-    Field,         // R[a] = R[b].name, name K[c]
+    Field,         // R[a] = R[b].name, through field site c
     SetPath,       // store R[a] through path b: items[i].name = value
     Increment,     // R[a] = R[b]++ (or --): step c; a < 0 when the old value is not used
     IncrementGlobal, // the same on global b, into R[a]; step c
@@ -104,6 +104,13 @@ struct CallSite {
     unsigned generation = 0;
 };
 
+// base.name: the field's position is remembered for the struct type last seen here.
+struct FieldSite {
+    std::string name;
+    const StructType* type = nullptr;
+    size_t index = 0;
+};
+
 // target = value through indexes and fields that start at a variable.
 struct SetPath {
     struct Step {
@@ -145,6 +152,7 @@ struct Proto {
     std::vector<GlobalSite> globals;
     std::vector<CallSite> calls;
     std::vector<SetPath> paths;
+    std::vector<FieldSite> fields;
     std::vector<Handler> handlers;
     std::vector<std::pair<int, int>> tryBodies; // [start, end) of every try block
     std::vector<Node*> declarations;
