@@ -50,7 +50,14 @@ std::string displayPath(const std::string& identity) {
     fs::path base = fs::current_path(ec);
     if (ec) return identity;
     auto relative = path.lexically_relative(base);
-    if (relative.empty() || *relative.begin() == "..") return identity;
+    if (relative.empty() || *relative.begin() == "..") {
+        // The working directory may be spelled differently from the file's canonical
+        // path: a Windows short 8.3 name, a symbolic link.
+        fs::path canonicalBase = fs::weakly_canonical(base, ec);
+        if (ec) return identity;
+        relative = path.lexically_relative(canonicalBase);
+        if (relative.empty() || *relative.begin() == "..") return identity;
+    }
     return platform::pathToUtf8(relative.generic_string());
 }
 
