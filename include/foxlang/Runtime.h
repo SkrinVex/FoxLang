@@ -31,6 +31,7 @@ struct StackGuard {
     size_t budget = 0;
     int line = 0;                     // Line of the statement being executed, for the error report,
     const std::string* file = nullptr; // and its source file (an interned name, never freed).
+    int tryDepth = 0;                  // try blocks the running code is inside of
 };
 StackGuard& stackGuard();
 
@@ -51,6 +52,16 @@ Text realResult(double result);
 // or a return value. int and float convert both ways (float to int truncates, and
 // must fit), any scalar becomes text in a string slot, everything else is an error.
 void coerce(const std::string& type, Value& value, const std::string& what);
+
+// A value as print() shows it: numbers and text as they are, arrays as [1, 2],
+// maps as {key: value}, structs as Name{field: value}.
+std::string display(const Value& value);
+// The value a slot of this type starts with: 0, 0.0, "", false, an empty array or
+// map, a struct with its defaults. Unknown types are an error.
+Value zeroValue(const std::string& type, Context& ctx);
+// A struct value built from positional arguments; missing trailing fields take their
+// defaults.
+Value construct(const StructType& type, std::vector<Value> args, Context& ctx);
 
 // JSON navigation by a dotted path. Object keys and array indexes are both path
 // segments: "message.chat.id", "items.0.name". The empty path is the document itself.

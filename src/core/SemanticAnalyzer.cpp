@@ -182,6 +182,8 @@ void SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, SourceRang
             }
             if (s.documentation.empty()) s.documentation = signatureOf(fn->name, fn->params, fn->returnType);
             rootScope->symbols[fn->name] = s;
+        } else if (auto* type = dynamic_cast<const StructDefNode*>(stmt.get())) {
+            declareStruct(type, uri, functionComment(source, stmt->range.start.line));
         } else if (dynamic_cast<const VarDeclNode*>(stmt.get()) || dynamic_cast<const ArrayDeclNode*>(stmt.get())) {
             auto* var = dynamic_cast<const VarDeclNode*>(stmt.get());
             auto* arr = dynamic_cast<const ArrayDeclNode*>(stmt.get());
@@ -219,6 +221,10 @@ void SemanticAnalyzer::analyze(const BlockNode* root) {
     for (const auto& stmt : root->stmts) {
         if (auto* fn = dynamic_cast<const FuncDefNode*>(stmt.get())) {
             declareFunction(fn);
+            continue;
+        }
+        if (auto* type = dynamic_cast<const StructDefNode*>(stmt.get())) {
+            declareStruct(type, currentFile, "");
             continue;
         }
         Symbol sym;
@@ -278,13 +284,25 @@ void SemanticAnalyzer::visitNode(const Node* node) {
         visitArrayDecl(arr);
     } else if (auto* lit = dynamic_cast<const ArrayLiteralNode*>(node)) {
         for (const auto& element : lit->elements) visitNode(element.get());
-    } else if (auto* get = dynamic_cast<const ArrayGetNode*>(node)) {
-        visitNode(get->index.get());
-        checkVariable(get->name, get->nameRange.start.line > 0 ? get->nameRange : get->range);
-    } else if (auto* set = dynamic_cast<const ArraySetNode*>(node)) {
-        visitNode(set->index.get());
+    } else if (auto* index = dynamic_cast<const IndexNode*>(node)) {
+        visitNode(index->base.get());
+        visitNode(index->index.get());
+    } else if (auto* field = dynamic_cast<const FieldNode*>(node)) {
+        visitNode(field->base.get());
+    } else if (auto* set = dynamic_cast<const SetNode*>(node)) {
         visitNode(set->value.get());
-        checkVariable(set->name, set->nameRange.start.line > 0 ? set->nameRange : set->range);
+        visitNode(set->target.get());
+    } else if (auto* map = dynamic_cast<const MapLiteralNode*>(node)) {
+        for (const auto& entry : map->entries) {
+            visitNode(entry.first.get());
+            visitNode(entry.second.get());
+        }
+    } else if (auto* type = dynamic_cast<const StructDefNode*>(node)) {
+        visitStructDef(type);
+    } else if (auto* guarded = dynamic_cast<const TryNode*>(node)) {
+        visitTry(guarded);
+    } else if (auto* raise = dynamic_cast<const ThrowNode*>(node)) {
+        visitNode(raise->message.get());
     } else if (auto* usg = dynamic_cast<const UsingNode*>(node)) {
         visitUsing(usg);
     } else if (auto* incl = dynamic_cast<const IncludeNode*>(node)) {
@@ -332,7 +350,9 @@ void SemanticAnalyzer::visitFuncDef(const FuncDefNode* node) {
     std::string oldReturn = currentFuncReturnType;
     currentFuncReturnType = node->returnType;
 
+    checkType(node->returnType, fnSym.declRange);
     for (const auto& param : node->params) {
+        checkType(param.type, fnSym.declRange);
         Symbol paramSym;
         paramSym.name = param.name;
         paramSym.type = param.type;
@@ -366,8 +386,64 @@ void SemanticAnalyzer::addSymbol(Scope* scope, const Symbol& sym, SourceRange na
     }
 }
 
+void SemanticAnalyzer::declareStruct(const StructDefNode* node, const std::string& uri, const std::string& documentation) {
+    Symbol sym;
+    sym.name = node->type->name;
+    sym.type = node->type->name;
+    sym.kind = SymbolKind::Type;
+    sym.params = node->type->fields;
+    sym.returnType = node->type->name;
+    sym.declRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
+    sym.fileUri = uri;
+    std::string shape = "struct " + sym.name + " {";
+    for (const auto& field : node->type->fields) shape += " " + field.type + " " + field.name + ";";
+    sym.documentation = (documentation.empty() ? "" : documentation + "\n\n") + shape + " }";
+    rootScope->symbols[sym.name] = sym;
+}
+
+void SemanticAnalyzer::visitStructDef(const StructDefNode* node) {
+    declareStruct(node, currentFile, "");
+    const Symbol& sym = rootScope->symbols[node->type->name];
+    symbolRefs.push_back({sym.declRange, sym});
+    documentSymbols.push_back({node->type->name, "Struct", node->range, sym.declRange, {}});
+    for (size_t i = 0; i < node->type->fields.size(); ++i) {
+        SourceRange where = i < node->fieldRanges.size() ? node->fieldRanges[i] : node->range;
+        checkType(node->type->fields[i].type, where);
+        if (i < node->type->defaults.size()) visitNode(node->type->defaults[i].get());
+    }
+}
+
+void SemanticAnalyzer::visitTry(const TryNode* node) {
+    visitNode(node->body.get());
+    if (node->handler) {
+        enterScope();
+        if (!node->errorName.empty()) {
+            Symbol error;
+            error.name = node->errorName;
+            error.type = "string";
+            error.kind = SymbolKind::Variable;
+            error.declRange = node->errorRange;
+            error.documentation = "string " + node->errorName + " — сообщение об ошибке";
+            error.fileUri = currentFile;
+            addSymbol(currentScope, error, node->errorRange, false);
+        }
+        visitNode(node->handler.get());
+        exitScope();
+    }
+    visitNode(node->cleanup.get());
+}
+
+void SemanticAnalyzer::checkType(const std::string& type, SourceRange range) {
+    static const std::set<std::string> builtinTypes = {"int", "float", "string", "bool", "void", "array", "map"};
+    if (builtinTypes.count(type)) return;
+    Symbol* sym = rootScope->find(type);
+    if (!sym || sym->kind != SymbolKind::Type)
+        diagnostics.push_back({DiagnosticSeverity::Error, "Unknown type '" + type + "'", range});
+}
+
 void SemanticAnalyzer::visitVarDecl(const VarDeclNode* node) {
     if (node->expr) visitNode(node->expr.get());
+    checkType(node->type, node->range);
     Symbol sym;
     sym.name = node->name;
     sym.type = node->type;
@@ -406,6 +482,14 @@ void SemanticAnalyzer::visitFuncCall(const FuncCallNode* node) {
     Symbol* sym = currentScope->find(node->name);
     SourceRange targetRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
     const BuiltinSpec* builtin = findBuiltinSpec(node->name);
+    if (sym && sym->kind == SymbolKind::Type && !builtin) {
+        // Name(values...) builds a struct; trailing fields may be left out.
+        symbolRefs.push_back({targetRange, *sym});
+        if (node->args.size() > sym->params.size())
+            diagnostics.push_back({DiagnosticSeverity::Error, "Struct '" + node->name + "' has " + std::to_string(sym->params.size()) +
+                                   " fields, but got " + std::to_string(node->args.size()) + " values", node->range});
+        return;
+    }
     if (!sym || (sym->kind != SymbolKind::Function && sym->kind != SymbolKind::Builtin)) {
         if (builtin) {
             sym = &rootScope->symbols[node->name];

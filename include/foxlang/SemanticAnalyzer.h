@@ -16,7 +16,8 @@ enum class SymbolKind {
     Parameter,
     Builtin,
     Keyword,
-    Module
+    Module,
+    Type            // a struct: its fields are in params
 };
 
 struct Symbol {
@@ -170,6 +171,10 @@ private:
     void visitArrayDecl(const ArrayDeclNode* node);
     void visitUsing(const UsingNode* node);
     void visitInclude(const IncludeNode* node);
+    void declareStruct(const StructDefNode* node, const std::string& uri, const std::string& documentation);
+    void visitStructDef(const StructDefNode* node);
+    void visitTry(const TryNode* node);
+    void checkType(const std::string& type, SourceRange range);
     void checkVariable(const std::string& name, SourceRange range);
     void addSymbol(Scope* scope, const Symbol& symbol, SourceRange nameRange, bool warnOnRedeclaration);
 

@@ -2,7 +2,6 @@
 #include "foxlang/AST.h"
 #include "foxlang/Runtime.h"
 #include <algorithm>
-#include <atomic>
 #include <ostream>
 #include <string>
 #include <stdexcept>
@@ -32,33 +31,26 @@ void Text::materialize() const {
 
 std::ostream& operator<<(std::ostream& out, const Text& text) { return out << text.str(); }
 
-Context::~Context() { releaseArrays(); }
-
-// Re-declaring an array in the same scope frees the previous buffer at once
-// instead of stranding it until the scope ends.
-std::string Context::declareArray(const std::string& name, size_t size) {
-    static std::atomic<unsigned long long> counter{0};
-    Context* root = getRoot();
-    auto existing = variables.find(name);
-    if (existing != variables.end() && existing->second.type == "array") {
-        auto owned = std::find(ownedArrays.begin(), ownedArrays.end(), existing->second.value);
-        if (owned != ownedArrays.end()) {
-            root->arrays.erase(*owned);
-            ownedArrays.erase(owned);
-        }
-    }
-    std::string id = "__arr_" + std::to_string(counter++);
-    root->arrays[id] = std::vector<Value>(size, {"int", Text::integer(0)});
-    ownedArrays.push_back(id);
-    defineVar(name, "array", {"array", id});
-    return id;
+long Object::find(const std::string& key) const {
+    for (size_t i = 0; i < keys.size(); ++i)
+        if (keys[i] == key) return static_cast<long>(i);
+    return -1;
 }
 
-void Context::releaseArrays() {
-    if (ownedArrays.empty()) return;
-    Context* root = getRoot();
-    for (const auto& id : ownedArrays) root->arrays.erase(id);
-    ownedArrays.clear();
+Value& Object::slot(const std::string& key) {
+    long at = find(key);
+    if (at >= 0) return items[static_cast<size_t>(at)];
+    keys.push_back(key);
+    items.push_back({"void", ""});
+    return items.back();
+}
+
+bool Object::erase(const std::string& key) {
+    long at = find(key);
+    if (at < 0) return false;
+    keys.erase(keys.begin() + at);
+    items.erase(items.begin() + at);
+    return true;
 }
 
 Value Context::getVar(const std::string& name) const {
@@ -69,35 +61,56 @@ Value Context::getVar(const std::string& name) const {
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
 }
 
-std::string Context::newArray(std::vector<Value> items) {
-    static std::atomic<unsigned long long> counter{0};
-    std::string id = "__tmp_" + std::to_string(counter++);
-    getRoot()->arrays[id] = std::move(items);
-    ownedArrays.push_back(id);
-    return id;
+Value* Context::findVar(const std::string& name) {
+    for (Context* scope = this; scope; scope = scope->parent) {
+        auto it = scope->variables.find(name);
+        if (it != scope->variables.end()) return &it->second;
+    }
+    return nullptr;
 }
 
 std::vector<Value>& Context::arrayOf(const Value& value, const std::string& what) {
-    if (value.type != "array")
+    if (value.type != "array" || !value.ref)
         throw std::runtime_error("Type Error: " + what + " must be an array, got '" + value.type + "'");
-    auto& arrays = getRoot()->arrays;
-    auto found = arrays.find(value.value.str());
-    if (found == arrays.end())
-        throw std::runtime_error("Runtime Error: " + what + " refers to an array that no longer exists");
-    return found->second;
+    return value.ref->items;
 }
 
-std::vector<Value> Context::takeArray(const Value& value, const std::string& what) {
-    std::vector<Value>& items = arrayOf(value, what);
-    const std::string& id = value.value.str();
-    bool temporary = id.rfind("__tmp_", 0) == 0 || id.rfind("__ret_", 0) == 0;
-    auto owned = std::find(ownedArrays.begin(), ownedArrays.end(), id);
-    if (!temporary || owned == ownedArrays.end()) return items;
-    std::vector<Value> moved = std::move(items);
-    getRoot()->arrays.erase(id);
-    ownedArrays.erase(owned);
-    return moved;
+namespace runtime {
+
+Value makeArray(std::vector<Value> items) {
+    auto object = std::make_shared<Object>(Object::Kind::Array);
+    object->items = std::move(items);
+    return {"array", "", std::move(object)};
 }
+
+Value makeMap() { return {"map", "", std::make_shared<Object>(Object::Kind::Map)}; }
+
+Value deepCopy(const Value& value) {
+    if (!value.ref) return value;
+    auto copy = std::make_shared<Object>(value.ref->kind);
+    copy->keys = value.ref->keys;
+    copy->structType = value.ref->structType;
+    copy->items.reserve(value.ref->items.size());
+    for (const auto& item : value.ref->items) copy->items.push_back(deepCopy(item));
+    return {value.type, value.value, std::move(copy)};
+}
+
+void own(Value& value) {
+    // Nothing else refers to a temporary, so it can be stored without a copy.
+    if (value.ref && value.ref.use_count() > 1) value = deepCopy(value);
+}
+
+bool deepEqual(const Value& a, const Value& b) {
+    if (a.type != b.type) return false;
+    if (!a.ref || !b.ref) return !a.ref && !b.ref && a.value == b.value;
+    if (a.ref == b.ref) return true;
+    if (a.ref->keys != b.ref->keys || a.ref->items.size() != b.ref->items.size()) return false;
+    for (size_t i = 0; i < a.ref->items.size(); ++i)
+        if (!deepEqual(a.ref->items[i], b.ref->items[i])) return false;
+    return true;
+}
+
+} // namespace runtime
 
 Context* Context::getRoot() {
     Context* curr = this;
@@ -122,8 +135,14 @@ std::shared_ptr<Node> Context::getFunc(const std::string& name) const {
     return nullptr;
 }
 
+std::shared_ptr<const StructType> Context::getStruct(const std::string& name) const {
+    const Context* root = getRoot();
+    auto it = root->structs.find(name);
+    return it == root->structs.end() ? nullptr : it->second;
+}
+
 void Context::defineVar(const std::string& name, const std::string& type, const Value& value) {
-    variables[name] = {type, value.value};
+    variables[name] = {type, value.value, value.ref};
 }
 
 void Context::setVar(const std::string& name, Value val) {
@@ -131,15 +150,11 @@ void Context::setVar(const std::string& name, Value val) {
         auto it = scope->variables.find(name);
         if (it == scope->variables.end()) continue;
         Value& target = it->second;
-        if (target.type == "array") {
-            // Assignment copies the elements into the variable's own buffer, so the
-            // variable never points at a temporary that its creator frees later.
-            std::vector<Value> items = takeArray(val, "value assigned to '" + name + "'");
-            arrayOf(target, "array '" + name + "'") = std::move(items);
-            return;
-        }
         runtime::coerce(target.type, val, "variable '" + name + "'");
-        target.value = val.value;
+        // A container assigned to a variable becomes its own copy.
+        runtime::own(val);
+        target.value = std::move(val.value);
+        target.ref = std::move(val.ref);
         return;
     }
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");

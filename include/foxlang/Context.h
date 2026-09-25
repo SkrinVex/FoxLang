@@ -80,9 +80,41 @@ inline std::string operator+(const Text& a, const std::string& b) { return a.str
 inline std::string operator+(const std::string& a, const Text& b) { return a + b.str(); }
 std::ostream& operator<<(std::ostream& out, const Text& text);
 
+struct Object;
+
+// A scalar keeps its text in `value`; an array, a map or a struct lives in `ref`,
+// shared by every Value that names it. `type` is "int", "float", "string", "bool",
+// "void", "array", "map" or the name of a struct.
 struct Value {
     std::string type;
     Text value;
+    std::shared_ptr<Object> ref;
+
+    Value() = default;
+    Value(std::string t, Text v, std::shared_ptr<Object> r = nullptr)
+        : type(std::move(t)), value(std::move(v)), ref(std::move(r)) {}
+};
+
+struct StructType {
+    std::string name;
+    std::vector<FuncParam> fields;
+    std::vector<std::shared_ptr<Node>> defaults; // an initial value per field, or null
+};
+
+struct Object {
+    enum class Kind { Array, Map, Struct };
+    explicit Object(Kind k) : kind(k) {}
+    Kind kind;
+    // Array: the elements. Struct: the fields in declaration order.
+    std::vector<Value> items;
+    // Map: keys in insertion order, items[i] belongs to keys[i].
+    std::vector<std::string> keys;
+    std::shared_ptr<const StructType> structType;
+
+    // Map access; -1 when the key is absent.
+    long find(const std::string& key) const;
+    Value& slot(const std::string& key); // inserts a void value for a new key
+    bool erase(const std::string& key);
 };
 
 struct ReturnValue {
@@ -103,37 +135,39 @@ struct Context {
     Interpreter* interpreter = nullptr;
     std::map<std::string, Value> variables;
     std::map<std::string, std::shared_ptr<Node>> functions;
-    std::map<std::string, std::vector<Value>> arrays;
-    // Array buffers live in the root context, so ids stay valid when an array is
-    // passed to a function. This scope owns the ones declared in it and frees them.
-    std::vector<std::string> ownedArrays;
+    std::map<std::string, std::shared_ptr<const StructType>> structs;
     std::shared_ptr<graphics::Window> graphics;
     std::shared_ptr<platform::ServerState> server;
 
     Context() = default;
-    ~Context();
     Context(const Context&) = delete;
     Context& operator=(const Context&) = delete;
 
     Value getVar(const std::string& name) const;
+    // The variable itself, for assignment through it; null when it is not declared.
+    Value* findVar(const std::string& name);
     Context* getRoot();
     const Context* getRoot() const;
 
     void defineFunc(const std::string& name, std::shared_ptr<Node> func);
     std::shared_ptr<Node> getFunc(const std::string& name) const;
+    std::shared_ptr<const StructType> getStruct(const std::string& name) const;
 
     void defineVar(const std::string& name, const std::string& type, const Value& value);
     void setVar(const std::string& name, Value val);
 
-    std::string declareArray(const std::string& name, size_t size);
-    // Stores a new array that this scope owns: a builtin's result, a literal or a
-    // value returned from a function. It is freed when the scope ends.
-    std::string newArray(std::vector<Value> items);
+    // The elements of an array value, for builtins and the debugger.
     std::vector<Value>& arrayOf(const Value& value, const std::string& what);
-    // The elements of an array value: moved out when it is a temporary this scope
-    // owns (a literal, a builtin result, a returned array), copied otherwise.
-    std::vector<Value> takeArray(const Value& value, const std::string& what);
-    void releaseArrays();
 };
+
+namespace runtime {
+Value makeArray(std::vector<Value> items);
+Value makeMap();
+// A container stored somewhere new owns its contents: a value that is still shared
+// (a variable, an element of another container) is copied, a temporary is taken as is.
+void own(Value& value);
+Value deepCopy(const Value& value);
+bool deepEqual(const Value& a, const Value& b);
+} // namespace runtime
 
 } // namespace foxlang

@@ -100,7 +100,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
             std::sort(names.begin(), names.end());
             std::vector<Value> items;
             for (auto& name : names) items.push_back(text(std::move(name)));
-            return Value{"array", c.ctx.newArray(std::move(items))};
+            return makeArray(std::move(items));
         });
     add({"fs_size", "float", {{"string", "path"}}, 1, false, "fs",
          "Размер файла в байтах или `-1`, если это не файл. Тип `float`: размеры больше 2 ГиБ не помещаются в `int`, "
@@ -175,7 +175,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
             std::vector<Value> items;
             if (c.ctx.interpreter)
                 for (const auto& argument : c.ctx.interpreter->getArguments()) items.push_back(text(argument));
-            return Value{"array", c.ctx.newArray(std::move(items))};
+            return makeArray(std::move(items));
         });
     add({"os_platform", "string", {}, 0, false, "os", "Операционная система: `linux`, `windows`, `macos` или `other`."},
         [](Call&) {

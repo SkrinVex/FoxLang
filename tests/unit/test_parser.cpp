@@ -107,9 +107,10 @@ int main() {
         TEST_ASSERT(elements && elements->elements.size() == 3);
         auto* empty = dynamic_cast<foxlang::ArrayDeclNode*>(program->stmts[2].get());
         TEST_ASSERT(empty && !empty->sizeNode && !empty->initializer);
-        auto* store = dynamic_cast<foxlang::ArraySetNode*>(program->stmts[3].get());
-        TEST_ASSERT(store && store->op == "=" && dynamic_cast<foxlang::ArrayGetNode*>(store->value.get()));
-        auto* compound = dynamic_cast<foxlang::ArraySetNode*>(program->stmts[4].get());
+        auto* store = dynamic_cast<foxlang::SetNode*>(program->stmts[3].get());
+        TEST_ASSERT(store && store->op == "=" && dynamic_cast<foxlang::IndexNode*>(store->value.get()) &&
+                    dynamic_cast<foxlang::IndexNode*>(store->target.get()));
+        auto* compound = dynamic_cast<foxlang::SetNode*>(program->stmts[4].get());
         TEST_ASSERT(compound && compound->op == "+");
     }
 

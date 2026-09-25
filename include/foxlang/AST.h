@@ -219,24 +219,59 @@ struct ArrayLiteralNode : Node {
     Value eval(Context& ctx) override;
 };
 
-// name[index] = value;  (also +=, -=, *=, /=, %=)
-struct ArraySetNode : Node {
-    std::string name;
-    std::unique_ptr<Node> index, value;
-    std::string op;
-    SourceRange nameRange;
-    ArraySetNode(std::string n, std::unique_ptr<Node> i, std::unique_ptr<Node> v, std::string o = "=", SourceRange nr = {})
-        : name(std::move(n)), index(std::move(i)), value(std::move(v)), op(std::move(o)), nameRange(nr) {}
+// base[index]: an array element by position or a map value by key.
+struct IndexNode : Node {
+    std::unique_ptr<Node> base, index;
+    IndexNode(std::unique_ptr<Node> b, std::unique_ptr<Node> i) : base(std::move(b)), index(std::move(i)) {}
     Value eval(Context& ctx) override;
 };
 
-// name[index]
-struct ArrayGetNode : Node {
+// base.name: a struct field, or a map value whose key is a plain word.
+struct FieldNode : Node {
+    std::unique_ptr<Node> base;
     std::string name;
-    std::unique_ptr<Node> index;
     SourceRange nameRange;
-    ArrayGetNode(std::string n, std::unique_ptr<Node> i, SourceRange nr = {})
-        : name(std::move(n)), index(std::move(i)), nameRange(nr) {}
+    FieldNode(std::unique_ptr<Node> b, std::string n, SourceRange nr = {})
+        : base(std::move(b)), name(std::move(n)), nameRange(nr) {}
+    Value eval(Context& ctx) override;
+};
+
+// target = value (also +=, -=, *=, /=, %=), where the target is a chain of indexes and
+// fields that starts at a variable: items[i] = 1;  user.name = "Ann";  m["a"][0] += 2;
+struct SetNode : Node {
+    std::unique_ptr<Node> target, value;
+    std::string op;
+    SetNode(std::unique_ptr<Node> t, std::unique_ptr<Node> v, std::string o = "=")
+        : target(std::move(t)), value(std::move(v)), op(std::move(o)) {}
+    Value eval(Context& ctx) override;
+};
+
+// {"key": value, ...} creates a map.
+struct MapLiteralNode : Node {
+    std::vector<std::pair<std::unique_ptr<Node>, std::unique_ptr<Node>>> entries;
+    Value eval(Context& ctx) override;
+};
+
+// struct Name { type field; type field = default; }
+struct StructDefNode : Node {
+    std::shared_ptr<StructType> type;
+    SourceRange nameRange;
+    std::vector<SourceRange> fieldRanges;
+    Value eval(Context& ctx) override;
+};
+
+// try { ... } catch (string error) { ... } finally { ... }
+struct TryNode : Node {
+    std::unique_ptr<Node> body, handler, cleanup;
+    std::string errorName;
+    SourceRange errorRange;
+    Value eval(Context& ctx) override;
+};
+
+// throw expression;  raises an error with the value as its message.
+struct ThrowNode : Node {
+    std::unique_ptr<Node> message;
+    explicit ThrowNode(std::unique_ptr<Node> m) : message(std::move(m)) {}
     Value eval(Context& ctx) override;
 };
 

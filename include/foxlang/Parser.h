@@ -40,6 +40,11 @@ private:
     std::unique_ptr<Node> forStatement();
     std::unique_ptr<Node> switchStatement();
     std::unique_ptr<Node> ifStatement();
+    std::unique_ptr<Node> structDefinition();
+    std::unique_ptr<Node> tryStatement();
+    // [index] and .field after a value, any number of times.
+    std::unique_ptr<Node> postfix(std::unique_ptr<Node> node, SourcePosition start);
+    std::unique_ptr<Node> mapLiteral();
 
     std::unique_ptr<Node> expression();
     std::unique_ptr<Node> logicalOr();
@@ -49,6 +54,7 @@ private:
     std::unique_ptr<Node> multiplication();
     std::unique_ptr<Node> unary();
     std::unique_ptr<Node> primary();
+    std::unique_ptr<Node> atom();
     std::vector<std::unique_ptr<Node>> arguments(TokenType close);
 
     Token consume(TokenType type);
@@ -56,6 +62,9 @@ private:
     bool check(TokenType type) const { return peek().type == type; }
     bool match(TokenType type);
     bool isTypeKeyword(size_t offset = 0) const;
+    // `Name name`: a variable, parameter or function of a struct type.
+    bool isUserType(size_t offset = 0) const;
+    bool isType(size_t offset = 0) const { return isTypeKeyword(offset) || isUserType(offset); }
     bool looksLikeFunction() const;
     SourcePosition previousEnd() const;
     [[noreturn]] void fail(const std::string& message) const;

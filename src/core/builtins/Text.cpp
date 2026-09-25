@@ -98,19 +98,60 @@ std::string scalarText(const Value& value, const std::string& what) {
 constexpr size_t maxText = size_t{64} * 1024 * 1024;
 
 // A FoxLang value as JSON: numbers and bools as literals, strings quoted, arrays as
-// JSON arrays of their elements.
-std::string toJson(const Value& value, Context& ctx, int depth = 0) {
+// JSON arrays, maps and structs as objects.
+std::string toJson(const Value& value, int depth = 0) {
     if (value.type == "string") return "\"" + jsonEscape(value.value.str()).value.str() + "\"";
     if (value.type == "int" || value.type == "float" || value.type == "bool") return value.value.str();
-    if (value.type != "array") throw std::runtime_error("Type Error: json_value() cannot convert '" + value.type + "'");
-    if (depth > 32) throw std::runtime_error("Runtime Error: json_value() array nesting is too deep");
-    std::string out = "[";
-    const auto& items = ctx.arrayOf(value, "array");
-    for (size_t i = 0; i < items.size(); ++i) {
+    if (!value.ref) throw std::runtime_error("Type Error: json_value() cannot convert '" + value.type + "'");
+    if (depth > 64) throw std::runtime_error("Runtime Error: json_value() nesting is too deep");
+    const Object& object = *value.ref;
+    bool isArray = object.kind == Object::Kind::Array;
+    std::string out = isArray ? "[" : "{";
+    for (size_t i = 0; i < object.items.size(); ++i) {
         if (i > 0) out += ",";
-        out += toJson(items[i], ctx, depth + 1);
+        if (!isArray) {
+            const std::string& key = object.kind == Object::Kind::Map ? object.keys[i] : object.structType->fields[i].name;
+            out += "\"" + jsonEscape(key).value.str() + "\":";
+        }
+        out += toJson(object.items[i], depth + 1);
     }
-    return out + "]";
+    return out + (isArray ? "]" : "}");
+}
+
+std::string trimmedText(const std::string& raw) {
+    size_t first = raw.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) return "";
+    return raw.substr(first, raw.find_last_not_of(" \t\r\n") - first + 1);
+}
+
+// JSON text as FoxLang values: objects become maps, arrays arrays, whole numbers int,
+// other numbers float, null an empty string.
+Value fromJson(const std::string& raw, int depth = 0) {
+    if (depth > 64) throw std::runtime_error("Runtime Error: json_decode() nesting is too deep");
+    std::string kind = jsonType(raw, "");
+    if (kind == "object" || kind == "array") {
+        Value result = kind == "object" ? makeMap() : makeArray({});
+        for (auto& entry : jsonEntries(raw)) {
+            Value item = fromJson(entry.second, depth + 1);
+            if (kind == "object") result.ref->slot(entry.first) = std::move(item);
+            else result.ref->items.push_back(std::move(item));
+        }
+        return result;
+    }
+    if (kind == "string") return jsonGet(raw, "");
+    if (kind == "bool") return {"bool", trimmedText(raw) == "true" ? "true" : "false"};
+    if (kind == "null") return text("");
+    if (kind == "number") {
+        std::string number = trimmedText(raw);
+        if (number.find_first_of(".eE") == std::string::npos) {
+            try {
+                return integer(std::stoll(number));
+            } catch (const std::exception&) {
+            }
+        }
+        return real(std::strtod(number.c_str(), nullptr));
+    }
+    throw std::runtime_error("Runtime Error: json_decode() got text that is not JSON");
 }
 
 } // namespace
@@ -153,7 +194,7 @@ void addTextBuiltins(std::vector<Builtin>& out) {
                     parts.push_back(text(source.substr(start, pos - start)));
                 parts.push_back(text(source.substr(start)));
             }
-            return Value{"array", c.ctx.newArray(std::move(parts))};
+            return makeArray(std::move(parts));
         });
     add({"str_join", "string", {{"array", "items"}, {"string", "separator"}}, 2, false, "string",
          "Склеивает элементы массива в строку через разделитель.\n\n"
@@ -241,13 +282,21 @@ void addTextBuiltins(std::vector<Builtin>& out) {
         [](Call& c) { return text(jsonType(c.text(0), c.text(1))); });
     add({"json_value", "string", {{"any", "value"}}, 1, false, "",
          "Значение FoxLang в виде JSON: числа и `bool` как есть, строка в кавычках с экранированием, "
-         "массив — JSON-массив.\n\n```foxlang\njson_value([1, \"лис\", true]) // [1,\"лис\",true]\n```"},
-        [](Call& c) { return text(toJson(c.at(0), c.ctx)); });
+         "массив — JSON-массив, словарь и структура — JSON-объект.\n\n```foxlang\njson_value([1, \"лис\", true]) // [1,\"лис\",true]\n```"},
+        [](Call& c) { return text(toJson(c.at(0))); });
+    add({"json_decode", "any", {{"string", "json"}}, 1, false, "",
+         "Разбирает JSON целиком: объект становится словарём `map`, массив — массивом, целые числа — `int`, "
+         "дробные — `float`, `null` — пустой строкой. Некорректный JSON — ошибка выполнения.\n\n"
+         "```foxlang\nmap user = json_decode(\"{\\\"name\\\": \\\"Лис\\\", \\\"tags\\\": [1, 2]}\");\nprint(user.name, user[\"tags\"][1]);\n```"},
+        [](Call& c) {
+            if (!jsonValid(c.text(0))) throw std::runtime_error("Runtime Error: json_decode() got text that is not valid JSON");
+            return fromJson(c.text(0));
+        });
     add({"json_set", "string", {{"string", "json"}, {"string", "path"}, {"any", "value"}}, 3, false, "",
          "Новый JSON-документ, где по пути записано значение (строка — как JSON-строка, массив — как JSON-массив). "
          "Недостающие ключи объектов создаются; пустой документ считается `{}`.\n\n"
          "```foxlang\nstring user = json_set(\"\", \"name\", \"Лис\");\nuser = json_set(user, \"stats.age\", 3); // {\"name\":\"Лис\",\"stats\":{\"age\":3}}\n```"},
-        [](Call& c) { return text(jsonSet(c.text(0), c.text(1), toJson(c.at(2), c.ctx))); });
+        [](Call& c) { return text(jsonSet(c.text(0), c.text(1), toJson(c.at(2)))); });
     add({"json_set_raw", "string", {{"string", "json"}, {"string", "path"}, {"string", "raw_json"}}, 3, false, "",
          "Как `json_set`, но значение — уже готовый JSON (объект, массив или литерал), который вставляется без кавычек. "
          "Некорректный JSON — ошибка выполнения."},

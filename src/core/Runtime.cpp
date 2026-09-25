@@ -1,4 +1,5 @@
 #include "foxlang/Runtime.h"
+#include "foxlang/AST.h"
 #include "foxlang/Debug.h"
 #include "foxlang/Platform.h"
 #include <algorithm>
@@ -130,6 +131,64 @@ Text intResult(long long result, const std::string& op) {
         throw std::runtime_error("Runtime Error: int overflow in '" + op + "': result " + std::to_string(result) +
                                  " is outside -2147483648..2147483647");
     return Text::integer(result);
+}
+
+std::string display(const Value& value) {
+    if (!value.ref) return value.value.str();
+    thread_local int depth = 0;
+    if (depth > 32) return "...";
+    struct Nest {
+        Nest() { ++depth; }
+        ~Nest() { --depth; }
+    } nest;
+    const Object& object = *value.ref;
+    std::string out;
+    if (object.kind == Object::Kind::Array) {
+        out = "[";
+        for (size_t i = 0; i < object.items.size(); ++i) {
+            if (i > 0) out += ", ";
+            out += display(object.items[i]);
+        }
+        return out + "]";
+    }
+    bool isStruct = object.kind == Object::Kind::Struct;
+    out = isStruct ? object.structType->name + "{" : "{";
+    for (size_t i = 0; i < object.items.size(); ++i) {
+        if (i > 0) out += ", ";
+        out += (isStruct ? object.structType->fields[i].name : object.keys[i]) + ": " + display(object.items[i]);
+    }
+    return out + "}";
+}
+
+Value zeroValue(const std::string& type, Context& ctx) {
+    if (type == "int") return {"int", Text::integer(0)};
+    if (type == "float") return {"float", Text::real(0)};
+    if (type == "string") return {"string", ""};
+    if (type == "bool") return {"bool", "false"};
+    if (type == "array") return makeArray({});
+    if (type == "map") return makeMap();
+    if (auto structType = ctx.getStruct(type)) return construct(*structType, {}, ctx);
+    throw std::runtime_error("Type Error: unknown type '" + type + "'");
+}
+
+Value construct(const StructType& type, std::vector<Value> args, Context& ctx) {
+    if (args.size() > type.fields.size())
+        throw std::runtime_error("Runtime Error: struct '" + type.name + "' has " + std::to_string(type.fields.size()) +
+                                 " fields, got " + std::to_string(args.size()) + " values");
+    auto object = std::make_shared<Object>(Object::Kind::Struct);
+    object->structType = ctx.getStruct(type.name);
+    object->items.reserve(type.fields.size());
+    for (size_t i = 0; i < type.fields.size(); ++i) {
+        const auto& field = type.fields[i];
+        Value value;
+        if (i < args.size()) value = std::move(args[i]);
+        else if (i < type.defaults.size() && type.defaults[i]) value = type.defaults[i]->eval(ctx);
+        else value = zeroValue(field.type, ctx);
+        coerce(field.type, value, "field '" + field.name + "' of '" + type.name + "'");
+        own(value);
+        object->items.push_back(std::move(value));
+    }
+    return {type.name, "", std::move(object)};
 }
 
 void coerce(const std::string& type, Value& value, const std::string& what) {

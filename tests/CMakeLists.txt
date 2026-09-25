@@ -115,6 +115,7 @@ set(REGRESSION_TESTS
     test_files
     test_env
     test_semantics
+    test_structures
 )
 
 foreach(T ${REGRESSION_TESTS})

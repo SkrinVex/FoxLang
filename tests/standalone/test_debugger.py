@@ -117,13 +117,15 @@ def stdio_session(workdir):
     return process, Dap(process.stdout.read1 if hasattr(process.stdout, 'read1') else process.stdout.read, write)
 
 
-def start(dap, program, breakpoints, stop_on_entry=False, errors=True):
+def start(dap, program, breakpoints, stop_on_entry=False, errors=True, filters=None):
     caps = dap.request('initialize', {'adapterID': 'foxlang', 'linesStartAt1': True, 'columnsStartAt1': True})
     assert caps['supportsConditionalBreakpoints'] and caps['supportsLogPoints'] and caps['supportsSetVariable']
     dap.event('initialized')
     dap.request('launch', {'program': str(program), 'cwd': str(program.parent), 'stopOnEntry': stop_on_entry})
     placed = dap.request('setBreakpoints', {'source': {'path': str(program)}, 'breakpoints': breakpoints})['breakpoints']
-    dap.request('setExceptionBreakpoints', {'filters': ['errors'] if errors else []})
+    if filters is None:
+        filters = ['uncaught'] if errors else []
+    dap.request('setExceptionBreakpoints', {'filters': filters})
     dap.request('configurationDone')
     return placed
 
@@ -287,6 +289,28 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     dap.request('continue', {'threadId': 1})
     finish(process, dap, 0)
     assert '2 KB' in dap.output(), dap.output()
+
+    # An error inside try stops only with the "caught" filter; a map and a struct
+    # open up in the variables view.
+    program = workdir / 'caught.fox'
+    program.write_text('struct Point {\n    int x;\n    int y;\n}\nmap m = {"a": [1, 2]};\nPoint p = Point(3, 4);\n'
+                       'try {\n    int z = 0;\n    int r = 1 / z;\n} catch (e) {\n    print("caught " + e);\n}\n', encoding='utf-8')
+    for filters, stops in ((['uncaught'], False), (['uncaught', 'caught'], True)):
+        process, dap = stdio_session(workdir)
+        start(dap, program, [], filters=filters)
+        if stops:
+            _, frames = dap.stopped('exception', 9)
+            globals_ = dap.locals(frames[0]['id'])['Глобальные']
+            assert globals_['m']['value'] == '{a: [1, 2]}' and globals_['m']['type'] == 'map (1)', globals_['m']
+            assert globals_['p']['value'] == 'Point{x: 3, y: 4}', globals_['p']
+            fields = dap.request('variables', {'variablesReference': globals_['p']['variablesReference']})['variables']
+            assert [(f['name'], f['value']) for f in fields] == [('x', '3'), ('y', '4')], fields
+            changed = dap.request('setVariable', {'variablesReference': globals_['p']['variablesReference'], 'name': 'x', 'value': '30'})
+            assert changed['value'] == '30', changed
+            assert dap.evaluate('p.x + m["a"][1]', frames[0]['id']) == '32'
+            dap.request('continue', {'threadId': 1})
+        finish(process, dap, 0)
+        assert 'caught Runtime Error: Division by zero' in dap.output(), dap.output()
 
     # Over TCP the program keeps its terminal: input() reads it, print() writes to it.
     program = workdir / 'pause.fox'

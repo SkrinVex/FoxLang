@@ -14,6 +14,10 @@
       <item>break</item>
       <item>continue</item>
       <item>return</item>
+      <item>try</item>
+      <item>catch</item>
+      <item>finally</item>
+      <item>throw</item>
     </list>
     <list name="directives">
       <item>using</item>
@@ -21,6 +25,7 @@
     </list>
     <list name="modifiers">
       <item>global</item>
+      <item>struct</item>
     </list>
     <list name="types">
       <item>int</item>
@@ -29,6 +34,7 @@
       <item>bool</item>
       <item>void</item>
       <item>array</item>
+      <item>map</item>
     </list>
     <list name="constants">
       <item>true</item>
@@ -127,6 +133,7 @@
       <item>fs_size</item>
       <item>fs_temp_dir</item>
       <item>get</item>
+      <item>get_or</item>
       <item>getch</item>
       <item>gfx_circle</item>
       <item>gfx_clear</item>
@@ -171,6 +178,7 @@
       <item>gfx_wheel</item>
       <item>gfx_width</item>
       <item>goto_xy</item>
+      <item>has</item>
       <item>header</item>
       <item>hide_cursor</item>
       <item>home</item>
@@ -202,6 +210,7 @@
       <item>join_path</item>
       <item>json_count</item>
       <item>json_count_at</item>
+      <item>json_decode</item>
       <item>json_escape</item>
       <item>json_get</item>
       <item>json_path</item>
@@ -217,6 +226,7 @@
       <item>key_down</item>
       <item>key_pressed</item>
       <item>key_repeat</item>
+      <item>keys</item>
       <item>last_exit</item>
       <item>length</item>
       <item>lerp</item>
@@ -284,6 +294,7 @@
       <item>recv_tcp</item>
       <item>redirect</item>
       <item>remove_at</item>
+      <item>remove_key</item>
       <item>remove_path</item>
       <item>remove_tree</item>
       <item>render</item>
@@ -420,6 +431,7 @@
       <item>uptime_ms</item>
       <item>url_decode</item>
       <item>url_encode</item>
+      <item>values</item>
       <item>wait</item>
       <item>warn</item>
       <item>window_focused</item>

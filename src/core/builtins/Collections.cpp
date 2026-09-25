@@ -15,7 +15,7 @@ bool sameValue(const Value& a, const Value& b) {
         double x = 0, y = 0;
         return tryNumber(a, x) && tryNumber(b, y) && x == y;
     }
-    if (a.type == "array" || b.type == "array") return a.type == b.type && a.value == b.value;
+    if (a.ref || b.ref) return deepEqual(a, b);
     return a.value == b.value;
 }
 
@@ -69,7 +69,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
         });
     add({"array_copy", "array", {{"array", "items"}}, 1, false, "arrays",
          "Новый массив с теми же элементами; изменения копии не затрагивают исходный массив."},
-        [](Call& c) { return Value{"array", c.ctx.newArray(c.array(0))}; });
+        [](Call& c) { return deepCopy(c.at(0)); });
     add({"array_slice", "array", {{"array", "items"}, {"int", "start"}, {"int", "end"}}, 2, false, "arrays",
          "Новый массив из элементов с `start` до `end` (не включая). Без `end` — до конца; "
          "отрицательные индексы отсчитываются с конца."},
@@ -78,8 +78,8 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
             size_t from = bound(c, 1, items.size());
             size_t to = c.has(2) ? bound(c, 2, items.size()) : items.size();
             std::vector<Value> part;
-            if (from < to) part.assign(items.begin() + static_cast<std::ptrdiff_t>(from), items.begin() + static_cast<std::ptrdiff_t>(to));
-            return Value{"array", c.ctx.newArray(std::move(part))};
+            for (size_t i = from; i < to; ++i) part.push_back(deepCopy(items[i]));
+            return makeArray(std::move(part));
         });
 }
 

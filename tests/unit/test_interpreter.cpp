@@ -236,11 +236,11 @@ int main() {
             loop();
         )");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getContext().arrays.empty());
 
+        // Only the variable holds the array: nothing else keeps a copy alive.
         auto kept = interp.runSource("array survivor 4; set(survivor, 0, 5);");
         TEST_ASSERT(kept.success);
-        TEST_ASSERT(interp.getContext().arrays.size() == 1);
+        TEST_ASSERT(interp.getContext().variables.at("survivor").ref.use_count() == 1);
     }
 
     // 17. A block is a scope of its own, and the program top level is not
@@ -337,9 +337,8 @@ int main() {
             "array make(int n) { array r; for (int i = 0; i < n; i++) { push(r, i); } return r; }"
             "for (int i = 0; i < 500; i++) { array parts = str_split(\"a,b\", \",\"); array made = make(3); int n = size(make(2)); }");
         TEST_ASSERT(res.success);
-        TEST_ASSERT(interp.getContext().arrays.empty());
         auto kept = interp.runSource("array keep = make(3);");
-        TEST_ASSERT(kept.success && interp.getContext().arrays.size() == 1);
+        TEST_ASSERT(kept.success && interp.getContext().variables.at("keep").ref.use_count() == 1 && interp.getContext().variables.at("keep").ref->items.size() == 3);
     }
 
     // 25. Parameters and results convert to their declared types

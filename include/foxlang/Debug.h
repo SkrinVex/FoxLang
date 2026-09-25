@@ -17,8 +17,9 @@ public:
     virtual void leaveScope() = 0;
     virtual void enterFunction(const std::string& name, const std::string* file, int line, Context& scope) = 0;
     virtual void leaveFunction() = 0;
-    // A runtime error is leaving the statement that raised it; the program is still intact.
-    virtual void error(const std::string& message) = 0;
+    // A runtime error is leaving the statement that raised it; the program is still
+    // intact. caught: a try block around the running code will handle it.
+    virtual void error(const std::string& message, bool caught) = 0;
 };
 
 namespace runtime {

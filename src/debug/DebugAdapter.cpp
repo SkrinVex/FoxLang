@@ -112,7 +112,7 @@ public:
     void leaveScope() override;
     void enterFunction(const std::string& name, const std::string* file, int line, Context& scope) override;
     void leaveFunction() override;
-    void error(const std::string& message) override;
+    void error(const std::string& message, bool caught) override;
 
 private:
     struct Frame {
@@ -122,9 +122,10 @@ private:
         Context* scope = nullptr;
     };
     struct Reference {
-        enum class Kind { Locals, Globals, Array } kind;
+        enum class Kind { Locals, Globals, Container } kind;
         size_t frame = 0;
-        std::string array;
+        // Keeps the array, map or struct alive while the editor looks at it.
+        std::shared_ptr<Object> container;
     };
     enum class Step { None, In, Over, Out };
 
@@ -138,7 +139,8 @@ private:
     JsonValue launch_;
     std::map<std::string, std::vector<Breakpoint>> breakpoints_;
     std::atomic<bool> anyBreakpoints_{false};
-    std::atomic<bool> breakOnErrors_{true};
+    std::atomic<bool> breakOnUncaught_{true};
+    std::atomic<bool> breakOnCaught_{false};
     int nextBreakpointId_ = 1;
     std::map<int, std::string> sourceReferences_;
     bool paused_ = false, resume_ = false;
@@ -240,9 +242,11 @@ void Session::handle(const JsonValue& request) {
     const std::string command = request["command"].asString();
     const JsonValue& arguments = request["arguments"];
     if (command == "initialize") {
-        JsonValue filters = std::vector<JsonValue>{Fields{
-            {"filter", "errors"}, {"label", "Ошибки выполнения"}, {"default", true},
-            {"description", "Остановиться на операторе, в котором произошла ошибка, пока программа ещё цела"}}};
+        JsonValue filters = std::vector<JsonValue>{
+            Fields{{"filter", "uncaught"}, {"label", "Необработанные ошибки"}, {"default", true},
+                   {"description", "Остановиться на операторе с ошибкой, которую не перехватит try, пока программа ещё цела"}},
+            Fields{{"filter", "caught"}, {"label", "Перехваченные ошибки"}, {"default", false},
+                   {"description", "Остановиться и на ошибке внутри try, до того как её обработает catch"}}};
         respond(request, Fields{
             {"supportsConfigurationDoneRequest", true},
             {"supportsConditionalBreakpoints", true},
@@ -270,9 +274,13 @@ void Session::handle(const JsonValue& request) {
     } else if (command == "setBreakpoints") {
         setBreakpoints(request);
     } else if (command == "setExceptionBreakpoints") {
-        bool errors = false;
-        for (const auto& filter : arguments["filters"].asArray()) errors = errors || filter.asString() == "errors";
-        breakOnErrors_ = errors;
+        bool uncaught = false, caught = false;
+        for (const auto& filter : arguments["filters"].asArray()) {
+            uncaught = uncaught || filter.asString() == "uncaught";
+            caught = caught || filter.asString() == "caught";
+        }
+        breakOnUncaught_ = uncaught;
+        breakOnCaught_ = caught;
         respond(request);
     } else if (command == "setFunctionBreakpoints") {
         respond(request, Fields{{"breakpoints", JsonValue::array()}});
@@ -611,11 +619,11 @@ void Session::leaveFunction() {
     frames_.pop_back();
 }
 
-void Session::error(const std::string& message) {
+void Session::error(const std::string& message, bool caught) {
     if (evaluating_ || !onInterpreter() || errorReported_) return;
     // The same error passes every enclosing block on its way out: one stop is enough.
     errorReported_ = true;
-    if (!breakOnErrors_) return;
+    if (!(caught ? breakOnCaught_ : breakOnUncaught_)) return;
     exceptionText_ = message;
     stop("exception", message, {});
 }
@@ -694,22 +702,22 @@ std::string Session::interpolate(const std::string& message, Context& scope) {
 std::string Session::preview(const Value& value, int depth) {
     if (value.type == "string") return quoted(value.value.str(), 500);
     if (value.type == "void") return "";
-    if (value.type != "array") return value.value.str();
-    auto& arrays = root().arrays;
-    auto found = arrays.find(value.value.str());
-    if (found == arrays.end()) return "<массив освобождён>";
-    const auto& items = found->second;
-    if (depth > 1) return "[…" + std::to_string(items.size()) + "]";
-    std::string out = "[";
-    for (size_t i = 0; i < items.size(); ++i) {
+    if (!value.ref) return value.value.str();
+    const Object& object = *value.ref;
+    if (depth > 1) return object.kind == Object::Kind::Array ? "[…]" : "{…}";
+    bool isArray = object.kind == Object::Kind::Array;
+    bool isStruct = object.kind == Object::Kind::Struct;
+    std::string out = isArray ? "[" : isStruct ? object.structType->name + "{" : "{";
+    for (size_t i = 0; i < object.items.size(); ++i) {
         if (i == 8) {
             out += ", …";
             break;
         }
         if (i > 0) out += ", ";
-        out += preview(items[i], depth + 1);
+        if (!isArray) out += (isStruct ? object.structType->fields[i].name : object.keys[i]) + ": ";
+        out += preview(object.items[i], depth + 1);
     }
-    return out + "]";
+    return out + (isArray ? "]" : "}");
 }
 
 int Session::referenceFor(Reference reference) {
@@ -719,15 +727,25 @@ int Session::referenceFor(Reference reference) {
 
 JsonValue Session::variable(const std::string& name, const Value& value) {
     JsonValue out = Fields{{"name", name}, {"value", preview(value, 0)}, {"type", value.type}, {"variablesReference", 0}};
-    if (value.type == "array") {
-        auto found = root().arrays.find(value.value.str());
-        if (found != root().arrays.end()) {
-            out["variablesReference"] = JsonValue(referenceFor({Reference::Kind::Array, 0, value.value.str()}));
-            out["indexedVariables"] = JsonValue(found->second.size());
-            out["type"] = "array (" + std::to_string(found->second.size()) + ")";
+    if (value.ref) {
+        out["variablesReference"] = JsonValue(referenceFor({Reference::Kind::Container, 0, value.ref}));
+        size_t size = value.ref->items.size();
+        if (value.ref->kind == Object::Kind::Array) {
+            out["indexedVariables"] = JsonValue(size);
+            out["type"] = "array (" + std::to_string(size) + ")";
+        } else {
+            out["namedVariables"] = JsonValue(size);
+            if (value.ref->kind == Object::Kind::Map) out["type"] = "map (" + std::to_string(size) + ")";
         }
     }
     return out;
+}
+
+// The name a child of a container is shown under: [i], a map key or a field.
+std::string childName(const Object& object, size_t index) {
+    if (object.kind == Object::Kind::Array) return "[" + std::to_string(index) + "]";
+    if (object.kind == Object::Kind::Map) return quoted(object.keys[index], 200);
+    return object.structType->fields[index].name;
 }
 
 JsonValue Session::source(const std::string* file) {
@@ -770,9 +788,9 @@ JsonValue Session::scopes(const JsonValue& arguments) {
     if (frame >= frames_.size()) throw std::runtime_error("Нет такого кадра стека");
     std::vector<JsonValue> list;
     list.push_back(Fields{{"name", "Локальные"}, {"presentationHint", "locals"}, {"expensive", false},
-                          {"variablesReference", referenceFor({Reference::Kind::Locals, frame, ""})}});
+                          {"variablesReference", referenceFor({Reference::Kind::Locals, frame, nullptr})}});
     list.push_back(Fields{{"name", "Глобальные"}, {"expensive", false},
-                          {"variablesReference", referenceFor({Reference::Kind::Globals, frame, ""})}});
+                          {"variablesReference", referenceFor({Reference::Kind::Globals, frame, nullptr})}});
     return Fields{{"scopes", list}};
 }
 
@@ -781,16 +799,15 @@ JsonValue Session::variables(const JsonValue& arguments) {
     if (id < 1 || static_cast<size_t>(id) > references_.size()) throw std::runtime_error("Значения устарели: программа продолжила работу");
     Reference reference = references_[static_cast<size_t>(id) - 1];
     std::vector<JsonValue> list;
-    if (reference.kind == Reference::Kind::Array) {
-        auto found = root().arrays.find(reference.array);
-        if (found == root().arrays.end()) return Fields{{"variables", list}};
-        size_t size = found->second.size();
+    if (reference.kind == Reference::Kind::Container) {
+        const Object& object = *reference.container;
+        size_t size = object.items.size();
         size_t start = static_cast<size_t>(std::max(0, arguments["start"].asInt()));
         size_t count = arguments.has("count") ? static_cast<size_t>(std::max(0, arguments["count"].asInt())) : size;
         for (size_t i = start; i < size && i < start + count; ++i) {
-            // The element is read again each time: a child's reference may grow the list.
-            Value item = root().arrays[reference.array][i];
-            list.push_back(variable("[" + std::to_string(i) + "]", item));
+            // The element is copied first: a child's reference may grow the list.
+            Value item = object.items[i];
+            list.push_back(variable(childName(object, i), item));
         }
     } else if (reference.kind == Reference::Kind::Globals) {
         for (const auto& entry : root().variables) list.push_back(variable(entry.first, entry.second));
@@ -809,14 +826,18 @@ JsonValue Session::setVariable(const JsonValue& arguments) {
     if (id < 1 || static_cast<size_t>(id) > references_.size()) throw std::runtime_error("Значения устарели: программа продолжила работу");
     Reference reference = references_[static_cast<size_t>(id) - 1];
     std::string name = arguments["name"].asString();
-    Context& scope = *frames_[reference.kind == Reference::Kind::Array ? frames_.size() - 1 : reference.frame].scope;
+    Context& scope = *frames_[reference.kind == Reference::Kind::Container ? frames_.size() - 1 : reference.frame].scope;
     Value value = evaluate(arguments["value"].asString(), scope, false);
-    if (reference.kind == Reference::Kind::Array) {
-        auto& items = root().arrays.at(reference.array);
-        size_t index = std::stoul(name.substr(1));
-        if (index >= items.size()) throw std::runtime_error("Нет такого элемента");
-        items[index] = value;
-        return variable(name, items[index]);
+    if (reference.kind == Reference::Kind::Container) {
+        Object& object = *reference.container;
+        size_t index = object.items.size();
+        for (size_t i = 0; i < object.items.size(); ++i)
+            if (childName(object, i) == name) index = i;
+        if (index >= object.items.size()) throw std::runtime_error("Нет такого элемента");
+        if (object.kind == Object::Kind::Struct) runtime::coerce(object.structType->fields[index].type, value, "поле '" + name + "'");
+        runtime::own(value);
+        object.items[index] = value;
+        return variable(name, object.items[index]);
     }
     Context* owner = reference.kind == Reference::Kind::Globals ? &root() : &scope;
     while (owner && !owner->variables.count(name)) owner = owner->parent;

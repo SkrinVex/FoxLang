@@ -74,10 +74,9 @@ const Context& Interpreter::getContext() const {
 void Interpreter::reset() {
     globalContext.graphics.reset();
     globalContext.server.reset();
-    globalContext.releaseArrays();
     globalContext.variables.clear();
     globalContext.functions.clear();
-    globalContext.arrays.clear();
+    globalContext.structs.clear();
     loadedModules.clear();
 }
 

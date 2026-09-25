@@ -39,23 +39,10 @@ void evalDebugged(BlockNode& block, Context& scope, DebugHook& hook) {
         try {
             stmt->eval(scope);
         } catch (const std::exception& error) {
-            hook.error(error.what());
+            hook.error(error.what(), guard.tryDepth > 0);
             throw;
         }
     }
-}
-
-// Arrays leave a function by copy: the scope that owns the original is gone by the
-// time the caller sees the value, so the copy is handed to the caller to own.
-Value detachArray(const Value& value, Context& ctx) {
-    if (value.type != "array") return value;
-    auto& arrays = ctx.getRoot()->arrays;
-    auto source = arrays.find(value.value.str());
-    if (source == arrays.end()) throw std::runtime_error("Runtime Error: returned array no longer exists");
-    static unsigned long long counter = 0;
-    std::string id = "__ret_" + std::to_string(counter++);
-    arrays[id] = source->second;
-    return {"array", id};
 }
 
 } // namespace
@@ -70,18 +57,16 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
         throw std::runtime_error("Runtime Error: function '" + name + "' expects " + std::to_string(params.size()) +
                                  " arguments, got " + std::to_string(args.size()));
 
-    // Lexical scope: a function sees globals, never the caller's locals.
-    Context scope;
-    scope.parent = caller.getRoot();
-    scope.interpreter = caller.interpreter;
+    // Lexical scope: a function sees globals, never the caller's locals. The scope is
+    // gone before the result is checked, so a returned local is no longer shared.
+    auto scope = std::make_unique<Context>();
+    scope->parent = caller.getRoot();
+    scope->interpreter = caller.interpreter;
+    // Arrays, maps and structs are passed by reference: the function may change them.
     for (size_t i = 0; i < params.size(); ++i) {
         const auto& param = params[i];
-        if (param.type == "array") {
-            caller.arrayOf(args[i], "parameter '" + param.name + "' of '" + name + "'");
-        } else {
-            runtime::coerce(param.type, args[i], "parameter '" + param.name + "' of '" + name + "'");
-        }
-        scope.defineVar(param.name, param.type, args[i]);
+        runtime::coerce(param.type, args[i], "parameter '" + param.name + "' of '" + name + "'");
+        scope->defineVar(param.name, param.type, args[i]);
     }
 
     CallDepth guard(name);
@@ -89,7 +74,7 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
     FrameMark frame{hook};
     if (hook) {
         auto* block = dynamic_cast<const BlockNode*>(body.get());
-        hook->enterFunction(name, block ? block->file : nullptr, range.start.line, scope);
+        hook->enterFunction(name, block ? block->file : nullptr, range.start.line, *scope);
     }
     // After a normal return the caller's statement is the one running again, so an
     // error later in it must not be reported at the callee's last line.
@@ -98,7 +83,7 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
     const std::string* callerFile = location.file;
     Value result{"void", ""};
     try {
-        body->eval(scope);
+        body->eval(*scope);
     } catch (ReturnValue& ret) {
         result = std::move(ret.value);
     } catch (const BreakException&) {
@@ -109,24 +94,19 @@ Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
 
     location.line = callerLine;
     location.file = callerFile;
-    if (result.type == "array" && returnType != "array") caller.getRoot()->arrays.erase(result.value.str());
+    scope.reset();
     if (returnType == "void") return {"void", ""};
     if (result.type == "void")
         throw std::runtime_error("Runtime Error: function '" + name + "' must return " + returnType + " but ended without a value");
-    if (returnType == "array") {
-        if (result.type != "array")
-            throw std::runtime_error("Type Error: function '" + name + "' must return array, got '" + result.type + "'");
-        // The detached copy becomes a temporary of the scope that made the call.
-        caller.ownedArrays.push_back(result.value.str());
-        return result;
-    }
     runtime::coerce(returnType, result, "return value of '" + name + "'");
+    // A container that is still someone else's (a global, a parameter) leaves as a copy.
+    runtime::own(result);
     return result;
 }
 
 Value ReturnNode::eval(Context& ctx) {
     Value result = expr ? expr->eval(ctx) : Value{"void", ""};
-    throw ReturnValue{detachArray(result, ctx)};
+    throw ReturnValue{std::move(result)};
 }
 
 Value FuncCallNode::eval(Context& ctx) {
@@ -143,7 +123,11 @@ Value FuncCallNode::eval(Context& ctx) {
     // server's get(path, handler). The builtin wins whenever the arguments fit it.
     if (builtin && (!function || runtime::acceptsArguments(*builtin, argValues)))
         return runtime::invoke(*builtin, argValues, ctx);
-    if (!function) throw std::runtime_error("Runtime Error: Function '" + name + "' not found!");
+    if (!function) {
+        // A struct's name called like a function builds a value of it.
+        if (auto type = ctx.getStruct(name)) return runtime::construct(*type, std::move(argValues), ctx);
+        throw std::runtime_error("Runtime Error: Function '" + name + "' not found!");
+    }
     return static_cast<const FuncDefNode*>(function.get())->invoke(std::move(argValues), ctx);
 }
 
@@ -163,11 +147,20 @@ Value VarDeclNode::eval(Context& ctx) {
     Context& scope = global ? *ctx.getRoot() : ctx;
     if (!global && scope.variables.count(name))
         throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
-    Value val = expr->eval(ctx);
+    Value val = expr ? expr->eval(ctx) : runtime::zeroValue(type, ctx);
     runtime::coerce(type, val, std::string(global ? "global variable '" : "variable '") + name + "'");
+    runtime::own(val);
     scope.defineVar(name, type, val);
     return {"void", ""};
 }
+
+namespace {
+std::string containerName(const Value& value) {
+    if (value.type == "array") return "an array";
+    if (value.type == "map") return "a map";
+    return "a struct '" + value.type + "'";
+}
+} // namespace
 
 Value BinOpNode::eval(Context& ctx) {
     // Short-circuit before the right side runs: `x != 0 && 10 / x > 1` must not divide by zero.
@@ -181,11 +174,12 @@ Value BinOpNode::eval(Context& ctx) {
     Value rval = right->eval(ctx);
 
     bool equality = op == "==" || op == "!=";
-    if ((lval.type == "array" || rval.type == "array") && !equality)
-        throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to an array");
+    bool concatenation = (op == "+" || op == "+=") && (lval.type == "string" || rval.type == "string");
+    if ((lval.ref || rval.ref) && !equality && !concatenation)
+        throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref ? lval : rval));
 
     if (op == "+" || op == "+=") {
-        if (lval.type == "string" || rval.type == "string") return {"string", lval.value + rval.value};
+        if (concatenation) return {"string", runtime::display(lval) + runtime::display(rval)};
         if (lval.type == "float" || rval.type == "float")
             return {"float", runtime::realResult(number(lval, "left") + number(rval, "right"))};
         return {"int", runtime::intResult(integer(lval, "left") + integer(rval, "right"), op)};
@@ -217,9 +211,10 @@ Value BinOpNode::eval(Context& ctx) {
             result = decide(lval.value.str(), rval.value.str());
         } else if (lval.type == "bool" && rval.type == "bool") {
             result = decide(truth(lval, "left"), truth(rval, "right"));
-        } else if (lval.type == "array" || rval.type == "array") {
-            // Arrays compare by identity: the same array, not equal contents.
-            result = decide(lval.type + ":" + lval.value.str(), rval.type + ":" + rval.value.str());
+        } else if (lval.ref || rval.ref) {
+            // Arrays, maps and structs are equal when their contents are.
+            if (!equality) throw std::runtime_error("Type Error: operator '" + op + "' cannot be applied to " + containerName(lval.ref ? lval : rval));
+            result = runtime::deepEqual(lval, rval) == (op == "==");
         } else {
             result = decide(number(lval, "left"), number(rval, "right"));
         }
@@ -274,61 +269,193 @@ Value PostIncNode::eval(Context& ctx) {
 
 Value ArrayDeclNode::eval(Context& ctx) {
     Context& scope = global ? *ctx.getRoot() : ctx;
+    if (!global && scope.variables.count(name))
+        throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
+    Value value;
     if (initializer) {
-        Value source = initializer->eval(ctx);
-        std::vector<Value> items = ctx.takeArray(source, "initializer of array '" + name + "'");
-        scope.declareArray(name, 0);
-        scope.getRoot()->arrays[scope.getVar(name).value.str()] = std::move(items);
-        return {"void", ""};
+        value = initializer->eval(ctx);
+        runtime::coerce("array", value, "initializer of array '" + name + "'");
+        runtime::own(value);
+    } else {
+        long long size = sizeNode ? intArg(sizeNode->eval(ctx), "size of array", name) : 0;
+        if (size < 0) throw std::runtime_error("Runtime Error: Array size cannot be negative");
+        value = runtime::makeArray(std::vector<Value>(static_cast<size_t>(size), {"int", Text::integer(0)}));
     }
-    long long size = sizeNode ? intArg(sizeNode->eval(ctx), "size of array", name) : 0;
-    if (size < 0) throw std::runtime_error("Runtime Error: Array size cannot be negative");
-    scope.declareArray(name, static_cast<size_t>(size));
+    scope.defineVar(name, "array", value);
     return {"void", ""};
 }
 
 Value ArrayLiteralNode::eval(Context& ctx) {
     std::vector<Value> items;
     items.reserve(elements.size());
-    for (auto& element : elements) items.push_back(element->eval(ctx));
-    return {"array", ctx.newArray(std::move(items))};
+    for (auto& element : elements) {
+        items.push_back(element->eval(ctx));
+        runtime::own(items.back());
+    }
+    return runtime::makeArray(std::move(items));
 }
 
 namespace {
-size_t elementIndex(Context& ctx, const std::string& name, Node& indexNode, std::vector<Value>*& items) {
-    items = &ctx.arrayOf(ctx.getVar(name), "'" + name + "'");
-    long long index = intArg(indexNode.eval(ctx), "index of array", name);
-    if (index < 0 || static_cast<unsigned long long>(index) >= items->size())
-        throw std::runtime_error("Runtime Error: Array index out of bounds: " + std::to_string(index) +
-                                 " (size of '" + name + "' is " + std::to_string(items->size()) + ")");
+
+std::string keyOf(const Value& key) {
+    if (key.type == "string" || key.type == "int") return key.value.str();
+    throw std::runtime_error("Type Error: a map key must be string or int, got '" + key.type + "'");
+}
+
+size_t positionIn(const Object& array, const Value& indexValue) {
+    long long index = intArg(indexValue, "array index");
+    if (index < 0 || static_cast<unsigned long long>(index) >= array.items.size())
+        throw std::runtime_error("Runtime Error: Array index out of bounds: " + std::to_string(index) + " (size " +
+                                 std::to_string(array.items.size()) + ")");
     return static_cast<size_t>(index);
 }
+
+size_t fieldIn(const Object& object, const std::string& name) {
+    const auto& fields = object.structType->fields;
+    for (size_t i = 0; i < fields.size(); ++i)
+        if (fields[i].name == name) return i;
+    throw std::runtime_error("Runtime Error: struct '" + object.structType->name + "' has no field '" + name + "'");
+}
+
+Value& missingKey(const std::string& key) {
+    throw std::runtime_error("Runtime Error: map has no key '" + key + "' (has(map, key) checks, get_or(map, key, default) reads safely)");
+}
+
+// base[index] on a container value; create inserts a new map key.
+Value& element(Value& base, const Value& index, bool create) {
+    if (!base.ref || base.ref->kind == Object::Kind::Struct)
+        throw std::runtime_error("Type Error: '[]' needs an array or a map, got '" + base.type + "'");
+    Object& object = *base.ref;
+    if (object.kind == Object::Kind::Array) return object.items[positionIn(object, index)];
+    std::string key = keyOf(index);
+    if (create) return object.slot(key);
+    long at = object.find(key);
+    return at < 0 ? missingKey(key) : object.items[static_cast<size_t>(at)];
+}
+
+Value& member(Value& base, const std::string& name, bool create, const std::string** declared = nullptr) {
+    if (base.ref && base.ref->kind == Object::Kind::Struct) {
+        size_t at = fieldIn(*base.ref, name);
+        if (declared) *declared = &base.ref->structType->fields[at].type;
+        return base.ref->items[at];
+    }
+    if (base.ref && base.ref->kind == Object::Kind::Map) {
+        if (create) return base.ref->slot(name);
+        long at = base.ref->find(name);
+        return at < 0 ? missingKey(name) : base.ref->items[static_cast<size_t>(at)];
+    }
+    throw std::runtime_error("Type Error: '." + name + "' needs a struct or a map, got '" + base.type + "'");
+}
+
+// The slot an assignment writes to: a variable, then elements and fields inside it.
+// A struct field reports its declared type, which the stored value must keep.
+Value& place(Node& target, Context& ctx, bool create, const std::string** declared = nullptr) {
+    if (auto* variable = dynamic_cast<VarAccessNode*>(&target)) {
+        Value* found = ctx.findVar(variable->name);
+        if (!found) throw std::runtime_error("Runtime Error: Variable '" + variable->name + "' not found!");
+        return *found;
+    }
+    if (auto* index = dynamic_cast<IndexNode*>(&target)) {
+        Value key = index->index->eval(ctx);
+        return element(place(*index->base, ctx, false), key, create);
+    }
+    if (auto* field = dynamic_cast<FieldNode*>(&target))
+        return member(place(*field->base, ctx, false), field->name, create, declared);
+    throw std::runtime_error("Syntax Error: only a variable, an element or a field can be assigned to");
+}
+
 } // namespace
 
-Value ArraySetNode::eval(Context& ctx) {
-    std::vector<Value>* items = nullptr;
-    size_t at = elementIndex(ctx, name, *index, items);
+Value IndexNode::eval(Context& ctx) {
+    Value container = base->eval(ctx);
+    return element(container, index->eval(ctx), false);
+}
+
+Value FieldNode::eval(Context& ctx) {
+    Value container = base->eval(ctx);
+    return member(container, name, false);
+}
+
+Value SetNode::eval(Context& ctx) {
+    // The value is computed first: it may change the containers the target lives in.
     Value assigned = value->eval(ctx);
-    // Evaluating the value may have resized or replaced the array, so look it up again.
-    items = &ctx.arrayOf(ctx.getVar(name), "'" + name + "'");
-    if (at >= items->size()) throw std::runtime_error("Runtime Error: Array index out of bounds: " + std::to_string(at));
+    const std::string* declared = nullptr;
+    Value& slot = place(*target, ctx, op == "=", &declared);
     if (op != "=") {
         struct Literal : Node {
             Value held;
             explicit Literal(Value v) : held(std::move(v)) {}
             Value eval(Context&) override { return held; }
         };
-        BinOpNode combine(op, std::make_unique<Literal>((*items)[at]), std::make_unique<Literal>(assigned));
+        BinOpNode combine(op, std::make_unique<Literal>(slot), std::make_unique<Literal>(assigned));
         assigned = combine.eval(ctx);
     }
-    (*items)[at] = std::move(assigned);
+    // A struct field keeps its declared type; elements and map values take any value.
+    if (declared) runtime::coerce(*declared, assigned, "field '" + static_cast<FieldNode*>(target.get())->name + "'");
+    runtime::own(assigned);
+    slot = std::move(assigned);
     return {"void", ""};
 }
 
-Value ArrayGetNode::eval(Context& ctx) {
-    std::vector<Value>* items = nullptr;
-    size_t at = elementIndex(ctx, name, *index, items);
-    return (*items)[at];
+Value MapLiteralNode::eval(Context& ctx) {
+    Value map = runtime::makeMap();
+    for (auto& entry : entries) {
+        std::string key = keyOf(entry.first->eval(ctx));
+        Value value = entry.second->eval(ctx);
+        runtime::own(value);
+        map.ref->slot(key) = std::move(value);
+    }
+    return map;
+}
+
+Value StructDefNode::eval(Context& ctx) {
+    ctx.getRoot()->structs[type->name] = type;
+    return {"void", ""};
+}
+
+Value TryNode::eval(Context& ctx) {
+    runtime::StackGuard& guard = runtime::stackGuard();
+    // finally runs however the protected code ends: normally, by an error, by
+    // return, break, continue or exit.
+    auto cleanupAfter = [&](auto&& run) {
+        try {
+            run();
+        } catch (...) {
+            if (cleanup) cleanup->eval(ctx);
+            throw;
+        }
+        if (cleanup) cleanup->eval(ctx);
+    };
+    cleanupAfter([&] {
+        std::string message;
+        bool failed = false;
+        {
+            struct Depth {
+                int& count;
+                explicit Depth(int& c) : count(c) { ++count; }
+                ~Depth() { --count; }
+            } depth(guard.tryDepth);
+            try {
+                body->eval(ctx);
+            } catch (const std::exception& error) {
+                if (!handler) throw;
+                message = error.what();
+                failed = true;
+            }
+        }
+        if (!failed) return;
+        Context scope;
+        scope.parent = &ctx;
+        scope.interpreter = ctx.interpreter;
+        if (!errorName.empty()) scope.defineVar(errorName, "string", {"string", message});
+        handler->eval(scope);
+    });
+    return {"void", ""};
+}
+
+Value ThrowNode::eval(Context& ctx) {
+    Value value = message->eval(ctx);
+    throw std::runtime_error(runtime::display(value));
 }
 
 Value BlockNode::eval(Context& ctx) {
@@ -367,7 +494,7 @@ Value SwitchNode::eval(Context& ctx) {
                 double l = 0, r = 0;
                 bool numeric = runtime::tryNumber(switchValue, l) && runtime::tryNumber(caseValue, r) &&
                                switchValue.type != "string" && caseValue.type != "string";
-                matched = numeric ? l == r : (switchValue.type == caseValue.type && switchValue.value == caseValue.value);
+                matched = numeric ? l == r : runtime::deepEqual(switchValue, caseValue);
             }
             // Without break, execution falls through into the following cases.
             if (matched) caseItem.second->eval(ctx);

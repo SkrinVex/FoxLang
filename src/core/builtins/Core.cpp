@@ -21,18 +21,24 @@ std::mt19937& generator() {
 }
 
 // Arrays print as [a, b, c]; their internal id means nothing to a reader.
-std::string display(const Value& value, Context& ctx, int depth = 0) {
-    if (value.type != "array") return value.value.str();
-    if (depth > 8) return "[...]";
-    auto& arrays = ctx.getRoot()->arrays;
-    auto found = arrays.find(value.value.str());
-    if (found == arrays.end()) return "[]";
-    std::string out = "[";
-    for (size_t i = 0; i < found->second.size(); ++i) {
-        if (i > 0) out += ", ";
-        out += display(found->second[i], ctx, depth + 1);
-    }
-    return out + "]";
+// A value stored into a container becomes the container's own copy.
+Value stored(const Value& value) {
+    Value copy = value;
+    own(copy);
+    return copy;
+}
+
+Object& mapOf(Call& call, size_t index) {
+    const Value& value = call.at(index);
+    if (value.type != "map" || !value.ref) throw std::runtime_error("Type Error: " + call.what(index) + " must be a map, got '" + value.type + "'");
+    return *value.ref;
+}
+
+std::string keyText(Call& call, size_t index) {
+    const Value& key = call.at(index);
+    if (key.type != "string" && key.type != "int")
+        throw std::runtime_error("Type Error: " + call.what(index) + " must be string or int, got '" + key.type + "'");
+    return key.value.str();
 }
 
 size_t checkedIndex(Call& call, size_t argument, size_t size) {
@@ -81,7 +87,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
         [](Call& c) {
             for (size_t i = 0; i < c.count(); ++i) {
                 if (i > 0) std::cout << ' ';
-                std::cout << display(c.at(i), c.ctx);
+                std::cout << display(c.at(i));
             }
             std::cout << std::endl;
             return nothing();
@@ -119,13 +125,14 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
 
     // Arrays
     add({"size", "int", {{"any", "value"}}, 1, false, "",
-         "Число элементов массива или длина строки в **байтах** UTF-8. Символы строки считает `str_length`.\n\n"
+         "Число элементов массива, пар словаря или длина строки в **байтах** UTF-8. Символы строки считает `str_length`.\n\n"
          "```foxlang\nint n = size(scores);\n```"},
         [](Call& c) {
             const Value& value = c.at(0);
             if (value.type == "string") return integer(static_cast<long long>(value.value.length()));
             if (value.type == "array") return integer(static_cast<long long>(c.array(0).size()));
-            throw std::runtime_error("Type Error: size() requires an array or a string, got '" + value.type + "'");
+            if (value.type == "map") return integer(static_cast<long long>(value.ref->items.size()));
+            throw std::runtime_error("Type Error: size() requires an array, a map or a string, got '" + value.type + "'");
         });
     add({"get", "any", {{"array", "items"}, {"int", "index"}}, 2, false, "",
          "Элемент массива по индексу (с нуля). То же, что `items[index]`.\n\n```foxlang\nint first = get(scores, 0);\n```"},
@@ -137,7 +144,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
          "Записывает значение в элемент массива. То же, что `items[index] = value;`.\n\n```foxlang\nset(scores, 0, 100);\n```"},
         [](Call& c) {
             auto& items = c.array(0);
-            items[checkedIndex(c, 1, items.size())] = c.at(2);
+            items[checkedIndex(c, 1, items.size())] = stored(c.at(2));
             return nothing();
         });
     add({"push", "void", {{"array", "items"}, {"any", "value"}}, 2, false, "",
@@ -145,7 +152,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
         [](Call& c) {
             auto& items = c.array(0);
             if (items.size() >= maxElements) throw std::runtime_error("Runtime Error: array is too large");
-            items.push_back(c.at(1));
+            items.push_back(stored(c.at(1)));
             return nothing();
         });
     add({"pop", "any", {{"array", "items"}}, 1, false, "",
@@ -163,7 +170,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             auto& items = c.array(0);
             size_t index = checkedIndex(c, 1, items.size() + 1);
             if (items.size() >= maxElements) throw std::runtime_error("Runtime Error: array is too large");
-            items.insert(items.begin() + static_cast<std::ptrdiff_t>(index), c.at(2));
+            items.insert(items.begin() + static_cast<std::ptrdiff_t>(index), stored(c.at(2)));
             return nothing();
         });
     add({"remove_at", "any", {{"array", "items"}, {"int", "index"}}, 2, false, "",
@@ -182,9 +189,48 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             return nothing();
         });
 
+    // Maps
+    add({"keys", "array", {{"map", "items"}}, 1, false, "",
+         "Ключи словаря в порядке добавления.\n\n```foxlang\nmap ages = {\"Ann\": 30, \"Bob\": 25};\n"
+         "array names = keys(ages); // [Ann, Bob]\n```"},
+        [](Call& c) {
+            std::vector<Value> out;
+            for (const auto& key : mapOf(c, 0).keys) out.push_back(text(key));
+            return makeArray(std::move(out));
+        });
+    add({"values", "array", {{"map", "items"}}, 1, false, "",
+         "Значения словаря в порядке добавления ключей."},
+        [](Call& c) {
+            std::vector<Value> out;
+            for (const auto& item : mapOf(c, 0).items) out.push_back(deepCopy(item));
+            return makeArray(std::move(out));
+        });
+    add({"has", "bool", {{"map", "items"}, {"any", "key"}}, 2, false, "",
+         "Есть ли в словаре ключ.\n\n```foxlang\nif (has(config, \"port\")) { port = config[\"port\"]; }\n```"},
+        [](Call& c) { return boolean(mapOf(c, 0).find(keyText(c, 1)) >= 0); });
+    add({"remove_key", "bool", {{"map", "items"}, {"any", "key"}}, 2, false, "",
+         "Удаляет ключ из словаря. `true`, если ключ был."},
+        [](Call& c) { return boolean(mapOf(c, 0).erase(keyText(c, 1))); });
+    add({"get_or", "any", {{"any", "items"}, {"any", "key"}, {"any", "default"}}, 3, false, "",
+         "Значение словаря по ключу или элемент массива по индексу, а если его нет — `default`.\n\n"
+         "```foxlang\nint port = get_or(config, \"port\", 8080);\n```"},
+        [](Call& c) {
+            const Value& items = c.at(0);
+            if (items.type == "map" && items.ref) {
+                long at = items.ref->find(keyText(c, 1));
+                return at < 0 ? c.at(2) : items.ref->items[static_cast<size_t>(at)];
+            }
+            if (items.type == "array" && items.ref) {
+                long long index = c.integer(1);
+                bool inside = index >= 0 && static_cast<unsigned long long>(index) < items.ref->items.size();
+                return inside ? items.ref->items[static_cast<size_t>(index)] : c.at(2);
+            }
+            throw std::runtime_error("Type Error: get_or() needs a map or an array, got '" + items.type + "'");
+        });
+
     // Types and conversions
     add({"type_of", "string", {{"any", "value"}}, 1, false, "",
-         "Имя типа значения: `int`, `float`, `string`, `bool` или `array`."},
+         "Имя типа значения: `int`, `float`, `string`, `bool`, `array`, `map` или имя структуры."},
         [](Call& c) { return text(c.at(0).type); });
     add({"to_int", "int", {{"any", "value"}}, 1, false, "",
          "Преобразует в `int`: дробное число отбрасывает дробную часть, строка должна содержать число, "
@@ -212,7 +258,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
         });
     add({"to_string", "string", {{"any", "value"}}, 1, false, "",
          "Текстовое представление значения; массив выводится как `[1, 2, 3]`."},
-        [](Call& c) { return text(display(c.at(0), c.ctx)); });
+        [](Call& c) { return text(display(c.at(0))); });
     add({"is_number", "bool", {{"string", "text"}}, 1, false, "",
          "Проверяет, что строка целиком — число (`42`, `-3.5`, пробелы по краям допустимы).\n\n"
          "```foxlang\nif (is_number(answer)) { int n = to_int(answer); }\n```"},
