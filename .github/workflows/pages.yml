@@ -7,6 +7,12 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/pages.yml'
+      - 'VERSION'
+      - 'tests/**'
+      - 'std/**'
+      - 'src/core/builtins/**'
+      - 'src/graphics/Builtins.cpp'
+      - 'packaging/site_facts.py'
   # A new release brings new benchmark results for the page.
   workflow_run:
     workflows: ["Build and Auto Release FoxLang"]
@@ -38,6 +44,14 @@ jobs:
         run: |
           gh release download --repo "$GITHUB_REPOSITORY" --pattern benchmarks.json --dir site --clobber \
             || echo "The latest release has no benchmarks.json; the page shows the numbers it carries."
+      # The numbers on the page (version, builtins, modules, tests) come from the code
+      # being published, whatever the committed page says. Counting the tests needs
+      # a configured build tree, not a build.
+      - name: Put the current numbers on the page
+        run: |
+          sudo apt-get update && sudo apt-get install -y libxcb1-dev libxau-dev libxdmcp-dev
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+          python3 packaging/site_facts.py --build build --write
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

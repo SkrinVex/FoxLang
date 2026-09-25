@@ -56,8 +56,14 @@ set_tests_properties(programs PROPERTIES TIMEOUT 300 ENVIRONMENT "FOXLANG_HOME=$
 # Every benchmark once on a tiny input: the programs run and all languages agree.
 add_test(NAME benchmarks_smoke
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/benchmarks/run.py --smoke --foxlang $<TARGET_FILE:foxlang>)
-# The numbers in the site's header follow the code: version, builtins, modules, tests.
-add_test(NAME site_facts COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/packaging/site_facts.py --build ${CMAKE_BINARY_DIR})
+# The numbers on the site follow the code: version, builtins, modules, tests. Every
+# build writes them into site/index.html; the test catches a page left behind.
+add_custom_target(site_facts ALL
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/packaging/site_facts.py
+            --build ${CMAKE_BINARY_DIR} --ctest ${CMAKE_CTEST_COMMAND} --write
+    COMMENT "Updating the numbers on the site")
+add_test(NAME site_facts COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/packaging/site_facts.py
+         --build ${CMAKE_BINARY_DIR} --ctest ${CMAKE_CTEST_COMMAND})
 add_test(NAME packaging_versions COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_versions.py ${CMAKE_SOURCE_DIR})
 add_executable(test_bundle unit/test_bundle.cpp)
 target_link_libraries(test_bundle PRIVATE foxlang_bundle)
