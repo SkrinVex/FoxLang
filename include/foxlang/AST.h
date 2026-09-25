@@ -24,6 +24,9 @@ struct Node {
 // module brought in by using or include.
 struct Declaration : Node {
     virtual void declare(Context& root) = 0;
+    // Whether a function or a struct type of this name already exists: one declared
+    // further down a file is registered in advance only when it does not.
+    virtual bool exists(const Context& /*root*/) const { return true; }
 };
 
 // Where a variable lives, decided once by the resolver (Resolver.cpp) before the code is
@@ -113,6 +116,7 @@ struct FuncDefNode : Declaration {
     FuncDefNode(std::string rt, std::string n, std::vector<FuncParam> p, std::shared_ptr<Node> b, SourceRange nr = {});
 
     void declare(Context& root) override;
+    bool exists(const Context& root) const override { return root.functions.count(name) > 0; }
     // Calls the function as a call in the program would: the arguments are converted to
     // the parameters' types, the result to the return type. Used by the HTTP server for
     // handlers and by foxlang test.
@@ -267,6 +271,7 @@ struct StructDefNode : Declaration {
     SourceRange nameRange;
     std::vector<SourceRange> fieldRanges;
     void declare(Context& root) override;
+    bool exists(const Context& root) const override { return root.structs.count(type->name) > 0; }
 };
 
 // try { ... } catch (string error) { ... } finally { ... }

@@ -94,7 +94,23 @@ public:
         line = outerLine;
     }
 
+    // The functions and struct types of a top level exist from its start, so code may
+    // call a function defined further down. A name that already exists keeps its
+    // meaning until the definition itself runs.
+    void hoist(BlockNode& program) {
+        int outerLine = line;
+        for (auto& stmt : program.stmts) {
+            auto* declaration = dynamic_cast<Declaration*>(stmt.get());
+            if (!declaration || !(dynamic_cast<FuncDefNode*>(declaration) || dynamic_cast<StructDefNode*>(declaration))) continue;
+            line = stmt->range.start.line;
+            p.declarations.push_back(declaration);
+            emit(Op::Declare, 0, static_cast<int>(p.declarations.size()) - 1, 1);
+        }
+        line = outerLine;
+    }
+
     void topLevel(BlockNode& program, Unit unit) {
+        hoist(program);
         for (auto& stmt : program.stmts) {
             if (!stmt || (unit == Unit::Declarations && !isDeclaration(stmt.get()))) continue;
             if (stmt->range.start.line > 0) line = stmt->range.start.line;
@@ -871,8 +887,12 @@ std::shared_ptr<Proto> compileProgram(BlockNode& program, Unit unit, bool debug)
     proto->slotNames = std::make_shared<std::vector<std::string>>(program.layout->names);
     proto->slots = static_cast<int>(program.layout->names.size());
     Compiler compiler(*proto, proto->debug, false);
-    if (unit == Unit::Program) compiler.block(program);
-    else compiler.topLevel(program, unit);
+    if (unit == Unit::Program) {
+        compiler.hoist(program);
+        compiler.block(program);
+    } else {
+        compiler.topLevel(program, unit);
+    }
     compiler.end(program.range.end.line);
     compiler.epilogue();
     compiler.finish();

@@ -651,9 +651,11 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         break;
                     }
 
-                    case Op::Declare:
-                        proto.declarations[static_cast<size_t>(in.b)]->declare(root);
+                    case Op::Declare: {
+                        Declaration* declaration = proto.declarations[static_cast<size_t>(in.b)];
+                        if (!in.c || !declaration->exists(root)) declaration->declare(root);
                         break;
+                    }
                     case Op::Throw:
                         raise(runtime::display(R[in.a]));
                     case Op::Rethrow:

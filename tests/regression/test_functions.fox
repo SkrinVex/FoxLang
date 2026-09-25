@@ -35,4 +35,22 @@ void test_scope() {
 test_scope();
 assert_true(shadow == 100, "local variable shadow does not overwrite outer");
 
+// 5. A function and a struct type exist before the lines that define them
+assert_true(later(4) == 40, "call before the definition");
+Pair early = Pair(1, 2);
+assert_true(early.a + early.b == 3, "struct used before its definition");
+int later(int x) {
+    return x * 10;
+}
+struct Pair {
+    int a;
+    int b;
+}
+
+// 6. A name that exists keeps its meaning until the new definition runs
+int version() { return 1; }
+assert_true(version() == 1, "first definition");
+int version() { return 2; }
+assert_true(version() == 2, "redefinition takes effect where it stands");
+
 print("FUNCTIONS_OK");

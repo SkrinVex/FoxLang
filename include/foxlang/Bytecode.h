@@ -61,7 +61,8 @@ enum class Op : std::uint8_t {
     Increment,     // R[a] = R[b]++ (or --): step c; a < 0 when the old value is not used
     IncrementGlobal, // the same on global b, into R[a]; step c
     // Statements
-    Declare,       // run declaration node b: a function, a struct, using or include
+    Declare,       // run declaration node b: a function, a struct, using or include;
+                   // c: 1 to declare only a name that does not exist yet
     Throw,         // raise display(R[a])
     Rethrow,       // raise again the error that finally a is running for
     TryEnter,      // the program is inside a try block (the debugger asks)
