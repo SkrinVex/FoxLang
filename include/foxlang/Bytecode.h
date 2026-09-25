@@ -3,6 +3,7 @@
 // instructions for a register machine (Compiler.cpp) that the VM executes (Vm.cpp).
 // A function's registers are its numbered variables (the resolver's slots, parameters
 // first), then the constants its arithmetic uses, then temporaries.
+#include "foxlang/AST.h"
 #include "foxlang/Context.h"
 #include "foxlang/Runtime.h"
 #include <cstdint>
@@ -63,6 +64,16 @@ enum class Op : std::uint8_t {
     SetPath,       // store R[a] through path b: items[i].name = value
     Increment,     // R[a] = R[b]++ (or --): step c; a < 0 when the old value is not used
     IncrementGlobal, // the same on global b, into R[a]; step c
+    // Variables that lambdas capture live in boxes
+    Box,           // R[a] = a new box holding R[a]
+    Unbox,         // R[a] = what box R[b] holds
+    BoxStore,      // box R[a] holds R[b] (moved), as a declaration stores it
+    BoxAssign,     // box R[a] holds R[b], converted to the variable's type (name K[c])
+    GetCapture,    // R[a] = what captured variable b holds
+    SetCapture,    // captured variable a = R[b], converted to its type (name K[c])
+    IncrementRef,  // R[a] = old value of the box R[b] (x=0) or capture b (x=1); ++ when c&1, name K[c>>1]
+    Closure,       // R[a] = lambda b of this code, with its captured variables
+    CallValue,     // R[a] = call the function R[a] with c arguments in R[a+1] ..
     // Statements
     Declare,       // run declaration node b: a function, a struct, using or include;
                    // c: 1 to declare only a name that does not exist yet
@@ -100,6 +111,7 @@ struct GlobalSite {
     Value* cached = nullptr;
     const Context* root = nullptr;
     unsigned generation = 0;
+    Value function; // the name of a function read as a value: func f = add;
 };
 
 // A call by name: a builtin, a FoxLang function or a struct's constructor.
@@ -126,7 +138,9 @@ struct SetPath {
         int key = -1;     // register holding the index, for [key]
         std::string name; // for .name
     };
-    int slot = -1;        // the variable's register, or
+    int slot = -1;        // the variable's register (holding a box when `boxed`), or
+    bool boxed = false;
+    int capture = -1;     // the lambda's captured variable, or
     int global = -1;      // its global site
     std::string variable;
     std::vector<Step> steps; // from the variable outwards
@@ -147,7 +161,7 @@ struct Handler {
     int scopes = 0;   // debugger: blocks open where the handler runs
 };
 
-// A compiled function, or a program's top level.
+// A compiled function, a lambda, or a program's top level.
 struct Proto {
     std::string name;                  // the function's name; empty for a program
     const std::string* file = nullptr;
@@ -165,8 +179,13 @@ struct Proto {
     std::vector<std::pair<int, int>> tryBodies; // [start, end) of every try block
     std::vector<Declaration*> declarations;
     std::vector<std::string> texts;    // operator texts and statement names, for messages
+    std::vector<std::shared_ptr<Proto>> lambdas; // the lambdas written in this code
+    std::vector<std::shared_ptr<const Callee>> callees; // what each lambda's values call
+    std::vector<Capture> captures;     // a lambda's: where each captured variable comes from
+    bool lambda = false;
     int registers = 0;
-    int pendingErrors = 0;             // finally blocks that can hold an error
+    int pendingErrors = 0;
+    std::vector<int> boxedParams;      // parameters a lambda captures: boxed when a call begins             // finally blocks that can hold an error
     bool debug = false;                // compiled for a debugger: statement and scope events
     // A function's signature, checked by every call.
     std::vector<Conversion> params;

@@ -105,15 +105,23 @@ StaticResult serveStatic(const std::string& directory, const std::vector<std::st
     return sendFile(reply, file.u8string()) ? StaticResult::Served : StaticResult::NotFound;
 }
 
-void invokeHandler(const std::string& handler, Context& rootCtx, platform::HttpReply& reply) {
-    auto* definition = dynamic_cast<FuncDefNode*>(rootCtx.getFunc(handler).get());
-    if (!definition) {
-        std::cerr << "[HTTP ERROR] Handler function '" << handler << "' not found" << std::endl;
-        reply = {500, "application/json; charset=utf-8", "{\"error\":\"Handler not found\"}", {}};
-        return;
+void invokeHandler(const Value& handler, Context& rootCtx, platform::HttpReply& reply) {
+    Value function = handler;
+    if (handler.isString()) {
+        auto definition = rootCtx.getFunc(handler.str());
+        if (!definition) {
+            std::cerr << "[HTTP ERROR] Handler function '" << handler.str() << "' not found" << std::endl;
+            reply = {500, "application/json; charset=utf-8", "{\"error\":\"Handler not found\"}", {}};
+            return;
+        }
+        auto callee = std::make_shared<Callee>();
+        callee->name = handler.str();
+        callee->function = definition;
+        function = Value::container(Value::Kind::Function);
+        function.ref()->callee = std::move(callee);
     }
     try {
-        definition->invoke({}, rootCtx);
+        runtime::callValue(function, nullptr, 0, rootCtx);
     } catch (const std::exception& error) {
         std::cerr << "[HTTP ERROR] " << runtime::locate(error.what(), "") << std::endl;
         reply = {500, "application/json; charset=utf-8", "{\"error\":\"Handler failed\"}", {}};
@@ -340,7 +348,7 @@ HttpReply handleHttpRequest(ServerState& state, Context& rootCtx) {
         for (const auto& method : allowed) list += (list.empty() ? "" : ", ") + method;
         return withCors({405, "application/json; charset=utf-8", "{\"error\":\"Method Not Allowed\"}", {{"Allow", list}}});
     }
-    if (!state.notFoundHandler.empty()) {
+    if (!state.notFoundHandler.isVoid()) {
         reply.status = 404;
         invokeHandler(state.notFoundHandler, rootCtx, reply);
         return withCors(reply);

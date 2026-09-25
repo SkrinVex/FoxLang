@@ -118,6 +118,7 @@ print("Привет, ${name}! Через год тебе будет ${age + 1}."
 | `array` | массив значений любых типов, см. [раздел 8](#8-массивы) |
 | `map` | словарь «ключ → значение», см. [раздел 9](#9-словари-map) |
 | имя структуры | значение структуры, объявленной `struct`, см. [раздел 10](#10-структуры-struct) |
+| `func` | функция как значение: лямбда, функция FoxLang или встроенная, см. [раздел 7](#функции-как-значения-и-лямбды) |
 | `void` | «нет значения»: только тип результата функции |
 
 `int` не переполняется молча: значение вне диапазона — в объявлении, при
@@ -138,6 +139,7 @@ print("Привет, ${name}! Через год тебе будет ${age + 1}."
 | `bool` | только `bool` |
 | `array` | только `array` |
 | `map` | только `map` |
+| `func` | только функция |
 | структура `Point` | только значение `Point` |
 
 Всё остальное — ошибка `Type Error`. Строку в число явно превращают `to_int` и
@@ -352,8 +354,10 @@ greet("Алиса");
 print(add(2, 3), factorial(5));
 ```
 
-* Тип результата — `int`, `float`, `string`, `bool`, `array`, `map`, имя
-  структуры или `void`. Параметры имеют те же типы, кроме `void`.
+* Тип результата — `int`, `float`, `string`, `bool`, `array`, `map`, `func`, имя
+  структуры или `void`. Параметры имеют те же типы, кроме `void`. Параметр можно
+  объявить без типа — тогда он принимает значение любого типа как есть:
+  `void log_all(label, value)`.
 * Аргументы и возвращаемое значение приводятся к объявленным типам по
   [правилу преобразования](#3-типы-и-преобразования): `float half(int v)` вернёт
   `float`, даже если `return` получил `int`.
@@ -373,6 +377,87 @@ print(add(2, 3), factorial(5));
 встроенной функцией, вызывается встроенная, когда аргументы подходят под её
 сигнатуру, иначе — функция FoxLang. Так уживаются встроенная `get(items, index)` и
 `get(path, handler)` из модуля `server`.
+
+### Функции как значения и лямбды
+
+Функцию можно положить в переменную типа `func`, передать аргументом и вернуть из
+другой функции. Значением служит лямбда, имя функции FoxLang или имя встроенной
+функции; переменную типа `func` вызывают как обычную функцию.
+
+```cpp
+func twice = (int x) => x * 2;          // тело-выражение
+func greet = (string name) => {         // тело-блок
+    print("Привет, " + name + "!");
+};
+func half = x => x / 2.0;               // один параметр без типа — без скобок
+
+int add(int a, int b) { return a + b; }
+func plus = add;                        // функция по имени
+func say = print;                       // и встроенная тоже
+
+int apply(func f, int value) { return f(value); }
+
+greet("Лис");
+print(twice(21), plus(2, 3), apply(x => x * x, 7), half(5));
+say("функции", "как", "значения");
+```
+
+* Лямбда записывается как `(параметры) => выражение` или `(параметры) => { ... }`.
+  У параметров тип можно не указывать: тогда они принимают значение любого типа.
+  Параметры с типом приводятся по [правилу преобразования](#3-типы-и-преобразования).
+* Лямбда с телом-выражением возвращает его значение. В теле-блоке `return` с
+  значением или без него разрешён; без `return` результатом будет «нет значения».
+* Количество аргументов должно совпадать с числом параметров, как и у функций.
+* Вызов переменной, в которой не функция, — ошибка `Type Error: 'x' is not a function`.
+* `print` показывает функцию как `<func имя>`, лямбду — как `<func lambda>`.
+  `type_of` возвращает `"func"`. Две функции равны (`==`), если это одна и та же функция.
+
+**Замыкания.** Лямбда видит локальные переменные функции, в которой создана, и
+продолжает их видеть после выхода из неё. Переменная общая: изменение внутри лямбды
+видно снаружи и наоборот.
+
+```cpp
+func make_counter() {
+    int count = 0;
+    return () => {
+        count++;
+        return count;
+    };
+}
+
+func next = make_counter();
+next();
+next();
+print(next()); // 3
+
+func adder(int n) { return x => x + n; }
+func add5 = adder(5);
+print(add5(10)); // 15
+```
+
+* Каждая итерация цикла создаёт свои переменные: лямбды, созданные в
+  `for (item in items)`, запоминают каждая свой `item`.
+* Локальная переменная `func` видна в собственной лямбде, поэтому лямбда может
+  вызывать себя рекурсивно:
+
+```cpp
+void show() {
+    func fact = (int n) => {
+        if (n <= 1) {
+            return 1;
+        }
+        return n * fact(n - 1);
+    };
+    print(fact(5)); // 120
+}
+show();
+```
+
+* Глобальные переменные лямбда читает по имени в момент вызова, как и функции.
+
+Функции высшего порядка для массивов — `array_map`, `array_filter`, `array_reduce`,
+`array_find`, `array_any`, `array_all` и `array_sort` с функцией сравнения — описаны в
+[разделе 12](#массивы), удобные обёртки — в [модуле arrays](#using-arrays).
 
 ---
 
@@ -592,14 +677,33 @@ print(upper("fox"), json_quote("лис"));
 | `insert(array items, int index, any value) -> void` | вставить перед `index` (`index == size` — в конец) |
 | `remove_at(array items, int index) -> any` | удалить элемент и вернуть его |
 | `resize(array items, int size) -> void` | изменить размер; новые элементы равны 0 |
-| `array_sort(array items) -> void` | сортировка на месте: все числа или все строки |
+| `array_sort(array items, [func before]) -> void` | сортировка на месте: все числа или все строки; с `before(a, b)` — в порядке, который задаёт функция |
 | `array_reverse(array items) -> void` | обратный порядок на месте |
 | `array_index_of(array items, any value) -> int` | индекс первого равного элемента или -1 |
 | `array_copy(array items) -> array` | независимая копия, как `copy` |
 | `array_slice(array items, int start, [int end]) -> array` | срез; отрицательные индексы — с конца |
+| `array_map(array items, func transform) -> array` | новый массив из `transform(item)` |
+| `array_filter(array items, func keep) -> array` | элементы, для которых `keep(item)` вернула `true` |
+| `array_reduce(array items, func combine, any initial) -> any` | свёртка: `combine(result, item)`, начиная с `initial` |
+| `array_find(array items, func matches) -> int` | индекс первого подходящего элемента или -1 |
+| `array_any(array items, func matches) -> bool` | подходит ли хотя бы один элемент |
+| `array_all(array items, func matches) -> bool` | подходят ли все (для пустого массива — `true`) |
 
 `array_index_of` сравнивает числа по величине, остальное — по тексту, поэтому число
 `5` находится и по строке `"5"`.
+
+Функции, которые принимают `func`, вызывают её для каждого элемента по порядку.
+`keep`, `matches` и `before` обязаны возвращать `bool`. Сортировка с `before`
+устойчива: равные элементы сохраняют исходный порядок.
+
+```cpp
+array prices = [120, 45, 300, 80];
+array cheap = array_filter(prices, p => p < 100);
+array labels = array_map(cheap, p => "${p} ₽");
+int total = array_reduce(prices, (sum, p) => sum + p, 0);
+array_sort(prices, (a, b) => a > b); // по убыванию
+print(labels, total, prices, array_any(prices, p => p > 250));
+```
 
 ### Словари
 
@@ -914,12 +1018,22 @@ print(upper("лиса"), substring("Привет, мир", 8, 3), pad_left("7", 
 | `slice(array items, int start, int end) -> array` | срез |
 | `sum(array items) -> float` | сумма числовых элементов |
 | `range(int start, int end) -> array` | числа от `start` до `end` (не включая) |
+| `transform(array items, func f) -> array` | новый массив из `f(item)` |
+| `filter(array items, func keep) -> array` | элементы, для которых `keep(item)` вернула `true` |
+| `reduce(array items, func combine, initial)` | свёртка, начиная с `initial` |
+| `sort_by(array items, func before)` | сортировка на месте по функции сравнения |
+| `find_first(array items, func matches) -> int` | индекс первого подходящего элемента или -1 |
+| `any_of(array items, func matches) -> bool`, `all_of(...)` | хотя бы один / все подходят |
 
 ```cpp
 using arrays;
 array scores = [40, 15, 99];
 sort(scores);
 print(scores, sum(scores), includes(scores, "99"), range(0, 3));
+
+array words = ["лиса", "ёж", "барсук"];
+sort_by(words, (a, b) => size(a) < size(b));
+print(words, transform(scores, s => s * 2), filter(scores, s => s > 20));
 ```
 
 ### using math;
@@ -1470,7 +1584,10 @@ listen(8080);
 ### Маршруты
 
 `get`, `post`, `put`, `patch`, `delete` и `route(method, path, handler)` связывают
-метод и путь с функцией без параметров, указанной по имени.
+метод и путь с обработчиком — функцией без параметров. Её передают как значение
+(`get("/", home)`), лямбдой (`get("/ping", () => { respond("pong"); })`) или именем
+строкой (`get("/", "home")`). Функцию, указанную по имени, ищут в момент запроса,
+поэтому её можно объявить и после маршрута.
 
 * `:имя` совпадает с одной частью пути, `*имя` в конце — с остатком пути (может быть
   пустым): `/users/:id`, `/files/*path`. Значение читает `param(name)`, оно уже

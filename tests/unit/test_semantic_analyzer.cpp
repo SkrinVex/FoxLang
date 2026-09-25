@@ -331,6 +331,20 @@ int main() {
         TEST_ASSERT(mentions(analyzer, "Undefined variable 'q'"));
     }
 
+    // 16b. Lambdas, func variables and function names used as values
+    {
+        foxlang::SemanticAnalyzer analyzer;
+        analyze("int add(int a, int b) { return a + b; }\nfunc plus = add;\nfunc p = print;\n"
+                "func twice = (int x) => x * 2;\nvoid run(f, func g) { f(1); g(2); }\n"
+                "void local() { func fact = (int n) => { if (n <= 1) { return 1; } return n * fact(n - 1); }; fact(3); }\n"
+                "print(plus(1, 2), twice(3), array_map([1], x => x + 1));", analyzer);
+        TEST_ASSERT(analyzer.getDiagnostics().empty());
+        foxlang::SemanticAnalyzer wrong;
+        analyze("int n = 1;\nn(2);\nfunc f = (x) => y;", wrong);
+        TEST_ASSERT(mentions(wrong, "'n' is a int variable, not a function"));
+        TEST_ASSERT(mentions(wrong, "Undefined variable 'y'"));
+    }
+
     // 17. Unknown modules are reported as warnings
     {
         foxlang::SemanticAnalyzer analyzer;

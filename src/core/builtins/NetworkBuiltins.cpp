@@ -45,6 +45,16 @@ void listen(Call& c, const std::string& certificate, const std::string& key) {
     platform::runHttpServer(port, *c.ctx.getRoot(), nullptr, certificate, key);
 }
 
+// A route's handler: a function value, or the name of a function looked up when a
+// request comes, so it may be defined after the route.
+Value handlerOf(Call& call, size_t index) {
+    const Value& handler = call.at(index);
+    if (!handler.isFunction() && !handler.isString())
+        throw std::runtime_error("HTTP Server Error: " + call.what(index) + " must be a function or its name, got '" +
+                                 handler.typeName() + "'");
+    return handler;
+}
+
 } // namespace
 
 void addNetworkBuiltins(std::vector<Builtin>& out) {
@@ -92,8 +102,8 @@ void addNetworkBuiltins(std::vector<Builtin>& out) {
          "IP-адрес хоста через DNS или пустая строка, если имя не найдено."},
         [](Call& c) { return text(platform::dnsLookup(c.text(0))); });
 
-    add({"server_route", "void", {{"string", "method"}, {"string", "path"}, {"string", "handler"}}, 3, false, "server",
-         "Регистрирует функцию-обработчик для метода и пути. Сегмент `:имя` совпадает с одной частью пути, "
+    add({"server_route", "void", {{"string", "method"}, {"string", "path"}, {"any", "handler"}}, 3, false, "server",
+         "Регистрирует обработчик для метода и пути: функцию или её имя строкой. Сегмент `:имя` совпадает с одной частью пути, "
          "`*имя` в конце — с остатком; значения читает `request_param`. Точные пути проверяются раньше шаблонов."},
         [](Call& c) {
             std::string method = upper(c.text(0));
@@ -101,7 +111,7 @@ void addNetworkBuiltins(std::vector<Builtin>& out) {
             const std::string& pattern = c.text(1);
             if (pattern.empty() || pattern[0] != '/')
                 throw std::runtime_error("HTTP Server Error: route path must start with '/': '" + pattern + "'");
-            platform::HttpRoute route{method, pattern, {}, c.text(2)};
+            platform::HttpRoute route{method, pattern, {}, handlerOf(c, 2)};
             std::stringstream parts(pattern);
             for (std::string part; std::getline(parts, part, '/');) {
                 if (part.empty()) continue;
@@ -128,10 +138,10 @@ void addNetworkBuiltins(std::vector<Builtin>& out) {
             platform::serverState(c.ctx).staticMounts.push_back({c.text(0), c.text(1)});
             return nothing();
         });
-    add({"server_not_found", "void", {{"string", "handler"}}, 1, false, "server",
-         "Функция, которая отвечает, когда не подошёл ни маршрут, ни файл; статус по умолчанию 404."},
+    add({"server_not_found", "void", {{"any", "handler"}}, 1, false, "server",
+         "Функция (или её имя строкой), которая отвечает, когда не подошёл ни маршрут, ни файл; статус по умолчанию 404."},
         [](Call& c) {
-            platform::serverState(c.ctx).notFoundHandler = c.text(0);
+            platform::serverState(c.ctx).notFoundHandler = handlerOf(c, 0);
             return nothing();
         });
     add({"server_cors", "void", {{"string", "origin"}}, 1, false, "server",

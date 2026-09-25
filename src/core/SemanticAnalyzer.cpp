@@ -73,7 +73,7 @@ std::string signatureOf(const std::string& name, const std::vector<FuncParam>& p
     std::string out = name + "(";
     for (size_t i = 0; i < params.size(); ++i) {
         if (i > 0) out += ", ";
-        out += params[i].type + " " + params[i].name;
+        out += (params[i].type.empty() ? "" : params[i].type + " ") + params[i].name;
     }
     return out + ") -> " + result;
 }
@@ -284,6 +284,8 @@ void SemanticAnalyzer::visitNode(const Node* node) {
         checkVariable(inc->name, inc->range);
     } else if (auto* arr = dynamic_cast<const ArrayDeclNode*>(node)) {
         visitArrayDecl(arr);
+    } else if (auto* lambda = dynamic_cast<const LambdaNode*>(node)) {
+        visitLambda(lambda);
     } else if (auto* text = dynamic_cast<const InterpolationNode*>(node)) {
         for (const auto& part : text->parts) visitNode(part.get());
     } else if (auto* lit = dynamic_cast<const ArrayLiteralNode*>(node)) {
@@ -332,7 +334,7 @@ void SemanticAnalyzer::declareFunction(const FuncDefNode* node) {
     std::string sig = node->returnType + " " + node->name + "(";
     for (size_t i = 0; i < node->params.size(); i++) {
         if (i > 0) sig += ", ";
-        sig += node->params[i].type + " " + node->params[i].name;
+        sig += (node->params[i].type.empty() ? "" : node->params[i].type + " ") + node->params[i].name;
     }
     fnSym.documentation = sig + ")";
     rootScope->symbols[node->name] = fnSym;
@@ -357,12 +359,12 @@ void SemanticAnalyzer::visitFuncDef(const FuncDefNode* node) {
     checkType(node->returnType, fnSym.declRange);
     for (const auto& param : node->params) {
         bool named = param.range.start.line != param.range.end.line || param.range.start.column != param.range.end.column;
-        checkType(param.type, named ? param.range : fnSym.declRange);
+        if (!param.type.empty()) checkType(param.type, named ? param.range : fnSym.declRange);
         Symbol paramSym;
         paramSym.name = param.name;
-        paramSym.type = param.type;
+        paramSym.type = param.type.empty() ? "any" : param.type;
         paramSym.kind = SymbolKind::Parameter;
-        paramSym.documentation = "parameter " + param.type + " " + param.name;
+        paramSym.documentation = "parameter " + (param.type.empty() ? "" : param.type + " ") + param.name;
         paramSym.fileUri = currentFile;
         paramSym.declRange = named ? param.range : fnSym.declRange;
         currentScope->symbols[param.name] = paramSym;
@@ -440,7 +442,7 @@ void SemanticAnalyzer::visitTry(const TryNode* node) {
 }
 
 void SemanticAnalyzer::checkType(const std::string& type, SourceRange range) {
-    static const std::set<std::string> builtinTypes = {"int", "float", "string", "bool", "void", "array", "map"};
+    static const std::set<std::string> builtinTypes = {"int", "float", "string", "bool", "void", "array", "map", "func"};
     if (builtinTypes.count(type)) return;
     Symbol* sym = rootScope->find(type);
     if (!sym || sym->kind != SymbolKind::Type)
@@ -448,7 +450,10 @@ void SemanticAnalyzer::checkType(const std::string& type, SourceRange range) {
 }
 
 void SemanticAnalyzer::visitVarDecl(const VarDeclNode* node) {
-    if (node->expr) visitNode(node->expr.get());
+    // func f = (n) => ... f(n - 1): a local lambda may call itself by its variable.
+    bool recursive = !node->global && currentScope != rootScope.get() && node->type == "func" &&
+                     dynamic_cast<const LambdaNode*>(node->expr.get());
+    if (node->expr && !recursive) visitNode(node->expr.get());
     checkType(node->type, node->range);
     Symbol sym;
     sym.name = node->name;
@@ -458,6 +463,7 @@ void SemanticAnalyzer::visitVarDecl(const VarDeclNode* node) {
     sym.documentation = (node->global ? "global " : "") + node->type + " " + node->name;
     sym.fileUri = currentFile;
     addSymbol(node->global ? rootScope.get() : currentScope, sym, sym.declRange, !node->global);
+    if (recursive) visitNode(node->expr.get());
 }
 
 void SemanticAnalyzer::checkVariable(const std::string& name, SourceRange range) {
@@ -466,7 +472,9 @@ void SemanticAnalyzer::checkVariable(const std::string& name, SourceRange range)
         auto global = fileGlobals.find(name);
         if (global != fileGlobals.end()) sym = &global->second;
     }
-    if (!sym || sym->kind == SymbolKind::Builtin || sym->kind == SymbolKind::Function) {
+    if (!sym && findBuiltinSpec(name)) sym = &rootScope->symbols[name];
+    // A function's name read as a value is the function itself: func f = twice;
+    if (!sym) {
         diagnostics.push_back({DiagnosticSeverity::Error, "Undefined variable '" + name + "'", range});
     } else {
         symbolRefs.push_back({range, *sym});
@@ -488,6 +496,19 @@ void SemanticAnalyzer::visitFuncCall(const FuncCallNode* node) {
     Symbol* sym = currentScope->find(node->name);
     SourceRange targetRange = node->nameRange.start.line > 0 ? node->nameRange : node->range;
     const BuiltinSpec* builtin = findBuiltinSpec(node->name);
+    Symbol* holder = sym;
+    if ((!holder || holder->kind == SymbolKind::Builtin || holder->kind == SymbolKind::Function) && !currentFuncReturnType.empty()) {
+        auto global = fileGlobals.find(node->name);
+        if (global != fileGlobals.end()) holder = &global->second;
+    }
+    if (holder && (holder->kind == SymbolKind::Variable || holder->kind == SymbolKind::Parameter)) {
+        // A variable holding a function is called like one; its arity is known only when it runs.
+        symbolRefs.push_back({targetRange, *holder});
+        if (holder->type != "func" && holder->type != "any")
+            diagnostics.push_back({DiagnosticSeverity::Error,
+                "'" + node->name + "' is a " + holder->type + " variable, not a function", targetRange});
+        return;
+    }
     if (sym && sym->kind == SymbolKind::Type && !builtin) {
         // Name(values...) builds a struct; trailing fields may be left out.
         symbolRefs.push_back({targetRange, *sym});
@@ -521,13 +542,35 @@ void SemanticAnalyzer::visitFuncCall(const FuncCallNode* node) {
     }
 }
 
+void SemanticAnalyzer::visitLambda(const LambdaNode* node) {
+    enterScope();
+    std::string oldReturn = currentFuncReturnType;
+    // A lambda may return a value or nothing: its type is known only when it runs.
+    currentFuncReturnType = "any";
+    for (const auto& param : node->params) {
+        if (!param.type.empty()) checkType(param.type, param.range);
+        Symbol paramSym;
+        paramSym.name = param.name;
+        paramSym.type = param.type.empty() ? "any" : param.type;
+        paramSym.kind = SymbolKind::Parameter;
+        paramSym.documentation = "parameter " + (param.type.empty() ? "" : param.type + " ") + param.name;
+        paramSym.fileUri = currentFile;
+        paramSym.declRange = param.range;
+        currentScope->symbols[param.name] = paramSym;
+        symbolRefs.push_back({param.range, paramSym});
+    }
+    if (node->body) visitBlock(node->body.get());
+    currentFuncReturnType = oldReturn;
+    exitScope();
+}
+
 void SemanticAnalyzer::visitReturn(const ReturnNode* node) {
     if (node->expr) visitNode(node->expr.get());
     if (currentFuncReturnType == "void" && node->expr != nullptr) {
         diagnostics.push_back({DiagnosticSeverity::Error, "Void function should not return a value", node->range});
     } else if (currentFuncReturnType.empty()) {
         diagnostics.push_back({DiagnosticSeverity::Error, "'return' outside of a function", node->range});
-    } else if (currentFuncReturnType != "void" && node->expr == nullptr) {
+    } else if (currentFuncReturnType != "void" && currentFuncReturnType != "any" && node->expr == nullptr) {
         diagnostics.push_back({DiagnosticSeverity::Error,
             "Function returning " + currentFuncReturnType + " must return a value", node->range});
     }
@@ -672,8 +715,8 @@ SignatureHelpResult SemanticAnalyzer::getSignatureHelp(const std::string& code, 
     SignatureInfo sig;
     for (const auto& param : fnSym->params) {
         ParameterInfo paramInfo;
-        paramInfo.label = param.type + " " + param.name;
-        paramInfo.documentation = "Параметр `" + param.name + "` (" + param.type + ")";
+        paramInfo.label = (param.type.empty() ? "" : param.type + " ") + param.name;
+        paramInfo.documentation = "Параметр `" + param.name + "` (" + (param.type.empty() ? "any" : param.type) + ")";
         sig.parameters.push_back(std::move(paramInfo));
     }
     // Every further argument of a variadic builtin belongs to its last parameter.
@@ -842,6 +885,8 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         {"string", "(type) string", "Текстовая строка с поддержкой UTF-8 и Unicode эмодзи."},
         {"bool", "(type) bool", "Логический тип данных: `true` или `false`."},
         {"void", "(type) void", "Тип отсутствия возвращаемого значения функции."},
+        {"func", "(type) func", "Функция как значение: лямбда `(int x) => x * 2`, имя функции или встроенной функции. "
+            "Переменную типа `func` вызывают как функцию.\n\n```foxlang\nfunc twice = (int x) => x * 2;\nprint(twice(21));\n```"},
         {"true", "(keyword) true", "Логическая истина."},
         {"false", "(keyword) false", "Логическая ложь."},
         {"array", "(keyword) array <name> [size | = value];", "Массив: `array имя размер;`, `array имя = [1, 2, 3];` или пустой `array имя;`. "

@@ -18,6 +18,11 @@ bool acceptsArguments(const Builtin& builtin, Arguments args);
 Value invoke(const Builtin& builtin, Arguments args, Context& ctx);
 
 bool isBuiltin(const std::string& name);
+// Calls a function value (a func): a FoxLang function, a builtin or a lambda. Builtins
+// that take a function, such as array_map, call it through this.
+Value callValue(const Value& function, Arguments args, Context& ctx);
+// The same with arguments that the call may move from.
+Value callValue(const Value& function, Value* args, size_t count, Context& ctx);
 Value callBuiltin(const std::string& name, Arguments args, Context& ctx);
 
 int getLogLevelThreshold();

@@ -696,6 +696,8 @@ std::string Session::interpolate(const std::string& message, Context& scope) {
 std::string Session::preview(const Value& value, int depth) {
     if (value.isString()) return quoted(value.str(), 500);
     if (!value.ref()) return value.text();
+    if (value.is(Value::Kind::Box)) return preview(value.ref()->items[0], depth);
+    if (value.isFunction()) return runtime::display(value);
     const Object& object = *value.ref();
     if (depth > 1) return object.kind == Object::Kind::Array ? "[…]" : "{…}";
     bool isArray = object.kind == Object::Kind::Array;
@@ -718,9 +720,11 @@ int Session::referenceFor(Reference reference) {
     return static_cast<int>(references_.size());
 }
 
-JsonValue Session::variable(const std::string& name, const Value& value) {
+JsonValue Session::variable(const std::string& name, const Value& boxed) {
+    // A variable a lambda captured lives in a box; the editor sees what is inside.
+    const Value& value = boxed.is(Value::Kind::Box) ? boxed.ref()->items[0] : boxed;
     JsonValue out = Fields{{"name", name}, {"value", preview(value, 0)}, {"type", value.typeName()}, {"variablesReference", 0}};
-    if (const Object* object = value.ref()) {
+    if (const Object* object = value.isFunction() ? nullptr : value.ref()) {
         out["variablesReference"] = JsonValue(referenceFor({Reference::Kind::Container, 0, value}));
         size_t size = object->items.size();
         if (object->kind == Object::Kind::Array) {

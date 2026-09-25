@@ -37,3 +37,41 @@ array range(int start, int end) {
     }
     return result;
 }
+
+/// Новый массив из результатов `f(item)` для каждого элемента.
+///
+/// ```foxlang
+/// array squares = transform([1, 2, 3], x => x * x); // [1, 4, 9]
+/// ```
+array transform(array items, func f) { return array_map(items, f); }
+
+/// Новый массив из элементов, для которых `keep(item)` вернула `true`.
+///
+/// ```foxlang
+/// array even = filter([1, 2, 3, 4], x => x % 2 == 0); // [2, 4]
+/// ```
+array filter(array items, func keep) { return array_filter(items, keep); }
+
+/// Сворачивает массив в одно значение: `combine(result, item)` для каждого элемента, начиная с `initial`.
+///
+/// ```foxlang
+/// int total = reduce([1, 2, 3], (a, b) => a + b, 0); // 6
+/// ```
+func reduce = (array items, func combine, initial) => array_reduce(items, combine, initial);
+
+/// Сортирует массив на месте: `before(a, b)` возвращает `true`, когда `a` должен стоять раньше `b`.
+///
+/// ```foxlang
+/// array words = ["fox", "a", "long"];
+/// sort_by(words, (a, b) => size(a) < size(b)); // ["a", "fox", "long"]
+/// ```
+void sort_by(array items, func before) { array_sort(items, before); }
+
+/// Индекс первого элемента, для которого `matches(item)` вернула `true`, или `-1`.
+int find_first(array items, func matches) { return array_find(items, matches); }
+
+/// Есть ли элемент, для которого `matches(item)` вернула `true`.
+bool any_of(array items, func matches) { return array_any(items, matches); }
+
+/// Верно ли `matches(item)` для каждого элемента.
+bool all_of(array items, func matches) { return array_all(items, matches); }

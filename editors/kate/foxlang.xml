@@ -36,6 +36,7 @@
       <item>void</item>
       <item>array</item>
       <item>map</item>
+      <item>func</item>
     </list>
     <list name="constants">
       <item>true</item>
@@ -46,12 +47,20 @@
       <item>absolute_path</item>
       <item>access_log</item>
       <item>acos</item>
+      <item>all_of</item>
       <item>allow_cors</item>
+      <item>any_of</item>
       <item>append_file</item>
       <item>arg_or</item>
       <item>args</item>
+      <item>array_all</item>
+      <item>array_any</item>
       <item>array_copy</item>
+      <item>array_filter</item>
+      <item>array_find</item>
       <item>array_index_of</item>
+      <item>array_map</item>
+      <item>array_reduce</item>
       <item>array_reverse</item>
       <item>array_slice</item>
       <item>array_sort</item>
@@ -115,7 +124,9 @@
       <item>file_name</item>
       <item>file_size</item>
       <item>file_stem</item>
+      <item>filter</item>
       <item>find</item>
+      <item>find_first</item>
       <item>floor</item>
       <item>form</item>
       <item>format_bytes</item>
@@ -388,6 +399,7 @@
       <item>sleep_ms</item>
       <item>slice</item>
       <item>sort</item>
+      <item>sort_by</item>
       <item>sound_play</item>
       <item>sound_stop</item>
       <item>sound_tone</item>
@@ -434,6 +446,7 @@
       <item>to_float</item>
       <item>to_int</item>
       <item>to_string</item>
+      <item>transform</item>
       <item>trim</item>
       <item>type_of</item>
       <item>ui_button</item>

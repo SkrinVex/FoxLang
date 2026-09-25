@@ -102,7 +102,8 @@ constexpr size_t maxText = size_t{64} * 1024 * 1024;
 std::string toJson(const Value& value, int depth = 0) {
     if (value.isString()) return "\"" + jsonEscape(value.str()).str() + "\"";
     if (value.isNumber() || value.isBool()) return value.text();
-    if (!value.ref()) throw std::runtime_error("Type Error: json_value() cannot convert '" + value.typeName() + "'");
+    if (!value.ref() || value.isFunction())
+        throw std::runtime_error("Type Error: json_value() cannot convert '" + value.typeName() + "'");
     if (depth > 64) throw std::runtime_error("Runtime Error: json_value() nesting is too deep");
     const Object& object = *value.ref();
     bool isArray = object.kind == Object::Kind::Array;

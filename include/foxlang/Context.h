@@ -14,6 +14,7 @@ namespace foxlang {
 struct Node;
 class Interpreter;
 namespace bytecode { struct Proto; }
+namespace runtime { struct Builtin; }
 namespace graphics { class Window; }
 namespace platform { struct ServerState; }
 
@@ -41,7 +42,10 @@ struct StringData {
 // the value counts references to. Copying a value never copies text or elements.
 class Value {
 public:
-    enum class Kind : unsigned char { Void, Int, Float, Bool, String, Array, Map, Struct };
+    // Function: a FoxLang function, a builtin or a lambda as a value. Box: the cell of a
+    // local variable that a lambda captured; code reads through it, a program never
+    // sees one.
+    enum class Kind : unsigned char { Void, Int, Float, Bool, String, Array, Map, Struct, Function, Box };
 
     Value() noexcept { data_.bits = 0; }
     Value(const Value& other) noexcept : kind_(other.kind_), data_(other.data_) { retain(); }
@@ -121,13 +125,14 @@ public:
     bool isBool() const { return kind_ == Kind::Bool; }
     bool isString() const { return kind_ == Kind::String; }
     bool isContainer() const { return kind_ >= Kind::Array; }
+    bool isFunction() const { return kind_ == Kind::Function; }
 
     // The payload of a value known to be of that kind.
     long long asInt() const { return data_.integer; }
     double asFloat() const { return data_.real; }
     bool asBool() const { return data_.boolean; }
     const std::string& str() const { return data_.string->text; }
-    // An array, a map or a struct; null for everything else.
+    // An array, a map, a struct, a function or a box; null for everything else.
     Object* ref() const { return isContainer() ? data_.object : nullptr; }
 
     // A scalar as text: 42, 2.5, true, the string itself; empty for void and containers.
@@ -187,8 +192,17 @@ struct StructType {
     mutable std::vector<std::shared_ptr<bytecode::Proto>> defaultCode;
 };
 
+// What a function value calls: a FoxLang function, a builtin, or a lambda's code, whose
+// captured variables are the boxes in Object::items.
+struct Callee {
+    std::string name;                     // for messages and print(): "add", "lambda"
+    std::shared_ptr<const Node> function; // a FoxLang function (a FuncDefNode)
+    const runtime::Builtin* builtin = nullptr;
+    std::shared_ptr<bytecode::Proto> lambda;
+};
+
 struct Object {
-    enum class Kind { Array, Map, Struct };
+    enum class Kind { Array, Map, Struct, Function, Box };
     explicit Object(Kind k) : kind(k) {}
     Object(const Object&) = delete;
     Object& operator=(const Object&) = delete;
@@ -199,6 +213,7 @@ struct Object {
     // Map: keys in insertion order, items[i] belongs to keys[i].
     std::vector<std::string> keys;
     std::shared_ptr<const StructType> structType;
+    std::shared_ptr<const Callee> callee; // for a function
 
     // Map access; -1 when the key is absent.
     long find(const std::string& key) const;

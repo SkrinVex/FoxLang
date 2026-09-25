@@ -167,6 +167,8 @@ Value parseScalar(const std::string& type, const std::string& text, const std::s
 std::string display(const Value& value) {
     const Object* container = value.ref();
     if (!container) return value.isString() ? value.str() : value.text();
+    if (value.isFunction()) return "<func " + container->callee->name + ">";
+    if (value.is(Value::Kind::Box)) return display(container->items[0]);
     // A container inside itself (a[0] = a) is shown as [...] instead of forever.
     thread_local std::vector<const Object*> open;
     if (std::find(open.begin(), open.end(), container) != open.end() || open.size() > 64)
@@ -252,7 +254,7 @@ Value::Kind declaredKind(const std::string& type) {
     static const std::pair<const char*, Value::Kind> kinds[] = {
         {"void", Value::Kind::Void}, {"int", Value::Kind::Int}, {"float", Value::Kind::Float},
         {"bool", Value::Kind::Bool}, {"string", Value::Kind::String}, {"array", Value::Kind::Array},
-        {"map", Value::Kind::Map}};
+        {"map", Value::Kind::Map}, {"func", Value::Kind::Function}};
     for (const auto& entry : kinds)
         if (type == entry.first) return entry.second;
     return Value::Kind::Struct;

@@ -68,6 +68,7 @@ public:
     // and `return`, `break` and `continue` outside a loop raise `outside`.
     bool names = false;
     std::string outside;
+    const std::vector<bool>* boxedSlots = nullptr; // the frame's slots that lambdas capture
 
     Compiler(Proto& proto, bool debug, bool function) : p(proto), debug(debug), function(function) {
         next = p.slots;
@@ -182,6 +183,38 @@ public:
         for (size_t i = 0; i < constantOrder.size(); ++i)
             p.preload.push_back({base + static_cast<int>(i), constantOrder[i]});
         p.registers = base + static_cast<int>(constantOrder.size());
+    }
+
+    // Parameters a lambda captures go into boxes before the body runs.
+    void boxParameters(size_t count) {
+        for (size_t i = 0; i < count; ++i)
+            if (boxed(static_cast<int>(i))) emit(Op::Box, static_cast<int>(i));
+    }
+
+    // A lambda written in this code: compiled with it, created each time the code reaches it.
+    std::shared_ptr<Proto> compileLambda(LambdaNode& node) {
+        auto proto = std::make_shared<Proto>();
+        proto->name = "lambda";
+        proto->lambda = true;
+        proto->file = node.body->file ? node.body->file : p.file;
+        proto->line = node.range.start.line;
+        proto->debug = debug;
+        proto->slotNames = std::make_shared<std::vector<std::string>>(node.layout->names);
+        proto->slots = static_cast<int>(node.layout->names.size());
+        for (const auto& param : node.params) {
+            if (param.type.empty()) proto->params.push_back({Value::Kind::Void, "", ""});
+            else proto->params.push_back({runtime::declaredKind(param.type), param.type, "parameter '" + param.name + "' of a lambda"});
+        }
+        proto->captures = node.captures;
+        Compiler inner(*proto, debug, true);
+        inner.boxedSlots = &node.layout->boxed;
+        inner.line = node.range.start.line;
+        inner.boxParameters(node.params.size());
+        inner.block(*node.body, false, true);
+        inner.end(node.body->range.end.line);
+        inner.epilogue();
+        inner.finish();
+        return proto;
     }
 
     // An expression's code: its value is what the code returns. It names no line of its
@@ -368,7 +401,40 @@ private:
     };
     std::vector<LateError> late;
 
-    static bool isSlot(const VarRef& ref) { return ref.slot >= 0; }
+    // A local variable read and written in its own register: not captured by a lambda.
+    bool isSlot(const VarRef& ref) const { return ref.slot >= 0 && !boxed(ref.slot); }
+    bool boxed(int slot) const {
+        return boxedSlots && slot >= 0 && static_cast<size_t>(slot) < boxedSlots->size() && (*boxedSlots)[static_cast<size_t>(slot)];
+    }
+
+    // A variable's value into dest, wherever it lives.
+    void readVariable(const VarRef& ref, const std::string& name, int dest) {
+        if (ref.slot >= 0 && boxed(ref.slot)) {
+            emit(Op::Unbox, dest, ref.slot);
+        } else if (ref.slot >= 0) {
+            if (ref.slot != dest) emit(Op::Move, dest, ref.slot);
+        } else if (ref.slot == VarRef::captured) {
+            emit(Op::GetCapture, dest, ref.capture);
+        } else {
+            emit(Op::GetGlobal, dest, globalSite(name));
+        }
+    }
+
+    // A declaration's value, computed by `store` into the register it is given, lands in
+    // the slot: directly, or in a new box when a lambda captures the variable. The box
+    // exists before the value is computed, so a lambda can call itself by its variable.
+    template <typename Store>
+    void declareSlot(int slot, Store store) {
+        if (!boxed(slot)) {
+            store(slot);
+            return;
+        }
+        emit(Op::Clear, slot, slot + 1);
+        emit(Op::Box, slot);
+        int reg = temp();
+        store(reg);
+        emit(Op::BoxStore, slot, reg);
+    }
 
     // ---------------------------------------------------------------- expressions
 
@@ -419,11 +485,14 @@ private:
         } else if (auto* n = dynamic_cast<BoolNode*>(&node)) {
             emit(Op::LoadConst, dest, constant(Value::boolean(n->val)));
         } else if (auto* n = dynamic_cast<VarAccessNode*>(&node)) {
-            if (isSlot(n->ref)) {
-                if (n->ref.slot != dest) emit(Op::Move, dest, n->ref.slot);
-            } else {
-                emit(Op::GetGlobal, dest, globalSite(n->name));
-            }
+            readVariable(n->ref, n->name, dest);
+        } else if (auto* n = dynamic_cast<LambdaNode*>(&node)) {
+            p.lambdas.push_back(compileLambda(*n));
+            auto callee = std::make_shared<Callee>();
+            callee->name = "lambda";
+            callee->lambda = p.lambdas.back();
+            p.callees.push_back(callee);
+            emit(Op::Closure, dest, static_cast<int>(p.lambdas.size()) - 1);
         } else if (auto* n = dynamic_cast<BinOpNode*>(&node)) {
             binary(*n, dest);
         } else if (auto* n = dynamic_cast<UnaryOpNode*>(&node)) {
@@ -494,15 +563,27 @@ private:
         } else {
             base = next;
         }
-        for (auto& arg : node.args) into(*arg, temp());
-        if (node.args.empty()) temp();
-        emit(Op::Call, base, callSite(node.name), static_cast<int>(node.args.size()));
+        if (node.ref.slot >= 0 || node.ref.slot == VarRef::captured) {
+            // A local variable holds the function: it goes first, the arguments after it.
+            readVariable(node.ref, node.name, temp());
+            for (auto& arg : node.args) into(*arg, temp());
+            emit(Op::CallValue, base, stringConstant(node.name), static_cast<int>(node.args.size()));
+        } else {
+            for (auto& arg : node.args) into(*arg, temp());
+            if (node.args.empty()) temp();
+            emit(Op::Call, base, callSite(node.name), static_cast<int>(node.args.size()));
+        }
         if (base != dest) emit(Op::Move, dest, base, 0, 1);
     }
 
     // name++ / name--; dest < 0 when the old value is not needed.
     void increment(PostIncNode& node, int dest) {
-        if (isSlot(node.ref))
+        int step = stringConstant(node.name) * 2 + (node.delta > 0 ? 1 : 0);
+        if (node.ref.slot >= 0 && boxed(node.ref.slot))
+            emit(Op::IncrementRef, dest, node.ref.slot, step, 0);
+        else if (node.ref.slot == VarRef::captured)
+            emit(Op::IncrementRef, dest, node.ref.capture, step, 1);
+        else if (isSlot(node.ref))
             emit(Op::Increment, dest, node.ref.slot, stringConstant(node.name) * 2 + (node.delta > 0 ? 1 : 0));
         else
             emit(Op::IncrementGlobal, dest, globalSite(node.name), node.delta > 0 ? 1 : 0);
@@ -531,9 +612,11 @@ private:
             return;
         }
         if (isSlotted(node.slot)) {
-            if (node.expr) into(*node.expr, node.slot);
-            else emit(Op::Zero, node.slot, stringConstant(node.type));
-            emit(Op::Coerce, node.slot, conversion(node.kind, node.type, "variable '" + node.name + "'"));
+            declareSlot(node.slot, [&](int reg) {
+                if (node.expr) into(*node.expr, reg);
+                else emit(Op::Zero, reg, stringConstant(node.type));
+                emit(Op::Coerce, reg, conversion(node.kind, node.type, "variable '" + node.name + "'"));
+            });
             return;
         }
         int site = globalSite(node.name, node.global);
@@ -554,17 +637,24 @@ private:
         bool slotted = isSlotted(node.slot);
         int site = slotted ? -1 : globalSite(node.name, node.global);
         if (!slotted && !node.global) emit(Op::DefineGlobal, -1, site, 1);
-        int reg = slotted ? node.slot : temp();
-        if (node.initializer) {
-            into(*node.initializer, reg);
-            emit(Op::Coerce, reg, conversion(Value::Kind::Array, "array", "initializer of array '" + node.name + "'"));
-        } else if (node.sizeNode) {
-            int size = any(*node.sizeNode);
-            emit(Op::NewSized, reg, size, stringConstant(node.name));
-        } else {
-            emit(Op::NewArray, reg, 0, 0);
+        auto store = [&](int reg) {
+            if (node.initializer) {
+                into(*node.initializer, reg);
+                emit(Op::Coerce, reg, conversion(Value::Kind::Array, "array", "initializer of array '" + node.name + "'"));
+            } else if (node.sizeNode) {
+                int size = any(*node.sizeNode);
+                emit(Op::NewSized, reg, size, stringConstant(node.name));
+            } else {
+                emit(Op::NewArray, reg, 0, 0);
+            }
+        };
+        if (slotted) {
+            declareSlot(node.slot, store);
+            return;
         }
-        if (!slotted) emit(Op::DefineGlobal, reg, site, 0);
+        int reg = temp();
+        store(reg);
+        emit(Op::DefineGlobal, reg, site, 0);
     }
 
     bool isSlotted(int slot) const { return slot >= 0; }
@@ -573,6 +663,8 @@ private:
         int reg = temp();
         into(*node.expr, reg);
         if (isSlot(node.ref)) emit(Op::Assign, node.ref.slot, reg, stringConstant(node.name));
+        else if (node.ref.slot >= 0) emit(Op::BoxAssign, node.ref.slot, reg, stringConstant(node.name));
+        else if (node.ref.slot == VarRef::captured) emit(Op::SetCapture, node.ref.capture, reg, stringConstant(node.name));
         else emit(Op::SetGlobal, reg, globalSite(node.name));
     }
 
@@ -607,8 +699,14 @@ private:
         std::reverse(steps.begin(), steps.end());
         path.steps = std::move(steps);
         path.variable = variable->name;
-        if (isSlot(variable->ref)) path.slot = variable->ref.slot;
-        else path.global = globalSite(variable->name);
+        if (variable->ref.slot >= 0) {
+            path.slot = variable->ref.slot;
+            path.boxed = boxed(variable->ref.slot);
+        } else if (variable->ref.slot == VarRef::captured) {
+            path.capture = variable->ref.capture;
+        } else {
+            path.global = globalSite(variable->name);
+        }
         p.paths.push_back(std::move(path));
         emit(Op::SetPath, value, static_cast<int>(p.paths.size()) - 1);
     }
@@ -765,6 +863,8 @@ private:
             if (!variable.type.empty())
                 emit(Op::Coerce, variable.slot,
                      conversion(runtime::declaredKind(variable.type), variable.type, "variable '" + variable.name + "'"));
+        for (const auto& variable : node.variables)
+            if (boxed(variable.slot)) emit(Op::Box, variable.slot); // a new box every round
         targets.push_back(loopTarget(node.body.get()));
         loopBody(node.body.get());
         Target target = std::move(targets.back());
@@ -830,6 +930,7 @@ private:
             caught.scopes = outerScopes;
             p.handlers.push_back(caught);
             tries.push_back({&node, Part::Handler, pending});
+            if (boxed(node.errorSlot)) emit(Op::Box, node.errorSlot);
             statement(*node.handler);
             tries.pop_back();
             if (node.errorSlot >= 0 && !node.errorName.empty()) emit(Op::Clear, node.errorSlot, node.errorSlot + 1);
@@ -873,11 +974,15 @@ std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug) 
     proto->debug = debug;
     proto->slotNames = std::make_shared<std::vector<std::string>>(body->layout->names);
     proto->slots = static_cast<int>(body->layout->names.size());
-    for (const auto& param : function.params)
-        proto->params.push_back({runtime::declaredKind(param.type), param.type,
-                                 "parameter '" + param.name + "' of '" + function.name + "'"});
+    for (const auto& param : function.params) {
+        if (param.type.empty()) proto->params.push_back({Value::Kind::Void, "", ""});
+        else proto->params.push_back({runtime::declaredKind(param.type), param.type,
+                                      "parameter '" + param.name + "' of '" + function.name + "'"});
+    }
     proto->result = {runtime::declaredKind(function.returnType), function.returnType, "return value of '" + function.name + "'"};
     Compiler compiler(*proto, debug, true);
+    compiler.boxedSlots = &body->layout->boxed;
+    compiler.boxParameters(function.params.size());
     compiler.block(*body, false, true);
     compiler.end(body->range.end.line);
     compiler.epilogue();
@@ -894,6 +999,7 @@ std::shared_ptr<Proto> compileStatements(BlockNode& statements, const std::strin
     Compiler compiler(*proto, false, false);
     compiler.names = true;
     compiler.outside = outside;
+    compiler.boxedSlots = &statements.layout->boxed;
     compiler.topLevel(statements, Unit::Module);
     compiler.end(statements.range.end.line);
     compiler.epilogue();
@@ -902,6 +1008,7 @@ std::shared_ptr<Proto> compileStatements(BlockNode& statements, const std::strin
 }
 
 std::shared_ptr<Proto> compileExpression(Node& expression) {
+    resolveExpression(expression);
     auto proto = std::make_shared<Proto>();
     proto->slotNames = std::make_shared<std::vector<std::string>>();
     Compiler compiler(*proto, false, false);
@@ -920,6 +1027,7 @@ std::shared_ptr<Proto> compileProgram(BlockNode& program, Unit unit, bool debug)
     proto->slotNames = std::make_shared<std::vector<std::string>>(program.layout->names);
     proto->slots = static_cast<int>(program.layout->names.size());
     Compiler compiler(*proto, proto->debug, false);
+    compiler.boxedSlots = &program.layout->boxed;
     if (unit == Unit::Program) {
         compiler.hoist(program);
         compiler.block(program);
@@ -939,7 +1047,8 @@ const char* opName(Op op) {
         "move", "loadk", "clear", "getglobal", "setglobal", "defglobal", "coerce", "assign", "zero", "newsized",
         "fail", "add", "sub", "mul", "div", "mod", "eq", "ne", "lt", "le", "gt", "ge", "neg", "not", "truth",
         "jump", "jumpif-false", "jumpif-true", "compare", "for-in", "call", "return", "return-void", "newarray", "newmap",
-        "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "declare", "throw", "rethrow", "try-enter",
+        "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "box", "unbox", "box-store", "box-assign", "get-capture",
+        "set-capture", "inc-ref", "closure", "call-value", "declare", "throw", "rethrow", "try-enter",
         "try-leave", "match", "statement", "scope-enter", "scope-leave"};
     return names[static_cast<int>(op)];
 }
@@ -1035,7 +1144,22 @@ void disassemble(const Proto& proto, std::ostream& out) {
                 if (in.a >= 0) out << reg(in.a) << " = ";
                 out << proto.globals[in.b].name << (in.c ? "++" : "--");
                 break;
-            case Op::Declare: out << "#" << in.b; break;
+            case Op::Declare: out << "#" << in.b << (in.c ? " (if absent)" : ""); break;
+            case Op::Box: out << reg(in.a); break;
+            case Op::Unbox: out << reg(in.a) << " <- box " << reg(in.b); break;
+            case Op::BoxStore: case Op::BoxAssign: out << "box " << reg(in.a) << " <- " << reg(in.b); break;
+            case Op::GetCapture: out << reg(in.a) << " <- capture " << in.b; break;
+            case Op::SetCapture: out << "capture " << in.a << " <- " << reg(in.b); break;
+            case Op::IncrementRef:
+                if (in.a >= 0) out << reg(in.a) << " = ";
+                out << (in.x ? "capture " + std::to_string(in.b) : "box " + reg(in.b)) << (in.c & 1 ? "++" : "--");
+                break;
+            case Op::Closure: out << reg(in.a) << " = lambda #" << in.b; break;
+            case Op::CallValue:
+                out << reg(in.a) << " = " << reg(in.a) << "(";
+                for (int i = 1; i <= in.c; ++i) out << (i > 1 ? ", " : "") << reg(in.a + i);
+                out << ")";
+                break;
             case Op::Throw: out << reg(in.a); break;
             case Op::Rethrow: out << "#" << in.a; break;
             case Op::Match: out << reg(in.a) << " " << reg(in.b) << " " << reg(in.c); break;

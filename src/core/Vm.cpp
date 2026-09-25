@@ -136,6 +136,43 @@ FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root, Context& scope) {
     return site.cached;
 }
 
+// The name of a function, or of a builtin, read as a value: func f = add;
+Value functionValue(const std::string& name, Context& root) {
+    auto function = root.getFunc(name);
+    const runtime::Builtin* builtin = function ? nullptr : runtime::findBuiltin(name);
+    if (!function && !builtin) return Value();
+    auto callee = std::make_shared<Callee>();
+    callee->name = name;
+    callee->function = function;
+    callee->builtin = builtin;
+    Value value = Value::container(Value::Kind::Function);
+    value.ref()->callee = std::move(callee);
+    return value;
+}
+
+// A name read as a value: a variable, or else a function of that name.
+FOXLANG_APART Value* lookUpValue(GlobalSite& site, Context& root, Context& scope) {
+    Value* variable = site.byName ? scope.findVar(site.name) : nullptr;
+    if (!site.byName) {
+        auto found = root.variables.find(site.name);
+        if (found != root.variables.end()) {
+            site.cached = &found->second;
+            site.root = &root;
+            site.generation = root.generation;
+            return site.cached;
+        }
+    }
+    if (variable) return variable;
+    site.function = functionValue(site.name, root);
+    if (site.function.isVoid()) notFound(site.name);
+    return &site.function;
+}
+
+inline Value* readGlobal(GlobalSite& site, Context& root, Context& scope) {
+    if (site.cached && site.root == &root && site.generation == root.generation) return site.cached;
+    return lookUpValue(site, root, scope);
+}
+
 inline Value* global(GlobalSite& site, Context& root, Context& scope) {
     if (site.cached && site.root == &root && site.generation == root.generation) return site.cached;
     return lookUp(site, root, scope);
@@ -169,8 +206,12 @@ bool truth(const Value& value, int kind) {
     return conditionTruth(value, statementName(kind)); // raises the error
 }
 
-FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& assigned, Context& root, Context& scope) {
-    Value* at = path.slot >= 0 ? &R[path.slot] : global(proto.globals[static_cast<size_t>(path.global)], root, scope);
+FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& assigned, Context& root, Context& scope,
+                           Object* closure) {
+    Value* at;
+    if (path.slot >= 0) at = path.boxed ? &R[path.slot].ref()->items[0] : &R[path.slot];
+    else if (path.capture >= 0) at = &closure->items[static_cast<size_t>(path.capture)].ref()->items[0];
+    else at = global(proto.globals[static_cast<size_t>(path.global)], root, scope);
     const std::string* declared = nullptr;
     bool create = path.op == "=";
     for (size_t i = 0; i < path.steps.size(); ++i) {
@@ -185,7 +226,7 @@ FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& a
     *at = std::move(value);
 }
 
-Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame* debug);
+Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame* debug, Object* closure = nullptr);
 
 FOXLANG_COLD const Proto& compile(const FuncDefNode& function, bool debug) {
     auto& slot = debug ? function.block()->debugProto : function.block()->proto;
@@ -200,7 +241,7 @@ inline const Proto& protoOf(const FuncDefNode& function, bool debug) {
 
 // A call under a debugger, kept apart so that an ordinary call's native frame stays
 // small: the depth of recursion a program gets depends on it.
-FOXLANG_COLD Value executeDebugged(Proto& proto, Value* R, Context& root, DebugHook* hook) {
+FOXLANG_COLD Value executeDebugged(Proto& proto, Value* R, Context& root, DebugHook* hook, Object* closure = nullptr) {
     // Lexical scope: a function sees globals, never the caller's locals.
     Context scope;
     scope.parent = &root;
@@ -218,7 +259,7 @@ FOXLANG_COLD Value executeDebugged(Proto& proto, Value* R, Context& root, DebugH
     };
     hook->enterFunction(proto.name, proto.file, proto.line, scope);
     Leave leave{frame};
-    return execute(proto, R, root, root, &frame);
+    return execute(proto, R, root, root, &frame, closure);
 }
 
 FOXLANG_COLD void convert(const Conversion& conversion, Value& value) {
@@ -246,7 +287,7 @@ Value callFunction(const FuncDefNode& function, Value* args, size_t count, Conte
         for (size_t i = 0; i < count; ++i) {
             R[i] = std::move(args[i]);
             const Conversion& param = proto.params[i];
-            if (!runtime::storesAsIs(param.kind, R[i])) convert(param, R[i]);
+            if (!param.type.empty() && !runtime::storesAsIs(param.kind, R[i])) convert(param, R[i]);
         }
         CallDepth depth(proto.name);
         result = hook ? executeDebugged(proto, R, root, hook) : execute(proto, R, root, root, nullptr);
@@ -255,6 +296,58 @@ Value callFunction(const FuncDefNode& function, Value* args, size_t count, Conte
     if (result.isVoid()) noResult(proto);
     if (!runtime::storesAsIs(proto.result.kind, result)) convert(proto.result, result);
     return result;
+}
+
+Value callLambda(Object& function, Value* args, size_t count, Context& root) {
+    Proto& proto = *function.callee->lambda;
+    if (count != proto.params.size()) wrongCount(proto, count);
+    DebugHook* hook = runtime::debugHook();
+    Window window(static_cast<size_t>(proto.registers));
+    Value* R = window.base();
+    for (size_t i = 0; i < count; ++i) {
+        R[i] = std::move(args[i]);
+        const Conversion& param = proto.params[i];
+        if (!param.type.empty() && !runtime::storesAsIs(param.kind, R[i])) convert(param, R[i]);
+    }
+    CallDepth depth(proto.name);
+    return hook ? executeDebugged(proto, R, root, hook, &function) : execute(proto, R, root, root, nullptr, &function);
+}
+
+[[noreturn]] FOXLANG_COLD void notFunction(const std::string& name, const Value& value) {
+    throw std::runtime_error("Type Error: '" + name + "' is not a function, it holds a value of type '" + value.typeName() + "'");
+}
+
+// Calls a function value with its arguments (moved from).
+Value callFunctionValue(const Value& function, Value* args, size_t count, Context& root, const std::string& name) {
+    if (!function.isFunction()) notFunction(name, function);
+    Object& object = *function.ref();
+    const Callee& callee = *object.callee;
+    if (callee.lambda) return callLambda(object, args, count, root);
+    if (callee.function) return callFunction(*static_cast<const FuncDefNode*>(callee.function.get()), args, count, root);
+    return runtime::invoke(*callee.builtin, Arguments(args, count), root);
+}
+
+FOXLANG_APART void callValueInPlace(Value* R, int base, int count, Context& root, const std::string& name) {
+    Value function = std::move(R[base]); // kept alive while it runs
+    Value result = callFunctionValue(function, R + base + 1, static_cast<size_t>(count), root, name);
+    R[base] = std::move(result);
+}
+
+FOXLANG_APART void makeClosure(Proto& proto, int index, Value& out, Value* R, Object* current) {
+    const Proto& lambda = *proto.lambdas[static_cast<size_t>(index)];
+    Value function = Value::container(Value::Kind::Function);
+    Object& object = *function.ref();
+    object.callee = proto.callees[static_cast<size_t>(index)];
+    object.items.reserve(lambda.captures.size());
+    for (const auto& capture : lambda.captures)
+        object.items.push_back(capture.fromCapture ? current->items[static_cast<size_t>(capture.index)] : R[capture.index]);
+    out = std::move(function);
+}
+
+FOXLANG_APART void box(Value& slot) {
+    Value cell = Value::container(Value::Kind::Box);
+    cell.ref()->items.push_back(std::move(slot));
+    slot = std::move(cell);
 }
 
 FOXLANG_APART void refresh(CallSite& site, Context& root) {
@@ -282,12 +375,21 @@ FOXLANG_APART void callOther(const CallSite& site, Value* args, size_t count, Co
         args[0] = std::move(result);
         return;
     }
+    // A global variable that holds a function.
+    auto variable = root.variables.find(site.name);
+    if (variable != root.variables.end() && variable->second.isFunction()) {
+        Value function = variable->second;
+        Value result = callFunctionValue(function, args, count, root, site.name);
+        args[0] = std::move(result);
+        return;
+    }
     // A struct's name called like a function builds a value of it.
     if (auto type = root.getStruct(site.name)) {
         Value result = runtime::construct(type, args, count, root);
         args[0] = std::move(result);
         return;
     }
+    if (variable != root.variables.end()) notFunction(site.name, variable->second);
     throw std::runtime_error("Runtime Error: Function '" + site.name + "' not found!");
 }
 
@@ -485,7 +587,7 @@ FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key))
     std::rethrow_exception(error);
 }
 
-Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame* debug) {
+Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame* debug, Object* closure) {
     for (const auto& constant : proto.preload) R[constant.first] = proto.constants[static_cast<size_t>(constant.second)];
     const Instr* code = proto.code.data();
     const Instr* ip = code;
@@ -510,7 +612,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         for (int i = in.a; i < in.b; ++i) R[i] = Value();
                         break;
                     case Op::GetGlobal:
-                        R[in.a] = *global(proto.globals[static_cast<size_t>(in.b)], root, scope);
+                        R[in.a] = *readGlobal(proto.globals[static_cast<size_t>(in.b)], root, scope);
                         break;
                     case Op::SetGlobal: {
                         GlobalSite& site = proto.globals[static_cast<size_t>(in.b)];
@@ -697,7 +799,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         break;
                     }
                     case Op::SetPath:
-                        setPath(proto, proto.paths[static_cast<size_t>(in.b)], R, R[in.a], root, scope);
+                        setPath(proto, proto.paths[static_cast<size_t>(in.b)], R, R[in.a], root, scope, closure);
                         break;
                     case Op::Increment: {
                         Value& target = R[in.b];
@@ -717,6 +819,43 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         break;
                     }
 
+                    case Op::Box:
+                        box(R[in.a]);
+                        break;
+                    case Op::Unbox:
+                        R[in.a] = R[in.b].ref()->items[0];
+                        break;
+                    case Op::BoxStore:
+                        R[in.a].ref()->items[0] = std::move(R[in.b]);
+                        break;
+                    case Op::BoxAssign: {
+                        Value& target = R[in.a].ref()->items[0];
+                        Value& value = R[in.b];
+                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
+                        else assignSlow(target, value, K[in.c].str());
+                        break;
+                    }
+                    case Op::GetCapture:
+                        R[in.a] = closure->items[static_cast<size_t>(in.b)].ref()->items[0];
+                        break;
+                    case Op::SetCapture: {
+                        Value& target = closure->items[static_cast<size_t>(in.a)].ref()->items[0];
+                        Value& value = R[in.b];
+                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
+                        else assignSlow(target, value, K[in.c].str());
+                        break;
+                    }
+                    case Op::IncrementRef: {
+                        Value& target = in.x ? closure->items[static_cast<size_t>(in.b)].ref()->items[0] : R[in.b].ref()->items[0];
+                        incrementSlow(in.a >= 0 ? &R[in.a] : nullptr, target, (in.c & 1) ? 1 : -1, K[in.c >> 1].str());
+                        break;
+                    }
+                    case Op::Closure:
+                        makeClosure(proto, in.b, R[in.a], R, closure);
+                        break;
+                    case Op::CallValue:
+                        callValueInPlace(R, in.a, in.c, root, K[in.b].str());
+                        break;
                     case Op::Declare: {
                         Declaration* declaration = proto.declarations[static_cast<size_t>(in.b)];
                         if (!in.c || !declaration->exists(root)) declaration->declare(root);
@@ -811,3 +950,16 @@ void execute(BlockNode& statements, Context& scope, const std::string& outside) 
 }
 
 } // namespace foxlang::vm
+
+namespace foxlang::runtime {
+
+Value callValue(const Value& function, Arguments args, Context& ctx) {
+    std::vector<Value> values(args.begin(), args.end());
+    return vm::callFunctionValue(function, values.data(), values.size(), *ctx.getRoot(), "function");
+}
+
+Value callValue(const Value& function, Value* args, size_t count, Context& ctx) {
+    return vm::callFunctionValue(function, args, count, *ctx.getRoot(), "function");
+}
+
+} // namespace foxlang::runtime

@@ -14,7 +14,7 @@ constexpr Keyword keywords[] = {
     {"switch", TokenType::SWITCH}, {"case", TokenType::CASE}, {"default", TokenType::DEFAULT},
     {"break", TokenType::BREAK}, {"continue", TokenType::CONTINUE}, {"return", TokenType::RETURN},
     {"global", TokenType::GLOBAL}, {"include", TokenType::INCLUDE}, {"using", TokenType::USING},
-    {"map", TokenType::MAP_KW}, {"struct", TokenType::STRUCT}, {"try", TokenType::TRY},
+    {"map", TokenType::MAP_KW}, {"func", TokenType::FUNC_KW}, {"struct", TokenType::STRUCT}, {"try", TokenType::TRY},
     {"catch", TokenType::CATCH}, {"finally", TokenType::FINALLY}, {"throw", TokenType::THROW},
 };
 }
@@ -23,7 +23,7 @@ const char* const* keywordList() {
     static const char* const list[] = {
         "if", "else", "while", "for", "switch", "case", "default", "break", "continue", "return",
         "using", "include", "global", "int", "float", "string", "bool", "void", "true", "false", "array",
-        "map", "struct", "try", "catch", "finally", "throw", nullptr};
+        "map", "func", "struct", "try", "catch", "finally", "throw", nullptr};
     return list;
 }
 
@@ -87,6 +87,8 @@ const char* tokenTypeName(TokenType type) {
         case TokenType::BREAK: return "'break'";
         case TokenType::CONTINUE: return "'continue'";
         case TokenType::MAP_KW: return "'map'";
+        case TokenType::FUNC_KW: return "'func'";
+        case TokenType::ARROW: return "'=>'";
         case TokenType::STRUCT: return "'struct'";
         case TokenType::TRY: return "'try'";
         case TokenType::CATCH: return "'catch'";
@@ -257,6 +259,11 @@ std::vector<Token> Lexer::tokenize() {
         } 
         else {
             // Check 2-character operators
+            if (current == '=' && pos + 1 < source.length() && source[pos + 1] == '>') {
+                advanceChar(); advanceChar();
+                tokens.push_back({TokenType::ARROW, "=>", startPos.line, startPos.column, {startPos, currentPosition()}});
+                continue;
+            }
             if (current == '=' && pos + 1 < source.length() && source[pos + 1] == '=') {
                 advanceChar(); advanceChar();
                 tokens.push_back({TokenType::EQ, "==", startPos.line, startPos.column, {startPos, currentPosition()}});

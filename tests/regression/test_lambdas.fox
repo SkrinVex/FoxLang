@@ -1,0 +1,133 @@
+// FoxLang regression: functions as values, lambdas, closures, higher-order builtins
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+// 1. Lambdas with an expression body and a block body
+func twice = (int x) => x * 2;
+func half = x => x / 2.0;
+func pick = (bool first, a, b) => {
+    if (first) { return a; }
+    return b;
+};
+assert_true(twice(21) == 42, "expression lambda");
+assert_true(half(5) == 2.5, "untyped parameter without parentheses");
+assert_true(pick(false, "a", "b") == "b", "block lambda");
+assert_true(twice(2.7) == 4, "typed lambda parameter converts its argument");
+
+// 2. Function names as values: FoxLang functions and builtins
+int add(int a, int b) { return a + b; }
+func plus = add;
+func length = size;
+assert_true(plus(2, 3) == 5, "function by name");
+assert_true(length([1, 2, 3]) == 3, "builtin by name");
+assert_true(type_of(plus) == "func", "type_of a function");
+assert_true(plus == add, "the same function is equal");
+assert_true(twice != plus, "different functions are not equal");
+assert_true(to_string(add) == "<func add>", "a function prints its name");
+
+// 3. Passing and returning functions
+int apply(func f, int value) { return f(value); }
+assert_true(apply(x => x * x, 7) == 49, "a lambda as an argument");
+func adder(int n) { return x => x + n; }
+func add5 = adder(5);
+assert_true(add5(10) == 15, "a returned closure keeps its variable");
+
+// 4. Closures share variables with the function that made them
+func make_counter() {
+    int count = 0;
+    return () => {
+        count++;
+        return count;
+    };
+}
+func first = make_counter();
+func second = make_counter();
+first();
+first();
+assert_true(first() == 3, "a counter keeps its state");
+assert_true(second() == 1, "each call makes its own variables");
+
+void shared() {
+    int total = 0;
+    func add_to = (int v) => { total += v; };
+    add_to(3);
+    add_to(4);
+    assert_true(total == 7, "a lambda writes the outer variable");
+    total = 100;
+    func read = () => total;
+    assert_true(read() == 100, "a lambda reads the current value");
+}
+shared();
+
+// 5. Each loop iteration has its own variable
+void per_iteration() {
+    array made;
+    for (item in [1, 2, 3]) {
+        push(made, () => item * 10);
+    }
+    array seen;
+    for (f in made) {
+        push(seen, f());
+    }
+    assert_true(seen == [10, 20, 30], "captures per iteration");
+}
+per_iteration();
+
+// 6. A local lambda calls itself
+void recursive() {
+    func fact = (int n) => {
+        if (n <= 1) { return 1; }
+        return n * fact(n - 1);
+    };
+    assert_true(fact(6) == 720, "recursive local lambda");
+}
+recursive();
+
+// 7. Higher-order array builtins
+array prices = [120, 45, 300, 80];
+assert_true(array_map(prices, p => p / 10) == [12, 4, 30, 8], "array_map");
+assert_true(array_filter(prices, p => p < 100) == [45, 80], "array_filter");
+assert_true(array_reduce(prices, (sum, p) => sum + p, 0) == 545, "array_reduce");
+assert_true(array_find(prices, p => p > 200) == 2, "array_find");
+assert_true(array_find(prices, p => p > 1000) == -1, "array_find without a match");
+assert_true(array_any(prices, p => p == 45), "array_any");
+assert_true(!array_all(prices, p => p > 50), "array_all");
+assert_true(array_all([], p => false), "array_all of an empty array");
+array_sort(prices, (a, b) => a > b);
+assert_true(prices == [300, 120, 80, 45], "array_sort with a comparator");
+array pairs = [[2, "b"], [1, "a"], [2, "c"], [1, "d"]];
+array_sort(pairs, (x, y) => x[0] < y[0]);
+assert_true(pairs == [[1, "a"], [1, "d"], [2, "b"], [2, "c"]], "array_sort is stable");
+
+// 8. The arrays module wraps them
+using arrays;
+array words = ["лиса", "ёж", "барсук"];
+sort_by(words, (a, b) => size(a) < size(b));
+assert_true(words == ["ёж", "лиса", "барсук"], "sort_by");
+assert_true(transform([1, 2], x => x + 1) == [2, 3], "transform");
+assert_true(filter([1, 2, 3], x => x != 2) == [1, 3], "filter");
+assert_true(reduce(["a", "b"], (a, b) => a + b, "") == "ab", "reduce");
+assert_true(find_first([5, 6], x => x == 6) == 1, "find_first");
+assert_true(any_of([1], x => x == 1) && all_of([2, 4], x => x % 2 == 0), "any_of and all_of");
+
+// 9. Errors
+string message = "";
+try { twice(1, 2); } catch (e) { message = e; }
+assert_true(str_contains(message, "expects 1"), "wrong argument count: " + message);
+void call_it(f) { f(1); }
+try { call_it(5); } catch (e) { message = e; }
+assert_true(str_contains(message, "not a function"), "calling a non-function: " + message);
+try { array_filter([1], x => 5); } catch (e) { message = e; }
+assert_true(str_contains(message, "must return bool"), "a predicate returns bool: " + message);
+try { func f = 5; } catch (e) { message = e; }
+assert_true(str_contains(message, "func"), "func holds only functions: " + message);
+
+// 10. Parameters without a type take any value
+string describe(label, value) { return label + "=" + to_string(value); }
+assert_true(describe("n", 3) == "n=3" && describe("ok", true) == "ok=true", "untyped function parameters");
+
+print("test_lambdas OK");

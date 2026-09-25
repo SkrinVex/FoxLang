@@ -549,6 +549,19 @@ print(add(2, 3));   // 5</pre>
       <p><code>break</code> и <code>continue</code> — просто переходы к нужной команде. Сложнее всего с <code>finally</code>: он должен выполниться, как бы ни закончился <code>try</code>. Компилятор кладёт копию блока <code>finally</code> на каждый выход из <code>try</code> — перед <code>return</code>, <code>break</code> и в конце, — а для ошибок у каждой функции есть таблица: «ошибка в командах с 3 по 9 — переходи к команде 15».</p>
       <div class="note"><p>До версии 8.3, во времена обхода дерева, <code>return</code> работал иначе: он поднимал флажок «пора выходить», и каждый блок после каждой строки на него смотрел. А ещё раньше <code>return</code> был исключением C++, в восемь раз медленнее флажка. В байткоде никто ничего не опрашивает: <code>return</code> — одна команда.</p></div>
       <p>Есть и защита от бесконечной рекурсии: если функция вызывает себя слишком глубоко, программа получит понятную ошибку вместо аварийного падения. На обычных 8 МБ стека это несколько тысяч вложенных вызовов.</p>
+      <h3>Функция — тоже значение</h3>
+      <p>Функцию можно положить в переменную типа <code>func</code>, передать в другую функцию и вернуть из неё. Короткую функцию без имени — лямбду — пишут прямо на месте: <code>x =&gt; x * 2</code>.</p>
+      <pre class="fox" data-fox>func make_counter() {
+    int count = 0;
+    return () => {
+        count++;
+        return count;
+    };
+}
+func next = make_counter();
+next();
+print(next());   // 2</pre>
+      <p>Здесь есть загадка: <code>make_counter</code> уже закончилась, её ряд регистров освобождён, а лямбда всё ещё помнит <code>count</code>. Секрет в том, что компилятор заранее видит: переменную <code>count</code> читает лямбда. Такую переменную он кладёт не прямо в регистр, а в маленькую коробку, и в регистре лежит только номерок от коробки. Лямбда при создании получает копию номерка — это и есть <em>замыкание</em>. Регистры исчезают, а коробка живёт, пока на неё кто-то ссылается. Остальные переменные, которые лямбды не трогают, остаются в регистрах и ничего не теряют в скорости.</p>
     </section>
 
     <section id="errors">
@@ -906,7 +919,7 @@ print(square(4));</pre>
   }
 
   // FoxLang highlighting for the code samples.
-  var keywords = /^(int|float|string|bool|void|array|map|struct|if|else|while|for|return|using|include|try|catch|finally|throw|true|false|break|continue)$/;
+  var keywords = /^(int|float|string|bool|void|array|map|func|in|struct|if|else|while|for|return|using|include|try|catch|finally|throw|true|false|break|continue)$/;
   function escapeHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   document.querySelectorAll("pre[data-fox]").forEach(function (pre) {
     var src = pre.textContent, out = "", i = 0;

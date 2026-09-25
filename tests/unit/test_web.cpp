@@ -169,6 +169,13 @@ int main() {
         reply = request("OPTIONS", "/anything");
         CHECK(reply.status == 204 && header(reply, "Access-Control-Allow-Origin") == "*");
         CHECK(header(request("GET", "/users/1"), "Access-Control-Allow-Methods").find("PATCH") != std::string::npos);
+        // A handler may be a function value: a lambda that captures a variable, or a function's name.
+        CHECK(interp.runSource("string greeting = \"hi\";\n"
+                               "server_route(\"GET\", \"/hello\", () => { server_respond(200, greeting); });\n"
+                               "server_route(\"GET\", \"/me2\", me);").success);
+        CHECK(request("GET", "/hello").body == "hi");
+        CHECK(request("GET", "/me2").body == "me");
+        CHECK(throws("server_route(\"GET\", \"/n\", 5);"));
         CHECK(throws("server_route(\"GET\", \"/a/*rest/b\", \"x\");"));
         CHECK(throws("server_route(\"GET\", \"nope\", \"x\");"));
         CHECK(throws("server_header(\"X-A\", \"line\\nbreak\");"));

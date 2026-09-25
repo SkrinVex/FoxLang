@@ -134,6 +134,7 @@ set(REGRESSION_TESTS
     test_semantics
     test_structures
     test_slots
+    test_lambdas
 )
 
 foreach(T ${REGRESSION_TESTS})

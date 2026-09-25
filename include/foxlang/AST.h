@@ -35,12 +35,24 @@ struct Declaration : Node {
 struct VarRef {
     static constexpr int byName = -2;
     static constexpr int global = -1;
+    static constexpr int captured = -3; // a variable of an enclosing function, in a lambda
     int slot = byName;
+    int capture = -1; // which of the lambda's captured variables, when slot == captured
 };
 
-// The numbered slots of a function body or of the program's blocks.
+// The numbered slots of a function body or of the program's blocks. A slot that a
+// lambda captures is `boxed`: it holds a box that the function and the lambda share.
 struct FrameLayout {
     std::vector<std::string> names;
+    std::vector<bool> boxed;
+};
+
+// Where a lambda's captured variable comes from, in the function that creates it: one
+// of that function's slots, or one of its own captures when it is a lambda too.
+struct Capture {
+    bool fromCapture = false;
+    int index = 0;
+    std::string name;
 };
 
 // A bool is the only thing a condition may be; an int used to silently count as false.
@@ -106,6 +118,16 @@ struct CallDepth {
 
 struct BlockNode;
 
+// (int x) => x * 2,  (a, b) => { return a < b; },  x => x + 1: a function as a value. It
+// sees the variables around it, not copies of them.
+struct LambdaNode : Node {
+    std::vector<FuncParam> params; // a parameter without a type takes any value
+    std::shared_ptr<BlockNode> body; // an expression body is `{ return expression; }`
+    // Set by the resolver: the lambda's own slots (parameters first) and captures.
+    std::shared_ptr<FrameLayout> layout;
+    std::vector<Capture> captures;
+};
+
 struct FuncDefNode : Declaration {
     std::string returnType;
     std::string name;
@@ -137,6 +159,7 @@ struct FuncCallNode : Node {
     std::vector<std::unique_ptr<Node>> args;
     SourceRange nameRange;
 
+    VarRef ref; // a local variable of the name holds the function to call
     FuncCallNode(std::string n, std::vector<std::unique_ptr<Node>> a, SourceRange nr = {})
         : name(std::move(n)), args(std::move(a)), nameRange(nr) {}
 };

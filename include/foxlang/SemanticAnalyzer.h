@@ -180,6 +180,7 @@ private:
     void visitWhile(const WhileNode* node);
     void visitFor(const ForNode* node);
     void visitForIn(const ForInNode* node);
+    void visitLambda(const LambdaNode* node);
     void visitSwitch(const SwitchNode* node);
     void visitBinOp(const BinOpNode* node);
     void visitArrayDecl(const ArrayDeclNode* node);

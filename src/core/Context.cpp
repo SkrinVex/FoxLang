@@ -12,9 +12,11 @@
 namespace foxlang {
 
 Value Value::container(Kind kind) {
-    Object::Kind objectKind = kind == Kind::Array ? Object::Kind::Array
-                            : kind == Kind::Map   ? Object::Kind::Map
-                                                  : Object::Kind::Struct;
+    Object::Kind objectKind = kind == Kind::Array    ? Object::Kind::Array
+                            : kind == Kind::Map      ? Object::Kind::Map
+                            : kind == Kind::Function ? Object::Kind::Function
+                            : kind == Kind::Box      ? Object::Kind::Box
+                                                     : Object::Kind::Struct;
     Value v;
     v.data_.object = new Object(objectKind);
     v.data_.object->refs = 1;
@@ -33,12 +35,13 @@ std::string Value::text() const {
 }
 
 const std::string& Value::nameOf(Kind kind) {
-    static const std::string names[] = {"void", "int", "float", "bool", "string", "array", "map", "struct"};
+    static const std::string names[] = {"void", "int", "float", "bool", "string", "array", "map", "struct", "func", "box"};
     return names[static_cast<int>(kind)];
 }
 
 const std::string& Value::typeName() const {
     if (kind_ == Kind::Struct && data_.object->structType) return data_.object->structType->name;
+    if (kind_ == Kind::Box) return data_.object->items[0].typeName();
     return nameOf(kind_);
 }
 
@@ -95,7 +98,11 @@ Value* Context::findVar(const std::string& name) {
             frameSearched = true;
             const auto& names = *scope->slotNames;
             for (size_t i = names.size(); i-- > 0;)
-                if (names[i] == name && !scope->slots[i].isVoid()) return &scope->slots[i];
+                if (names[i] == name && !scope->slots[i].isVoid()) {
+                    Value& slot = scope->slots[i];
+                    // A variable a lambda captured lives in a box.
+                    return slot.is(Value::Kind::Box) ? &slot.ref()->items[0] : &slot;
+                }
         }
     }
     return nullptr;
@@ -122,7 +129,7 @@ namespace {
 // A container that holds itself (a[0] = a) is copied once, not forever.
 Value copyOf(const Value& value, std::map<const Object*, Value>& copies) {
     const Object* original = value.ref();
-    if (!original) return value;
+    if (!original || value.isFunction()) return value; // a function is not copied
     auto done = copies.find(original);
     if (done != copies.end()) return done->second;
     Value result = Value::container(value.kind());
@@ -149,6 +156,16 @@ bool equalTo(const Value& a, const Value& b, std::vector<std::pair<const Object*
     const Object* left = a.ref();
     const Object* right = b.ref();
     if (left == right) return true;
+    if (a.isFunction()) {
+        // The same function, or the same lambda code with the same captured variables.
+        const Callee& x = *left->callee;
+        const Callee& y = *right->callee;
+        if (x.function || x.builtin) return x.function == y.function && x.builtin == y.builtin;
+        if (x.lambda != y.lambda || left->items.size() != right->items.size()) return false;
+        for (size_t i = 0; i < left->items.size(); ++i)
+            if (left->items[i].ref() != right->items[i].ref()) return false;
+        return true;
+    }
     if (a.typeName() != b.typeName()) return false;
     std::pair<const Object*, const Object*> pair{left, right};
     if (std::find(open.begin(), open.end(), pair) != open.end()) return true;
