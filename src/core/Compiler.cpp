@@ -180,8 +180,9 @@ public:
         };
         for (auto& instr : p.code) {
             place(instr.a);
-            place(instr.b);
-            place(instr.c);
+            // An int written into the instruction is no register.
+            if (instr.op != Op::CompareIntK) place(instr.b);
+            if (instr.op != Op::AddIntK && instr.op != Op::SubIntK) place(instr.c);
         }
         for (auto& path : p.paths)
             for (auto& step : path.steps) place(step.key);
@@ -296,7 +297,7 @@ private:
             case Op::JumpIfTrue:
             case Op::JumpIfNull:
             case Op::JumpIfNotNull: instr.b = target; break;
-            case Op::Compare: case Op::CompareInt: instr.c = target; break;
+            case Op::Compare: case Op::CompareInt: case Op::CompareIntK: instr.c = target; break;
             default: throw std::logic_error("patching an instruction that does not jump");
         }
     }
@@ -498,6 +499,16 @@ private:
 
     static bool literal(NumberNode& node, Value& out) { return node.value(out); }
 
+    // An int literal that fits an instruction: `n - 1`, `i < 100` need no register for it.
+    static bool intLiteral(Node& node, int& out) {
+        auto* number = dynamic_cast<NumberNode*>(&node);
+        Value value;
+        if (!number || number->isFloat || !literal(*number, value) || !value.isInt()) return false;
+        if (value.asInt() < -2147483647LL - 1 || value.asInt() > 2147483647LL) return false;
+        out = static_cast<int>(value.asInt());
+        return true;
+    }
+
     // The left operand of an operator, copied when the right one could change it.
     int operand(Node& left, Node& right) {
         int reg = any(left);
@@ -681,6 +692,13 @@ private:
         static const Op intOps[] = {Op::AddInt, Op::SubInt, Op::MulInt, Op::DivInt, Op::ModInt};
         bool ints = static_cast<int>(node.kind) <= static_cast<int>(runtime::Operator::Mod) &&
                     staticType(*node.left) == "int" && staticType(*node.right) == "int";
+        int immediate;
+        if (ints && (node.kind == runtime::Operator::Add || node.kind == runtime::Operator::Sub) &&
+            intLiteral(*node.right, immediate)) {
+            int left = any(*node.left);
+            emit(node.kind == runtime::Operator::Add ? Op::AddIntK : Op::SubIntK, dest, left, immediate, 0, opText);
+            return;
+        }
         int left = operand(*node.left, *node.right);
         int right = any(*node.right);
         emit(ints ? intOps[static_cast<int>(node.kind)] : ops[static_cast<int>(node.kind)], dest, left, right, 0, opText);
@@ -774,9 +792,13 @@ private:
         auto* comparison = dynamic_cast<BinOpNode*>(&condition);
         if (comparison && isComparison(comparison->kind)) {
             // A comparison always gives a bool, so it jumps directly.
+            bool ints = staticType(*comparison->left) == "int" && staticType(*comparison->right) == "int";
+            int immediate;
+            if (ints && intLiteral(*comparison->right, immediate))
+                return emit(Op::CompareIntK, any(*comparison->left), immediate, 0, static_cast<int>(comparison->kind),
+                            text(comparison->op) * 2 + (when ? 1 : 0));
             int left = operand(*comparison->left, *comparison->right);
             int right = any(*comparison->right);
-            bool ints = staticType(*comparison->left) == "int" && staticType(*comparison->right) == "int";
             return emit(ints ? Op::CompareInt : Op::Compare, left, right, 0, static_cast<int>(comparison->kind),
                         text(comparison->op) * 2 + (when ? 1 : 0));
         }
@@ -1304,7 +1326,7 @@ const char* opName(Op op) {
         "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "box", "unbox", "box-store", "box-assign", "get-capture",
         "set-capture", "inc-ref", "closure", "call-value", "method", "declare", "throw", "rethrow", "try-enter",
         "try-leave", "match", "statement", "scope-enter", "scope-leave", "declared",
-        "add-int", "sub-int", "mul-int", "div-int", "mod-int", "compare-int", "call-direct"};
+        "add-int", "sub-int", "mul-int", "div-int", "mod-int", "compare-int", "call-direct", "add-int-k", "sub-int-k", "compare-int-k"};
     return names[static_cast<int>(op)];
 }
 
@@ -1362,6 +1384,7 @@ void disassemble(const Proto& proto, std::ostream& out) {
             case Op::Eq: case Op::Ne: case Op::Lt: case Op::Le: case Op::Gt: case Op::Ge:
                 out << reg(in.a) << " " << reg(in.b) << " " << reg(in.c);
                 break;
+            case Op::AddIntK: case Op::SubIntK: out << reg(in.a) << " " << reg(in.b) << " " << in.c; break;
             case Op::Negate: case Op::Not: out << reg(in.a) << " " << reg(in.b); break;
             case Op::Truth: out << reg(in.a); break;
             case Op::Jump: out << "-> " << in.a; break;
@@ -1370,6 +1393,10 @@ void disassemble(const Proto& proto, std::ostream& out) {
                 break;
             case Op::Compare: case Op::CompareInt:
                 out << "if " << (in.y & 1 ? "" : "not ") << reg(in.a) << " " << proto.texts[in.y >> 1] << " " << reg(in.b)
+                    << " -> " << in.c;
+                break;
+            case Op::CompareIntK:
+                out << "if " << (in.y & 1 ? "" : "not ") << reg(in.a) << " " << proto.texts[in.y >> 1] << " " << in.b
                     << " -> " << in.c;
                 break;
             case Op::ForIn:

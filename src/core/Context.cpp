@@ -198,7 +198,7 @@ size_t runtime::collectCycles() {
         while (!reached.empty()) {
             Object* next = reached.back();
             reached.pop_back();
-            const std::vector<Value>& items = next->items;
+            const ValueList& items = next->items;
             for (size_t j = 0; j < items.size(); ++j) {
                 if (j + ahead < items.size())
                     if (Object* later = items[j + ahead].ref()) FOXLANG_PREFETCH(later);
@@ -342,7 +342,19 @@ long Object::find(const std::string& key) const {
 Value& Object::slot(const std::string& key) {
     long at = find(key);
     if (at >= 0) return items[static_cast<size_t>(at)];
-    keys.push_back(key);
+    return added(std::string(key));
+}
+
+Value& Object::slot(std::string&& key) {
+    long at = find(key);
+    if (at >= 0) return items[static_cast<size_t>(at)];
+    return added(std::move(key));
+}
+
+Value& Object::added(std::string&& key) {
+    // Most maps are small records: room for a few keys at once, not one at a time.
+    if (keys.size() == keys.capacity()) keys.reserve(keys.empty() ? 4 : keys.size() * 2);
+    keys.push_back(std::move(key));
     items.emplace_back();
     // A new key joins an index in step; a full one is rebuilt twice as large.
     if (index_ && index_->hashes.size() + 1 == keys.size()) {
@@ -397,7 +409,7 @@ Value* Context::findVar(const std::string& name) {
     return nullptr;
 }
 
-std::vector<Value>& Context::arrayOf(const Value& value, const std::string& what) {
+ValueList& Context::arrayOf(const Value& value, const std::string& what) {
     if (!value.is(Value::Kind::Array))
         throw std::runtime_error("Type Error: " + what + " must be an array, got '" + value.typeName() + "'");
     return value.ref()->items;
@@ -405,7 +417,7 @@ std::vector<Value>& Context::arrayOf(const Value& value, const std::string& what
 
 namespace runtime {
 
-Value makeArray(std::vector<Value> items) {
+Value makeArray(ValueList items) {
     Value array = Value::container(Value::Kind::Array);
     array.ref()->items = std::move(items);
     return array;

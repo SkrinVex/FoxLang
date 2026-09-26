@@ -2,6 +2,11 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <cstddef>
+#include <cstdlib>
+#include <cstring>
+#include <initializer_list>
+#include <new>
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -182,10 +187,189 @@ std::ostream& operator<<(std::ostream& out, const Value& value);
 
 // The arguments of a call: consecutive values that the caller keeps alive, such as a
 // vector or the registers of the bytecode VM. Builtins read them without copying.
+// The elements of an array (and the fields of a struct): a vector of values that grows
+// with realloc. A value holds no pointer to itself, so moving the block moves the
+// values; the allocator can then extend a big block in place instead of copying it.
+class ValueList {
+public:
+    using value_type = Value;
+    using size_type = size_t;
+    using difference_type = std::ptrdiff_t;
+    using reference = Value&;
+    using const_reference = const Value&;
+    using pointer = Value*;
+    using const_pointer = const Value*;
+    using iterator = Value*;
+    using const_iterator = const Value*;
+
+    ValueList() noexcept = default;
+    explicit ValueList(size_t count) { resize(count); }
+    ValueList(size_t count, const Value& value) { assign(count, value); }
+    ValueList(std::initializer_list<Value> values) { assign(values.begin(), values.end()); }
+    template <class It, class = decltype(*std::declval<It&>(), ++std::declval<It&>())>
+    ValueList(It first, It last) { assign(first, last); }
+    ValueList(const ValueList& other) { assign(other.begin(), other.end()); }
+    ValueList(ValueList&& other) noexcept : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
+        other.data_ = nullptr;
+        other.size_ = other.capacity_ = 0;
+    }
+    ~ValueList() { destroy(); }
+    ValueList& operator=(const ValueList& other) {
+        if (this != &other) {
+            ValueList copy(other);
+            swap(copy);
+        }
+        return *this;
+    }
+    ValueList& operator=(ValueList&& other) noexcept {
+        if (this != &other) {
+            ValueList gone(std::move(*this));
+            swap(other);
+        }
+        return *this;
+    }
+
+    size_t size() const noexcept { return size_; }
+    size_t capacity() const noexcept { return capacity_; }
+    bool empty() const noexcept { return size_ == 0; }
+    Value* data() noexcept { return data_; }
+    const Value* data() const noexcept { return data_; }
+    Value* begin() noexcept { return data_; }
+    Value* end() noexcept { return data_ + size_; }
+    const Value* begin() const noexcept { return data_; }
+    const Value* end() const noexcept { return data_ + size_; }
+    const Value* cbegin() const noexcept { return data_; }
+    const Value* cend() const noexcept { return data_ + size_; }
+    Value& operator[](size_t index) noexcept { return data_[index]; }
+    const Value& operator[](size_t index) const noexcept { return data_[index]; }
+    Value& front() noexcept { return data_[0]; }
+    const Value& front() const noexcept { return data_[0]; }
+    Value& back() noexcept { return data_[size_ - 1]; }
+    const Value& back() const noexcept { return data_[size_ - 1]; }
+
+    void reserve(size_t count) {
+        if (count > capacity_) reallocate(count);
+    }
+    void push_back(const Value& value) {
+        if (size_ == capacity_) {
+            Value copy(value); // the value may be one of the elements
+            grow();
+            new (data_ + size_) Value(std::move(copy));
+        } else {
+            new (data_ + size_) Value(value);
+        }
+        ++size_;
+    }
+    void push_back(Value&& value) {
+        if (size_ == capacity_) {
+            Value moved(std::move(value));
+            grow();
+            new (data_ + size_) Value(std::move(moved));
+        } else {
+            new (data_ + size_) Value(std::move(value));
+        }
+        ++size_;
+    }
+    template <class... Args>
+    Value& emplace_back(Args&&... args) {
+        Value value(std::forward<Args>(args)...);
+        push_back(std::move(value));
+        return back();
+    }
+    void pop_back() noexcept { data_[--size_].~Value(); }
+    void clear() noexcept {
+        size_t count = size_;
+        size_ = 0; // a destructor may look at this list again
+        for (size_t i = count; i > 0; --i) data_[i - 1].~Value();
+    }
+    void resize(size_t count) { resize(count, Value()); }
+    void resize(size_t count, const Value& value) {
+        if (count < size_) {
+            while (size_ > count) pop_back();
+            return;
+        }
+        Value fill(value);
+        reserve(count);
+        while (size_ < count) new (data_ + size_++) Value(fill);
+    }
+    void assign(size_t count, const Value& value) {
+        clear();
+        resize(count, value);
+    }
+    template <class It>
+    void assign(It first, It last) {
+        ValueList fresh;
+        for (; first != last; ++first) fresh.push_back(*first);
+        swap(fresh);
+    }
+    Value* insert(const Value* at, Value value) {
+        size_t index = static_cast<size_t>(at - data_);
+        if (size_ == capacity_) grow();
+        std::memmove(static_cast<void*>(data_ + index + 1), static_cast<const void*>(data_ + index),
+                     (size_ - index) * sizeof(Value));
+        new (data_ + index) Value(std::move(value));
+        ++size_;
+        return data_ + index;
+    }
+    template <class It, class = decltype(*std::declval<It&>(), ++std::declval<It&>())>
+    Value* insert(const Value* at, It first, It last) {
+        size_t index = static_cast<size_t>(at - data_);
+        ValueList added(first, last);
+        size_t count = added.size_;
+        if (count == 0) return data_ + index;
+        reserve(size_ + count > capacity_ * 2 ? size_ + count : capacity_ * 2);
+        std::memmove(static_cast<void*>(data_ + index + count), static_cast<const void*>(data_ + index),
+                     (size_ - index) * sizeof(Value));
+        std::memcpy(static_cast<void*>(data_ + index), static_cast<const void*>(added.data_), count * sizeof(Value));
+        added.size_ = 0; // the values moved over
+        size_ += count;
+        return data_ + index;
+    }
+    Value* erase(const Value* at) { return erase(at, at + 1); }
+    Value* erase(const Value* first, const Value* last) {
+        size_t index = static_cast<size_t>(first - data_);
+        size_t count = static_cast<size_t>(last - first);
+        if (count == 0) return data_ + index;
+        ValueList gone;
+        gone.reserve(count);
+        std::memcpy(static_cast<void*>(gone.data_), static_cast<const void*>(data_ + index), count * sizeof(Value));
+        gone.size_ = count;
+        std::memmove(static_cast<void*>(data_ + index), static_cast<const void*>(data_ + index + count),
+                     (size_ - index - count) * sizeof(Value));
+        size_ -= count;
+        return data_ + index; // the erased values go when `gone` does, after the list is whole
+    }
+    void swap(ValueList& other) noexcept {
+        std::swap(data_, other.data_);
+        std::swap(size_, other.size_);
+        std::swap(capacity_, other.capacity_);
+    }
+    friend bool operator==(const ValueList& a, const ValueList& b) = delete;
+
+private:
+    Value* data_ = nullptr;
+    size_t size_ = 0;
+    size_t capacity_ = 0;
+
+    void grow() { reallocate(capacity_ < 4 ? 4 : capacity_ * 2); }
+    void reallocate(size_t count) {
+        void* block = std::realloc(static_cast<void*>(data_), count * sizeof(Value));
+        if (!block) throw std::bad_alloc();
+        data_ = static_cast<Value*>(block);
+        capacity_ = count;
+    }
+    void destroy() noexcept {
+        clear();
+        std::free(static_cast<void*>(data_));
+        data_ = nullptr;
+        capacity_ = 0;
+    }
+};
+
 class Arguments {
 public:
     Arguments(const Value* data, size_t count) : data_(data), count_(count) {}
-    Arguments(const std::vector<Value>& values) : data_(values.data()), count_(values.size()) {}
+    Arguments(const ValueList& values) : data_(values.data()), count_(values.size()) {}
     size_t size() const { return count_; }
     bool empty() const { return count_ == 0; }
     const Value& operator[](size_t index) const { return data_[index]; }
@@ -241,7 +425,7 @@ struct Object {
     // null for a container that takes any values.
     const std::string* elementType = nullptr;
     // Array: the elements. Struct: the fields in declaration order.
-    std::vector<Value> items;
+    ValueList items;
     // Map: keys in insertion order, items[i] belongs to keys[i].
     std::vector<std::string> keys;
     std::shared_ptr<const StructType> structType;
@@ -250,6 +434,7 @@ struct Object {
     // Map access; -1 when the key is absent.
     long find(const std::string& key) const;
     Value& slot(const std::string& key); // inserts a void value for a new key
+    Value& slot(std::string&& key);
     bool erase(const std::string& key);
     // Drops everything the container holds: how the cycle collector breaks a ring.
     void clearContents();
@@ -263,6 +448,7 @@ private:
     // Only big maps pay for it: every array, struct and small map keeps a null pointer.
     mutable std::unique_ptr<KeyIndex, KeyIndexDeleter> index_;
     KeyIndex& indexed() const;
+    Value& added(std::string&& key); // a new key, at the end
 };
 
 inline void Value::retainShared() const noexcept {
@@ -353,11 +539,11 @@ struct Context {
     void setVar(const std::string& name, Value val);
 
     // The elements of an array value, for builtins and the debugger.
-    std::vector<Value>& arrayOf(const Value& value, const std::string& what);
+    ValueList& arrayOf(const Value& value, const std::string& what);
 };
 
 namespace runtime {
-Value makeArray(std::vector<Value> items);
+Value makeArray(ValueList items);
 // Frees containers that only hold each other (a[0] = a, two structs naming each
 // other) and that nothing else reaches. Runs by itself as containers are created;
 // returns how many containers it freed.

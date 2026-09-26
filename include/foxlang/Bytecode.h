@@ -99,6 +99,9 @@ enum class Op : std::uint8_t {
     // listed from argRegisters[y]; R[a] .. R[a+c-1] are there to copy them to when the
     // callee needs them in a row (every callee but a builtin's fast path).
     CallDirect,
+    // AddInt and SubInt with an int literal on the right: R[a] = R[b] + c, R[b] - c,
+    // the int itself in c. CompareIntK is CompareInt with the int itself in b.
+    AddIntK, SubIntK, CompareIntK,
 };
 
 struct Instr {
@@ -184,7 +187,7 @@ struct Proto {
     int line = 0;                      // where the function is defined
     std::vector<Instr> code;
     std::vector<int> lines;            // the source line of each instruction
-    std::vector<Value> constants;
+    ValueList constants;
     std::vector<std::pair<int, int>> preload; // constant registers: {register, constant}
     std::vector<Conversion> conversions;
     std::vector<GlobalSite> globals;

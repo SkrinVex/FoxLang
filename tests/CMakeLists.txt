@@ -149,6 +149,7 @@ set(REGRESSION_TESTS
     test_typed_containers
     test_gc
     test_calls
+    test_fast_paths
 )
 
 foreach(T ${REGRESSION_TESTS})

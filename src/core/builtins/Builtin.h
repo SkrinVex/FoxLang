@@ -32,7 +32,7 @@ public:
         return scratch_.emplace_front(value.text());
     }
     bool flag(size_t index) const { return args[index].isBool() && args[index].asBool(); }
-    std::vector<Value>& array(size_t index) const {
+    ValueList& array(size_t index) const {
         if (args[index].is(Value::Kind::Array)) return args[index].ref()->items;
         return ctx.arrayOf(args[index], what(index)); // reports the wrong type
     }
