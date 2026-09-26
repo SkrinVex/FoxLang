@@ -317,7 +317,7 @@ FOXLANG_APART void refresh(CallSite& site, Context& root);
 
 // Arguments that need no conversion go straight on to the builtin a forwarding body
 // calls: no frame, and an error names the line of the call made to the forwarder.
-const runtime::Builtin* forwardsTo(Proto& proto, const Value* args, size_t count, Context& root) {
+FOXLANG_APART const runtime::Builtin* forwardsTo(Proto& proto, const Value* args, size_t count, Context& root) {
     if (proto.forward < 0) return nullptr;
     CallSite& site = proto.calls[static_cast<size_t>(proto.forward)];
     if (!site.resolved || site.root != &root || site.generation != root.functionGeneration) refresh(site, root);
@@ -329,13 +329,20 @@ const runtime::Builtin* forwardsTo(Proto& proto, const Value* args, size_t count
     return site.builtin;
 }
 
-Value callFunction(const FuncDefNode& function, Value* args, size_t count, Context& root) {
+// Apart, so that the value the builtin returns takes no room in every call's frame.
+FOXLANG_APART bool forwardTo(Proto& proto, Value* args, size_t count, Context& root, Value& result) {
+    const runtime::Builtin* builtin = forwardsTo(proto, args, count, root);
+    if (!builtin) return false;
+    result = runtime::invoke(*builtin, Arguments(args, count), root);
+    return true;
+}
+
+FOXLANG_APART Value callFunction(const FuncDefNode& function, Value* args, size_t count, Context& root) {
     DebugHook* hook = runtime::debugHook();
     Proto& proto = const_cast<Proto&>(protoOf(function, hook != nullptr));
     if (count != proto.params.size()) wrongCount(proto, count);
     Value result;
-    if (const runtime::Builtin* builtin = forwardsTo(proto, args, count, root)) {
-        result = runtime::invoke(*builtin, Arguments(args, count), root);
+    if (proto.forward >= 0 && forwardTo(proto, args, count, root, result)) {
     } else {
         Window window(static_cast<size_t>(proto.registers));
         Value* R = window.base();
