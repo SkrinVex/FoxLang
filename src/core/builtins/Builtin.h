@@ -44,11 +44,17 @@ private:
 };
 
 using Handler = Value (*)(Call&);
+// The common case of a builtin without the checks every call goes through: false when
+// the arguments are not that case (and nothing was changed), and the call takes the
+// full way. The arguments may be the caller's variables themselves: they are read,
+// never moved from. `result` is none of them.
+using FastPath = bool (*)(Value* const* args, size_t count, Value& result);
 
 struct Builtin {
     Builtin(BuiltinSpec s, Handler h) : spec(std::move(s)), handler(h) {}
     BuiltinSpec spec;
     Handler handler = nullptr;
+    FastPath fast = nullptr;
     // What each parameter accepts, worked out from its type name when registered.
     struct Accepts {
         enum class Rule : unsigned char { Any, Number, Kind, Named } rule = Rule::Any;

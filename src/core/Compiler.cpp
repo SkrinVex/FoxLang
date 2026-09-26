@@ -185,6 +185,7 @@ public:
         }
         for (auto& path : p.paths)
             for (auto& step : path.steps) place(step.key);
+        for (auto& argument : p.argRegisters) place(argument);
         for (size_t i = 0; i < constantOrder.size(); ++i)
             p.preload.push_back({base + static_cast<int>(i), constantOrder[i]});
         p.registers = base + static_cast<int>(constantOrder.size());
@@ -704,6 +705,26 @@ private:
         if (base != dest) emit(Op::Move, dest, base, 0, 1);
     }
 
+    // Whether a call's arguments can be read where they are: at most four, none of them
+    // able to change a variable (no calls, assignments or ++), so reading a variable
+    // late gives what reading it early would.
+    bool direct(FuncCallNode& node) const {
+        if (node.args.empty() || node.args.size() > 4 || p.argRegisters.size() + node.args.size() > 65535) return false;
+        for (auto& arg : node.args)
+            if (!pure(*arg)) return false;
+        return true;
+    }
+    static bool pure(Node& node) {
+        if (dynamic_cast<NumberNode*>(&node) || dynamic_cast<StringNode*>(&node) || dynamic_cast<BoolNode*>(&node) ||
+            dynamic_cast<NullNode*>(&node) || dynamic_cast<VarAccessNode*>(&node))
+            return true;
+        if (auto* n = dynamic_cast<BinOpNode*>(&node)) return pure(*n->left) && pure(*n->right);
+        if (auto* n = dynamic_cast<UnaryOpNode*>(&node)) return pure(*n->operand);
+        if (auto* n = dynamic_cast<IndexNode*>(&node)) return pure(*n->base) && pure(*n->index);
+        if (auto* n = dynamic_cast<FieldNode*>(&node)) return pure(*n->base);
+        return false;
+    }
+
     void call(FuncCallNode& node, int dest) {
         // The arguments go to consecutive registers; the result replaces the first.
         int base = callBase(dest);
@@ -712,6 +733,17 @@ private:
             readVariable(node.ref, node.name, temp());
             for (auto& arg : node.args) into(*arg, temp());
             emit(Op::CallValue, base, stringConstant(node.name), static_cast<int>(node.args.size()));
+        } else if (direct(node)) {
+            // The arguments stay where they are; the call has its row of registers too,
+            // for a callee that needs them there.
+            // The row comes first, where the result goes; arguments that need a
+            // register of their own get one after it, so none of them is in the row.
+            for (size_t i = 0; i < node.args.size(); ++i) temp();
+            std::vector<std::int32_t> registers;
+            for (auto& arg : node.args) registers.push_back(any(*arg));
+            int offset = static_cast<int>(p.argRegisters.size());
+            p.argRegisters.insert(p.argRegisters.end(), registers.begin(), registers.end());
+            emit(Op::CallDirect, base, callSite(node.name), static_cast<int>(node.args.size()), 0, offset);
         } else {
             for (auto& arg : node.args) into(*arg, temp());
             if (node.args.empty()) temp();
@@ -1272,7 +1304,7 @@ const char* opName(Op op) {
         "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "box", "unbox", "box-store", "box-assign", "get-capture",
         "set-capture", "inc-ref", "closure", "call-value", "method", "declare", "throw", "rethrow", "try-enter",
         "try-leave", "match", "statement", "scope-enter", "scope-leave", "declared",
-        "add-int", "sub-int", "mul-int", "div-int", "mod-int", "compare-int"};
+        "add-int", "sub-int", "mul-int", "div-int", "mod-int", "compare-int", "call-direct"};
     return names[static_cast<int>(op)];
 }
 
@@ -1346,6 +1378,11 @@ void disassemble(const Proto& proto, std::ostream& out) {
             case Op::Call:
                 out << reg(in.a) << " = " << proto.calls[in.b].name << "(";
                 for (int i = 0; i < in.c; ++i) out << (i ? ", " : "") << reg(in.a + i);
+                out << ")";
+                break;
+            case Op::CallDirect:
+                out << reg(in.a) << " = " << proto.calls[in.b].name << "(";
+                for (int i = 0; i < in.c; ++i) out << (i ? ", " : "") << reg(proto.argRegisters[static_cast<size_t>(in.y + i)]);
                 out << ")";
                 break;
             case Op::Return: out << reg(in.a); break;

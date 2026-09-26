@@ -148,6 +148,7 @@ set(REGRESSION_TESTS
     test_enums
     test_typed_containers
     test_gc
+    test_calls
 )
 
 foreach(T ${REGRESSION_TESTS})

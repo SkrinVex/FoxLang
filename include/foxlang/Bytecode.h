@@ -95,6 +95,10 @@ enum class Op : std::uint8_t {
     // int literals): only the result's range is checked. As Add .. Mod and Compare.
     AddInt, SubInt, MulInt, DivInt, ModInt,
     CompareInt,
+    // R[a] = call site b with c arguments that stay where they are, in the registers
+    // listed from argRegisters[y]; R[a] .. R[a+c-1] are there to copy them to when the
+    // callee needs them in a row (every callee but a builtin's fast path).
+    CallDirect,
 };
 
 struct Instr {
@@ -185,6 +189,7 @@ struct Proto {
     std::vector<Conversion> conversions;
     std::vector<GlobalSite> globals;
     std::vector<CallSite> calls;
+    std::vector<std::int32_t> argRegisters; // for CallDirect
     std::vector<SetPath> paths;
     std::vector<FieldSite> fields;
     std::vector<Handler> handlers;

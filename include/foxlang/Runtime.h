@@ -38,6 +38,9 @@ struct StackGuard {
     int line = 0;                     // Line of the statement being executed, for the error report,
     const std::string* file = nullptr; // and its source file (an interned name, never freed).
     int tryDepth = 0;                  // try blocks the running code is inside of
+    // Calls the bytecode VM runs without a native frame of their own (see execute in
+    // Vm.cpp): they cost no native stack, so they have a limit of their own.
+    int vmDepth = 0;
     // The bytecode VM learns the line of an error from the innermost function it leaves;
     // the error it last placed is kept so that outer functions do not move it. It is
     // known by its message (a hash of it): MSVC hands every frame a copy of the

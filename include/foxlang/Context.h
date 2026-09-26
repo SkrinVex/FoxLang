@@ -56,11 +56,13 @@ public:
     Value(const Value& other) noexcept : kind_(other.kind_), data_(other.data_) { retain(); }
     Value(Value&& other) noexcept : kind_(other.kind_), data_(other.data_) { other.kind_ = Kind::Void; }
     Value& operator=(const Value& other) noexcept {
-        other.retain(); // first: assigning a value to itself must not free it
-        release();
-        kind_ = other.kind_;
-        data_ = other.data_;
-        return *this;
+        // Numbers, bools and void are copied in place; the rest count references.
+        if (kind_ < Kind::String && other.kind_ < Kind::String) {
+            kind_ = other.kind_;
+            data_ = other.data_;
+            return *this;
+        }
+        return assignShared(other);
     }
     Value& operator=(Value&& other) noexcept {
         if (this != &other) {
@@ -104,6 +106,11 @@ public:
     // A new, empty array, map or struct.
     static Value container(Kind kind);
 
+    // Empty again (void), letting go of what it held.
+    void reset() noexcept {
+        release();
+        kind_ = Kind::Void;
+    }
     // Overwrite with a scalar in place, for the VM's arithmetic.
     void setInt(long long value) noexcept {
         release();
@@ -165,6 +172,9 @@ private:
     }
     void retainShared() const noexcept;
     void releaseShared() noexcept;
+    Value& assignShared(const Value& other) noexcept;
+    static void freeString(StringData* string) noexcept;
+    static void freeObject(Object* object) noexcept;
     friend struct Object;
 };
 
@@ -261,12 +271,21 @@ inline void Value::retainShared() const noexcept {
 }
 
 inline void Value::releaseShared() noexcept {
+    // Only counting here, small enough to inline everywhere; freeing is out of line.
     if (kind_ == Kind::String) {
-        if (--data_.string->refs == 0) delete data_.string;
+        if (--data_.string->refs == 0) freeString(data_.string);
     } else if (--data_.object->refs == 0) {
-        delete data_.object;
+        freeObject(data_.object);
     }
     kind_ = Kind::Void;
+}
+
+inline Value& Value::assignShared(const Value& other) noexcept {
+    other.retain(); // first: assigning a value to itself must not free it
+    release();
+    kind_ = other.kind_;
+    data_ = other.data_;
+    return *this;
 }
 
 // exit(code) unwinds the whole program; it is deliberately not a std::exception,
