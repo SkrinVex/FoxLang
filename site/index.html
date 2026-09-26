@@ -357,7 +357,7 @@ img { max-width: 100%; }
 <header class="hero">
   <div>
     <canvas class="pixel-fox" id="fox" width="12" height="12" aria-hidden="true"></canvas>
-    <p class="eyebrow">FoxLang 8.10 · объяснение с нуля</p>
+    <p class="eyebrow">FoxLang 8.12 · объяснение с нуля</p>
     <h1>Как устроен язык FoxLang</h1>
     <p class="lede">Что происходит между строчкой <code>print("Привет!");</code> и словом на экране: как язык читает текст, хранит числа и списки, вызывает функции, ловит ошибки, рисует окно точка за точкой, отвечает браузеру и почему для него есть отладчик.</p>
   </div>
@@ -654,7 +654,7 @@ close_window();</pre>
         <div class="frame-wrap"><canvas id="frame" width="448" height="280" aria-label="Кадр из пикселей"></canvas></div>
         <div class="frame-status"><code id="frame-code">нажми clear_window, чтобы начать кадр</code><span id="frame-pos"></span></div>
         <label class="frame-text" for="frame-input">Текст для draw_text (шрифт FoxLang, масштаб 1)</label>
-        <input id="frame-input" type="text" value="Fox 8.10" maxlength="10" spellcheck="false" autocomplete="off">
+        <input id="frame-input" type="text" value="Fox 8.12" maxlength="10" spellcheck="false" autocomplete="off">
       </div>
 
       <h3>Как рисуются фигуры</h3>
@@ -864,7 +864,7 @@ print(square(4));</pre>
   </article>
 </div>
 
-<footer>FoxLang 8.10.1 · исходники и документация — <a href="https://github.com/SkrinVex/FoxLang" target="_blank" rel="noopener">github.com/SkrinVex/FoxLang</a></footer>
+<footer>FoxLang 8.12.0 · исходники и документация — <a href="https://github.com/SkrinVex/FoxLang" target="_blank" rel="noopener">github.com/SkrinVex/FoxLang</a></footer>
 
 <script type="application/json" id="bench-data">
 {"version":"8.1.0","date":"2026-09-25","machine":{"os":"Linux x86_64","cpu":"Intel(R) Celeron(R) N4020C CPU @ 1.10GHz"},"runs":5,"languages":{"foxlang":{"name":"FoxLang","version":"FoxLang 8.1.0"},"foxlang_baseline":{"name":"FoxLang (previous)","version":"FoxLang 8.0.0"},"python":{"name":"Python","version":"Python 3.14.7"},"lua":{"name":"Lua","version":"Lua 5.4.9"},"javascript":{"name":"JavaScript (Node.js)","version":"v26.10.0"}},"benchmarks":[{"name":"array_sum","about":"Growing an array and reading it back by index.","seconds":{"foxlang":0.8220495040004607,"foxlang_baseline":0.8046430410031462,"python":0.11204682500101626,"lua":0.04474602800473804,"javascript":0.08812319800199475}},{"name":"fib","about":"Function calls: naive recursive Fibonacci.","seconds":{"foxlang":0.6164286349958275,"foxlang_baseline":0.6133975439952337,"python":0.07494633600435918,"lua":0.02926724500139244,"javascript":0.07089768599689705}},{"name":"json_roundtrip","about":"Turning records into JSON text and back.","seconds":{"foxlang":0.3555030940042343,"foxlang_baseline":0.34874510599911446,"python":0.20824911999807227,"javascript":0.135121507999429}},{"name":"loop","about":"Integer arithmetic in a tight loop.","seconds":{"foxlang":2.797177840999211,"foxlang_baseline":2.7681683769988013,"python":0.5878342849973706,"lua":0.10385304999363143,"javascript":0.08476455699565122}},{"name":"map_lookup","about":"Inserting keys into a map and looking every one of them up.","seconds":{"foxlang":0.6534529349955847,"foxlang_baseline":null,"python":0.28541876199597027,"lua":0.6466928770023515,"javascript":0.4442104150002706}},{"name":"records","about":"Creating many small records and reading their fields.","seconds":{"foxlang":0.9637308169985772,"foxlang_baseline":0.9543194729994866,"python":0.25225184000009904,"lua":0.19137996299832594,"javascript":0.13434408799366793}},{"name":"sort_numbers","about":"Sorting numbers with the language's own sort.","seconds":{"foxlang":0.5961958159969072,"foxlang_baseline":0.5898370669965516,"python":0.25797608100401703,"lua":0.254622147003829,"javascript":0.23630277100164676}},{"name":"split_join","about":"Building text, joining and splitting it.","seconds":{"foxlang":0.600587403998361,"foxlang_baseline":19.539538478995382,"python":0.14139736899960553,"lua":0.4179613119995338,"javascript":0.17239006900490494}}]}
