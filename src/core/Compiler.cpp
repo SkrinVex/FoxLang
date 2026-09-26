@@ -295,7 +295,7 @@ private:
             case Op::JumpIfTrue:
             case Op::JumpIfNull:
             case Op::JumpIfNotNull: instr.b = target; break;
-            case Op::Compare: instr.c = target; break;
+            case Op::Compare: case Op::CompareInt: instr.c = target; break;
             default: throw std::logic_error("patching an instruction that does not jump");
         }
     }
@@ -677,9 +677,12 @@ private:
             fail("Runtime Error: unknown operator '" + node.op + "'");
             return;
         }
+        static const Op intOps[] = {Op::AddInt, Op::SubInt, Op::MulInt, Op::DivInt, Op::ModInt};
+        bool ints = static_cast<int>(node.kind) <= static_cast<int>(runtime::Operator::Mod) &&
+                    staticType(*node.left) == "int" && staticType(*node.right) == "int";
         int left = operand(*node.left, *node.right);
         int right = any(*node.right);
-        emit(ops[static_cast<int>(node.kind)], dest, left, right, 0, opText);
+        emit(ints ? intOps[static_cast<int>(node.kind)] : ops[static_cast<int>(node.kind)], dest, left, right, 0, opText);
     }
 
     // Where a call's first register goes: straight into dest when dest is the newest
@@ -741,7 +744,8 @@ private:
             // A comparison always gives a bool, so it jumps directly.
             int left = operand(*comparison->left, *comparison->right);
             int right = any(*comparison->right);
-            return emit(Op::Compare, left, right, 0, static_cast<int>(comparison->kind),
+            bool ints = staticType(*comparison->left) == "int" && staticType(*comparison->right) == "int";
+            return emit(ints ? Op::CompareInt : Op::Compare, left, right, 0, static_cast<int>(comparison->kind),
                         text(comparison->op) * 2 + (when ? 1 : 0));
         }
         int reg = any(condition);
@@ -1267,7 +1271,8 @@ const char* opName(Op op) {
         "jump", "jumpif-false", "jumpif-true", "jumpif-null", "jumpif-notnull", "compare", "for-in", "call", "return", "return-void", "newarray", "newmap",
         "mapkey", "concat", "index", "field", "setpath", "inc", "inc-global", "box", "unbox", "box-store", "box-assign", "get-capture",
         "set-capture", "inc-ref", "closure", "call-value", "method", "declare", "throw", "rethrow", "try-enter",
-        "try-leave", "match", "statement", "scope-enter", "scope-leave", "declared"};
+        "try-leave", "match", "statement", "scope-enter", "scope-leave", "declared",
+        "add-int", "sub-int", "mul-int", "div-int", "mod-int", "compare-int"};
     return names[static_cast<int>(op)];
 }
 
@@ -1321,6 +1326,7 @@ void disassemble(const Proto& proto, std::ostream& out) {
             case Op::NewSized: out << reg(in.a) << " " << reg(in.b); break;
             case Op::Fail: out << show(K[in.a]); break;
             case Op::Add: case Op::Sub: case Op::Mul: case Op::Div: case Op::Mod:
+            case Op::AddInt: case Op::SubInt: case Op::MulInt: case Op::DivInt: case Op::ModInt:
             case Op::Eq: case Op::Ne: case Op::Lt: case Op::Le: case Op::Gt: case Op::Ge:
                 out << reg(in.a) << " " << reg(in.b) << " " << reg(in.c);
                 break;
@@ -1330,7 +1336,7 @@ void disassemble(const Proto& proto, std::ostream& out) {
             case Op::JumpIfFalse: case Op::JumpIfTrue: case Op::JumpIfNull: case Op::JumpIfNotNull:
                 out << reg(in.a) << " -> " << in.b;
                 break;
-            case Op::Compare:
+            case Op::Compare: case Op::CompareInt:
                 out << "if " << (in.y & 1 ? "" : "not ") << reg(in.a) << " " << proto.texts[in.y >> 1] << " " << reg(in.b)
                     << " -> " << in.c;
                 break;

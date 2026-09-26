@@ -507,8 +507,10 @@ void Context::defineVar(const std::string& name, const std::string& /*type*/, co
 namespace runtime {
 void assign(Value& target, Value val, const std::string& name) {
     // The usual case, a value of the variable's own type, needs no conversion.
+    // An int is only an int in -2147483648..2147483647; a bigger literal converts with an error.
     bool sameType = target.kind() == val.kind() &&
-                    (!val.is(Value::Kind::Struct) || target.typeName() == val.typeName());
+                    (!val.is(Value::Kind::Struct) || target.typeName() == val.typeName()) &&
+                    (!val.isInt() || storesAsIs(Value::Kind::Int, val));
     if (!sameType) coerce(target.typeName(), val, "variable '" + name + "'");
     // Arrays, maps and structs are shared: the variable names the same container.
     target = std::move(val);
