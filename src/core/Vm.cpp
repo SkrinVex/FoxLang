@@ -817,6 +817,12 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
         &&L_ScopeEnter,
         &&L_ScopeLeave,
         &&L_Declared,
+        &&L_AddInt,
+        &&L_SubInt,
+        &&L_MulInt,
+        &&L_DivInt,
+        &&L_ModInt,
+        &&L_CompareInt,
     };
 #endif
 
@@ -844,7 +850,9 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         Value& target = *global(site, root, scope);
                         if (site.constant) constantChanged(site.name);
                         Value& value = R[in->a];
-                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
+                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct) &&
+                            (!value.isInt() || fitsInt(value.asInt())))
+                            target = std::move(value);
                         else setGlobal(site, root, scope, value);
                         NEXT;
                     }
@@ -859,7 +867,10 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                     OP(Assign): {
                         Value& target = R[in->a];
                         Value& value = R[in->b];
-                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
+                        // An int beyond int's range (a big literal) converts, with its error.
+                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct) &&
+                            (!value.isInt() || fitsInt(value.asInt())))
+                            target = std::move(value);
                         else assignSlow(target, value, K[in->c].str());
                         NEXT;
                     }
@@ -1077,7 +1088,10 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                     OP(BoxAssign): {
                         Value& target = R[in->a].ref()->items[0];
                         Value& value = R[in->b];
-                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
+                        // An int beyond int's range (a big literal) converts, with its error.
+                        if (target.kind() == value.kind() && !target.is(Value::Kind::Struct) &&
+                            (!value.isInt() || fitsInt(value.asInt())))
+                            target = std::move(value);
                         else assignSlow(target, value, K[in->c].str());
                         NEXT;
                     }
@@ -1139,6 +1153,53 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         if (in->b) declareProgramGlobal(proto.globals[static_cast<size_t>(in->b - 1)], R[in->a], root);
                         if (debug) markDeclared(*debug, in->a, in->a + 1, true);
                         NEXT;
+
+                    // Both operands are ints in range, so the sums and products fit
+                    // 64 bits; only the result can leave int's range.
+                    OP(AddInt): {
+                        long long result = R[in->b].asInt() + R[in->c].asInt();
+                        if (!fitsInt(result)) binarySlow(runtime::Operator::Add, proto.texts[in->y], R[in->a], R[in->b], R[in->c]);
+                        else R[in->a].setInt(result);
+                        NEXT;
+                    }
+                    OP(SubInt): {
+                        long long result = R[in->b].asInt() - R[in->c].asInt();
+                        if (!fitsInt(result)) binarySlow(runtime::Operator::Sub, proto.texts[in->y], R[in->a], R[in->b], R[in->c]);
+                        else R[in->a].setInt(result);
+                        NEXT;
+                    }
+                    OP(MulInt): {
+                        long long result = R[in->b].asInt() * R[in->c].asInt();
+                        if (!fitsInt(result)) binarySlow(runtime::Operator::Mul, proto.texts[in->y], R[in->a], R[in->b], R[in->c]);
+                        else R[in->a].setInt(result);
+                        NEXT;
+                    }
+                    OP(DivInt):
+                    OP(ModInt): {
+                        long long l = R[in->b].asInt(), r = R[in->c].asInt();
+                        // Division by zero and -2147483648 / -1 take the checked path.
+                        if (r == 0 || (r == -1 && l == -2147483648LL)) {
+                            binarySlow(in->op == Op::DivInt ? runtime::Operator::Div : runtime::Operator::Mod, proto.texts[in->y],
+                                       R[in->a], R[in->b], R[in->c]);
+                        } else {
+                            R[in->a].setInt(in->op == Op::DivInt ? l / r : l % r);
+                        }
+                        NEXT;
+                    }
+                    OP(CompareInt): {
+                        long long a = R[in->a].asInt(), b = R[in->b].asInt();
+                        bool result;
+                        switch (static_cast<runtime::Operator>(in->x)) {
+                            case runtime::Operator::Lt: result = a < b; break;
+                            case runtime::Operator::Le: result = a <= b; break;
+                            case runtime::Operator::Gt: result = a > b; break;
+                            case runtime::Operator::Ge: result = a >= b; break;
+                            case runtime::Operator::Eq: result = a == b; break;
+                            default: result = a != b; break;
+                        }
+                        if (result == ((in->y & 1) != 0)) ip = code + in->c;
+                        NEXT;
+                    }
                 }
             }
         } catch (...) {
