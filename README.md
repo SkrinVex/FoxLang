@@ -4,6 +4,7 @@
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
+[![Песочница](https://img.shields.io/badge/%D0%BF%D0%B5%D1%81%D0%BE%D1%87%D0%BD%D0%B8%D1%86%D0%B0-%D0%BF%D0%BE%D0%BF%D1%80%D0%BE%D0%B1%D0%BE%D0%B2%D0%B0%D1%82%D1%8C%20%D0%B2%20%D0%B1%D1%80%D0%B0%D1%83%D0%B7%D0%B5%D1%80%D0%B5-d9620f)](https://skrinvex.github.io/FoxLang/playground/)
 
 **FoxLang** — встраиваемый интерпретируемый язык общего назначения с понятным
 C-подобным синтаксисом, строгими типами, массивами, модулями и стандартной
@@ -11,7 +12,9 @@ C-подобным синтаксисом, строгими типами, мас
 запустить интерпретатором или собрать в один исполняемый файл, которому не нужен
 установленный FoxLang.
 
-**Попробовать без установки:** [песочница в браузере](https://skrinvex.github.io/FoxLang/playground/).
+**Попробовать без установки:** [песочница в браузере](https://skrinvex.github.io/FoxLang/playground/):
+пишешь код и сразу запускаешь, даже с телефона. Там же есть примеры, в том числе игры
+с окном. Как она устроена, рассказано на [сайте](https://skrinvex.github.io/FoxLang/#playground).
 
 ```cpp
 using string;
