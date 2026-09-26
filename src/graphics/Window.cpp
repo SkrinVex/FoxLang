@@ -14,7 +14,27 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <mutex>
-#elif !defined(__EMSCRIPTEN__)
+#elif defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+// The page's side of a playground window (see Window::Native below).
+EM_JS(int, fox_canvas_open, (int width, int height, const char* title), {
+    if (!Module.canvasOpen) return 0;
+    Module.canvasOpen(width, height, UTF8ToString(title));
+    return 1;
+});
+EM_JS(void, fox_canvas_present, (const void* pixels, int width, int height), {
+    Module.canvasPresent(HEAPU8.subarray(pixels, pixels + width * height * 4), width, height);
+});
+EM_JS(void, fox_canvas_poll, (), {
+    return Asyncify.handleAsync(() => Module.canvasPoll());
+});
+EM_JS(void, fox_canvas_close, (), {
+    if (Module.canvasClose) Module.canvasClose();
+});
+EM_JS(void, fox_canvas_resizable, (int resizable), {
+    if (Module.canvasResizable) Module.canvasResizable(!!resizable);
+});
+#else
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <xcb/xcb.h>
@@ -250,20 +270,60 @@ struct Window::Native {
     }
 };
 #elif defined(__EMSCRIPTEN__)
-// The browser playground runs programs in a web worker, which has no window to open.
+// The browser playground: the page hands the worker a canvas. A window draws into it,
+// and each poll lets the browser deliver the keys and the mouse, which needs the
+// build with Asyncify; the ordinary one has no canvas and reports that.
+namespace {
+Window* shown = nullptr; // the window the page's input goes to
+} // namespace
+
 struct Window::Native {
-    explicit Native(Window&) {}
-    void open(const std::string&) {
-        fail("windows are not available in the browser playground; run the program with foxlang on a computer");
+    Window& owner;
+    std::vector<uint32_t> rgba; // the frame as the canvas takes it: R, G, B, A bytes
+    explicit Native(Window& window) : owner(window) {}
+    ~Native() {
+        if (shown == &owner) {
+            shown = nullptr;
+            fox_canvas_close();
+        }
     }
-    void poll() {}
-    void present() {}
+    void open(const std::string& title) {
+        if (!fox_canvas_open(owner.surface().width(), owner.surface().height(), title.c_str()))
+            fail("windows are not available here; run the program with foxlang on a computer");
+        shown = &owner;
+        owner.focusEvent(true);
+        present();
+    }
+    void poll() { fox_canvas_poll(); }
+    void present() {
+        const auto& surface = owner.surface();
+        const auto& pixels = surface.pixels();
+        rgba.resize(pixels.size());
+        for (size_t i = 0; i < pixels.size(); ++i) {
+            uint32_t c = pixels[i];
+            rgba[i] = 0xff000000u | ((c & 0xff) << 16) | (c & 0xff00) | ((c >> 16) & 0xff);
+        }
+        fox_canvas_present(rgba.data(), surface.width(), surface.height());
+    }
     void resizeBuffers() {}
-    void setResizable(bool) {}
-    void setSize(int, int) {}
+    void setResizable(bool resizable) { fox_canvas_resizable(resizable); }
+    void setSize(int width, int height) { owner.sizeEvent(width, height); }
     std::string clipboard() { return ""; }
     void setClipboard(const std::string&) {}
 };
+
+// What the page reports from the canvas, in the codes the native backends use.
+extern "C" {
+EMSCRIPTEN_KEEPALIVE void foxlang_key(int key, int down) { if (shown) shown->keyEvent(key, down != 0); }
+EMSCRIPTEN_KEEPALIVE void foxlang_char(int codepoint) {
+    if (shown && codepoint >= 0x20 && codepoint != 0x7f && codepoint <= 0x10ffff) shown->textEvent(utf8(static_cast<uint32_t>(codepoint)));
+}
+EMSCRIPTEN_KEEPALIVE void foxlang_mouse(int x, int y) { if (shown) shown->mouseEvent(x, y); }
+EMSCRIPTEN_KEEPALIVE void foxlang_wheel(int steps) { if (shown) shown->wheelEvent(steps); }
+EMSCRIPTEN_KEEPALIVE void foxlang_focus(int focused) { if (shown) shown->focusEvent(focused != 0); }
+EMSCRIPTEN_KEEPALIVE void foxlang_size(int width, int height) { if (shown) shown->sizeEvent(width, height); }
+EMSCRIPTEN_KEEPALIVE void foxlang_close() { if (shown) shown->closeEvent(); }
+}
 #else
 struct Window::Native {
     Window& owner;

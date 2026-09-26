@@ -64,7 +64,7 @@ jobs:
         run: |
           emcmake cmake -S . -B web -DCMAKE_BUILD_TYPE=Release
           cmake --build web -j4
-          cp web/foxlang.js web/foxlang.wasm site/playground/
+          cp web/foxlang.js web/foxlang.wasm web/foxlang-graphics.js web/foxlang-graphics.wasm site/playground/
           node tests/web/test_playground.js site/playground
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

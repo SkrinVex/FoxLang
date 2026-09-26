@@ -112,7 +112,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
     add({"wait", "void", {{"int", "milliseconds"}}, 1, false, "",
          "Приостанавливает программу на заданное число миллисекунд.\n\n```foxlang\nwait(500);\n```"},
         [](Call& c) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(c.amount(0, 86400000)));
+            platform::pause(static_cast<long long>(c.amount(0, 86400000)));
             return nothing();
         });
     add({"fail", "void", {{"string", "message"}}, 1, false, "",
