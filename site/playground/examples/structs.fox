@@ -17,5 +17,5 @@ for (Fox fox in foxes) {
 }
 
 Fox fastest = foxes[0];
-fastest.age += 1; // структура — ссылка: меняется и элемент массива
-print("Самая быстрая лиса — ${fastest.name}, через год ей будет ${fastest.age}");
+fastest.age += 1; // структура передаётся по ссылке, так что меняется и элемент массива
+print("Самая быстрая лиса: ${fastest.name}, через год ей будет ${fastest.age}");

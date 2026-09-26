@@ -1,0 +1,14 @@
+// Файл в папке: main.fox подключает его через include("tools/report.fox").
+using string;
+
+string describe(Shape shape) {
+    return pad_right(shape.name, 8, " ") + shape.width + " x " + shape.height + " = " + area(shape);
+}
+
+string total_line(array shapes) {
+    int total = 0;
+    for (Shape shape in shapes) {
+        total += area(shape);
+    }
+    return "Общая площадь: " + total;
+}

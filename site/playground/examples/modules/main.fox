@@ -1,0 +1,15 @@
+// Программа из нескольких файлов. Вкладки сверху: main.fox запускается,
+// остальные файлы подключаются через using или include.
+using shapes;
+include("tools/report.fox");
+
+array figures = [
+    Shape("квадрат", 4, 4),
+    Shape("доска", 12, 2),
+    Shape("плитка", 3, 3)
+];
+
+for (Shape figure in figures) {
+    print(describe(figure));
+}
+print(total_line(figures));

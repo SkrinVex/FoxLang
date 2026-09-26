@@ -6,14 +6,23 @@ const fs = require("fs");
 const directory = path.resolve(process.argv[2] || ".");
 const createFoxLang = require(path.join(directory, "foxlang.js"));
 
-async function run(source, input = "") {
+// Runs main.fox among the given files, as the page's worker does: all of them in
+// one directory that is also the working directory.
+async function run(files, input = "") {
+  if (typeof files === "string") files = { "main.fox": files };
   let out = "", err = "", echoed = "";
   const module = await createFoxLang({
     preRun: [(m) => m.FS.init(() => null, (c) => { if (c !== null) out += String.fromCharCode(c); },
                                (c) => { if (c !== null) err += String.fromCharCode(c); })],
-    echoInput: (text) => { echoed += text; out += text; },
+    echoInput: (text) => { echoed += text; out += Buffer.from(text, "utf8").toString("latin1"); },
   });
-  const code = module.ccall("foxlang_run", "number", ["string", "string"], [source, input]);
+  module.FS.mkdirTree("/project");
+  for (const [name, text] of Object.entries(files)) {
+    if (name.includes("/")) module.FS.mkdirTree("/project/" + name.slice(0, name.lastIndexOf("/")));
+    module.FS.writeFile("/project/" + name, text);
+  }
+  module.FS.chdir("/project");
+  const code = module.ccall("foxlang_run", "number", ["string", "string"], ["main.fox", input]);
   const decode = (text) => Buffer.from(text, "latin1").toString("utf8");
   return { code, out: decode(out), err: decode(err), echoed, module };
 }
@@ -36,6 +45,14 @@ function expect(condition, message, result) {
     "errors.fox": "Поймали ошибку: делить на ноль нельзя",
     "input.fox": "Чисел: 2, сумма: 42",
   };
+  const modules = path.join(examples, "modules");
+  const multi = await run({
+    "main.fox": fs.readFileSync(path.join(modules, "main.fox"), "utf8"),
+    "shapes.fox": fs.readFileSync(path.join(modules, "shapes.fox"), "utf8"),
+    "tools/report.fox": fs.readFileSync(path.join(modules, "tools/report.fox"), "utf8"),
+  });
+  expect(multi.code === 0 && multi.out.includes("Общая площадь: 49"), "files find each other through using and include", multi);
+
   for (const [file, text] of Object.entries(expected)) {
     const result = await run(fs.readFileSync(path.join(examples, file), "utf8"), "Лиса\n12\n30\n");
     expect(result.code === 0 && result.out.includes(text), file, result);
@@ -53,7 +70,7 @@ function expect(condition, message, result) {
   const window = await run('using graphics;\nopen_window(200, 200, "x");');
   expect(window.code === 1 && window.err.includes("browser playground"), "graphics explain themselves", window);
 
-  const problems = JSON.parse(broken.module.ccall("foxlang_check", "string", ["string"], ["int x = 1;\nprint(missing);"]));
+  const problems = JSON.parse(broken.module.ccall("foxlang_check", "string", ["string"], ["main.fox"]));
   expect(problems.length === 1 && problems[0].line === 2 && problems[0].severity === "error", "the checker reports problems");
 
   console.log("PLAYGROUND_OK");
