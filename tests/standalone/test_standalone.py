@@ -88,6 +88,16 @@ def cli(s):
         result = s.command([s.cli, *args])
         assert result.returncode != 0 and result.stderr, (args, result)
     assert "standalone" in s.command([s.cli, "--help"]).stdout
+    overview = s.command([s.cli, "help"])
+    assert overview.returncode == 0 and "foxlang build" in overview.stdout and "foxlang help" in overview.stdout
+    assert s.command([s.cli]).stdout == overview.stdout
+    for args in (["help", "build"], ["build", "--help"], ["build", "-h"]):
+        details = s.command([s.cli, *args])
+        assert details.returncode == 0 and "--output" in details.stdout and "cross-building" in details.stdout, (args, details)
+    unknown = s.command([s.cli, "help", "compile"])
+    assert unknown.returncode != 0 and "build" in unknown.stderr, unknown
+    s.source("own_help.fox", 'using os;\nprint(os_args());')
+    assert s.command([s.cli, "own_help.fox", "--help"]).stdout == "[--help]\n"
     assert s.command([s.cli, "--version"]).stdout.startswith("FoxLang ")
     s.build("valid.fox", "output with spaces.Exe", "--output")
     before = (s.project / s.app.name).read_bytes()

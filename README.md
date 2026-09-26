@@ -92,7 +92,8 @@ foxlang program.fox [аргументы...]   # запуск
 foxlang check program.fox            # проверка без запуска
 foxlang build program.fox -o app     # самостоятельное приложение
 foxlang --version
-foxlang --help
+foxlang help                         # все команды: запуск, проверка, сборка, тесты…
+foxlang help build                   # подробно об одной команде
 ```
 
 Код возврата: `0` — успех, `1` — ошибка (синтаксис, тип, выполнение, отсутствующий
