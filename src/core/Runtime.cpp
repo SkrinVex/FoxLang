@@ -234,7 +234,7 @@ Value defaultOf(const StructType& type, size_t field, Context& ctx) {
 }
 } // namespace
 
-Value construct(const StructType& type, std::vector<Value> args, Context& ctx) {
+Value construct(const StructType& type, ValueList args, Context& ctx) {
     auto registered = ctx.getStruct(type.name);
     if (!registered) throw std::runtime_error("Type Error: unknown type '" + type.name + "'");
     return construct(registered, args.data(), args.size(), ctx);
@@ -309,6 +309,8 @@ Value::Kind declaredKind(const std::string& type) {
 }
 
 void coerce(const std::string& type, Value& value, const std::string& what) {
+    // `Point p = points[i]`: a struct already of the named type, before any parsing of it.
+    if (value.is(Value::Kind::Struct) && value.ref()->structType && value.ref()->structType->name == type) return;
     if (isNullable(type)) {
         if (value.isVoid()) return;
         coerce(type.substr(0, type.size() - 1), value, what);
@@ -459,8 +461,11 @@ private:
     [[noreturn]] void invalid() const {
         throw std::runtime_error(std::string("Runtime Error: ") + what_ + " got text that is not valid JSON");
     }
+    static bool space(char ch) {
+        return ch == ' ' || ch == '\n' || ch == '\t' || ch == '\r' || ch == '\v' || ch == '\f'; // isspace() in the C locale
+    }
     void whitespace() {
-        while (p_ < end_ && std::isspace(static_cast<unsigned char>(*p_))) ++p_;
+        while (p_ < end_ && space(*p_)) ++p_;
     }
     bool take(char ch) {
         whitespace();
@@ -486,7 +491,7 @@ private:
                     std::string key = string();
                     if (!take(':')) invalid();
                     Value item = value(depth + 1);
-                    map.ref()->slot(key) = std::move(item);
+                    map.ref()->slot(std::move(key)) = std::move(item);
                 } while (take(','));
                 if (!take('}')) invalid();
                 return map;
@@ -567,7 +572,15 @@ private:
 
     Value scalar() {
         const char* start = p_;
-        while (p_ < end_ && *p_ != ',' && *p_ != '}' && *p_ != ']' && !std::isspace(static_cast<unsigned char>(*p_))) ++p_;
+        while (p_ < end_ && *p_ != ',' && *p_ != '}' && *p_ != ']' && !space(*p_)) ++p_;
+        // A plain int, the usual number in JSON, is read in place.
+        const char* digit = start + (p_ - start > 1 && *start == '-' ? 1 : 0);
+        if (p_ > digit && p_ - digit <= 9) {
+            long long whole = 0;
+            const char* at = digit;
+            for (; at < p_ && *at >= '0' && *at <= '9'; ++at) whole = whole * 10 + (*at - '0');
+            if (at == p_) return Value::integer(digit == start ? whole : -whole);
+        }
         std::string token(start, p_);
         if (token == "true") return Value::boolean(true);
         if (token == "false") return Value::boolean(false);

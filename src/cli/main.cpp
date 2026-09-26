@@ -1,3 +1,5 @@
+#include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -67,6 +69,21 @@ static int report(const foxlang::RunResult& result) {
     return result.exitCode;
 }
 
+// Runs a program and ends the process. The interpreter is not taken apart value by
+// value: the system takes the whole memory back at once, which after millions of
+// values is much faster. Nothing else waits for the end (files are closed by the
+// builtins that open them, a window's shared memory is already released), so only
+// the output is flushed.
+template <class Run>
+[[noreturn]] static void runAndExit(const foxlang::InterpreterOptions& options, Run run) {
+    auto* interpreter = new foxlang::Interpreter(options);
+    int code = report(run(*interpreter));
+    std::cout.flush();
+    std::cerr.flush();
+    std::fflush(nullptr);
+    std::_Exit(code);
+}
+
 // Program arguments as UTF-8. Windows hands main() its ANSI code page, which cannot
 // hold Cyrillic, so the wide command line is converted instead.
 static std::vector<std::string> argumentsFrom(int argc, char* argv[], int first) {
@@ -109,8 +126,9 @@ int main(int argc, char* argv[]) {
         options.sources = sources;
         options.loadDotEnv = false;
         options.arguments = argumentsFrom(argc, argv, 1);
-        foxlang::Interpreter interpreter(options);
-        return report(interpreter.runSource(sources->read(sources->entry), sources->entry));
+        runAndExit(options, [&](foxlang::Interpreter& interpreter) {
+            return interpreter.runSource(sources->read(sources->entry), sources->entry);
+        });
     }
 #endif
     const std::string version = foxlang::Interpreter::getVersion();
@@ -164,8 +182,7 @@ int main(int argc, char* argv[]) {
 
     foxlang::InterpreterOptions options;
     options.arguments = argumentsFrom(argc, argv, 2);
-    foxlang::Interpreter interpreter(options);
-    return report(interpreter.runFile(args[1]));
+    runAndExit(options, [&](foxlang::Interpreter& interpreter) { return interpreter.runFile(args[1]); });
     } catch (const std::exception& error) {
         std::cerr << "FoxLang: " << error.what() << std::endl;
         return 1;

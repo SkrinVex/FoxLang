@@ -398,26 +398,38 @@ FOXLANG_APART bool forwardDirect(Proto& callee, Value* R, const std::int32_t* re
     return true;
 }
 
+// Arguments of a call execute() runs itself that need converting, converted in the
+// caller's row at R[in.a] before the callee's frame opens: an error then leaves nothing
+// half done. A CallDirect's arguments are all copied into that row first.
+FOXLANG_COLD void convertArguments(const Proto& callee, Value* args, const Value* R, const std::int32_t* direct,
+                                   size_t count) {
+    for (size_t i = 0; i < count; ++i) {
+        if (direct) args[i] = R[direct[i]];
+        const Conversion& param = callee.params[i];
+        if (!param.type.empty() && !runtime::storesAsIs(param.kind, args[i])) convert(param, args[i]);
+    }
+}
+
 // Opens the frame of a FoxLang function that execute() runs itself: the arguments are
-// checked and converted in the caller, then moved into the new registers.
+// checked and converted in the caller, then go into the new registers.
 // A CallDirect's arguments are the caller's registers listed in `direct` (copied: they
 // may be variables); a Call's sit in a row from R[in.a] (moved: they are temporaries).
+// Registers above the top of the register stack hold no string or container (frames
+// let those go when they end), so the new frame's registers are written over as they are.
 FOXLANG_APART Value* enterCall(std::vector<Caller>& calls, Proto& callee, const Instr& in, Proto* proto, const Instr* ip,
                                Value* R, Object* closure, Context* scope, std::unique_ptr<std::exception_ptr[]>& pending,
                                const std::int32_t* direct = nullptr) {
     size_t count = static_cast<size_t>(in.c);
     if (count != callee.params.size()) wrongCount(callee, count);
     Value* args = R + in.a;
-    // Arguments that need converting are converted in the caller's row first: an error
-    // then leaves nothing half done.
-    unsigned converted = 0;
+    const Conversion* params = callee.params.data();
     for (size_t i = 0; i < count; ++i) {
-        const Conversion& param = callee.params[i];
-        Value& arg = direct ? R[direct[i]] : args[i];
-        if (param.type.empty() || runtime::storesAsIs(param.kind, arg)) continue;
-        if (direct) args[i] = arg;
-        convert(param, args[i]);
-        if (i < 32) converted |= 1u << i;
+        const Value& arg = direct ? R[direct[i]] : args[i];
+        if (!params[i].type.empty() && !runtime::storesAsIs(params[i].kind, arg)) {
+            convertArguments(callee, args, R, direct, count);
+            direct = nullptr; // the arguments are in the row now
+            break;
+        }
     }
     runtime::StackGuard& guard = runtime::stackGuard();
     if (++guard.vmDepth > maxVmDepth) {
@@ -427,19 +439,15 @@ FOXLANG_APART Value* enterCall(std::vector<Caller>& calls, Proto& callee, const 
     if (calls.capacity() == calls.size()) calls.reserve(calls.empty() ? 64 : calls.size() * 2);
     Registers registersOfCallee = openRegisters(static_cast<size_t>(callee.registers)); // may throw: before anything moves
     calls.push_back(Caller{proto, ip, R, closure, scope, pending.release(), in.a, registersOfCallee});
-    Value* frame = calls.back().callee.base;
-    if (!direct) {
-        for (size_t i = 0; i < count; ++i) frame[i] = std::move(args[i]);
+    Value* frame = registersOfCallee.base;
+    if (direct) {
+        for (size_t i = 0; i < count; ++i) new (frame + i) Value(R[direct[i]]);
     } else {
-        for (size_t i = 0; i < count; ++i) {
-            if (i < 32 && (converted >> i) & 1u) frame[i] = std::move(args[i]);
-            else if (i >= 32 && !callee.params[i].type.empty() && !runtime::storesAsIs(callee.params[i].kind, R[direct[i]]))
-                frame[i] = std::move(args[i]);
-            else frame[i] = R[direct[i]];
-        }
+        for (size_t i = 0; i < count; ++i) new (frame + i) Value(std::move(args[i]));
     }
     if (callee.pendingErrors > 0) pending.reset(new std::exception_ptr[static_cast<size_t>(callee.pendingErrors)]);
-    for (const auto& constant : callee.preload) frame[constant.first] = callee.constants[static_cast<size_t>(constant.second)];
+    const Value* constants = callee.constants.data();
+    for (const auto& constant : callee.preload) new (frame + constant.first) Value(constants[constant.second]);
     return frame;
 }
 
@@ -700,7 +708,7 @@ FOXLANG_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug
 FOXLANG_COLD Value sizedArray(const Value& size, const std::string& name) {
     long long count = intArg(size, "size of array", name);
     if (count < 0) throw std::runtime_error("Runtime Error: Array size cannot be negative");
-    return runtime::makeArray(std::vector<Value>(static_cast<size_t>(count), Value::integer(0)));
+    return runtime::makeArray(ValueList(static_cast<size_t>(count), Value::integer(0)));
 }
 
 // The slow paths of instructions, apart from the loop: each would otherwise keep its
@@ -714,7 +722,7 @@ FOXLANG_APART bool compareSlow(runtime::Operator op, const std::string& text, co
 }
 
 FOXLANG_APART void newArray(Value& out, Value* items, int count) {
-    std::vector<Value> values;
+    ValueList values;
     values.reserve(static_cast<size_t>(count));
     for (int i = 0; i < count; ++i) values.push_back(std::move(items[i]));
     out = runtime::makeArray(std::move(values));
@@ -722,6 +730,8 @@ FOXLANG_APART void newArray(Value& out, Value* items, int count) {
 
 FOXLANG_APART void newMap(Value& out, Value* pairs, int count) {
     Value map = runtime::makeMap();
+    map.ref()->keys.reserve(static_cast<size_t>(count));
+    map.ref()->items.reserve(static_cast<size_t>(count));
     for (int i = 0; i < count; ++i) map.ref()->slot(pairs[2 * i].str()) = std::move(pairs[2 * i + 1]);
     out = std::move(map);
 }
@@ -970,6 +980,9 @@ Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugF
         &&L_ModInt,
         &&L_CompareInt,
         &&L_CallDirect,
+        &&L_AddIntK,
+        &&L_SubIntK,
+        &&L_CompareIntK,
     };
 #endif
 
@@ -1406,6 +1419,32 @@ Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugF
                         }
                         NEXT;
                     }
+                    OP(AddIntK): {
+                        long long result = R[in->b].asInt() + in->c;
+                        if (!fitsInt(result)) binarySlow(runtime::Operator::Add, P->texts[in->y], R[in->a], R[in->b], Value::integer(in->c));
+                        else R[in->a].setInt(result);
+                        NEXT;
+                    }
+                    OP(SubIntK): {
+                        long long result = R[in->b].asInt() - in->c;
+                        if (!fitsInt(result)) binarySlow(runtime::Operator::Sub, P->texts[in->y], R[in->a], R[in->b], Value::integer(in->c));
+                        else R[in->a].setInt(result);
+                        NEXT;
+                    }
+                    OP(CompareIntK): {
+                        long long a = R[in->a].asInt(), b = in->b;
+                        bool result;
+                        switch (static_cast<runtime::Operator>(in->x)) {
+                            case runtime::Operator::Lt: result = a < b; break;
+                            case runtime::Operator::Le: result = a <= b; break;
+                            case runtime::Operator::Gt: result = a > b; break;
+                            case runtime::Operator::Ge: result = a >= b; break;
+                            case runtime::Operator::Eq: result = a == b; break;
+                            default: result = a != b; break;
+                        }
+                        if (result == ((in->y & 1) != 0)) ip = code + in->c;
+                        NEXT;
+                    }
                     OP(CompareInt): {
                         long long a = R[in->a].asInt(), b = R[in->b].asInt();
                         bool result;
@@ -1555,7 +1594,7 @@ void execute(BlockNode& statements, Context& scope, const std::string& outside) 
 namespace foxlang::runtime {
 
 Value callValue(const Value& function, Arguments args, Context& ctx) {
-    std::vector<Value> values(args.begin(), args.end());
+    ValueList values(args.begin(), args.end());
     return vm::callFunctionValue(function, values.data(), values.size(), *ctx.getRoot(), "function");
 }
 

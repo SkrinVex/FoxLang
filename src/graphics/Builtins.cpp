@@ -83,7 +83,7 @@ uint32_t pixel(const Call& c) {
 }
 
 // The numbers of a batch, checked to come in whole groups.
-const std::vector<Value>& groups(Call& c, size_t i, size_t size, const char* what) {
+const ValueList& groups(Call& c, size_t i, size_t size, const char* what) {
     const auto& items = c.array(i);
     if (items.size() % size != 0)
         fail(std::string(what) + " must hold groups of " + std::to_string(size) + " numbers, got " + std::to_string(items.size()));

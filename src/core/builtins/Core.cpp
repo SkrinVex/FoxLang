@@ -262,14 +262,14 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
          "Ключи словаря в порядке добавления.\n\n```foxlang\nmap ages = {\"Ann\": 30, \"Bob\": 25};\n"
          "array names = keys(ages); // [Ann, Bob]\n```"},
         [](Call& c) {
-            std::vector<Value> out;
+            ValueList out;
             for (const auto& key : mapOf(c, 0).keys) out.push_back(text(key));
             return makeArray(std::move(out));
         });
     add({"values", "array", {{"map", "items"}}, 1, false, "",
          "Значения словаря в порядке добавления ключей."},
         [](Call& c) {
-            std::vector<Value> out;
+            ValueList out;
             for (const auto& item : mapOf(c, 0).items) out.push_back(item);
             return makeArray(std::move(out));
         });
