@@ -91,13 +91,32 @@ if(EMSCRIPTEN)
     # WebAssembly for the playground page (site/playground): the page loads
     # foxlang.js/foxlang.wasm into a web worker. Nothing else is built.
     target_compile_options(foxlang_core PUBLIC -fwasm-exceptions)
-    add_executable(foxlang_web src/web/Playground.cpp)
-    target_link_libraries(foxlang_web PRIVATE foxlang_core)
-    set_target_properties(foxlang_web PROPERTIES OUTPUT_NAME foxlang SUFFIX .js)
-    target_link_options(foxlang_web PRIVATE -fwasm-exceptions
+    set(foxlang_web_options -fwasm-exceptions
         -sMODULARIZE=1 -sEXPORT_NAME=createFoxLang -sENVIRONMENT=worker,node
         -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=512MB -sSTACK_SIZE=4MB
         -sEXPORTED_RUNTIME_METHODS=ccall,FS -sEXIT_RUNTIME=0 -sINVOKE_RUN=0)
+    add_executable(foxlang_web src/web/Playground.cpp)
+    target_link_libraries(foxlang_web PRIVATE foxlang_core)
+    set_target_properties(foxlang_web PROPERTIES OUTPUT_NAME foxlang SUFFIX .js)
+    target_link_options(foxlang_web PRIVATE ${foxlang_web_options})
+    # Programs with a window: every window_poll() and wait() hands the time back to
+    # the browser, which delivers the keys and the mouse. Asyncify makes that
+    # possible and costs speed and size, so only such programs load this build.
+    # Asyncify cannot unwind through WebAssembly exceptions, so this build's core
+    # uses Emscripten's JavaScript ones.
+    add_library(foxlang_core_graphics STATIC ${foxlang_core_sources})
+    target_include_directories(foxlang_core_graphics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+                               PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+    target_compile_definitions(foxlang_core_graphics PRIVATE FOXLANG_VERSION="${PROJECT_VERSION}")
+    target_compile_options(foxlang_core_graphics PUBLIC -fexceptions)
+    add_executable(foxlang_web_graphics src/web/Playground.cpp)
+    target_link_libraries(foxlang_web_graphics PRIVATE foxlang_core_graphics)
+    set_target_properties(foxlang_web_graphics PROPERTIES OUTPUT_NAME foxlang-graphics SUFFIX .js)
+    target_link_options(foxlang_web_graphics PRIVATE -fexceptions
+        -sMODULARIZE=1 -sEXPORT_NAME=createFoxLang -sENVIRONMENT=worker,node
+        -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=512MB -sSTACK_SIZE=4MB
+        -sEXPORTED_RUNTIME_METHODS=ccall,FS -sEXIT_RUNTIME=0 -sINVOKE_RUN=0
+        -sASYNCIFY=1 "-sASYNCIFY_IMPORTS=['fox_canvas_poll','fox_pause']" -sASYNCIFY_STACK_SIZE=1048576)
     return()
 endif()
 include(cmake/Networking.cmake)

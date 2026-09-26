@@ -68,10 +68,48 @@ function expect(condition, message, result) {
   expect(deep.code === 1 && deep.err.includes("call depth limit"), "endless recursion stops before the browser's stack does", deep);
 
   const window = await run('using graphics;\nopen_window(200, 200, "x");');
-  expect(window.code === 1 && window.err.includes("browser playground"), "graphics explain themselves", window);
+  expect(window.code === 1 && window.err.includes("windows are not available here"), "graphics explain themselves", window);
 
   const problems = JSON.parse(broken.module.ccall("foxlang_check", "string", ["string"], ["main.fox"]));
   expect(problems.length === 1 && problems[0].line === 2 && problems[0].severity === "error", "the checker reports problems");
+
+  // The build for programs with a window: frames reach the page's canvas, keys reach
+  // the program while it polls, and errors are still caught.
+  const createGraphics = require(path.join(directory, "foxlang-graphics.js"));
+  let frames = 0, polls = 0, opened = "", printed = "";
+  const graphics = await createGraphics({
+    print: (text) => { printed += text + "\n"; },
+    printErr: (text) => { printed += text + "\n"; },
+    echoInput: () => {},
+    canvasOpen: (width, height, title) => { opened = width + "x" + height + " " + title; },
+    canvasPresent: (pixels) => { frames++; if (frames === 2) printed += "pixel " + Array.from(pixels.slice(0, 4)) + "\n"; },
+    canvasPoll: async () => {
+      polls++;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (polls === 3) graphics._foxlang_key(39, 1);
+      if (polls === 5) graphics._foxlang_key(39, 0);
+    },
+  });
+  graphics.FS.mkdirTree("/project");
+  graphics.FS.chdir("/project");
+  graphics.FS.writeFile("main.fox", `using graphics;
+open_window(160, 100, "Тест");
+int x = 0;
+int n = 0;
+while (window_poll() && n < 8) {
+    if (key_down("RIGHT")) { x++; }
+    clear_window(rgb(255, 128, 0));
+    present_window();
+    n++;
+}
+try { throw "ой"; } catch (string e) { print("caught " + e); }
+wait(5);
+print("x=" + x);
+`);
+  const windowCode = await graphics.ccall("foxlang_run", "number", ["string", "string"], ["main.fox", ""], { async: true });
+  expect(windowCode === 0 && opened === "160x100 Тест", "a window opens on the page's canvas", { code: windowCode, out: printed, err: "" });
+  expect(printed.includes("pixel 255,128,0,255"), "frames arrive as RGBA", { code: windowCode, out: printed, err: "" });
+  expect(printed.includes("x=2") && printed.includes("caught ой"), "keys arrive while the program polls", { code: windowCode, out: printed, err: "" });
 
   console.log("PLAYGROUND_OK");
 })();

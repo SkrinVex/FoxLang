@@ -14,8 +14,22 @@
     #include <pthread.h>
 #endif
 #ifdef __EMSCRIPTEN__
+    #include <emscripten/emscripten.h>
     #include <emscripten/stack.h>
 #endif
+#include <chrono>
+#include <thread>
+#ifdef __EMSCRIPTEN__
+// A worker that waits hands the time back to the browser when the build can
+// (Asyncify, the playground's graphics build), and otherwise just waits.
+EM_JS(void, fox_pause, (double milliseconds), {
+    if (typeof Asyncify !== "undefined" && Module.canvasOpen)
+        return Asyncify.handleAsync(() => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+    const end = performance.now() + milliseconds;
+    while (performance.now() < end) {}
+});
+#endif
+
 
 namespace foxlang {
 namespace platform {
@@ -41,6 +55,15 @@ std::string pathToUtf8(const std::filesystem::path& path) {
 // Windows reserves 1 MB per thread by default where Linux gives 8, and one FoxLang
 // call costs a different number of kilobytes per compiler. Three fifths leaves room
 // for the unwinding and for the error report itself.
+
+void pause(long long milliseconds) {
+#ifdef __EMSCRIPTEN__
+    fox_pause(static_cast<double>(milliseconds));
+#else
+    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+#endif
+}
+
 size_t stackBudget() {
     // Asking is slow on Linux (it reads /proc/self/maps), and the answer never changes
     // for a thread, while every call made from the top level asks again.
