@@ -64,24 +64,59 @@ loading.then((module) => {
   postMessage({ type: "failed", message: String(error && error.message || error) });
 });
 
+// The program's files, in one directory that is also the working directory: error
+// messages then name "main.fox", and `using name;` finds "name.fox" next to it.
+const ROOT = "/project";
+function writeFiles(module, files) {
+  const FS = module.FS;
+  const remove = (path) => {
+    for (const name of FS.readdir(path)) {
+      if (name === "." || name === "..") continue;
+      const full = path + "/" + name;
+      if (FS.isDir(FS.stat(full).mode)) {
+        remove(full);
+        FS.rmdir(full);
+      } else {
+        FS.unlink(full);
+      }
+    }
+  };
+  FS.mkdirTree(ROOT);
+  remove(ROOT);
+  for (const file of files) {
+    const at = file.name.lastIndexOf("/");
+    if (at > 0) FS.mkdirTree(ROOT + "/" + file.name.slice(0, at));
+    FS.writeFile(ROOT + "/" + file.name, file.text);
+  }
+  FS.chdir(ROOT);
+}
+
 onmessage = async (event) => {
   const module = await loading;
   if (event.data.type === "check") {
-    // The editor's problems; checking reads the program, it never runs it.
-    let found = [];
+    // The editor's problems, file by file; checking reads the program, never runs it.
+    const problems = {};
     try {
-      found = JSON.parse(module.ccall("foxlang_check", "string", ["string"], [event.data.source]));
+      writeFiles(module, event.data.files);
+      for (const file of event.data.files) {
+        try {
+          problems[file.name] = JSON.parse(module.ccall("foxlang_check", "string", ["string"], [file.name]));
+        } catch (error) {
+          // A file the checker cannot read still gets run; its errors show then.
+        }
+      }
     } catch (error) {
-      // A program the checker cannot read still gets run; its errors show then.
+      // As above: the run reports what the check could not.
     }
-    postMessage({ type: "problems", id: event.data.id, problems: found });
+    postMessage({ type: "problems", id: event.data.id, problems });
     return;
   }
   if (event.data.type !== "run") return;
   const started = performance.now();
   let code = 1;
   try {
-    code = module.ccall("foxlang_run", "number", ["string", "string"], [event.data.source, event.data.input || ""]);
+    writeFiles(module, event.data.files);
+    code = module.ccall("foxlang_run", "number", ["string", "string"], [event.data.entry, event.data.input || ""]);
   } catch (error) {
     // The browser's own limits: its call stack, or the memory a page may take.
     const text = String(error && error.message || error);

@@ -4,7 +4,7 @@ prices["вишня"] = 120;
 
 int total = 0;
 for (string fruit in prices) {
-    print("${fruit} — ${prices[fruit]} ₽");
+    print("${fruit}: ${prices[fruit]} ₽");
     total += prices[fruit];
 }
 print("Всё вместе: ${total} ₽");

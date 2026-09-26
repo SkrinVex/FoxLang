@@ -1,0 +1,10 @@
+// Модуль: main.fox подключает его строкой `using shapes;`.
+struct Shape {
+    string name;
+    int width;
+    int height;
+}
+
+int area(Shape shape) {
+    return shape.width * shape.height;
+}

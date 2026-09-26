@@ -4,9 +4,12 @@
 #include "foxlang/FoxLang.h"
 #include "foxlang/Lexer.h"
 #include "foxlang/Parser.h"
+#include "foxlang/Project.h"
 #include "foxlang/SemanticAnalyzer.h"
+#include "foxlang/SourceProvider.h"
 #include <emscripten/emscripten.h>
 #include <fstream>
+#include <iterator>
 #include <iostream>
 #include <streambuf>
 #include <string>
@@ -19,12 +22,6 @@ EM_JS(void, foxlang_echo_input, (const char* text, int size), {
 });
 
 namespace {
-const char* const programPath = "/main.fox";
-
-void save(const char* source) {
-    std::ofstream(programPath, std::ios::binary | std::ios::trunc) << source;
-}
-
 // Standard input: the text of the page's input box, handed out a line at a time so
 // that each line shows in the output at the moment the program reads it.
 class PageInput : public std::streambuf {
@@ -66,34 +63,47 @@ EMSCRIPTEN_KEEPALIVE const char* foxlang_version() {
     return version.c_str();
 }
 
-// Runs the program with the text of the input box as its standard input; returns
-// its exit code (1 after an error, which goes to stderr).
-EMSCRIPTEN_KEEPALIVE int foxlang_run(const char* source, const char* input) {
-    save(source);
+// The page writes the program's files into one directory of the in-memory file
+// system; `using name;` and include() find each other there.
+
+// Runs the file with the text of the input box as its standard input; returns its
+// exit code (1 after an error, which goes to stderr).
+EMSCRIPTEN_KEEPALIVE int foxlang_run(const char* path, const char* input) {
     PageInput page(input);
     std::cin.rdbuf(&page);
     foxlang::InterpreterOptions options;
     options.loadDotEnv = false;
     foxlang::Interpreter interpreter(options);
-    auto result = interpreter.runFile(programPath);
+    auto result = interpreter.runFile(path);
     std::cout << std::flush;
     std::cin.rdbuf(nullptr);
     if (!result.errorMessage.empty()) std::cerr << result.errorMessage << std::endl;
     return result.exitCode;
 }
 
-// The editor's problems: [{"line":1,"column":5,"severity":"error","message":"..."}].
-EMSCRIPTEN_KEEPALIVE const char* foxlang_check(const char* source) {
+// The problems of one file for the editor, with the files next to it known:
+// [{"line":1,"column":5,"endLine":1,"endColumn":8,"severity":"error","message":"..."}].
+EMSCRIPTEN_KEEPALIVE const char* foxlang_check(const char* path) {
     static std::string json;
-    std::string text = source;
+    std::string text;
+    {
+        std::ifstream file(path, std::ios::binary);
+        text.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+    }
     foxlang::Lexer lexer(text, true);
     auto tokens = lexer.tokenize();
     std::vector<foxlang::Diagnostic> diagnostics = lexer.getDiagnostics();
-    foxlang::Parser parser(std::move(tokens), programPath);
+    foxlang::Parser parser(std::move(tokens), path);
     std::vector<foxlang::Diagnostic> parsed;
     auto program = parser.parseProgramWithDiagnostics(parsed);
     diagnostics.insert(diagnostics.end(), parsed.begin(), parsed.end());
-    foxlang::SemanticAnalyzer analyzer(programPath);
+    auto sources = std::make_shared<foxlang::OverlaySources>(foxlang::filesystemSources(""));
+    foxlang::ProjectIndex project(sources);
+    // Every file of the program sees the others: the project is the working directory.
+    std::string canonical = foxlang::canonicalPath(path);
+    project.setRoot(foxlang::canonicalPath("."));
+    foxlang::SemanticAnalyzer analyzer(canonical, "", sources);
+    analyzer.addProjectFiles(project.peers(canonical));
     analyzer.analyze(program.get());
     const auto& semantic = analyzer.getDiagnostics();
     diagnostics.insert(diagnostics.end(), semantic.begin(), semantic.end());
