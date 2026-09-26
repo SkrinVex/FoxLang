@@ -157,6 +157,12 @@ void addTextBuiltins(std::vector<Builtin>& out) {
          "Число символов строки. `size(text)` для строки считает байты UTF-8.\n\n"
          "```foxlang\nint n = str_length(\"Лисий\"); // 5, а size() даст 10\n```"},
         [](Call& c) { return integer(static_cast<long long>(characterCount(c.text(0)))); });
+    out.back().fast = [](Value* const* args, size_t count, Value& result) {
+        if (count != 1 || !args[0]->isString()) return false;
+        long long characters = static_cast<long long>(characterCount(args[0]->str()));
+        result = Value::integer(characters);
+        return true;
+    };
     add({"str_contains", "bool", {{"string", "text"}, {"string", "needle"}}, 2, false, "string",
          "Содержит ли `text` подстроку `needle`."},
         [](Call& c) { return boolean(c.text(0).find(c.text(1)) != std::string::npos); });

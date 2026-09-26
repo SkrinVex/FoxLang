@@ -106,6 +106,9 @@ Cells<StringData>& stringCells() {
 
 } // namespace
 
+void Value::freeString(StringData* string) noexcept { delete string; }
+void Value::freeObject(Object* object) noexcept { delete object; }
+
 void* Object::operator new(std::size_t size) {
     return size == sizeof(Object) ? objectCells().take() : ::operator new(size);
 }

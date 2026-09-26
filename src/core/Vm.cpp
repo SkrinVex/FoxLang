@@ -7,6 +7,7 @@
 #include "foxlang/Debug.h"
 #include "foxlang/Platform.h"
 #include "Operations.h"
+#include "builtins/Builtin.h"
 #include <algorithm>
 #include <memory>
 #include <stdexcept>
@@ -38,35 +39,61 @@ struct RegisterStack {
 
 thread_local RegisterStack registers;
 
-// The registers of one frame, all empty when it begins and emptied again when it ends.
-class Window {
-public:
-    explicit Window(size_t size) : size_(size), top_(registers.top), limit_(registers.limit), chunk_(registers.chunk) {
-        RegisterStack& stack = registers;
-        if (!stack.top || stack.top + size > stack.limit) nextChunk(size);
-        base_ = stack.top;
-        stack.top += size;
-    }
-    ~Window() {
-        for (size_t i = 0; i < size_; ++i) base_[i] = Value();
-        registers.top = top_;
-        registers.limit = limit_;
-        registers.chunk = chunk_;
-    }
-    Window(const Window&) = delete;
-    Window& operator=(const Window&) = delete;
-    Value* base() const { return base_; }
-
-private:
-    static void nextChunk(size_t size);
-    size_t size_;
-    Value* base_ = nullptr;
-    Value* top_;
-    Value* limit_;
-    size_t chunk_;
+// The registers of one frame, all empty when it begins and emptied again when it ends,
+// and where the stack stood before them. Frames open and close in stack order.
+struct Registers {
+    Value* base = nullptr;
+    size_t size = 0;
+    Value* top;
+    Value* limit;
+    size_t chunk;
 };
 
-void Window::nextChunk(size_t size) {
+void nextChunk(size_t size);
+
+inline Registers openRegisters(size_t size) {
+    RegisterStack& stack = registers;
+    Registers frame{nullptr, size, stack.top, stack.limit, stack.chunk};
+    if (!stack.top || stack.top + size > stack.limit) nextChunk(size);
+    frame.base = stack.top;
+    stack.top += size;
+    return frame;
+}
+
+inline void popRegisters(const Registers& frame) {
+    RegisterStack& stack = registers;
+    stack.top = frame.top;
+    stack.limit = frame.limit;
+    stack.chunk = frame.chunk;
+}
+
+inline void closeRegisters(const Registers& frame) {
+    for (size_t i = 0; i < frame.size; ++i) frame.base[i].reset();
+    popRegisters(frame);
+}
+
+// The end of a frame execute() ran itself: what the registers hold is let go of, but
+// numbers stay behind. Every frame writes a register before reading it; only code that
+// shows registers as they are (the debugger, the program's top level) clears them first.
+inline void leaveRegisters(const Registers& frame) {
+    for (Value* at = frame.base, *end = frame.base + frame.size; at != end; ++at)
+        if (at->kind() >= Value::Kind::String) at->reset();
+    popRegisters(frame);
+}
+
+class Window {
+public:
+    explicit Window(size_t size) : frame_(openRegisters(size)) {}
+    ~Window() { closeRegisters(frame_); }
+    Window(const Window&) = delete;
+    Window& operator=(const Window&) = delete;
+    Value* base() const { return frame_.base; }
+
+private:
+    Registers frame_;
+};
+
+void nextChunk(size_t size) {
     // Bounded, so the allocation below cannot be asked for the whole address space.
     if (size > (size_t{1} << 28)) throw std::length_error("register window too large");
     RegisterStack& stack = registers;
@@ -275,6 +302,8 @@ inline const Proto& protoOf(const FuncDefNode& function, bool debug) {
 // A call under a debugger, kept apart so that an ordinary call's native frame stays
 // small: the depth of recursion a program gets depends on it.
 FOXLANG_COLD Value executeDebugged(Proto& proto, Value* R, Context& root, DebugHook* hook, Object* closure = nullptr) {
+    // The debugger shows registers as they are: none may hold what an earlier frame left.
+    for (int i = static_cast<int>(proto.params.size()); i < proto.registers; ++i) R[i].reset();
     // Lexical scope: a function sees globals, never the caller's locals.
     Context scope;
     scope.parent = &root;
@@ -315,6 +344,113 @@ FOXLANG_COLD void convert(const Conversion& conversion, Value& value) {
 
 FOXLANG_APART void refresh(CallSite& site, Context& root);
 
+// Calls the VM runs in one loop use heap memory, not the native stack: this bounds
+// the recursion of a program that never stops.
+constexpr int maxVmDepth = 100000;
+
+// A caller that execute() left for a function it runs itself, and what to go back to.
+struct Caller {
+    Proto* proto;
+    const Instr* ip; // where the caller goes on
+    Value* R;
+    Object* closure;
+    Context* scope;
+    std::exception_ptr* pending; // the caller's (owned by the caller while it waits)
+    int result;      // the caller's register that takes the result
+    Registers callee;
+};
+
+// The two builtins loops call most, known by address so that CallDirect runs their
+// usual case in place (the way CPython specializes list.append).
+const runtime::Builtin* const builtinPush = runtime::findBuiltin("push");
+const runtime::Builtin* const builtinSize = runtime::findBuiltin("size");
+
+// The builtin fast path of a CallDirect: its arguments stay in their registers.
+FOXLANG_APART bool fastDirect(const runtime::Builtin& builtin, Value* R, const std::int32_t* registersOfArgs, size_t count,
+                              Value& result) {
+    Value* argv[4];
+    for (size_t i = 0; i < count; ++i) argv[i] = &R[registersOfArgs[i]];
+    return builtin.fast(argv, count, result);
+}
+
+// A CallDirect to a function that only passes its parameters on to a builtin (see
+// Proto::forward) straight to the builtin's fast path: false when that does not apply.
+FOXLANG_APART bool forwardDirect(Proto& callee, Value* R, const std::int32_t* registersOfArgs, size_t count, Value& result,
+                                 Context& root) {
+    if (count != callee.params.size() || count > 4) return false;
+    CallSite& site = callee.calls[static_cast<size_t>(callee.forward)];
+    if (!site.resolved || site.root != &root || site.generation != root.functionGeneration) refresh(site, root);
+    if (!site.builtin || site.function || !site.builtin->fast) return false;
+    Value* argv[4];
+    for (size_t i = 0; i < count; ++i) {
+        argv[i] = &R[registersOfArgs[i]];
+        const Conversion& param = callee.params[i];
+        if (!param.type.empty() && !runtime::storesAsIs(param.kind, *argv[i])) return false;
+    }
+    if (!site.builtin->fast(argv, count, result)) return false;
+    // The forwarder's own result conversion, as callFunction does it.
+    if (callee.result.kind == Value::Kind::Void) result.reset();
+    else if (result.isVoid()) {
+        if (!isNullable(callee.result.type)) noResult(callee);
+    } else if (!runtime::storesAsIs(callee.result.kind, result)) {
+        convert(callee.result, result);
+    }
+    return true;
+}
+
+// Opens the frame of a FoxLang function that execute() runs itself: the arguments are
+// checked and converted in the caller, then moved into the new registers.
+// A CallDirect's arguments are the caller's registers listed in `direct` (copied: they
+// may be variables); a Call's sit in a row from R[in.a] (moved: they are temporaries).
+FOXLANG_APART Value* enterCall(std::vector<Caller>& calls, Proto& callee, const Instr& in, Proto* proto, const Instr* ip,
+                               Value* R, Object* closure, Context* scope, std::unique_ptr<std::exception_ptr[]>& pending,
+                               const std::int32_t* direct = nullptr) {
+    size_t count = static_cast<size_t>(in.c);
+    if (count != callee.params.size()) wrongCount(callee, count);
+    Value* args = R + in.a;
+    // Arguments that need converting are converted in the caller's row first: an error
+    // then leaves nothing half done.
+    unsigned converted = 0;
+    for (size_t i = 0; i < count; ++i) {
+        const Conversion& param = callee.params[i];
+        Value& arg = direct ? R[direct[i]] : args[i];
+        if (param.type.empty() || runtime::storesAsIs(param.kind, arg)) continue;
+        if (direct) args[i] = arg;
+        convert(param, args[i]);
+        if (i < 32) converted |= 1u << i;
+    }
+    runtime::StackGuard& guard = runtime::stackGuard();
+    if (++guard.vmDepth > maxVmDepth) {
+        --guard.vmDepth;
+        CallDepth::exceeded(callee.name, guard.vmDepth + guard.depth);
+    }
+    if (calls.capacity() == calls.size()) calls.reserve(calls.empty() ? 64 : calls.size() * 2);
+    Registers registersOfCallee = openRegisters(static_cast<size_t>(callee.registers)); // may throw: before anything moves
+    calls.push_back(Caller{proto, ip, R, closure, scope, pending.release(), in.a, registersOfCallee});
+    Value* frame = calls.back().callee.base;
+    if (!direct) {
+        for (size_t i = 0; i < count; ++i) frame[i] = std::move(args[i]);
+    } else {
+        for (size_t i = 0; i < count; ++i) {
+            if (i < 32 && (converted >> i) & 1u) frame[i] = std::move(args[i]);
+            else if (i >= 32 && !callee.params[i].type.empty() && !runtime::storesAsIs(callee.params[i].kind, R[direct[i]]))
+                frame[i] = std::move(args[i]);
+            else frame[i] = R[direct[i]];
+        }
+    }
+    if (callee.pendingErrors > 0) pending.reset(new std::exception_ptr[static_cast<size_t>(callee.pendingErrors)]);
+    for (const auto& constant : callee.preload) frame[constant.first] = callee.constants[static_cast<size_t>(constant.second)];
+    return frame;
+}
+
+// A builtin's fast path (see FastPath) for arguments that sit in a row.
+inline bool fastCall(const runtime::Builtin& builtin, Value* args, size_t count, Value& result) {
+    if (!builtin.fast || count > 4) return false;
+    Value* argv[4];
+    for (size_t i = 0; i < count; ++i) argv[i] = args + i;
+    return builtin.fast(argv, count, result);
+}
+
 // Arguments that need no conversion go straight on to the builtin a forwarding body
 // calls: no frame, and an error names the line of the call made to the forwarder.
 FOXLANG_APART const runtime::Builtin* forwardsTo(Proto& proto, const Value* args, size_t count, Context& root) {
@@ -333,6 +469,7 @@ FOXLANG_APART const runtime::Builtin* forwardsTo(Proto& proto, const Value* args
 FOXLANG_APART bool forwardTo(Proto& proto, Value* args, size_t count, Context& root, Value& result) {
     const runtime::Builtin* builtin = forwardsTo(proto, args, count, root);
     if (!builtin) return false;
+    if (fastCall(*builtin, args, count, result)) return true;
     result = runtime::invoke(*builtin, Arguments(args, count), root);
     return true;
 }
@@ -503,6 +640,7 @@ inline void call(Proto& proto, const Instr& in, Value* R, Context& root) {
     CallSite& site = proto.calls[static_cast<size_t>(in.b)];
     if (!site.resolved || site.root != &root || site.generation != root.functionGeneration) refresh(site, root);
     Value* args = R + in.a;
+    if (site.builtin && !site.function && fastCall(*site.builtin, args, static_cast<size_t>(in.c), args[0])) return;
     if (site.builtin || !site.function) callOther(site, args, static_cast<size_t>(in.c), root);
     else args[0] = callFunction(*site.function, args, static_cast<size_t>(in.c), root);
 }
@@ -739,13 +877,21 @@ FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key))
 #define NEXT break
 #endif
 
-Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame* debug, Object* closure) {
-    for (const auto& constant : proto.preload) R[constant.first] = proto.constants[static_cast<size_t>(constant.second)];
-    const Instr* code = proto.code.data();
+Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugFrame* debug, Object* closure) {
+    // The function running now. A call to a FoxLang function continues in this loop
+    // with the callee's code and registers (see OP(Call)); `calls` keeps what to go back to.
+    Proto* P = &entry;
+    Context* S = &entryScope;
+    for (const auto& constant : P->preload) R[constant.first] = P->constants[static_cast<size_t>(constant.second)];
+    const Instr* code = P->code.data();
     const Instr* ip = code;
-    const Value* K = proto.constants.data();
+    const Value* K = P->constants.data();
     std::unique_ptr<std::exception_ptr[]> pending;
-    if (proto.pendingErrors > 0) pending.reset(new std::exception_ptr[static_cast<size_t>(proto.pendingErrors)]);
+    if (P->pendingErrors > 0) pending.reset(new std::exception_ptr[static_cast<size_t>(P->pendingErrors)]);
+    std::vector<Caller> calls;
+    Value returned;
+    // Calls run in this loop only without a debugger, which follows native frames.
+    bool inlineCalls = !debug && !runtime::debugHook();
     runtime::StackGuard& guard = runtime::stackGuard();
     std::exception_ptr escaping;
     const Instr* in = nullptr;
@@ -823,6 +969,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
         &&L_DivInt,
         &&L_ModInt,
         &&L_CompareInt,
+        &&L_CallDirect,
     };
 #endif
 
@@ -843,24 +990,24 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         if (debug) markDeclared(*debug, in->a, in->b, false);
                         NEXT;
                     OP(GetGlobal):
-                        R[in->a] = *readGlobal(proto.globals[static_cast<size_t>(in->b)], root, scope);
+                        R[in->a] = *readGlobal(P->globals[static_cast<size_t>(in->b)], root, *S);
                         NEXT;
                     OP(SetGlobal): {
-                        GlobalSite& site = proto.globals[static_cast<size_t>(in->b)];
-                        Value& target = *global(site, root, scope);
+                        GlobalSite& site = P->globals[static_cast<size_t>(in->b)];
+                        Value& target = *global(site, root, *S);
                         if (site.constant) constantChanged(site.name);
                         Value& value = R[in->a];
                         if (target.kind() == value.kind() && !target.is(Value::Kind::Struct) &&
                             (!value.isInt() || fitsInt(value.asInt())))
                             target = std::move(value);
-                        else setGlobal(site, root, scope, value);
+                        else setGlobal(site, root, *S, value);
                         NEXT;
                     }
                     OP(DefineGlobal):
-                        defineGlobal(proto.globals[static_cast<size_t>(in->b)], root, scope, in->a < 0 ? nullptr : &R[in->a]);
+                        defineGlobal(P->globals[static_cast<size_t>(in->b)], root, *S, in->a < 0 ? nullptr : &R[in->a]);
                         NEXT;
                     OP(Coerce): {
-                        const Conversion& conversion = proto.conversions[static_cast<size_t>(in->b)];
+                        const Conversion& conversion = P->conversions[static_cast<size_t>(in->b)];
                         if (!runtime::storesAsIs(conversion.kind, R[in->a])) runtime::coerce(conversion.type, R[in->a], conversion.what);
                         NEXT;
                     }
@@ -893,7 +1040,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                                 NEXT;
                             }
                         }
-                        binarySlow(runtime::Operator::Add, proto.texts[in->y], R[in->a], l, r);
+                        binarySlow(runtime::Operator::Add, P->texts[in->y], R[in->a], l, r);
                         NEXT;
                     }
                     OP(Sub): {
@@ -906,7 +1053,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                                 NEXT;
                             }
                         }
-                        binarySlow(runtime::Operator::Sub, proto.texts[in->y], R[in->a], l, r);
+                        binarySlow(runtime::Operator::Sub, P->texts[in->y], R[in->a], l, r);
                         NEXT;
                     }
                     OP(Mul): {
@@ -919,7 +1066,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                                 NEXT;
                             }
                         }
-                        binarySlow(runtime::Operator::Mul, proto.texts[in->y], R[in->a], l, r);
+                        binarySlow(runtime::Operator::Mul, P->texts[in->y], R[in->a], l, r);
                         NEXT;
                     }
                     OP(Div):
@@ -927,13 +1074,16 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         const Value& l = R[in->b];
                         const Value& r = R[in->c];
                         if (l.isInt() && r.isInt() && r.asInt() != 0 && fitsInt(l.asInt()) && fitsInt(r.asInt())) {
-                            long long result = in->op == Op::Div ? l.asInt() / r.asInt() : l.asInt() % r.asInt();
+                            // Both fit 32 bits (checked above): a 32-bit division is several times faster.
+                            auto a32 = static_cast<std::int32_t>(l.asInt()), b32 = static_cast<std::int32_t>(r.asInt());
+                            long long result = b32 == -1 ? (in->op == Op::Div ? -static_cast<long long>(a32) : 0)
+                                                         : (in->op == Op::Div ? a32 / b32 : a32 % b32);
                             if (fitsInt(result)) {
                                 R[in->a].setInt(result);
                                 NEXT;
                             }
                         }
-                        binarySlow(in->op == Op::Div ? runtime::Operator::Div : runtime::Operator::Mod, proto.texts[in->y],
+                        binarySlow(in->op == Op::Div ? runtime::Operator::Div : runtime::Operator::Mod, P->texts[in->y],
                                    R[in->a], l, r);
                         NEXT;
                     }
@@ -950,7 +1100,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                             R[in->a].setBool(result);
                             NEXT;
                         }
-                        binarySlow(op, proto.texts[in->y], R[in->a], l, r);
+                        binarySlow(op, P->texts[in->y], R[in->a], l, r);
                         NEXT;
                     }
                     OP(Negate):
@@ -958,7 +1108,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         unary(in->op, R[in->a], R[in->b]);
                         NEXT;
                     OP(Truth):
-                        runtime::operandTruth(R[in->a], in->x ? "right" : "left", proto.texts[in->y]);
+                        runtime::operandTruth(R[in->a], in->x ? "right" : "left", P->texts[in->y]);
                         NEXT;
 
                     OP(Jump):
@@ -992,7 +1142,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                                 default: result = a != b; break;
                             }
                         } else {
-                            result = compareSlow(op, proto.texts[in->y >> 1], l, r);
+                            result = compareSlow(op, P->texts[in->y >> 1], l, r);
                         }
                         if (result == ((in->y & 1) != 0)) ip = code + in->c;
                         NEXT;
@@ -1001,13 +1151,81 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                     OP(ForIn):
                         if (!forIn(R, *in)) ip = code + in->c;
                         NEXT;
+                    OP(CallDirect): {
+                        CallSite& site = P->calls[static_cast<size_t>(in->b)];
+                        if (!site.resolved || site.root != &root || site.generation != root.functionGeneration) refresh(site, root);
+                        const std::int32_t* registersOfArgs = P->argRegisters.data() + in->y;
+                        size_t count = static_cast<size_t>(in->c);
+                        if (site.builtin && !site.function) {
+                            if (site.builtin == builtinPush && count == 2 && R[registersOfArgs[0]].is(Value::Kind::Array)) {
+                                Object& array = *R[registersOfArgs[0]].ref();
+                                if (!array.elementType && array.items.size() < (size_t{1} << 26)) {
+                                    array.items.push_back(R[registersOfArgs[1]]);
+                                    R[in->a].reset();
+                                    NEXT;
+                                }
+                            } else if (site.builtin == builtinSize && count == 1 && R[registersOfArgs[0]].is(Value::Kind::Array)) {
+                                R[in->a].setInt(static_cast<long long>(R[registersOfArgs[0]].ref()->items.size()));
+                                NEXT;
+                            }
+                            if (site.builtin->fast && fastDirect(*site.builtin, R, registersOfArgs, count, R[in->a])) NEXT;
+                        }
+                        if (!site.builtin && site.function && inlineCalls) {
+                            Proto& callee = const_cast<Proto&>(protoOf(*site.function, false));
+                            if (callee.forward >= 0 && forwardDirect(callee, R, registersOfArgs, count, R[in->a], root)) NEXT;
+                            if (callee.forward < 0) {
+                                R = enterCall(calls, callee, *in, P, ip, R, closure, S, pending, registersOfArgs);
+                                P = &callee;
+                                closure = nullptr;
+                                S = &root;
+                                code = P->code.data();
+                                K = P->constants.data();
+                                ip = code;
+                                NEXT;
+                            }
+                        }
+                        // Any other callee takes its arguments in a row, as Call has them.
+                        for (size_t i = 0; i < count; ++i) R[in->a + static_cast<int>(i)] = R[registersOfArgs[i]];
+                        goto ordinaryCall;
+                    }
                     OP(Call):
-                        call(proto, *in, R, root);
+                    ordinaryCall: {
+                        CallSite& site = P->calls[static_cast<size_t>(in->b)];
+                        if (!site.resolved || site.root != &root || site.generation != root.functionGeneration) refresh(site, root);
+                        if (site.builtin) {
+                            Value* args = R + in->a;
+                            size_t count = static_cast<size_t>(in->c);
+                            if (!site.function && fastCall(*site.builtin, args, count, args[0])) NEXT;
+                            callOther(site, args, count, root);
+                            NEXT;
+                        }
+                        if (!site.function || !inlineCalls) {
+                            call(*P, *in, R, root);
+                            NEXT;
+                        }
+                        Proto& callee = const_cast<Proto&>(protoOf(*site.function, false));
+                        if (callee.forward >= 0) {
+                            call(*P, *in, R, root);
+                            NEXT;
+                        }
+                        // A FoxLang function: its frame opens here, without a native call.
+                        R = enterCall(calls, callee, *in, P, ip, R, closure, S, pending);
+                        P = &callee;
+                        closure = nullptr;
+                        S = &root;
+                        code = P->code.data();
+                        K = P->constants.data();
+                        ip = code;
                         NEXT;
+                    }
                     OP(Return):
-                        return std::move(R[in->a]);
+                        if (calls.empty()) return std::move(R[in->a]);
+                        returned = std::move(R[in->a]);
+                        goto leave;
                     OP(ReturnVoid):
-                        return Value();
+                        if (calls.empty()) return Value();
+                        returned.reset();
+                        goto leave;
 
                     OP(NewArray):
                         newArray(R[in->a], R + in->b, in->c);
@@ -1037,7 +1255,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         NEXT;
                     }
                     OP(Field): {
-                        FieldSite& site = proto.fields[static_cast<size_t>(in->c)];
+                        FieldSite& site = P->fields[static_cast<size_t>(in->c)];
                         const Value& base = R[in->b];
                         if (base.is(Value::Kind::Struct) && base.ref()->structType.get() == site.type && in->a != in->b) {
                             R[in->a] = base.ref()->items[site.index];
@@ -1047,7 +1265,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         NEXT;
                     }
                     OP(SetPath):
-                        setPath(proto, proto.paths[static_cast<size_t>(in->b)], R, R[in->a], root, scope, closure);
+                        setPath(*P, P->paths[static_cast<size_t>(in->b)], R, R[in->a], root, *S, closure);
                         NEXT;
                     OP(Increment): {
                         Value& target = R[in->b];
@@ -1062,8 +1280,8 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         NEXT;
                     }
                     OP(IncrementGlobal): {
-                        GlobalSite& site = proto.globals[static_cast<size_t>(in->b)];
-                        Value& target = *global(site, root, scope);
+                        GlobalSite& site = P->globals[static_cast<size_t>(in->b)];
+                        Value& target = *global(site, root, *S);
                         if (site.constant) constantChanged(site.name);
                         int delta = in->c ? 1 : -1;
                         if (target.isInt() && fitsInt(target.asInt() + delta)) {
@@ -1111,7 +1329,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         NEXT;
                     }
                     OP(Closure):
-                        makeClosure(proto, in->b, R[in->a], R, closure);
+                        makeClosure(*P, in->b, R[in->a], R, closure);
                         NEXT;
                     OP(CallValue):
                         callValueInPlace(R, in->a, in->c, root, K[in->b].str());
@@ -1120,7 +1338,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         callMethod(R, in->a, in->c, root, K[in->b].str());
                         NEXT;
                     OP(Declare): {
-                        Declaration* declaration = proto.declarations[static_cast<size_t>(in->b)];
+                        Declaration* declaration = P->declarations[static_cast<size_t>(in->b)];
                         if (!in->c || !declaration->exists(root)) declaration->declare(root);
                         NEXT;
                     }
@@ -1140,8 +1358,8 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
 
                     OP(Statement):
                         guard.line = in->a;
-                        guard.file = proto.file;
-                        if (debug) debug->hook->statement(proto.file, in->a);
+                        guard.file = P->file;
+                        if (debug) debug->hook->statement(P->file, in->a);
                         NEXT;
                     OP(ScopeEnter):
                         if (debug) debug->enter(in->a != 0);
@@ -1150,7 +1368,7 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         if (debug) debug->leave();
                         NEXT;
                     OP(Declared):
-                        if (in->b) declareProgramGlobal(proto.globals[static_cast<size_t>(in->b - 1)], R[in->a], root);
+                        if (in->b) declareProgramGlobal(P->globals[static_cast<size_t>(in->b - 1)], R[in->a], root);
                         if (debug) markDeclared(*debug, in->a, in->a + 1, true);
                         NEXT;
 
@@ -1158,19 +1376,19 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                     // 64 bits; only the result can leave int's range.
                     OP(AddInt): {
                         long long result = R[in->b].asInt() + R[in->c].asInt();
-                        if (!fitsInt(result)) binarySlow(runtime::Operator::Add, proto.texts[in->y], R[in->a], R[in->b], R[in->c]);
+                        if (!fitsInt(result)) binarySlow(runtime::Operator::Add, P->texts[in->y], R[in->a], R[in->b], R[in->c]);
                         else R[in->a].setInt(result);
                         NEXT;
                     }
                     OP(SubInt): {
                         long long result = R[in->b].asInt() - R[in->c].asInt();
-                        if (!fitsInt(result)) binarySlow(runtime::Operator::Sub, proto.texts[in->y], R[in->a], R[in->b], R[in->c]);
+                        if (!fitsInt(result)) binarySlow(runtime::Operator::Sub, P->texts[in->y], R[in->a], R[in->b], R[in->c]);
                         else R[in->a].setInt(result);
                         NEXT;
                     }
                     OP(MulInt): {
                         long long result = R[in->b].asInt() * R[in->c].asInt();
-                        if (!fitsInt(result)) binarySlow(runtime::Operator::Mul, proto.texts[in->y], R[in->a], R[in->b], R[in->c]);
+                        if (!fitsInt(result)) binarySlow(runtime::Operator::Mul, P->texts[in->y], R[in->a], R[in->b], R[in->c]);
                         else R[in->a].setInt(result);
                         NEXT;
                     }
@@ -1179,10 +1397,12 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         long long l = R[in->b].asInt(), r = R[in->c].asInt();
                         // Division by zero and -2147483648 / -1 take the checked path.
                         if (r == 0 || (r == -1 && l == -2147483648LL)) {
-                            binarySlow(in->op == Op::DivInt ? runtime::Operator::Div : runtime::Operator::Mod, proto.texts[in->y],
+                            binarySlow(in->op == Op::DivInt ? runtime::Operator::Div : runtime::Operator::Mod, P->texts[in->y],
                                        R[in->a], R[in->b], R[in->c]);
                         } else {
-                            R[in->a].setInt(in->op == Op::DivInt ? l / r : l % r);
+                            // ints are 32-bit: a 32-bit division is several times faster.
+                            auto a32 = static_cast<std::int32_t>(l), b32 = static_cast<std::int32_t>(r);
+                            R[in->a].setInt(in->op == Op::DivInt ? a32 / b32 : a32 % b32);
                         }
                         NEXT;
                     }
@@ -1201,9 +1421,54 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
                         NEXT;
                     }
                 }
+                continue;
+            leave: {
+                // Back to the caller of a call this loop ran: the callee's registers go,
+                // and its result is converted as its declaration says, in the caller, so
+                // that an error there names the call's line.
+                Caller& caller = calls.back();
+                Proto& finished = *P;
+                leaveRegisters(caller.callee);
+                --guard.vmDepth;
+                P = caller.proto;
+                R = caller.R;
+                ip = caller.ip;
+                closure = caller.closure;
+                S = caller.scope;
+                pending.reset(caller.pending);
+                int into = caller.result;
+                calls.pop_back();
+                code = P->code.data();
+                K = P->constants.data();
+                if (finished.result.kind == Value::Kind::Void) {
+                    returned.reset();
+                } else if (returned.isVoid()) {
+                    if (!isNullable(finished.result.type)) noResult(finished);
+                } else if (!runtime::storesAsIs(finished.result.kind, returned)) {
+                    convert(finished.result, returned);
+                }
+                R[into] = std::move(returned);
+            }
             }
         } catch (...) {
-            int target = recover(proto, static_cast<int>(ip - code) - 1, R, debug, pending.get());
+            // The error leaves functions until one of them handles it; a call this loop
+            // runs is left here, the rest by raising it again to the native caller.
+            int target = recover(*P, static_cast<int>(ip - code) - 1, R, debug, pending.get());
+            while (target < 0 && !calls.empty()) {
+                Caller& caller = calls.back();
+                leaveRegisters(caller.callee);
+                --guard.vmDepth;
+                P = caller.proto;
+                R = caller.R;
+                ip = caller.ip;
+                closure = caller.closure;
+                S = caller.scope;
+                pending.reset(caller.pending);
+                calls.pop_back();
+                code = P->code.data();
+                K = P->constants.data();
+                target = recover(*P, static_cast<int>(ip - code) - 1, R, debug, pending.get());
+            }
             if (target >= 0) {
                 ip = code + target;
                 continue;
@@ -1225,6 +1490,8 @@ void run(BlockNode& program, Context& root, Unit unit) {
     DebugHook* hook = unit == Unit::Program ? runtime::debugHook() : nullptr;
     std::shared_ptr<Proto> proto = compileProgram(program, unit, hook != nullptr);
     Window window(static_cast<size_t>(proto->registers));
+    // The top level's registers become globals when it ends: none may hold an old value.
+    for (int i = 0; i < proto->registers; ++i) window.base()[i].reset();
     if (unit != Unit::Program) {
         execute(*proto, window.base(), root, root, nullptr);
         return;

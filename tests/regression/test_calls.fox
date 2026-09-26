@@ -1,0 +1,114 @@
+// FoxLang regression: calls the VM runs in its own loop (no native frame each):
+// errors and finally through many levels, argument and result conversion, deep
+// recursion, lambdas and methods in between, builtins with their fast path.
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+// 1. Deep recursion goes far beyond what native frames allowed.
+int depth(int n) {
+    if (n == 0) { return 0; }
+    return 1 + depth(n - 1);
+}
+assert_true(depth(50000) == 50000, "deep recursion");
+
+// 2. Endless recursion stops with the depth error, and the program carries on.
+int forever(int n) { return forever(n + 1); }
+string message = "";
+try { forever(0); } catch (string e) { message = e; }
+assert_true(str_contains(message, "call depth limit"), "endless recursion is caught: " + message);
+assert_true(depth(10) == 10, "calls work after the depth error");
+
+// 3. An error deep down passes through every level to the nearest handler, and
+// every finally on the way runs, innermost first.
+array trail = [];
+int dive(int n) {
+    try {
+        if (n == 0) { throw "bottom"; }
+        return dive(n - 1);
+    } finally {
+        push(trail, n);
+    }
+}
+try { dive(4); } catch (string e) { push(trail, e); }
+assert_true(size(trail) == 6 && trail[0] == 0 && trail[4] == 4 && trail[5] == "bottom", "finally at every level");
+
+// 4. A handler in the middle takes the error; the callers above go on normally.
+int middle(int n) {
+    if (n == 2) {
+        try { return dive(1); } catch (string e) { return 100; }
+    }
+    return middle(n + 1) + 1;
+}
+assert_true(middle(0) == 102, "a handler in the middle");
+
+// 5. Arguments are converted to the parameters' types; a wrong one fails in the caller.
+float half(float x) { return x / 2; }
+assert_true(half(3) == 1.5, "int argument converted to float");
+int twice(int x) { return x * 2; }
+assert_true(twice(2.9) == 4, "float argument converted to int");
+message = "";
+try { twice("a"); } catch (string e) { message = e; }
+assert_true(str_contains(message, "parameter 'x'"), "wrong argument type: " + message);
+message = "";
+try { twice(1, 2); } catch (string e) { message = e; }
+assert_true(str_contains(message, "expects 1 arguments"), "wrong argument count: " + message);
+
+// 6. A variable passed as an argument keeps its value; the callee has its own copy.
+int bump(int x) { x = x + 1; return x; }
+int kept = 5;
+assert_true(bump(kept) == 6 && kept == 5, "argument is a copy");
+array shared = [1];
+void grow(array items) { push(items, 2); }
+grow(shared);
+assert_true(size(shared) == 2, "arrays are shared with the callee");
+
+// 7. Results are converted to the declared type; a missing one is an error.
+float asFloat() { return 2; }
+assert_true(asFloat() == 2.0, "result converted to float");
+int noResult(bool give) { if (give) { return 1; } }
+message = "";
+try { noResult(false); } catch (string e) { message = e; }
+assert_true(str_contains(message, "must return int"), "missing result: " + message);
+
+// 8. Lambdas and methods between ordinary calls.
+int applyTwice(func f, int x) { return f(f(x)); }
+int square(int x) { return x * x; }
+assert_true(applyTwice((int v) => square(v) + 1, 2) == 26, "lambda calling a function");
+struct Counter {
+    int value;
+    int add(int n) { this.value = this.value + n; return this.value; }
+}
+Counter counter = Counter(0);
+int addMany(Counter c, int n) {
+    if (n == 0) { return c.value; }
+    c.add(1);
+    return addMany(c, n - 1);
+}
+assert_true(addMany(counter, 1000) == 1000, "method in recursion");
+
+// 9. Builtins with a fast path, on variables and on typed arrays.
+array numbers = [];
+for (int i = 0; i < 1000; i++) { push(numbers, i); }
+assert_true(size(numbers) == 1000 && numbers[999] == 999, "push and size");
+assert_true(pop(numbers) == 999 && size(numbers) == 999, "pop");
+array<int> typed = [];
+message = "";
+try { push(typed, "x"); } catch (string e) { message = e; }
+assert_true(message != "" && size(typed) == 0, "typed array still checks its elements");
+push(typed, 2.0);
+assert_true(typed[0] == 2, "typed array converts on push");
+message = "";
+try { pop([]); } catch (string e) { message = e; }
+assert_true(str_contains(message, "empty array"), "pop of an empty array: " + message);
+string word = "Лис";
+assert_true(str_length(word) == 3 && size(word) == 6, "characters and bytes");
+
+// 10. A function redefined later is the one called.
+int which() { return 1; }
+assert_true(which() == 1, "first definition");
+
+print("CALLS_OK");

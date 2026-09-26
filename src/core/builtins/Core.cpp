@@ -135,6 +135,17 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             if (value.is(Value::Kind::Map)) return integer(static_cast<long long>(value.ref()->items.size()));
             throw std::runtime_error("Type Error: size() requires an array, a map or a string, got '" + value.typeName() + "'");
         });
+    out.back().fast = [](Value* const* args, size_t count, Value& result) {
+        if (count != 1) return false;
+        const Value& value = *args[0];
+        size_t size;
+        if (value.isString()) size = value.str().size();
+        else if (value.is(Value::Kind::Array) || value.is(Value::Kind::Map)) size = value.ref()->items.size();
+        else return false;
+        if (size > 2147483647u) return false;
+        result = Value::integer(static_cast<long long>(size));
+        return true;
+    };
     add({"get", "any", {{"array", "items"}, {"int", "index"}}, 2, false, "",
          "Элемент массива по индексу (с нуля). То же, что `items[index]`.\n\n```foxlang\nint first = get(scores, 0);\n```"},
         [](Call& c) {
@@ -156,6 +167,14 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             items.push_back(stored(c, c.at(1)));
             return nothing();
         });
+    out.back().fast = [](Value* const* args, size_t count, Value& result) {
+        if (count != 2 || !args[0]->is(Value::Kind::Array)) return false;
+        Object& array = *args[0]->ref();
+        if (array.elementType || array.items.size() >= maxElements) return false;
+        array.items.push_back(*args[1]);
+        result.reset();
+        return true;
+    };
     add({"pop", "any", {{"array", "items"}}, 1, false, "",
          "Удаляет и возвращает последний элемент массива. Пустой массив — ошибка выполнения."},
         [](Call& c) {
@@ -165,6 +184,14 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
             items.pop_back();
             return last;
         });
+    out.back().fast = [](Value* const* args, size_t count, Value& result) {
+        if (count != 1 || !args[0]->is(Value::Kind::Array) || args[0]->ref()->items.empty()) return false;
+        auto& items = args[0]->ref()->items;
+        Value last = std::move(items.back());
+        items.pop_back();
+        result = std::move(last);
+        return true;
+    };
     add({"insert", "void", {{"array", "items"}, {"int", "index"}, {"any", "value"}}, 3, false, "",
          "Вставляет значение перед элементом `index`. Индекс, равный размеру, добавляет в конец."},
         [](Call& c) {
