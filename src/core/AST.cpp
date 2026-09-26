@@ -19,7 +19,7 @@ void FuncDefNode::declare(Context& root) {
     root.getRoot()->defineFunc(name, std::make_shared<FuncDefNode>(returnType, name, params, body, nameRange));
 }
 
-Value FuncDefNode::invoke(std::vector<Value> args, Context& caller) const {
+Value FuncDefNode::invoke(ValueList args, Context& caller) const {
     return vm::call(*this, args.data(), args.size(), caller);
 }
 

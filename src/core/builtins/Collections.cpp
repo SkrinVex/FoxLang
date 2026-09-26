@@ -48,8 +48,8 @@ bool test(Call& call, const Value& function, const Value& item) {
 
 // A merge sort by a FoxLang function. Unlike std::sort it stays within the array even
 // when the function does not order the items consistently.
-void sortBy(Call& call, std::vector<Value>& items, const Value& before) {
-    std::vector<Value> buffer(items.size());
+void sortBy(Call& call, ValueList& items, const Value& before) {
+    ValueList buffer(items.size());
     for (size_t width = 1; width < items.size(); width *= 2) {
         for (size_t left = 0; left < items.size(); left += 2 * width) {
             size_t middle = std::min(left + width, items.size());
@@ -82,7 +82,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
          "сохраняют исходный порядок."},
         [](Call& c) {
             if (c.has(1)) {
-                std::vector<Value> sorted = c.array(0);
+                ValueList sorted = c.array(0);
                 sortBy(c, sorted, c.at(1));
                 c.array(0) = std::move(sorted);
                 return nothing();
@@ -123,8 +123,8 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
     add({"array_map", "array", {{"array", "items"}, {"func", "transform"}}, 2, false, "arrays",
          "Новый массив из результатов `transform(item)` для каждого элемента."},
         [](Call& c) {
-            std::vector<Value> items = c.array(0);
-            std::vector<Value> result;
+            ValueList items = c.array(0);
+            ValueList result;
             result.reserve(items.size());
             for (const auto& item : items) result.push_back(apply(c, c.at(1), item));
             return makeArray(std::move(result));
@@ -132,8 +132,8 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
     add({"array_filter", "array", {{"array", "items"}, {"func", "keep"}}, 2, false, "arrays",
          "Новый массив из элементов, для которых `keep(item)` вернула `true`."},
         [](Call& c) {
-            std::vector<Value> items = c.array(0);
-            std::vector<Value> result;
+            ValueList items = c.array(0);
+            ValueList result;
             for (auto& item : items)
                 if (test(c, c.at(1), item)) result.push_back(std::move(item));
             return makeArray(std::move(result));
@@ -142,7 +142,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
          "Сворачивает массив в одно значение: начинает с `initial` и для каждого элемента "
          "вызывает `combine(result, item)`."},
         [](Call& c) {
-            std::vector<Value> items = c.array(0);
+            ValueList items = c.array(0);
             Value result = c.at(2);
             for (const auto& item : items) result = apply(c, c.at(1), result, item);
             return result;
@@ -150,7 +150,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
     add({"array_find", "int", {{"array", "items"}, {"func", "matches"}}, 2, false, "arrays",
          "Индекс первого элемента, для которого `matches(item)` вернула `true`, или `-1`."},
         [](Call& c) {
-            std::vector<Value> items = c.array(0);
+            ValueList items = c.array(0);
             for (size_t i = 0; i < items.size(); ++i)
                 if (test(c, c.at(1), items[i])) return integer(static_cast<long long>(i));
             return integer(-1);
@@ -158,7 +158,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
     add({"array_any", "bool", {{"array", "items"}, {"func", "matches"}}, 2, false, "arrays",
          "`true`, если `matches(item)` вернула `true` хотя бы для одного элемента."},
         [](Call& c) {
-            std::vector<Value> items = c.array(0);
+            ValueList items = c.array(0);
             for (const auto& item : items)
                 if (test(c, c.at(1), item)) return boolean(true);
             return boolean(false);
@@ -166,7 +166,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
     add({"array_all", "bool", {{"array", "items"}, {"func", "matches"}}, 2, false, "arrays",
          "`true`, если `matches(item)` вернула `true` для каждого элемента (и для пустого массива)."},
         [](Call& c) {
-            std::vector<Value> items = c.array(0);
+            ValueList items = c.array(0);
             for (const auto& item : items)
                 if (!test(c, c.at(1), item)) return boolean(false);
             return boolean(true);
@@ -181,7 +181,7 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
             const auto& items = c.array(0);
             size_t from = bound(c, 1, items.size());
             size_t to = c.has(2) ? bound(c, 2, items.size()) : items.size();
-            std::vector<Value> part;
+            ValueList part;
             for (size_t i = from; i < to; ++i) part.push_back(items[i]);
             return makeArray(std::move(part));
         });

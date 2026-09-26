@@ -4,6 +4,7 @@
 #include "../Operations.h"
 #include "../HttpServer.h"
 #include <algorithm>
+#include <cstring>
 #include <stdexcept>
 
 namespace foxlang::runtime {
@@ -28,10 +29,19 @@ std::vector<std::string> characters(const std::string& text) {
 }
 
 size_t characterCount(const std::string& text) {
-    size_t count = 0;
-    for (unsigned char byte : text)
-        if ((byte & 0xC0) != 0x80) ++count;
-    return count;
+    // Every byte but a continuation byte (10xxxxxx) starts a character; eight bytes
+    // are looked at together.
+    const char* data = text.data();
+    size_t size = text.size(), i = 0, continuations = 0;
+    for (; i + 8 <= size; i += 8) {
+        std::uint64_t word;
+        std::memcpy(&word, data + i, 8);
+        std::uint64_t marks = (word & ~(word << 1) & 0x8080808080808080ULL) >> 7;
+        continuations += static_cast<size_t>((marks * 0x0101010101010101ULL) >> 56);
+    }
+    for (; i < size; ++i)
+        if ((static_cast<unsigned char>(data[i]) & 0xC0) == 0x80) ++continuations;
+    return size - continuations;
 }
 
 // Byte offset of the character with the given index, or text.size() past the end.
@@ -183,16 +193,29 @@ void addTextBuiltins(std::vector<Builtin>& out) {
          "Разбивает строку по разделителю и возвращает массив строк. Пустой разделитель делит на символы.\n\n"
          "```foxlang\narray parts = str_split(\"a,b,c\", \",\");\n```"},
         [](Call& c) {
-            std::vector<Value> parts;
+            ValueList parts;
             const std::string& source = c.text(0);
             const std::string& delimiter = c.text(1);
             if (delimiter.empty()) {
                 for (auto& character : characters(source)) parts.push_back(text(character));
             } else {
-                size_t start = 0;
-                for (size_t pos; (pos = source.find(delimiter, start)) != std::string::npos; start = pos + delimiter.size())
-                    parts.push_back(text(source.substr(start, pos - start)));
-                parts.push_back(text(source.substr(start)));
+                const char* at = source.data();
+                const char* end = at + source.size();
+                if (delimiter.size() == 1) {
+                    // The usual "," or "\n": memchr finds it fastest.
+                    for (const void* found; (found = std::memchr(at, delimiter[0], static_cast<size_t>(end - at)));) {
+                        const char* stop = static_cast<const char*>(found);
+                        parts.push_back(Value::string(std::string(at, stop)));
+                        at = stop + 1;
+                    }
+                } else {
+                    for (size_t pos; (pos = source.find(delimiter, static_cast<size_t>(at - source.data()))) != std::string::npos;) {
+                        const char* stop = source.data() + pos;
+                        parts.push_back(Value::string(std::string(at, stop)));
+                        at = stop + delimiter.size();
+                    }
+                }
+                parts.push_back(Value::string(std::string(at, end)));
             }
             return makeArray(std::move(parts));
         });
@@ -200,14 +223,22 @@ void addTextBuiltins(std::vector<Builtin>& out) {
          "Склеивает элементы массива в строку через разделитель.\n\n"
          "```foxlang\nstring csv = str_join(parts, \";\");\n```"},
         [](Call& c) {
-            std::string result;
             const auto& items = c.array(0);
+            const std::string& separator = c.text(1);
+            // The size of the text items and the separators first: one allocation.
+            size_t known = items.empty() ? 0 : separator.size() * (items.size() - 1);
+            for (const Value& item : items)
+                if (item.isString()) known += item.str().size();
+            if (known > maxText) throw std::runtime_error("Runtime Error: str_join() result is too large");
+            std::string result;
+            result.reserve(known);
             for (size_t i = 0; i < items.size(); ++i) {
-                if (i > 0) result += c.text(1);
-                result += scalarText(items[i], "str_join() items");
+                if (i > 0) result += separator;
+                if (items[i].isString()) result += items[i].str();
+                else result += scalarText(items[i], "str_join() items");
                 if (result.size() > maxText) throw std::runtime_error("Runtime Error: str_join() result is too large");
             }
-            return text(result);
+            return text(std::move(result));
         });
     add({"str_upper", "string", {{"string", "text"}}, 1, false, "string",
          "Строка прописными буквами (латиница и кириллица)."},

@@ -98,7 +98,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
             for (fs::directory_iterator it(pathOf(c.text(0)), ec), end; !ec && it != end; it.increment(ec))
                 names.push_back(it->path().filename().u8string());
             std::sort(names.begin(), names.end());
-            std::vector<Value> items;
+            ValueList items;
             for (auto& name : names) items.push_back(text(std::move(name)));
             return makeArray(std::move(items));
         });
@@ -172,7 +172,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
     add({"os_args", "array", {}, 0, false, "os",
          "Аргументы командной строки после имени программы: `foxlang app.fox a b` и `./app a b` дают `[a, b]`."},
         [](Call& c) {
-            std::vector<Value> items;
+            ValueList items;
             if (c.ctx.interpreter)
                 for (const auto& argument : c.ctx.interpreter->getArguments()) items.push_back(text(argument));
             return makeArray(std::move(items));

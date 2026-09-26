@@ -1,0 +1,129 @@
+// FoxLang regression: the shortcuts behind the benchmarks give the same results as
+// the general code: ints written into instructions, arrays that grow in place, maps
+// built key by key, join/split/str_length and JSON numbers.
+using string;
+
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+// 1. `n + 1`, `n - 1`, `n < 2`: an int literal on the right, including negative ones
+// and the ends of int's range.
+int n = 5;
+assert_true(n + 1 == 6 && n - 1 == 4 && n + -3 == 2 && n - -3 == 8, "add and subtract a literal");
+int top = 2147483646;
+assert_true(top + 1 == 2147483647, "up to the largest int");
+string caught = "";
+try { int over = top + 2; } catch (string e) { caught = e; }
+assert_true(str_contains(caught, "range") || str_contains(caught, "overflow"), "past the largest int: " + caught);
+int bottom = -2147483647;
+caught = "";
+try { int under = bottom - 2; } catch (string e) { caught = e; }
+assert_true(caught != "", "past the smallest int");
+int hits = 0;
+for (int i = -3; i < 3; i++) {
+    if (i < 0) { hits++; }
+    if (i >= -1) { hits += 10; }
+    if (i == 2) { hits += 100; }
+    if (i != -3) { hits += 1000; }
+}
+assert_true(hits == 3 + 40 + 100 + 5000, "comparisons with a literal: " + hits);
+int countdown(int k) {
+    if (k <= 0) { return 0; }
+    return 1 + countdown(k - 1);
+}
+assert_true(countdown(1000) == 1000, "recursion on k - 1");
+
+// 2. Arrays grow, shrink and move their elements around.
+array items;
+for (int i = 0; i < 100000; i++) { push(items, i % 7); }
+assert_true(size(items) == 100000 && items[99999] == 99999 % 7, "a big array");
+int sum = 0;
+for (int i = 0; i < size(items); i++) { sum = sum + items[i]; }
+assert_true(sum == 299995, "sum of a big array: " + sum);
+array words = ["b", "d"];
+insert(words, 0, "a");
+insert(words, 2, "c");
+push(words, "e");
+assert_true(str_join(words, "") == "abcde", "insert keeps order");
+remove_at(words, 1);
+assert_true(str_join(words, "") == "acde" && pop(words) == "e" && size(words) == 3, "remove_at and pop");
+array nested = [[1, 2], [3]];
+array copy = nested;
+push(copy[0], 9);
+assert_true(size(nested[0]) == 3, "arrays inside are shared");
+array alone = array_copy(nested);
+push(alone, 4);
+assert_true(size(nested) == 2 && size(alone) == 3, "a copy is apart");
+push(items, items);
+assert_true(size(items) == 100001, "an array pushed into itself");
+resize(words, 6);
+assert_true(size(words) == 6 && words[5] == 0, "resize grows with zeros");
+resize(words, 1);
+assert_true(size(words) == 1 && words[0] == "a", "resize shrinks");
+array sorted = [5, 3, 9, 1, 3];
+array_sort(sorted);
+assert_true(sorted[0] == 1 && sorted[4] == 9 && sorted[2] == 3, "sort");
+array reversed = [1, 2, 3];
+array_reverse(reversed);
+assert_true(reversed[0] == 3 && reversed[2] == 1, "reverse");
+array part = array_slice([1, 2, 3, 4, 5], 1, 3);
+assert_true(size(part) == 2 && part[0] == 2 && part[1] == 3, "slice");
+array<int> typed;
+push(typed, 1);
+push(typed, 2);
+assert_true(size(typed) == 2 && typed[1] == 2, "typed array");
+
+// 3. Maps built from literals, key by key and from JSON.
+map record = {"id": 7, "name": "fox", "tags": ["a"]};
+assert_true(size(keys(record)) == 3 && record["name"] == "fox", "map literal");
+map grown = {};
+for (int i = 0; i < 50; i++) { grown["k" + i] = i; }
+assert_true(size(keys(grown)) == 50 && grown["k49"] == 49 && keys(grown)[0] == "k0", "keys in insertion order");
+remove_key(grown, "k0");
+assert_true(size(keys(grown)) == 49 && keys(grown)[0] == "k1" && !has(grown, "k0"), "remove_key");
+grown["k0"] = 0;
+assert_true(keys(grown)[49] == "k0", "a key again goes last");
+
+// 4. Text: join, split, length.
+array parts;
+for (int i = 0; i < 1000; i++) { push(parts, "item" + i); }
+string text = str_join(parts, ",");
+array back = str_split(text, ",");
+assert_true(size(back) == 1000 && back[0] == "item0" && back[999] == "item999", "split undoes join");
+assert_true(str_join([1, true, "x", 2.5], "-") == "1-true-x-2.5", "join of mixed values");
+assert_true(str_join([], ",") == "" && str_join(["only"], ",") == "only", "join of none and one");
+array edges = str_split(",a,,b,", ",");
+assert_true(size(edges) == 5 && edges[0] == "" && edges[2] == "" && edges[4] == "", "split keeps empty parts");
+array long_delimiter = str_split("a::b::::c", "::");
+assert_true(size(long_delimiter) == 4 && long_delimiter[2] == "" && long_delimiter[3] == "c", "split by a longer delimiter");
+array letters = str_split("ёж", "");
+assert_true(size(letters) == 2 && letters[0] == "ё", "split into characters");
+assert_true(str_length("") == 0 && str_length("abcdefgh") == 8 && str_length("abcdefghi") == 9, "length of ASCII");
+assert_true(str_length("Лисий хвост и 🦊!") == 16, "length of mixed text: " + str_length("Лисий хвост и 🦊!"));
+assert_true(str_length("ЯЯЯЯЯЯЯЯЯЯ") == 10 && size("ЯЯЯЯЯЯЯЯЯЯ") == 20, "characters and bytes");
+
+// 5. JSON numbers read in place, and those that are not plain ints.
+array numbers = json_decode("[0, -0, 7, -42, 123456789, -999999999, 2147483647, -2147483648, 1.5, -2e3, 10000000000]");
+assert_true(numbers[0] == 0 && numbers[1] == 0 && numbers[2] == 7 && numbers[3] == -42, "small ints");
+assert_true(numbers[4] == 123456789 && numbers[5] == -999999999, "nine digits");
+assert_true(numbers[6] == 2147483647 && numbers[7] == -2147483648, "ends of int's range");
+assert_true(type_of(numbers[6]) == "int" && type_of(numbers[8]) == "float" && numbers[9] == -2000.0, "floats");
+assert_true(type_of(numbers[10]) == "float", "beyond int's range a float");
+map decoded = json_decode(" { \"id\" : 12 , \"name\":\"a\\nb\", \"ok\": true, \"none\": null } ");
+assert_true(decoded["id"] == 12 && decoded["name"] == "a\nb" && decoded["ok"] && decoded["none"] == null, "a JSON object");
+string bad = "";
+try { json_decode("[1, -]"); } catch (string e) { bad = e; }
+assert_true(str_contains(bad, "JSON"), "a lone minus is not JSON: " + bad);
+bad = "";
+try { json_decode("[12a]"); } catch (string e) { bad = e; }
+assert_true(str_contains(bad, "JSON"), "digits then letters are not JSON");
+array records;
+for (int i = 0; i < 100; i++) { push(records, {"id": i, "name": "user" + i}); }
+array again = json_decode(json_value(records));
+assert_true(size(again) == 100 && again[99]["id"] == 99 && again[42]["name"] == "user42", "JSON round trip");
+
+print("fast paths: OK");

@@ -153,7 +153,7 @@ struct FuncDefNode : Declaration {
     // Calls the function as a call in the program would: the arguments are converted to
     // the parameters' types, the result to the return type. Used by the HTTP server for
     // handlers and by foxlang test.
-    Value invoke(std::vector<Value> args, Context& caller) const;
+    Value invoke(ValueList args, Context& caller) const;
     BlockNode* block() const { return block_; }
 
 private:
