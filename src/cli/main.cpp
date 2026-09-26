@@ -9,6 +9,7 @@
 #include <filesystem>
 #include "Image.h"
 #include "DebugAdapter.h"
+#include "Help.h"
 #include "Tools.h"
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -119,40 +120,19 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    if (argc == 2 && (std::string(argv[1]) == "--help" || std::string(argv[1]) == "-h")) {
-        std::cout << "FoxLang " << version << "\n\n"
-                  << "Usage:\n"
-                  << "  foxlang <script.fox> [args...]  Run a FoxLang program; args reach os_args()\n"
-                  << "  foxlang check <script.fox>      Report problems without running the program\n"
-                  << "  foxlang build <file.fox> [-o|--output app]\n"
-                  << "                                  Bundle a standalone executable for this OS/architecture\n"
-                  << "                                  Includes runtime and source modules; no compiler needed\n"
-                  << "  foxlang fmt [--check] [paths...] Lay out .fox files (indentation, blank lines, spaces)\n"
-                  << "  foxlang test [--filter text] [paths...]\n"
-                  << "                                  Run test_ functions of *_test.fox files\n"
-                  << "  foxlang disasm <script.fox>     Print the bytecode the program runs as\n"
-                  << "  foxlang debug-adapter [--connect host:port]\n"
-                  << "                                  Debug Adapter Protocol server for editors (VS Code, Kate, Zed)\n"
-                  << "  foxlang --version               Show version\n"
-                  << "  foxlang --help                  Show this help\n"
-                  << "  foxlang --foxlang-licenses      Show embedded dependency licenses\n\n"
-                  << "Environment:\n"
-                  << "  FOXLANG_HOME            FoxLang installation/std library path\n"
-                  << "  FOXLANG_LOG_LEVEL       debug | info | warn | error | off\n"
-                  << "  FOXLANG_CA_BUNDLE       PEM CA file | embedded (default) | system\n\n"
-                  << "Standalone: .env/resources are not bundled; HTTP(S) and TCP are built in.\n\n"
-                  << "Repository & documentation:\n"
-                  << "  https://github.com/SkrinVex/FoxLang\n"
-                  << "  https://github.com/SkrinVex/FoxLang/blob/master/DOCUMENTATION.md\n";
+    auto isHelp = [](const std::string& word) { return word == "--help" || word == "-h" || word == "help"; };
+    if (argc < 2 || (argc == 2 && isHelp(argv[1]))) {
+        foxlang::cli::printHelp(std::cout, version);
+        return argc < 2 ? 1 : 0;
+    }
+    // foxlang help build; foxlang build --help (a script's own --help is the script's)
+    if (argc == 3 && isHelp(argv[1])) {
+        if (foxlang::cli::printCommandHelp(std::cout, argv[2])) return 0;
+        throw std::runtime_error("no help on '" + std::string(argv[2]) + "'; there is help on " + foxlang::cli::commandNames());
+    }
+    if (argc == 3 && std::string(argv[1]) != "run" && (std::string(argv[2]) == "--help" || std::string(argv[2]) == "-h") &&
+        foxlang::cli::printCommandHelp(std::cout, argv[1]))
         return 0;
-    }
-
-    if (argc < 2) {
-        std::cout << "FoxLang " << version << "\nUsage: foxlang <script.fox> [args...]\n"
-                  << "       foxlang --help\n"
-                  << "       foxlang --version" << std::endl;
-        return 1;
-    }
 
     if (std::string(argv[1]) == "check") {
         if (argc != 3) throw std::runtime_error("Usage: foxlang check <script.fox>");

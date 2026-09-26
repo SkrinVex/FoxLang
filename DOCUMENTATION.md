@@ -1612,7 +1612,8 @@ foxlang disasm program.fox           # байткод программы и её
 foxlang debug-adapter                # отладчик для редакторов (DAP через stdin/stdout)
 foxlang debug-adapter --connect host:port   # то же по TCP, программа остаётся в своём терминале
 foxlang --version                    # версия
-foxlang --help                       # справка
+foxlang help                         # справка по всем командам (также --help и без аргументов)
+foxlang help build                   # подробно об одной команде (также build --help)
 foxlang --foxlang-licenses           # лицензии встроенных библиотек
 ```
 

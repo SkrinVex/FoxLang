@@ -113,7 +113,7 @@ if(WIN32)
     target_link_libraries(foxlang_debug PUBLIC ws2_32)
 endif()
 
-add_executable(foxlang src/cli/main.cpp src/cli/Tools.cpp src/standalone/Stub.cpp)
+add_executable(foxlang src/cli/main.cpp src/cli/Help.cpp src/cli/Tools.cpp src/standalone/Stub.cpp)
 target_link_libraries(foxlang PRIVATE foxlang_bundle foxlang_debug)
 if(WIN32)
     # CommandLineToArgvW: program arguments as UTF-16, converted to UTF-8 for os_args().
