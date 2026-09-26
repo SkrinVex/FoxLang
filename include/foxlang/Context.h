@@ -210,6 +210,9 @@ struct Object {
     enum class Kind { Array, Map, Struct, Function, Box };
     explicit Object(Kind k) : kind(k) {}
     ~Object(); // leaves the list of live containers
+    // Containers come and go by the million: their memory is reused from a free list.
+    static void* operator new(std::size_t size);
+    static void operator delete(void* memory, std::size_t size) noexcept;
     Object(const Object&) = delete;
     Object& operator=(const Object&) = delete;
     Kind kind;
