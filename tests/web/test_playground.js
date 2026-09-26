@@ -111,5 +111,26 @@ print("x=" + x);
   expect(printed.includes("pixel 255,128,0,255"), "frames arrive as RGBA", { code: windowCode, out: printed, err: "" });
   expect(printed.includes("x=2") && printed.includes("caught ой"), "keys arrive while the program polls", { code: windowCode, out: printed, err: "" });
 
+  // Every window example opens, draws and ends when the window is closed.
+  for (const file of ["game.fox", "todo.fox", "paint.fox"]) {
+    let shownFrames = 0, closePolls = 0, log = "";
+    const program = await createGraphics({
+      print: (text) => { log += text + "\n"; },
+      printErr: (text) => { log += text + "\n"; },
+      echoInput: () => {},
+      canvasOpen: () => {},
+      canvasPresent: () => { shownFrames++; },
+      canvasPoll: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (++closePolls === 4) program._foxlang_close();
+      },
+    });
+    program.FS.mkdirTree("/project");
+    program.FS.chdir("/project");
+    program.FS.writeFile("main.fox", fs.readFileSync(path.join(examples, file), "utf8"));
+    const exit = await program.ccall("foxlang_run", "number", ["string", "string"], ["main.fox", ""], { async: true });
+    expect(exit === 0 && shownFrames >= 3, file + " runs in a window", { code: exit, out: log, err: "" });
+  }
+
   console.log("PLAYGROUND_OK");
 })();

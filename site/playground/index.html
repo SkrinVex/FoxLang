@@ -464,6 +464,8 @@ footer {
     <option value="input">Ввод с клавиатуры</option>
     <option value="modules">Несколько файлов</option>
     <option value="game">Игра в окне</option>
+    <option value="todo">Окно с кнопками (ui)</option>
+    <option value="paint">Рисовалка</option>
   </select>
   <button class="btn icon" id="theme" type="button" aria-label="Тема оформления">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path id="theme-icon" d=""/></svg>
@@ -538,7 +540,9 @@ footer {
     errors: ["errors.fox"],
     input: ["input.fox"],
     modules: ["modules/main.fox", "modules/shapes.fox", "modules/tools/report.fox"],
-    game: ["game.fox"]
+    game: ["game.fox"],
+    todo: ["todo.fox"],
+    paint: ["paint.fox"]
   };
 
   var $ = function (id) { return document.getElementById(id); };

@@ -1,0 +1,64 @@
+// Окно с интерфейсом: поле ввода, кнопки, флажки и диалог подтверждения
+// из модуля ui. Щёлкни по полю, набери дело и нажми Enter или «Добавить».
+using graphics;
+using ui;
+using string;
+
+open_window(460, 360, "Список дел");
+
+array tasks = ["Попробовать FoxLang", "Написать игру"];
+array done = [true, false];
+string draft = "";
+bool asking = false;
+ui_focus("draft");
+
+while (window_poll()) {
+    clear_window(rgb(243, 245, 248));
+    draw_text(20, 18, "Список дел", 2, rgb(30, 35, 42));
+
+    draft = ui_text_field("draft", 20, 50, 310, draft, "Новое дело");
+    bool add = ui_primary_button("add", 340, 50, 100, 28, "Добавить");
+    if (ui_focused("draft") && key_pressed("ENTER")) {
+        add = true;
+    }
+    if (add && trim(draft) != "") {
+        push(tasks, trim(draft));
+        push(done, false);
+        draft = "";
+    }
+
+    int left = 0;
+    for (int i = 0; i < size(tasks); i++) {
+        int y = 100 + i * 28;
+        done[i] = ui_checkbox("task" + i, 24, y, tasks[i], done[i]);
+        if (!done[i]) {
+            left++;
+        }
+        if (ui_button("remove" + i, 400, y - 6, 40, 24, "x")) {
+            remove_at(tasks, i);
+            remove_at(done, i);
+            break;
+        }
+    }
+
+    draw_text(20, 322, "Осталось: " + left + " из " + size(tasks), 1, rgb(120, 128, 138));
+    if (size(tasks) > 0 && ui_button("clear", 330, 312, 110, 28, "Очистить всё")) {
+        asking = true;
+    }
+
+    if (asking) {
+        ui_modal_begin(80, 110, 300, 130, "Очистить список?");
+        draw_text(96, 160, "Все дела будут удалены.", 1, rgb(30, 35, 42));
+        if (ui_button("cancel", 176, 196, 90, 28, "Отмена")) {
+            asking = false;
+        }
+        if (ui_primary_button("yes", 276, 196, 90, 28, "Очистить")) {
+            tasks = [];
+            done = [];
+            asking = false;
+        }
+        ui_modal_end();
+    }
+    present_window();
+}
+close_window();

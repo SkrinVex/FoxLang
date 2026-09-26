@@ -1,0 +1,57 @@
+// Рисовалка: веди мышью (или пальцем) с зажатой кнопкой. Цвет выбирается
+// квадратиками сверху, колесо мыши меняет толщину кисти.
+using graphics;
+
+int width = 480;
+int height = 340;
+open_window(width, height, "Рисовалка");
+
+array colors = [rgb(30, 35, 42), rgb(217, 98, 15), rgb(45, 105, 175), rgb(47, 138, 70), rgb(200, 60, 90), rgb(255, 255, 255)];
+int color = colors[0];
+int brush = 4;
+int lastX = -1;
+int lastY = -1;
+clear_window(rgb(255, 255, 255));
+
+while (window_poll()) {
+    brush = clamp(brush + mouse_wheel(), 1, 20);
+    int x = mouse_x();
+    int y = mouse_y();
+
+    // Палитра и кнопка «Очистить» в полосе сверху.
+    draw_rect(0, 0, width, 36, rgb(233, 237, 242));
+    for (int i = 0; i < size(colors); i++) {
+        int left = 8 + i * 34;
+        if (colors[i] == color) {
+            draw_rect(left - 3, 3, 30, 30, rgb(217, 98, 15));
+        }
+        draw_rect(left, 6, 24, 24, colors[i]);
+        if (key_pressed("MOUSE_LEFT") && x >= left && x < left + 24 && y >= 6 && y < 30) {
+            color = colors[i];
+        }
+    }
+    draw_text(220, 14, "кисть " + brush, 1, rgb(95, 105, 117));
+    draw_frame(400, 6, 72, 24, 1, rgb(160, 168, 178));
+    draw_text(410, 15, "Очистить", 1, rgb(30, 35, 42));
+    if (key_pressed("MOUSE_LEFT") && x >= 400 && y < 30) {
+        draw_rect(0, 36, width, height - 36, rgb(255, 255, 255));
+    }
+
+    // Холст: картинка не стирается между кадрами, линия продолжает прошлую точку.
+    if (key_down("MOUSE_LEFT") && y > 36 + brush) {
+        if (lastX < 0) {
+            lastX = x;
+            lastY = y;
+        }
+        int steps = max(abs(x - lastX), abs(y - lastY)) / 2 + 1;
+        for (int s = 0; s <= steps; s++) {
+            draw_circle(lastX + (x - lastX) * s / steps, lastY + (y - lastY) * s / steps, brush, color);
+        }
+        lastX = x;
+        lastY = y;
+    } else {
+        lastX = -1;
+    }
+    present_window();
+}
+close_window();
