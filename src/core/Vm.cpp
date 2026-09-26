@@ -348,6 +348,22 @@ FOXLANG_APART void refresh(CallSite& site, Context& root);
 // the recursion of a program that never stops.
 constexpr int maxVmDepth = 100000;
 
+// For each comparison operator, the outcomes it accepts: bit 0 less, bit 1 equal,
+// bit 2 greater. Indexed by runtime::Operator.
+struct CompareMasks {
+    unsigned char bits[256] = {}; // Instr::x is a byte
+    constexpr CompareMasks() {
+        bits[static_cast<int>(runtime::Operator::Lt)] = 0b001;
+        bits[static_cast<int>(runtime::Operator::Le)] = 0b011;
+        bits[static_cast<int>(runtime::Operator::Eq)] = 0b010;
+        bits[static_cast<int>(runtime::Operator::Ne)] = 0b101;
+        bits[static_cast<int>(runtime::Operator::Gt)] = 0b100;
+        bits[static_cast<int>(runtime::Operator::Ge)] = 0b110;
+    }
+    constexpr unsigned char operator[](int op) const { return bits[op]; }
+};
+constexpr CompareMasks compareMask;
+
 // A caller that execute() left for a function it runs itself, and what to go back to.
 struct Caller {
     Proto* proto;
@@ -418,7 +434,7 @@ FOXLANG_COLD void convertArguments(const Proto& callee, Value* args, const Value
 // let those go when they end), so the new frame's registers are written over as they are.
 FOXLANG_APART Value* enterCall(std::vector<Caller>& calls, Proto& callee, const Instr& in, Proto* proto, const Instr* ip,
                                Value* R, Object* closure, Context* scope, std::unique_ptr<std::exception_ptr[]>& pending,
-                               const std::int32_t* direct = nullptr) {
+                               runtime::StackGuard& guard, const std::int32_t* direct = nullptr) {
     size_t count = static_cast<size_t>(in.c);
     if (count != callee.params.size()) wrongCount(callee, count);
     Value* args = R + in.a;
@@ -431,7 +447,6 @@ FOXLANG_APART Value* enterCall(std::vector<Caller>& calls, Proto& callee, const 
             break;
         }
     }
-    runtime::StackGuard& guard = runtime::stackGuard();
     if (++guard.vmDepth > maxVmDepth) {
         --guard.vmDepth;
         CallDepth::exceeded(callee.name, guard.vmDepth + guard.depth);
@@ -1187,7 +1202,7 @@ Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugF
                             Proto& callee = const_cast<Proto&>(protoOf(*site.function, false));
                             if (callee.forward >= 0 && forwardDirect(callee, R, registersOfArgs, count, R[in->a], root)) NEXT;
                             if (callee.forward < 0) {
-                                R = enterCall(calls, callee, *in, P, ip, R, closure, S, pending, registersOfArgs);
+                                R = enterCall(calls, callee, *in, P, ip, R, closure, S, pending, guard, registersOfArgs);
                                 P = &callee;
                                 closure = nullptr;
                                 S = &root;
@@ -1222,7 +1237,7 @@ Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugF
                             NEXT;
                         }
                         // A FoxLang function: its frame opens here, without a native call.
-                        R = enterCall(calls, callee, *in, P, ip, R, closure, S, pending);
+                        R = enterCall(calls, callee, *in, P, ip, R, closure, S, pending, guard);
                         P = &callee;
                         closure = nullptr;
                         S = &root;
@@ -1433,15 +1448,9 @@ Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugF
                     }
                     OP(CompareIntK): {
                         long long a = R[in->a].asInt(), b = in->b;
-                        bool result;
-                        switch (static_cast<runtime::Operator>(in->x)) {
-                            case runtime::Operator::Lt: result = a < b; break;
-                            case runtime::Operator::Le: result = a <= b; break;
-                            case runtime::Operator::Gt: result = a > b; break;
-                            case runtime::Operator::Ge: result = a >= b; break;
-                            case runtime::Operator::Eq: result = a == b; break;
-                            default: result = a != b; break;
-                        }
+                        // Which of <, ==, > the operator accepts, as bits 0 to 2 (see compareMask).
+                        int order = (a > b) - (a < b) + 1;
+                        bool result = (compareMask[in->x] >> order) & 1;
                         if (result == ((in->y & 1) != 0)) ip = code + in->c;
                         NEXT;
                     }
