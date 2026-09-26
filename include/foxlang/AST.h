@@ -92,9 +92,9 @@ struct CallDepth {
     // the travelled distance is checked as well. Whichever brake trips first wins.
     static constexpr size_t assumedFrameCost = 4096;
     static constexpr int calibrateAt = 64;
-    explicit CallDepth(const std::string& name) {
+    explicit CallDepth(const std::string& name) : guard_(runtime::stackGuard()) {
         char probe = 0;
-        runtime::StackGuard& guard = runtime::stackGuard();
+        runtime::StackGuard& guard = guard_;
         if (guard.depth == 0) {
             guard.origin = &probe;
             guard.budget = platform::stackBudget();
@@ -111,13 +111,15 @@ struct CallDepth {
         ++guard.depth;
     }
     ~CallDepth() {
-        runtime::StackGuard& guard = runtime::stackGuard();
-        if (--guard.depth == 0) guard.origin = nullptr;
+        if (--guard_.depth == 0) guard_.origin = nullptr;
     }
     CallDepth(const CallDepth&) = delete;
     CallDepth& operator=(const CallDepth&) = delete;
     // Out of line: the message would otherwise take room in every call's native frame.
     [[noreturn]] static void exceeded(const std::string& name, int depth);
+
+private:
+    runtime::StackGuard& guard_;
 };
 
 struct BlockNode;
@@ -230,6 +232,7 @@ struct VarDeclNode : Node {
     SourceRange nameRange;
     bool global = false;
     bool constant = false;  // const int MAX = 10;
+    bool programGlobal = false; // at the program's top level: a register, also found by name
     int slot = VarRef::byName;
     bool duplicate = false; // declared twice in one scope: an error when it runs
     Value::Kind kind;       // what `type` holds, looked up once
@@ -280,6 +283,7 @@ struct ArrayDeclNode : Node {
     SourceRange nameRange;
     bool global = false;
     bool constant = false;
+    bool programGlobal = false;
     int slot = VarRef::byName;
     bool duplicate = false;
     ArrayDeclNode(std::string n, std::unique_ptr<Node> s, std::unique_ptr<Node> init = nullptr, SourceRange nr = {})

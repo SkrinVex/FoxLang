@@ -272,6 +272,9 @@ struct Context {
     // Globals declared with a type T?: an assignment converts to it and may store null.
     std::unordered_map<std::string, std::string> nullableGlobals;
     std::set<std::string> constants; // globals declared const
+    // While the program runs, the variables of its top level are its registers; code
+    // that names them (a function, a module, the debugger) finds them here.
+    std::unordered_map<std::string, Value*> programGlobals;
     std::map<std::string, std::shared_ptr<Node>> functions;
     // Functions replaced by a definition with another body: their code may still be
     // running, so it is kept until the functions are cleared.

@@ -58,6 +58,9 @@ public:
 
     int size() const { return static_cast<int>(layout_.names.size()); }
     bool topLevel() const { return scopes_.empty(); }
+    // With the program's top level in registers: the depth of its own scope.
+    size_t programDepth = 0;
+    bool atProgramLevel() const { return programDepth > 0 && scopes_.size() == programDepth; }
 
     void visit(Node* node);
 
@@ -116,17 +119,24 @@ void Resolver::visit(Node* node) {
         bool local = !n->global && !topLevel();
         if (local && n->kind == Value::Kind::Function && dynamic_cast<LambdaNode*>(n->expr.get())) {
             // func f = (n) => ... f(n - 1): a lambda may call itself by its variable.
+            n->programGlobal = atProgramLevel();
             n->slot = declare(n->name, n->type, &n->duplicate, n->constant);
             visit(n->expr.get());
         } else {
             // The initializer sees the names before this one: `int x = x + 1;` reads an outer x.
             visit(n->expr.get());
-            if (local) n->slot = declare(n->name, n->type, &n->duplicate, n->constant);
+            if (local) {
+                n->programGlobal = atProgramLevel();
+                n->slot = declare(n->name, n->type, &n->duplicate, n->constant);
+            }
         }
     } else if (auto* n = dynamic_cast<ArrayDeclNode*>(node)) {
         visit(n->sizeNode.get());
         visit(n->initializer.get());
-        if (!n->global && !topLevel()) n->slot = declare(n->name, "array", &n->duplicate, n->constant);
+        if (!n->global && !topLevel()) {
+            n->programGlobal = atProgramLevel();
+            n->slot = declare(n->name, n->type, &n->duplicate, n->constant);
+        }
     } else if (auto* n = dynamic_cast<ForNode*>(node)) {
         push();
         n->firstSlot = size();
@@ -225,12 +235,21 @@ void resolveFunction(FuncDefNode& function) {
     body->layout = layout;
 }
 
-void resolveProgram(BlockNode& program) {
+void resolveProgram(BlockNode& program, bool registers) {
     if (program.layout) return;
     auto layout = std::make_shared<FrameLayout>();
     Resolver resolver(*layout);
-    // The top level declares globals; only blocks inside it get slots.
-    resolver.visit(&program);
+    if (!registers) {
+        // The top level declares globals; only blocks inside it get slots.
+        resolver.visit(&program);
+    } else {
+        resolver.push();
+        resolver.programDepth = 1;
+        program.firstSlot = resolver.size();
+        for (auto& stmt : program.stmts) resolver.visit(stmt.get());
+        program.endSlot = resolver.size();
+        resolver.pop();
+    }
     program.layout = layout;
 }
 

@@ -242,12 +242,16 @@ Value* Context::findVar(const std::string& name) {
         if (scope->frame && !frameSearched && scope->slots && scope->slotNames) {
             frameSearched = true;
             const auto& names = *scope->slotNames;
-            for (size_t i = names.size(); i-- > 0;)
-                if (names[i] == name && !scope->slots[i].isVoid()) {
-                    Value& slot = scope->slots[i];
-                    // A variable a lambda captured lives in a box.
-                    return slot.is(Value::Kind::Box) ? &slot.ref()->items[0] : &slot;
-                }
+            for (size_t i = names.size(); i-- > 0;) {
+                if (names[i] != name) continue;
+                Value& slot = scope->slots[i];
+                // A variable a lambda captured lives in a box.
+                Value* held = slot.is(Value::Kind::Box) ? &slot.ref()->items[0] : &slot;
+                // An empty slot is not declared yet, unless it is a program variable holding null.
+                if (!slot.isVoid()) return held;
+                auto program = scope->programGlobals.find(name);
+                if (program != scope->programGlobals.end() && program->second == held) return held;
+            }
         }
     }
     return nullptr;

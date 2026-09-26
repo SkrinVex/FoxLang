@@ -1,6 +1,7 @@
 // String and JSON builtins. Positions and lengths count characters (code points),
 // never UTF-8 bytes, so Cyrillic and emoji behave like Latin text.
 #include "Builtin.h"
+#include "../Operations.h"
 #include "../HttpServer.h"
 #include <algorithm>
 #include <stdexcept>
@@ -97,64 +98,54 @@ std::string scalarText(const Value& value, const std::string& what) {
 
 constexpr size_t maxText = size_t{64} * 1024 * 1024;
 
-// A FoxLang value as JSON: numbers and bools as literals, strings quoted, arrays as
-// JSON arrays, maps and structs as objects.
-std::string toJson(const Value& value, int depth = 0) {
-    if (value.isString()) return "\"" + jsonEscape(value.str()).str() + "\"";
-    if (value.isNumber() || value.isBool()) return value.text();
-    if (value.isVoid()) return "null";
-    if (value.is(Value::Kind::Struct) && value.ref()->structType->isEnum) return toJson(value.ref()->items[0]);
+// A FoxLang value as JSON, appended to out: numbers and bools as literals, strings
+// quoted, arrays as JSON arrays, maps and structs as objects.
+void appendJson(std::string& out, const Value& value, int depth = 0) {
+    if (value.isString()) {
+        out += '"';
+        appendJsonEscaped(out, value.str());
+        out += '"';
+        return;
+    }
+    if (value.isInt()) {
+        appendDisplay(out, value);
+        return;
+    }
+    if (value.isNumber() || value.isBool()) {
+        out += value.text();
+        return;
+    }
+    if (value.isVoid()) {
+        out += "null";
+        return;
+    }
+    if (value.is(Value::Kind::Struct) && value.ref()->structType->isEnum) {
+        appendJson(out, value.ref()->items[0], depth);
+        return;
+    }
     if (!value.ref() || value.isFunction())
         throw std::runtime_error("Type Error: json_value() cannot convert '" + value.typeName() + "'");
     if (depth > 64) throw std::runtime_error("Runtime Error: json_value() nesting is too deep");
     const Object& object = *value.ref();
     bool isArray = object.kind == Object::Kind::Array;
-    std::string out = isArray ? "[" : "{";
+    out += isArray ? '[' : '{';
     for (size_t i = 0; i < object.items.size(); ++i) {
-        if (i > 0) out += ",";
+        if (i > 0) out += ',';
         if (!isArray) {
             const std::string& key = object.kind == Object::Kind::Map ? object.keys[i] : object.structType->fields[i].name;
-            out += "\"" + jsonEscape(key).str() + "\":";
+            out += '"';
+            appendJsonEscaped(out, key);
+            out += "\":";
         }
-        out += toJson(object.items[i], depth + 1);
+        appendJson(out, object.items[i], depth + 1);
     }
-    return out + (isArray ? "]" : "}");
+    out += isArray ? ']' : '}';
 }
 
-std::string trimmedText(const std::string& raw) {
-    size_t first = raw.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos) return "";
-    return raw.substr(first, raw.find_last_not_of(" \t\r\n") - first + 1);
-}
-
-// JSON text as FoxLang values: objects become maps, arrays arrays, whole numbers int,
-// other numbers float, null null.
-Value fromJson(const std::string& raw, int depth = 0) {
-    if (depth > 64) throw std::runtime_error("Runtime Error: json_decode() nesting is too deep");
-    std::string kind = jsonType(raw, "");
-    if (kind == "object" || kind == "array") {
-        Value result = kind == "object" ? makeMap() : makeArray({});
-        for (auto& entry : jsonEntries(raw)) {
-            Value item = fromJson(entry.second, depth + 1);
-            if (kind == "object") result.ref()->slot(entry.first) = std::move(item);
-            else result.ref()->items.push_back(std::move(item));
-        }
-        return result;
-    }
-    if (kind == "string") return jsonGet(raw, "");
-    if (kind == "bool") return boolean(trimmedText(raw) == "true");
-    if (kind == "null") return nothing();
-    if (kind == "number") {
-        std::string number = trimmedText(raw);
-        if (number.find_first_of(".eE") == std::string::npos) {
-            try {
-                return integer(std::stoll(number));
-            } catch (const std::exception&) {
-            }
-        }
-        return real(std::strtod(number.c_str(), nullptr));
-    }
-    throw std::runtime_error("Runtime Error: json_decode() got text that is not JSON");
+std::string toJson(const Value& value) {
+    std::string out;
+    appendJson(out, value);
+    return out;
 }
 
 } // namespace
@@ -292,8 +283,7 @@ void addTextBuiltins(std::vector<Builtin>& out) {
          "дробные — `float`, `null` — `null`. Некорректный JSON — ошибка выполнения.\n\n"
          "```foxlang\nmap user = json_decode(\"{\\\"name\\\": \\\"Лис\\\", \\\"tags\\\": [1, 2]}\");\nprint(user.name, user[\"tags\"][1]);\n```"},
         [](Call& c) {
-            if (!jsonValid(c.text(0))) throw std::runtime_error("Runtime Error: json_decode() got text that is not valid JSON");
-            return fromJson(c.text(0));
+            return parseJson(c.text(0), "json_decode()");
         });
     add({"json_set", "string", {{"string", "json"}, {"string", "path"}, {"any", "value"}}, 3, false, "",
          "Новый JSON-документ, где по пути записано значение (строка — как JSON-строка, массив — как JSON-массив). "

@@ -464,6 +464,19 @@ private:
         if (debug) emit(Op::Declared, slot);
     }
 
+    // A variable at the program's own top level lives in a register, and code that
+    // looks it up by name (functions, modules, field defaults) finds it there once
+    // its declaration has run. Declaring a name that is already a global is an error,
+    // as it was when these variables were globals.
+    int programGlobal(const std::string& name, const std::string& type, bool constant) {
+        int site = globalSite(name, true);
+        GlobalSite& global = p.globals[static_cast<size_t>(site)];
+        if (isNullable(type)) global.nullable = type;
+        if (constant) global.declaresConstant = true;
+        emit(Op::DefineGlobal, -1, site, 1);
+        return site;
+    }
+
     // ---------------------------------------------------------------- expressions
 
     // A register holding the expression's value: a variable's own register, a constant
@@ -493,6 +506,55 @@ private:
             return copy;
         }
         return reg;
+    }
+
+    // The type an expression is sure to have, or "" when only running it tells: a
+    // literal, a variable of a plain declared type, arithmetic on those. A value of the
+    // very type a variable declares needs no conversion on the way in.
+    std::string staticType(Node& node) const {
+        if (auto* n = dynamic_cast<NumberNode*>(&node)) {
+            Value value;
+            if (!literal(*n, value)) return "";
+            if (n->isFloat) return "float";
+            // A literal beyond int's range is kept for print() but converts with an error.
+            return runtime::storesAsIs(Value::Kind::Int, value) ? "int" : "";
+        }
+        if (dynamic_cast<StringNode*>(&node) || dynamic_cast<InterpolationNode*>(&node)) return "string";
+        if (dynamic_cast<BoolNode*>(&node)) return "bool";
+        if (auto* n = dynamic_cast<VarAccessNode*>(&node)) {
+            std::string type = declaredType(n->ref);
+            return type == "int" || type == "float" || type == "string" || type == "bool" ? type : "";
+        }
+        if (auto* n = dynamic_cast<UnaryOpNode*>(&node)) {
+            if (n->op == "!") return "bool";
+            std::string type = staticType(*n->operand);
+            return type == "int" || type == "float" ? type : "";
+        }
+        if (auto* n = dynamic_cast<BinOpNode*>(&node)) {
+            using runtime::Operator;
+            switch (n->kind) {
+                case Operator::And: case Operator::Or: case Operator::Eq: case Operator::Ne:
+                case Operator::Lt: case Operator::Le: case Operator::Gt: case Operator::Ge:
+                    return "bool";
+                case Operator::Add: case Operator::Sub: case Operator::Mul: case Operator::Div: case Operator::Mod: {
+                    std::string left = staticType(*n->left), right = staticType(*n->right);
+                    if (n->kind == Operator::Add && (left == "string" || right == "string")) return "string";
+                    bool numbers = (left == "int" || left == "float") && (right == "int" || right == "float");
+                    if (!numbers) return "";
+                    return left == "float" || right == "float" ? "float" : "int";
+                }
+                default:
+                    return "";
+            }
+        }
+        return "";
+    }
+
+    // The conversion a value needs to go into a variable of `type`, unless it is sure
+    // to have that type already.
+    void coerceUnlessKnown(int reg, Node* value, Value::Kind kind, const std::string& type, const std::string& what) {
+        if (value && staticType(*value) == type) return;
+        emit(Op::Coerce, reg, conversion(kind, type, what));
     }
 
     // Compiles the expression so that its value ends up in `dest`.
@@ -695,11 +757,13 @@ private:
             return;
         }
         if (isSlotted(node.slot)) {
+            int site = node.programGlobal ? programGlobal(node.name, node.type, node.constant) : -1;
             declareSlot(node.slot, [&](int reg) {
                 if (node.expr) into(*node.expr, reg);
                 else emit(Op::Zero, reg, stringConstant(node.type));
-                emit(Op::Coerce, reg, conversion(node.kind, node.type, "variable '" + node.name + "'"));
+                coerceUnlessKnown(reg, node.expr.get(), node.kind, node.type, "variable '" + node.name + "'");
             });
+            if (site >= 0) emit(Op::Declared, node.slot, site + 1);
             return;
         }
         int site = globalSite(node.name, node.global);
@@ -740,7 +804,9 @@ private:
             }
         };
         if (slotted) {
+            int site = node.programGlobal ? programGlobal(node.name, node.type, node.constant) : -1;
             declareSlot(node.slot, store);
+            if (site >= 0) emit(Op::Declared, node.slot, site + 1);
             return;
         }
         int reg = temp();
@@ -750,14 +816,32 @@ private:
 
     bool isSlotted(int slot) const { return slot >= 0; }
 
+    // Whether compiling the expression into a register writes it only with its last
+    // instruction, so the expression may still read the variable being assigned.
+    static bool writesLast(Node& node) {
+        if (auto* n = dynamic_cast<BinOpNode*>(&node))
+            return n->kind != runtime::Operator::And && n->kind != runtime::Operator::Or &&
+                   n->kind != runtime::Operator::Unknown;
+        if (auto* n = dynamic_cast<UnaryOpNode*>(&node)) return n->op == "-" || n->op == "!";
+        return dynamic_cast<NumberNode*>(&node) || dynamic_cast<StringNode*>(&node) || dynamic_cast<BoolNode*>(&node) ||
+               dynamic_cast<VarAccessNode*>(&node);
+    }
+
     void assignment(VarAssignNode& node) {
         if (constantVariable(node.ref)) {
             fail("Runtime Error: '" + node.name + "' is a constant and cannot be changed");
             return;
         }
+        std::string type = declaredType(node.ref);
+        // total = total + x on an int variable: computed straight into its register when
+        // the value is sure to be of its type and the expression writes its result last.
+        if (isSlot(node.ref) && !type.empty() && !isNullable(type) && staticType(*node.expr) == type &&
+            writesLast(*node.expr)) {
+            into(*node.expr, node.ref.slot);
+            return;
+        }
         int reg = temp();
         into(*node.expr, reg);
-        std::string type = declaredType(node.ref);
         if (isNullable(type)) {
             // The value may be null or of the type: converted here, then stored as it is.
             emit(Op::Coerce, reg, conversion(runtime::declaredKind(type), type, "variable '" + node.name + "'"));
@@ -1130,7 +1214,7 @@ std::shared_ptr<Proto> compileExpression(Node& expression) {
 }
 
 std::shared_ptr<Proto> compileProgram(BlockNode& program, Unit unit, bool debug) {
-    resolveProgram(program);
+    resolveProgram(program, unit == Unit::Program);
     auto proto = std::make_shared<Proto>();
     proto->file = program.file;
     proto->debug = debug && unit == Unit::Program;
@@ -1138,9 +1222,13 @@ std::shared_ptr<Proto> compileProgram(BlockNode& program, Unit unit, bool debug)
     proto->slots = static_cast<int>(program.layout->names.size());
     Compiler compiler(*proto, proto->debug, false);
     compiler.boxedSlots = &program.layout->boxed;
+    compiler.slotTypes = &program.layout->types;
+    compiler.slotConstants = &program.layout->constants;
     if (unit == Unit::Program) {
         compiler.hoist(program);
-        compiler.block(program);
+        // As a function body: the top level's registers stay filled when it ends, so the
+        // program's variables become globals (vm::run) for what runs after it.
+        compiler.block(program, false, true);
     } else {
         compiler.topLevel(program, unit);
     }

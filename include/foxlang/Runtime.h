@@ -40,10 +40,12 @@ struct StackGuard {
     int tryDepth = 0;                  // try blocks the running code is inside of
     // The bytecode VM learns the line of an error from the innermost function it leaves;
     // the error it last placed is kept so that outer functions do not move it. It is
-    // known by its message: MSVC hands every frame a copy of the exception, so pointers
-    // to it never compare equal. A catch that takes the error forgets it.
+    // known by its message (a hash of it): MSVC hands every frame a copy of the
+    // exception, so pointers to it never compare equal. A catch that takes the error
+    // forgets it. Only plain fields here: the per-thread state then needs no
+    // construction check each time a call reaches it.
     bool placed = false;
-    std::string placedMessage;
+    std::size_t placedMessage = 0;
 };
 StackGuard& stackGuard();
 
@@ -111,6 +113,12 @@ Value construct(const std::shared_ptr<const StructType>& type, Value* args, size
 // segments: "message.chat.id", "items.0.name". The empty path is the document itself.
 Value jsonGet(const std::string& json, const std::string& path);
 Value jsonEscape(const std::string& text);
+// The same escaping appended to out, without a string of its own.
+void appendJsonEscaped(std::string& out, const std::string& text);
+// A whole JSON document as FoxLang values in one pass: objects become maps, arrays
+// arrays, whole numbers int (float beyond int's range), other numbers float, null null.
+// `what` names the builtin in errors.
+Value parseJson(const std::string& text, const char* what);
 int jsonCount(const std::string& json, const std::string& path);
 std::string jsonType(const std::string& json, const std::string& path);
 // The value at a path as JSON text (a string keeps its quotes); false if absent.
