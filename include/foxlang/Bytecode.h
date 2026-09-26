@@ -91,6 +91,10 @@ enum class Op : std::uint8_t {
     ScopeEnter,    // a block begins
     ScopeLeave,
     Declared,      // slot a now holds a declared variable, even when that is null
+    // Arithmetic and jumps on operands the compiler knows are ints (typed variables,
+    // int literals): only the result's range is checked. As Add .. Mod and Compare.
+    AddInt, SubInt, MulInt, DivInt, ModInt,
+    CompareInt,
 };
 
 struct Instr {

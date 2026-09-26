@@ -37,6 +37,9 @@ struct StringData {
     unsigned refs = 1;
     std::string text;
     explicit StringData(std::string t) : text(std::move(t)) {}
+    // Strings come and go by the million: their cells are reused from a free list.
+    static void* operator new(std::size_t size);
+    static void operator delete(void* memory, std::size_t size) noexcept;
 };
 
 // A value is its kind and one machine word: an int, a float or a bool are stored in
@@ -240,12 +243,16 @@ struct Object {
     bool erase(const std::string& key);
     // Drops everything the container holds: how the cycle collector breaks a ring.
     void clearContents();
+    // A big map's index of its keys (defined in Context.cpp).
+    struct KeyIndex;
+    struct KeyIndexDeleter { void operator()(KeyIndex* index) const noexcept; };
 
 private:
     // Where each key sits in `keys`, built once the map is big enough for a scan to
-    // cost more than hashing; it is in step whenever it has as many entries as `keys`.
+    // cost more than hashing; it is in step whenever it has a hash for every key.
     // Only big maps pay for it: every array, struct and small map keeps a null pointer.
-    mutable std::unique_ptr<std::unordered_map<std::string, size_t>> index_;
+    mutable std::unique_ptr<KeyIndex, KeyIndexDeleter> index_;
+    KeyIndex& indexed() const;
 };
 
 inline void Value::retainShared() const noexcept {

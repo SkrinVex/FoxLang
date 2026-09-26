@@ -2,6 +2,8 @@
 #include "foxlang/AST.h"
 #include "foxlang/Runtime.h"
 #include <algorithm>
+#include <cstring>
+#include <random>
 #include <mutex>
 #include <unordered_set>
 #include <map>
@@ -10,6 +12,17 @@
 #include <stdexcept>
 
 namespace foxlang {
+
+// The index of a big map: open addressing over positions in `keys`, with the hash of
+// every key kept, so a lookup compares a string only when the hashes match.
+struct Object::KeyIndex {
+    std::vector<std::uint32_t> slots; // position in `keys` + 1; 0 is an empty slot
+    std::vector<std::uint64_t> hashes; // of keys[i]; as many as keys when in step
+    size_t mask = 0;
+};
+
+void Object::KeyIndexDeleter::operator()(KeyIndex* index) const noexcept { delete index; }
+
 
 namespace {
 
@@ -47,50 +60,70 @@ Containers& containers() {
     return *list;
 }
 
-// Memory for containers in blocks, and the cells given back, for the next ones. Like
-// the list of live containers it serves the interpreter's thread; the blocks stay.
-struct ObjectCells {
+// Memory in blocks for values of one type, and the cells given back, for the next ones.
+// The blocks stay for the life of the process.
+template <class T>
+struct Cells {
     union Cell {
         Cell* next;
-        alignas(Object) unsigned char bytes[sizeof(Object)];
+        alignas(T) unsigned char bytes[sizeof(T)];
     };
     static constexpr size_t perBlock = 256;
     Cell* free = nullptr;
     Cell* fresh = nullptr; // the unused rest of the newest block
     Cell* end = nullptr;
+
+    void* take() {
+        if (Cell* cell = free) {
+            free = cell->next;
+            return cell;
+        }
+        if (fresh == end) {
+            fresh = static_cast<Cell*>(::operator new(sizeof(Cell) * perBlock));
+            end = fresh + perBlock;
+        }
+        return fresh++;
+    }
+    void give(void* memory) noexcept {
+        auto* cell = static_cast<Cell*>(memory);
+        cell->next = free;
+        free = cell;
+    }
 };
 
-ObjectCells& objectCells() {
-    static ObjectCells* cells = new ObjectCells; // outlives every container, even static ones
+// Containers serve the interpreter's thread, like the list of live containers.
+Cells<Object>& objectCells() {
+    static Cells<Object>* cells = new Cells<Object>; // outlives every container, even static ones
     return *cells;
+}
+
+// A string may be made on another thread (a debugger's, say); each thread has its own
+// free list, and a cell freed on another thread simply joins that thread's list.
+Cells<StringData>& stringCells() {
+    thread_local Cells<StringData> cells;
+    return cells;
 }
 
 } // namespace
 
 void* Object::operator new(std::size_t size) {
-    if (size != sizeof(Object)) return ::operator new(size);
-    ObjectCells& cells = objectCells();
-    if (ObjectCells::Cell* cell = cells.free) {
-        cells.free = cell->next;
-        return cell;
-    }
-    if (cells.fresh == cells.end) {
-        cells.fresh = static_cast<ObjectCells::Cell*>(::operator new(sizeof(ObjectCells::Cell) * ObjectCells::perBlock));
-        cells.end = cells.fresh + ObjectCells::perBlock;
-    }
-    return cells.fresh++;
+    return size == sizeof(Object) ? objectCells().take() : ::operator new(size);
 }
 
 void Object::operator delete(void* memory, std::size_t size) noexcept {
     if (!memory) return;
-    if (size != sizeof(Object)) {
-        ::operator delete(memory);
-        return;
-    }
-    ObjectCells& cells = objectCells();
-    auto* cell = static_cast<ObjectCells::Cell*>(memory);
-    cell->next = cells.free;
-    cells.free = cell;
+    if (size == sizeof(Object)) objectCells().give(memory);
+    else ::operator delete(memory);
+}
+
+void* StringData::operator new(std::size_t size) {
+    return size == sizeof(StringData) ? stringCells().take() : ::operator new(size);
+}
+
+void StringData::operator delete(void* memory, std::size_t size) noexcept {
+    if (!memory) return;
+    if (size == sizeof(StringData)) stringCells().give(memory);
+    else ::operator delete(memory);
 }
 
 Object::~Object() {
@@ -236,6 +269,57 @@ const std::string& Value::typeName() const {
 
 std::ostream& operator<<(std::ostream& out, const Value& value) { return out << runtime::display(value); }
 
+namespace {
+// Seeded per process, so that keys chosen to collide (a server's input) cannot be
+// prepared in advance.
+const std::uint64_t keySeed = [] {
+    std::random_device device;
+    return (std::uint64_t(device()) << 32) ^ device() ^ 0x9E3779B97F4A7C15ull;
+}();
+
+std::uint64_t hashKey(const std::string& key) {
+    const unsigned char* at = reinterpret_cast<const unsigned char*>(key.data());
+    size_t left = key.size();
+    std::uint64_t hash = keySeed ^ (left * 0xff51afd7ed558ccdull);
+    while (left >= 8) {
+        std::uint64_t word;
+        std::memcpy(&word, at, 8);
+        hash = (hash ^ word) * 0xbf58476d1ce4e5b9ull;
+        hash ^= hash >> 31;
+        at += 8;
+        left -= 8;
+    }
+    std::uint64_t word = 0;
+    std::memcpy(&word, at, left);
+    hash = (hash ^ word) * 0x94d049bb133111ebull;
+    return hash ^ (hash >> 29);
+}
+
+void place(Object::KeyIndex& index, std::uint32_t position) {
+    size_t at = index.hashes[position] & index.mask;
+    while (index.slots[at]) at = (at + 1) & index.mask;
+    index.slots[at] = position + 1;
+}
+} // namespace
+
+Object::KeyIndex& Object::indexed() const {
+    if (!index_) index_.reset(new KeyIndex);
+    KeyIndex& index = *index_;
+    if (index.hashes.size() != keys.size()) {
+        // Out of step (a key was removed): hash everything again, with room to grow.
+        size_t capacity = 16;
+        while (capacity < keys.size() * 2) capacity *= 2;
+        index.mask = capacity - 1;
+        index.slots.assign(capacity, 0);
+        index.hashes.resize(keys.size());
+        for (size_t i = 0; i < keys.size(); ++i) {
+            index.hashes[i] = hashKey(keys[i]);
+            place(index, static_cast<std::uint32_t>(i));
+        }
+    }
+    return index;
+}
+
 long Object::find(const std::string& key) const {
     constexpr size_t scanned = 8;
     if (keys.size() <= scanned) {
@@ -243,22 +327,31 @@ long Object::find(const std::string& key) const {
             if (keys[i] == key) return static_cast<long>(i);
         return -1;
     }
-    if (!index_) index_ = std::make_unique<std::unordered_map<std::string, size_t>>();
-    if (index_->size() != keys.size()) {
-        index_->clear();
-        index_->reserve(keys.size());
-        for (size_t i = 0; i < keys.size(); ++i) index_->emplace(keys[i], i);
+    const KeyIndex& index = indexed();
+    std::uint64_t hash = hashKey(key);
+    for (size_t at = hash & index.mask;; at = (at + 1) & index.mask) {
+        std::uint32_t slot = index.slots[at];
+        if (!slot) return -1;
+        if (index.hashes[slot - 1] == hash && keys[slot - 1] == key) return static_cast<long>(slot - 1);
     }
-    auto found = index_->find(key);
-    return found == index_->end() ? -1 : static_cast<long>(found->second);
 }
 
 Value& Object::slot(const std::string& key) {
     long at = find(key);
     if (at >= 0) return items[static_cast<size_t>(at)];
-    if (index_ && !index_->empty()) index_->emplace(key, keys.size());
     keys.push_back(key);
     items.emplace_back();
+    // A new key joins an index in step; a full one is rebuilt twice as large.
+    if (index_ && index_->hashes.size() + 1 == keys.size()) {
+        KeyIndex& index = *index_;
+        if (keys.size() * 2 > index.slots.size()) {
+            index.hashes.clear();
+            indexed();
+        } else {
+            index.hashes.push_back(hashKey(keys.back()));
+            place(index, static_cast<std::uint32_t>(keys.size() - 1));
+        }
+    }
     return items.back();
 }
 
@@ -267,7 +360,7 @@ bool Object::erase(const std::string& key) {
     if (at < 0) return false;
     keys.erase(keys.begin() + at);
     items.erase(items.begin() + at);
-    if (index_) index_->clear(); // the keys after it moved; rebuilt on the next lookup
+    if (index_) index_->hashes.clear(); // the keys after it moved; rebuilt on the next lookup
     return true;
 }
 
@@ -414,8 +507,10 @@ void Context::defineVar(const std::string& name, const std::string& /*type*/, co
 namespace runtime {
 void assign(Value& target, Value val, const std::string& name) {
     // The usual case, a value of the variable's own type, needs no conversion.
+    // An int is only an int in -2147483648..2147483647; a bigger literal converts with an error.
     bool sameType = target.kind() == val.kind() &&
-                    (!val.is(Value::Kind::Struct) || target.typeName() == val.typeName());
+                    (!val.is(Value::Kind::Struct) || target.typeName() == val.typeName()) &&
+                    (!val.isInt() || storesAsIs(Value::Kind::Int, val));
     if (!sameType) coerce(target.typeName(), val, "variable '" + name + "'");
     // Arrays, maps and structs are shared: the variable names the same container.
     target = std::move(val);
