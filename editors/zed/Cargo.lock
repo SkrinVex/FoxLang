@@ -92,7 +92,7 @@ dependencies = [
 
 [[package]]
 name = "foxlang"
-version = "8.11.0"
+version = "8.13.0"
 dependencies = [
  "zed_extension_api",
 ]
