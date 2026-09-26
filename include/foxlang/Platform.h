@@ -27,6 +27,9 @@ bool kbhit();
 // Portion of this thread's native stack a recursing program may use, in bytes.
 size_t stackBudget();
 
+// Stops the program for a while; in the browser playground the page stays responsive.
+void pause(long long milliseconds);
+
 // Environment variables
 bool setEnvVar(const std::string& key, const std::string& value);
 std::string getEnvVar(const std::string& key);
