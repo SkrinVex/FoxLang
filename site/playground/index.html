@@ -365,9 +365,40 @@ main {
 }
 .screen canvas:focus-visible { box-shadow: 0 0 0 2px var(--fox); }
 .screen { position: relative; flex-direction: column; align-items: center; gap: 8px; }
-/* Phones have no keyboard for a canvas: this button opens the on-screen one. */
+/* Phones have no keyboard for a canvas: arrows, a space bar and a button that opens
+   the on-screen keyboard sit under the window. */
+.pad {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 48px);
+  grid-template-rows: repeat(2, 48px);
+  gap: 6px;
+}
+.pad-key {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 20px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.pad-key.held { background: var(--fox); border-color: var(--fox); color: var(--fox-ink); }
+.dpad .up { grid-column: 2; grid-row: 1; }
+.dpad .left { grid-column: 1; grid-row: 2; }
+.dpad .down { grid-column: 2; grid-row: 2; }
+.dpad .right { grid-column: 3; grid-row: 2; }
+.pad-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.pad-side .space { min-width: 110px; min-height: 48px; font-size: 15px; }
 .type-button {
-  align-self: flex-end;
   min-height: 40px;
   padding: 6px 14px;
   border: 1px solid var(--line);
@@ -1148,6 +1179,48 @@ footer {
       button.title = "Клавиатура";
       button.setAttribute("aria-label", "Открыть клавиатуру");
       button.addEventListener("click", function () { typing.focus(); });
+      // A key of the pad is held while a finger is on it; several can be held at once.
+      function padKey(label, code, className, title) {
+        var key = document.createElement("button");
+        key.type = "button";
+        key.className = "pad-key " + className;
+        key.textContent = label;
+        key.setAttribute("aria-label", title);
+        var fingers = new Set();
+        function press(event) {
+          event.preventDefault();
+          try { key.setPointerCapture(event.pointerId); } catch (e) { /* the finger already left */ }
+          if (fingers.size === 0) {
+            key.classList.add("held");
+            send({ kind: "key", code: code, down: true });
+          }
+          fingers.add(event.pointerId);
+        }
+        function release(event) {
+          if (!fingers.delete(event.pointerId) || fingers.size > 0) return;
+          key.classList.remove("held");
+          send({ kind: "key", code: code, down: false });
+        }
+        key.addEventListener("pointerdown", press);
+        key.addEventListener("pointerup", release);
+        key.addEventListener("pointercancel", release);
+        key.addEventListener("contextmenu", function (event) { event.preventDefault(); });
+        return key;
+      }
+      var pad = document.createElement("div");
+      pad.className = "pad";
+      var dpad = document.createElement("div");
+      dpad.className = "dpad";
+      dpad.appendChild(padKey("▲", 38, "up", "Вверх"));
+      dpad.appendChild(padKey("◀", 37, "left", "Влево"));
+      dpad.appendChild(padKey("▼", 40, "down", "Вниз"));
+      dpad.appendChild(padKey("▶", 39, "right", "Вправо"));
+      var side = document.createElement("div");
+      side.className = "pad-side";
+      side.appendChild(padKey("Пробел", 32, "space", "Пробел"));
+      side.appendChild(button);
+      pad.appendChild(dpad);
+      pad.appendChild(side);
       function tapKey(code) {
         send({ kind: "key", code: code, down: true });
         send({ kind: "key", code: code, down: false });
@@ -1164,7 +1237,7 @@ footer {
       typing.addEventListener("blur", function () { send({ kind: "focus", focused: false }); });
       typing.addEventListener("focus", function () { send({ kind: "focus", focused: true }); });
       screenBox.appendChild(typing);
-      screenBox.appendChild(button);
+      screenBox.appendChild(pad);
     }
     return canvas;
   }
@@ -1179,7 +1252,8 @@ footer {
     windowShown = true;
     screenBox.hidden = false;
     sizeWindow(message.width, message.height);
-    statusBox.textContent = "Окно «" + message.title + "»: щёлкните по нему, чтобы управлять";
+    statusBox.textContent = "Окно «" + message.title + "»: " + (window.matchMedia("(pointer: coarse)").matches
+      ? "управляйте касаниями и кнопками под ним" : "щёлкните по нему, чтобы управлять");
     canvasElement.focus({ preventScroll: true });
     watch();
   }
