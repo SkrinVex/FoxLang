@@ -411,6 +411,11 @@ static void appendUtf8(std::string& out, unsigned cp) {
 Value jsonEscape(const std::string& text) {
     std::string out;
     out.reserve(text.size());
+    appendJsonEscaped(out, text);
+    return Value::string(std::move(out));
+}
+
+void appendJsonEscaped(std::string& out, const std::string& text) {
     for (char ch : text) {
         switch (ch) {
             case '"': out += "\\\""; break;
@@ -430,7 +435,162 @@ Value jsonEscape(const std::string& text) {
                 }
         }
     }
-    return Value::string(std::move(out));
+}
+
+namespace {
+
+// Reads a JSON document once, building the values as it goes.
+class JsonReader {
+public:
+    JsonReader(const std::string& text, const char* what) : p_(text.data()), end_(text.data() + text.size()), what_(what) {}
+
+    Value document() {
+        Value result = value(0);
+        whitespace();
+        if (p_ != end_) invalid();
+        return result;
+    }
+
+private:
+    const char* p_;
+    const char* end_;
+    const char* what_;
+
+    [[noreturn]] void invalid() const {
+        throw std::runtime_error(std::string("Runtime Error: ") + what_ + " got text that is not valid JSON");
+    }
+    void whitespace() {
+        while (p_ < end_ && std::isspace(static_cast<unsigned char>(*p_))) ++p_;
+    }
+    bool take(char ch) {
+        whitespace();
+        if (p_ < end_ && *p_ == ch) {
+            ++p_;
+            return true;
+        }
+        return false;
+    }
+
+    Value value(int depth) {
+        if (depth > 64) throw std::runtime_error(std::string("Runtime Error: ") + what_ + " nesting is too deep");
+        whitespace();
+        if (p_ >= end_) invalid();
+        switch (*p_) {
+            case '{': {
+                ++p_;
+                Value map = makeMap();
+                if (take('}')) return map;
+                do {
+                    whitespace();
+                    if (p_ >= end_ || *p_ != '"') invalid();
+                    std::string key = string();
+                    if (!take(':')) invalid();
+                    Value item = value(depth + 1);
+                    map.ref()->slot(key) = std::move(item);
+                } while (take(','));
+                if (!take('}')) invalid();
+                return map;
+            }
+            case '[': {
+                ++p_;
+                Value array = makeArray({});
+                if (take(']')) return array;
+                auto& items = array.ref()->items;
+                do items.push_back(value(depth + 1));
+                while (take(','));
+                if (!take(']')) invalid();
+                return array;
+            }
+            case '"':
+                return Value::string(string());
+            default:
+                return scalar();
+        }
+    }
+
+    std::string string() {
+        ++p_; // the opening quote
+        std::string out;
+        while (true) {
+            const char* start = p_;
+            while (p_ < end_ && *p_ != '"' && *p_ != '\\') ++p_;
+            out.append(start, p_);
+            if (p_ >= end_) invalid();
+            if (*p_++ == '"') return out;
+            if (p_ >= end_) invalid();
+            char ch = *p_++;
+            switch (ch) {
+                case 'n': out += '\n'; break;
+                case 'r': out += '\r'; break;
+                case 't': out += '\t'; break;
+                case 'b': out += '\b'; break;
+                case 'f': out += '\f'; break;
+                case 'u': {
+                    unsigned cp = hex();
+                    // A high surrogate followed by a low one encodes a single code point (emoji).
+                    if (cp >= 0xD800 && cp <= 0xDBFF && end_ - p_ >= 6 && p_[0] == '\\' && p_[1] == 'u') {
+                        const char* mark = p_;
+                        p_ += 2;
+                        unsigned low = 0;
+                        bool valid = true;
+                        for (int i = 0; i < 4; ++i) {
+                            int digit = hexVal(p_[i]);
+                            if (digit < 0) valid = false;
+                            low = (low << 4) | static_cast<unsigned>(digit < 0 ? 0 : digit);
+                        }
+                        if (valid && low >= 0xDC00 && low <= 0xDFFF) {
+                            p_ += 4;
+                            cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
+                        } else {
+                            p_ = mark;
+                        }
+                    }
+                    appendUtf8(out, cp);
+                    break;
+                }
+                default: out += ch; // \" \\ \/ and anything else stand for themselves
+            }
+        }
+    }
+
+    unsigned hex() {
+        if (end_ - p_ < 4) invalid();
+        unsigned cp = 0;
+        for (int i = 0; i < 4; ++i) {
+            int digit = hexVal(p_[i]);
+            if (digit < 0) invalid();
+            cp = (cp << 4) | static_cast<unsigned>(digit);
+        }
+        p_ += 4;
+        return cp;
+    }
+
+    Value scalar() {
+        const char* start = p_;
+        while (p_ < end_ && *p_ != ',' && *p_ != '}' && *p_ != ']' && !std::isspace(static_cast<unsigned char>(*p_))) ++p_;
+        std::string token(start, p_);
+        if (token == "true") return Value::boolean(true);
+        if (token == "false") return Value::boolean(false);
+        if (token == "null") return Value();
+        if (token.empty()) invalid();
+        char* stop = nullptr;
+        if (token.find_first_of(".eE") == std::string::npos) {
+            errno = 0;
+            long long whole = std::strtoll(token.c_str(), &stop, 10);
+            if (*stop) invalid();
+            // Beyond int's range a whole number is kept as a float, as it always was.
+            if (errno != ERANGE && whole >= -2147483648LL && whole <= 2147483647LL) return Value::integer(whole);
+        }
+        double number = std::strtod(token.c_str(), &stop);
+        if (*stop) invalid();
+        return realResult(number);
+    }
+};
+
+} // namespace
+
+Value parseJson(const std::string& text, const char* what) {
+    return JsonReader(text, what).document();
 }
 
 namespace {

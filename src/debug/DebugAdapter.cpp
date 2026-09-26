@@ -853,7 +853,11 @@ JsonValue Session::variables(const JsonValue& arguments) {
             list.push_back(variable(childName(object, i), item));
         }
     } else if (reference.kind == Reference::Kind::Globals) {
-        for (const auto& entry : root().variables) list.push_back(variable(entry.first, entry.second));
+        // The globals and, while the program runs, its top level's variables, by name.
+        std::map<std::string, const Value*> globals;
+        for (const auto& entry : root().variables) globals[entry.first] = &entry.second;
+        for (const auto& entry : root().programGlobals) globals.emplace(entry.first, entry.second);
+        for (const auto& entry : globals) list.push_back(variable(entry.first, *entry.second));
     } else {
         // The innermost declaration hides outer ones of the same name, as in the program:
         // block scopes first, then the frame's slots from the latest declared, until the
@@ -865,8 +869,12 @@ JsonValue Session::variables(const JsonValue& arguments) {
                     if (seen.insert(entry.first).second) list.push_back(variable(entry.first, entry.second));
             if (scope->frame && scope->slots && scope->slotNames) {
                 const auto& names = *scope->slotNames;
+                std::set<const Value*> programGlobals;
+                for (const auto& entry : scope->programGlobals) programGlobals.insert(entry.second);
                 for (size_t i = names.size(); i-- > 0;) {
                     const Value& slot = scope->slots[i];
+                    const Value* held = slot.is(Value::Kind::Box) ? &slot.ref()->items[0] : &slot;
+                    if (programGlobals.count(held)) continue; // shown among the globals
                     bool declared = !slot.isVoid() || (i < scope->declared.size() && scope->declared[i]);
                     if (declared && seen.insert(names[i]).second) list.push_back(variable(names[i], slot));
                 }
@@ -900,12 +908,16 @@ JsonValue Session::setVariable(const JsonValue& arguments) {
     if (reference.kind == Reference::Kind::Globals) {
         auto found = root().variables.find(name);
         if (found != root().variables.end()) target = &found->second;
+        auto program = root().programGlobals.find(name);
+        if (!target && program != root().programGlobals.end()) target = program->second;
     } else {
         target = scope.findVar(name);
     }
     if (!target) throw std::runtime_error("Переменная '" + name + "' не найдена");
     auto global = root().variables.find(name);
-    bool isGlobal = global != root().variables.end() && &global->second == target;
+    auto program = root().programGlobals.find(name);
+    bool isGlobal = (global != root().variables.end() && &global->second == target) ||
+                    (program != root().programGlobals.end() && program->second == target);
     if (isGlobal && root().constants.count(name)) throw std::runtime_error("'" + name + "' — константа, её нельзя изменить");
     auto nullable = root().nullableGlobals.find(name);
     if (isGlobal && nullable != root().nullableGlobals.end()) {

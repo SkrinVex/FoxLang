@@ -47,7 +47,51 @@ Containers& containers() {
     return *list;
 }
 
+// Memory for containers in blocks, and the cells given back, for the next ones. Like
+// the list of live containers it serves the interpreter's thread; the blocks stay.
+struct ObjectCells {
+    union Cell {
+        Cell* next;
+        alignas(Object) unsigned char bytes[sizeof(Object)];
+    };
+    static constexpr size_t perBlock = 256;
+    Cell* free = nullptr;
+    Cell* fresh = nullptr; // the unused rest of the newest block
+    Cell* end = nullptr;
+};
+
+ObjectCells& objectCells() {
+    static ObjectCells* cells = new ObjectCells; // outlives every container, even static ones
+    return *cells;
+}
+
 } // namespace
+
+void* Object::operator new(std::size_t size) {
+    if (size != sizeof(Object)) return ::operator new(size);
+    ObjectCells& cells = objectCells();
+    if (ObjectCells::Cell* cell = cells.free) {
+        cells.free = cell->next;
+        return cell;
+    }
+    if (cells.fresh == cells.end) {
+        cells.fresh = static_cast<ObjectCells::Cell*>(::operator new(sizeof(ObjectCells::Cell) * ObjectCells::perBlock));
+        cells.end = cells.fresh + ObjectCells::perBlock;
+    }
+    return cells.fresh++;
+}
+
+void Object::operator delete(void* memory, std::size_t size) noexcept {
+    if (!memory) return;
+    if (size != sizeof(Object)) {
+        ::operator delete(memory);
+        return;
+    }
+    ObjectCells& cells = objectCells();
+    auto* cell = static_cast<ObjectCells::Cell*>(memory);
+    cell->next = cells.free;
+    cells.free = cell;
+}
 
 Object::~Object() {
     Containers& list = containers();
@@ -242,12 +286,16 @@ Value* Context::findVar(const std::string& name) {
         if (scope->frame && !frameSearched && scope->slots && scope->slotNames) {
             frameSearched = true;
             const auto& names = *scope->slotNames;
-            for (size_t i = names.size(); i-- > 0;)
-                if (names[i] == name && !scope->slots[i].isVoid()) {
-                    Value& slot = scope->slots[i];
-                    // A variable a lambda captured lives in a box.
-                    return slot.is(Value::Kind::Box) ? &slot.ref()->items[0] : &slot;
-                }
+            for (size_t i = names.size(); i-- > 0;) {
+                if (names[i] != name) continue;
+                Value& slot = scope->slots[i];
+                // A variable a lambda captured lives in a box.
+                Value* held = slot.is(Value::Kind::Box) ? &slot.ref()->items[0] : &slot;
+                // An empty slot is not declared yet, unless it is a program variable holding null.
+                if (!slot.isVoid()) return held;
+                auto program = scope->programGlobals.find(name);
+                if (program != scope->programGlobals.end() && program->second == held) return held;
+            }
         }
     }
     return nullptr;

@@ -67,6 +67,8 @@ private:
 };
 
 void Window::nextChunk(size_t size) {
+    // Bounded, so the allocation below cannot be asked for the whole address space.
+    if (size > (size_t{1} << 28)) throw std::length_error("register window too large");
     RegisterStack& stack = registers;
     size_t next = stack.top ? stack.chunk + 1 : 0;
     if (next < stack.chunks.size() && stack.sizes[next] < size) {
@@ -118,6 +120,13 @@ struct DebugFrame {
 
 // ---------------------------------------------------------------- helpers
 
+// A variable of the program's top level, now declared: found by name from now on.
+FOXLANG_COLD void declareProgramGlobal(const GlobalSite& site, Value& slot, Context& root) {
+    root.programGlobals[site.name] = slot.is(Value::Kind::Box) ? &slot.ref()->items[0] : &slot;
+    if (site.declaresConstant) root.constants.insert(site.name);
+    if (!site.nullable.empty()) root.nullableGlobals[site.name] = site.nullable;
+}
+
 FOXLANG_COLD void markDeclared(DebugFrame& frame, int from, int to, bool declared) {
     auto& marks = frame.function->declared;
     for (int i = from; i < to && i >= 0 && static_cast<size_t>(i) < marks.size(); ++i) marks[static_cast<size_t>(i)] = declared;
@@ -125,6 +134,15 @@ FOXLANG_COLD void markDeclared(DebugFrame& frame, int from, int to, bool declare
 
 [[noreturn]] FOXLANG_COLD void notFound(const std::string& name) {
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
+}
+
+// A global by name: a variable of the root, or one of the running program's top level.
+Value* globalVariable(Context& root, const std::string& name) {
+    auto found = root.variables.find(name);
+    if (found != root.variables.end()) return &found->second;
+    if (root.programGlobals.empty()) return nullptr;
+    auto program = root.programGlobals.find(name);
+    return program == root.programGlobals.end() ? nullptr : program->second;
 }
 
 FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root, Context& scope) {
@@ -137,10 +155,10 @@ FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root, Context& scope) {
         site.constant = global != owner.variables.end() && &global->second == found && owner.constants.count(site.name) > 0;
         return found;
     }
-    auto found = root.variables.find(site.name);
-    if (found == root.variables.end()) notFound(site.name);
+    Value* variable = globalVariable(root, site.name);
+    if (!variable) notFound(site.name);
     site.constant = !root.constants.empty() && root.constants.count(site.name) > 0;
-    site.cached = &found->second;
+    site.cached = variable;
     site.root = &root;
     site.generation = root.generation;
     return site.cached;
@@ -164,10 +182,9 @@ Value functionValue(const std::string& name, Context& root) {
 FOXLANG_APART Value* lookUpValue(GlobalSite& site, Context& root, Context& scope) {
     Value* variable = site.byName ? scope.findVar(site.name) : nullptr;
     if (!site.byName) {
-        auto found = root.variables.find(site.name);
-        if (found != root.variables.end()) {
+        if (Value* found = globalVariable(root, site.name)) {
             site.constant = !root.constants.empty() && root.constants.count(site.name) > 0;
-            site.cached = &found->second;
+            site.cached = found;
             site.root = &root;
             site.generation = root.generation;
             return site.cached;
@@ -296,12 +313,37 @@ FOXLANG_COLD void convert(const Conversion& conversion, Value& value) {
                              " but ended without a value");
 }
 
-Value callFunction(const FuncDefNode& function, Value* args, size_t count, Context& root) {
+FOXLANG_APART void refresh(CallSite& site, Context& root);
+
+// Arguments that need no conversion go straight on to the builtin a forwarding body
+// calls: no frame, and an error names the line of the call made to the forwarder.
+FOXLANG_APART const runtime::Builtin* forwardsTo(Proto& proto, const Value* args, size_t count, Context& root) {
+    if (proto.forward < 0) return nullptr;
+    CallSite& site = proto.calls[static_cast<size_t>(proto.forward)];
+    if (!site.resolved || site.root != &root || site.generation != root.functionGeneration) refresh(site, root);
+    if (!site.builtin || site.function) return nullptr;
+    for (size_t i = 0; i < count; ++i) {
+        const Conversion& param = proto.params[i];
+        if (!param.type.empty() && !runtime::storesAsIs(param.kind, args[i])) return nullptr;
+    }
+    return site.builtin;
+}
+
+// Apart, so that the value the builtin returns takes no room in every call's frame.
+FOXLANG_APART bool forwardTo(Proto& proto, Value* args, size_t count, Context& root, Value& result) {
+    const runtime::Builtin* builtin = forwardsTo(proto, args, count, root);
+    if (!builtin) return false;
+    result = runtime::invoke(*builtin, Arguments(args, count), root);
+    return true;
+}
+
+FOXLANG_APART Value callFunction(const FuncDefNode& function, Value* args, size_t count, Context& root) {
     DebugHook* hook = runtime::debugHook();
     Proto& proto = const_cast<Proto&>(protoOf(function, hook != nullptr));
     if (count != proto.params.size()) wrongCount(proto, count);
     Value result;
-    {
+    if (proto.forward >= 0 && forwardTo(proto, args, count, root, result)) {
+    } else {
         Window window(static_cast<size_t>(proto.registers));
         Value* R = window.base();
         for (size_t i = 0; i < count; ++i) {
@@ -485,10 +527,11 @@ FOXLANG_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug
     }
     // The innermost function that sees an error names its line; the functions it
     // passes through on the way out keep that.
-    bool alreadyPlaced = guard.placed && guard.placedMessage == message;
+    std::size_t messageHash = std::hash<std::string>()(message);
+    bool alreadyPlaced = guard.placed && guard.placedMessage == messageHash;
     if (runtimeError && !alreadyPlaced && proto.lines[static_cast<size_t>(pc)] > 0) {
         guard.placed = true;
-        guard.placedMessage = message;
+        guard.placedMessage = messageHash;
         guard.line = proto.lines[static_cast<size_t>(pc)];
         guard.file = proto.file;
     }
@@ -576,8 +619,15 @@ FOXLANG_APART void unary(Op op, Value& out, const Value& operand) {
 FOXLANG_APART void defineGlobal(const GlobalSite& site, Context& root, Context& scope, Value* value) {
     Context& owner = site.byName ? scope : root;
     if (!value) {
-        if (owner.variables.count(site.name)) alreadyDeclared(site.name);
+        if (owner.variables.count(site.name) || owner.programGlobals.count(site.name)) alreadyDeclared(site.name);
     } else {
+        // `global int x = ...` for a variable of the program's top level sets that one,
+        // as it always set the global of that name.
+        auto program = owner.programGlobals.find(site.name);
+        if (program != owner.programGlobals.end()) {
+            *program->second = std::move(*value);
+            return;
+        }
         owner.variables[site.name] = std::move(*value);
         if (site.declaresConstant) owner.constants.insert(site.name);
         if (!site.nullable.empty()) owner.nullableGlobals[site.name] = site.nullable;
@@ -593,8 +643,7 @@ FOXLANG_APART void setGlobal(GlobalSite& site, Context& root, Context& scope, Va
     Value& target = *global(site, root, scope);
     Context& owner = site.byName ? scope : root;
     auto nullable = owner.nullableGlobals.find(site.name);
-    auto variable = owner.variables.find(site.name);
-    if (nullable != owner.nullableGlobals.end() && variable != owner.variables.end() && &variable->second == &target) {
+    if (nullable != owner.nullableGlobals.end() && globalVariable(owner, site.name) == &target) {
         runtime::coerce(nullable->second, value, "variable '" + site.name + "'");
         target = std::move(value);
         return;
@@ -673,6 +722,23 @@ FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key))
     std::rethrow_exception(error);
 }
 
+// GCC and Clang can jump to a label's address; the loop then dispatches each next
+// instruction from where the last one ended. Elsewhere it is an ordinary switch.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic ignored "-Wpedantic" // labels as values are the extension used here
+#define FOXLANG_THREADED 1
+#define OP(name) case Op::name: L_##name
+#define NEXT                                                     \
+    do {                                                         \
+        in = ip++;                                               \
+        goto *jump[static_cast<int>(in->op)];                    \
+    } while (0)
+#else
+#define FOXLANG_THREADED 0
+#define OP(name) case Op::name
+#define NEXT break
+#endif
+
 Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame* debug, Object* closure) {
     for (const auto& constant : proto.preload) R[constant.first] = proto.constants[static_cast<size_t>(constant.second)];
     const Instr* code = proto.code.data();
@@ -682,313 +748,397 @@ Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame*
     if (proto.pendingErrors > 0) pending.reset(new std::exception_ptr[static_cast<size_t>(proto.pendingErrors)]);
     runtime::StackGuard& guard = runtime::stackGuard();
     std::exception_ptr escaping;
+    const Instr* in = nullptr;
+#if FOXLANG_THREADED
+    // Each instruction jumps straight to the code of the next one's operation, instead of
+    // going back to one switch: fewer branches, and each one easier to predict.
+    static void* const jump[] = {
+        &&L_Move,
+        &&L_LoadConst,
+        &&L_Clear,
+        &&L_GetGlobal,
+        &&L_SetGlobal,
+        &&L_DefineGlobal,
+        &&L_Coerce,
+        &&L_Assign,
+        &&L_Zero,
+        &&L_NewSized,
+        &&L_Fail,
+        &&L_Add,
+        &&L_Sub,
+        &&L_Mul,
+        &&L_Div,
+        &&L_Mod,
+        &&L_Eq,
+        &&L_Ne,
+        &&L_Lt,
+        &&L_Le,
+        &&L_Gt,
+        &&L_Ge,
+        &&L_Negate,
+        &&L_Not,
+        &&L_Truth,
+        &&L_Jump,
+        &&L_JumpIfFalse,
+        &&L_JumpIfTrue,
+        &&L_JumpIfNull,
+        &&L_JumpIfNotNull,
+        &&L_Compare,
+        &&L_ForIn,
+        &&L_Call,
+        &&L_Return,
+        &&L_ReturnVoid,
+        &&L_NewArray,
+        &&L_NewMap,
+        &&L_MapKey,
+        &&L_Concat,
+        &&L_Index,
+        &&L_Field,
+        &&L_SetPath,
+        &&L_Increment,
+        &&L_IncrementGlobal,
+        &&L_Box,
+        &&L_Unbox,
+        &&L_BoxStore,
+        &&L_BoxAssign,
+        &&L_GetCapture,
+        &&L_SetCapture,
+        &&L_IncrementRef,
+        &&L_Closure,
+        &&L_CallValue,
+        &&L_Method,
+        &&L_Declare,
+        &&L_Throw,
+        &&L_Rethrow,
+        &&L_TryEnter,
+        &&L_TryLeave,
+        &&L_Match,
+        &&L_Statement,
+        &&L_ScopeEnter,
+        &&L_ScopeLeave,
+        &&L_Declared,
+    };
+#endif
 
     for (;;) {
         try {
             for (;;) {
-                const Instr& in = *ip++;
-                switch (in.op) {
-                    case Op::Move:
-                        if (in.x) R[in.a] = std::move(R[in.b]);
-                        else R[in.a] = R[in.b];
-                        break;
-                    case Op::LoadConst:
-                        R[in.a] = K[in.b];
-                        break;
-                    case Op::Clear:
-                        for (int i = in.a; i < in.b; ++i) R[i] = Value();
-                        if (debug) markDeclared(*debug, in.a, in.b, false);
-                        break;
-                    case Op::GetGlobal:
-                        R[in.a] = *readGlobal(proto.globals[static_cast<size_t>(in.b)], root, scope);
-                        break;
-                    case Op::SetGlobal: {
-                        GlobalSite& site = proto.globals[static_cast<size_t>(in.b)];
+                in = ip++;
+                switch (in->op) {
+                    OP(Move):
+                        if (in->x) R[in->a] = std::move(R[in->b]);
+                        else R[in->a] = R[in->b];
+                        NEXT;
+                    OP(LoadConst):
+                        R[in->a] = K[in->b];
+                        NEXT;
+                    OP(Clear):
+                        for (int i = in->a; i < in->b; ++i) R[i] = Value();
+                        if (debug) markDeclared(*debug, in->a, in->b, false);
+                        NEXT;
+                    OP(GetGlobal):
+                        R[in->a] = *readGlobal(proto.globals[static_cast<size_t>(in->b)], root, scope);
+                        NEXT;
+                    OP(SetGlobal): {
+                        GlobalSite& site = proto.globals[static_cast<size_t>(in->b)];
                         Value& target = *global(site, root, scope);
                         if (site.constant) constantChanged(site.name);
-                        Value& value = R[in.a];
+                        Value& value = R[in->a];
                         if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
                         else setGlobal(site, root, scope, value);
-                        break;
+                        NEXT;
                     }
-                    case Op::DefineGlobal:
-                        defineGlobal(proto.globals[static_cast<size_t>(in.b)], root, scope, in.a < 0 ? nullptr : &R[in.a]);
-                        break;
-                    case Op::Coerce: {
-                        const Conversion& conversion = proto.conversions[static_cast<size_t>(in.b)];
-                        if (!runtime::storesAsIs(conversion.kind, R[in.a])) runtime::coerce(conversion.type, R[in.a], conversion.what);
-                        break;
+                    OP(DefineGlobal):
+                        defineGlobal(proto.globals[static_cast<size_t>(in->b)], root, scope, in->a < 0 ? nullptr : &R[in->a]);
+                        NEXT;
+                    OP(Coerce): {
+                        const Conversion& conversion = proto.conversions[static_cast<size_t>(in->b)];
+                        if (!runtime::storesAsIs(conversion.kind, R[in->a])) runtime::coerce(conversion.type, R[in->a], conversion.what);
+                        NEXT;
                     }
-                    case Op::Assign: {
-                        Value& target = R[in.a];
-                        Value& value = R[in.b];
+                    OP(Assign): {
+                        Value& target = R[in->a];
+                        Value& value = R[in->b];
                         if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
-                        else assignSlow(target, value, K[in.c].str());
-                        break;
+                        else assignSlow(target, value, K[in->c].str());
+                        NEXT;
                     }
-                    case Op::Zero:
-                        R[in.a] = runtime::zeroValue(K[in.b].str(), root);
-                        break;
-                    case Op::NewSized:
-                        R[in.a] = sizedArray(R[in.b], K[in.c].str());
-                        break;
-                    case Op::Fail:
-                        raise(K[in.a].str());
+                    OP(Zero):
+                        R[in->a] = runtime::zeroValue(K[in->b].str(), root);
+                        NEXT;
+                    OP(NewSized):
+                        R[in->a] = sizedArray(R[in->b], K[in->c].str());
+                        NEXT;
+                    OP(Fail):
+                        raise(K[in->a].str());
 
-                    case Op::Add: {
-                        const Value& l = R[in.b];
-                        const Value& r = R[in.c];
+                    OP(Add): {
+                        const Value& l = R[in->b];
+                        const Value& r = R[in->c];
                         if (l.isInt() && r.isInt()) {
                             long long sum = l.asInt() + r.asInt();
                             if (fitsInt(sum)) {
-                                R[in.a].setInt(sum);
-                                break;
+                                R[in->a].setInt(sum);
+                                NEXT;
                             }
                         }
-                        binarySlow(runtime::Operator::Add, proto.texts[in.y], R[in.a], l, r);
-                        break;
+                        binarySlow(runtime::Operator::Add, proto.texts[in->y], R[in->a], l, r);
+                        NEXT;
                     }
-                    case Op::Sub: {
-                        const Value& l = R[in.b];
-                        const Value& r = R[in.c];
+                    OP(Sub): {
+                        const Value& l = R[in->b];
+                        const Value& r = R[in->c];
                         if (l.isInt() && r.isInt()) {
                             long long difference = l.asInt() - r.asInt();
                             if (fitsInt(difference)) {
-                                R[in.a].setInt(difference);
-                                break;
+                                R[in->a].setInt(difference);
+                                NEXT;
                             }
                         }
-                        binarySlow(runtime::Operator::Sub, proto.texts[in.y], R[in.a], l, r);
-                        break;
+                        binarySlow(runtime::Operator::Sub, proto.texts[in->y], R[in->a], l, r);
+                        NEXT;
                     }
-                    case Op::Mul: {
-                        const Value& l = R[in.b];
-                        const Value& r = R[in.c];
+                    OP(Mul): {
+                        const Value& l = R[in->b];
+                        const Value& r = R[in->c];
                         if (l.isInt() && r.isInt()) {
                             long long product = l.asInt() * r.asInt();
                             if (fitsInt(l.asInt()) && fitsInt(r.asInt()) && fitsInt(product)) {
-                                R[in.a].setInt(product);
-                                break;
+                                R[in->a].setInt(product);
+                                NEXT;
                             }
                         }
-                        binarySlow(runtime::Operator::Mul, proto.texts[in.y], R[in.a], l, r);
-                        break;
+                        binarySlow(runtime::Operator::Mul, proto.texts[in->y], R[in->a], l, r);
+                        NEXT;
                     }
-                    case Op::Div:
-                    case Op::Mod: {
-                        const Value& l = R[in.b];
-                        const Value& r = R[in.c];
+                    OP(Div):
+                    OP(Mod): {
+                        const Value& l = R[in->b];
+                        const Value& r = R[in->c];
                         if (l.isInt() && r.isInt() && r.asInt() != 0 && fitsInt(l.asInt()) && fitsInt(r.asInt())) {
-                            long long result = in.op == Op::Div ? l.asInt() / r.asInt() : l.asInt() % r.asInt();
+                            long long result = in->op == Op::Div ? l.asInt() / r.asInt() : l.asInt() % r.asInt();
                             if (fitsInt(result)) {
-                                R[in.a].setInt(result);
-                                break;
+                                R[in->a].setInt(result);
+                                NEXT;
                             }
                         }
-                        binarySlow(in.op == Op::Div ? runtime::Operator::Div : runtime::Operator::Mod, proto.texts[in.y],
-                                   R[in.a], l, r);
-                        break;
+                        binarySlow(in->op == Op::Div ? runtime::Operator::Div : runtime::Operator::Mod, proto.texts[in->y],
+                                   R[in->a], l, r);
+                        NEXT;
                     }
-                    case Op::Eq: case Op::Ne: case Op::Lt: case Op::Le: case Op::Gt: case Op::Ge: {
-                        const Value& l = R[in.b];
-                        const Value& r = R[in.c];
+                    OP(Eq): OP(Ne): OP(Lt): OP(Le): OP(Gt): OP(Ge): {
+                        const Value& l = R[in->b];
+                        const Value& r = R[in->c];
                         auto op = static_cast<runtime::Operator>(static_cast<int>(runtime::Operator::Eq) +
-                                                                 (static_cast<int>(in.op) - static_cast<int>(Op::Eq)));
+                                                                 (static_cast<int>(in->op) - static_cast<int>(Op::Eq)));
                         if (l.isInt() && r.isInt()) {
                             long long a = l.asInt(), b = r.asInt();
                             bool result = op == runtime::Operator::Eq ? a == b : op == runtime::Operator::Ne ? a != b
                                         : op == runtime::Operator::Lt ? a < b : op == runtime::Operator::Le ? a <= b
                                         : op == runtime::Operator::Gt ? a > b : a >= b;
-                            R[in.a].setBool(result);
-                            break;
+                            R[in->a].setBool(result);
+                            NEXT;
                         }
-                        binarySlow(op, proto.texts[in.y], R[in.a], l, r);
-                        break;
+                        binarySlow(op, proto.texts[in->y], R[in->a], l, r);
+                        NEXT;
                     }
-                    case Op::Negate:
-                    case Op::Not:
-                        unary(in.op, R[in.a], R[in.b]);
-                        break;
-                    case Op::Truth:
-                        runtime::operandTruth(R[in.a], in.x ? "right" : "left", proto.texts[in.y]);
-                        break;
+                    OP(Negate):
+                    OP(Not):
+                        unary(in->op, R[in->a], R[in->b]);
+                        NEXT;
+                    OP(Truth):
+                        runtime::operandTruth(R[in->a], in->x ? "right" : "left", proto.texts[in->y]);
+                        NEXT;
 
-                    case Op::Jump:
-                        ip = code + in.a;
-                        break;
-                    case Op::JumpIfFalse:
-                        if (!truth(R[in.a], in.x)) ip = code + in.b;
-                        break;
-                    case Op::JumpIfTrue:
-                        if (truth(R[in.a], in.x)) ip = code + in.b;
-                        break;
-                    case Op::JumpIfNull:
-                        if (R[in.a].isVoid()) ip = code + in.b;
-                        break;
-                    case Op::JumpIfNotNull:
-                        if (!R[in.a].isVoid()) ip = code + in.b;
-                        break;
-                    case Op::Compare: {
-                        const Value& l = R[in.a];
-                        const Value& r = R[in.b];
-                        auto op = static_cast<runtime::Operator>(in.x);
+                    OP(Jump):
+                        ip = code + in->a;
+                        NEXT;
+                    OP(JumpIfFalse):
+                        if (!truth(R[in->a], in->x)) ip = code + in->b;
+                        NEXT;
+                    OP(JumpIfTrue):
+                        if (truth(R[in->a], in->x)) ip = code + in->b;
+                        NEXT;
+                    OP(JumpIfNull):
+                        if (R[in->a].isVoid()) ip = code + in->b;
+                        NEXT;
+                    OP(JumpIfNotNull):
+                        if (!R[in->a].isVoid()) ip = code + in->b;
+                        NEXT;
+                    OP(Compare): {
+                        const Value& l = R[in->a];
+                        const Value& r = R[in->b];
+                        auto op = static_cast<runtime::Operator>(in->x);
                         bool result;
                         if (l.isInt() && r.isInt()) {
                             long long a = l.asInt(), b = r.asInt();
-                            result = op == runtime::Operator::Lt ? a < b : op == runtime::Operator::Le ? a <= b
-                                   : op == runtime::Operator::Gt ? a > b : op == runtime::Operator::Ge ? a >= b
-                                   : op == runtime::Operator::Eq ? a == b : a != b;
+                            switch (op) {
+                                case runtime::Operator::Lt: result = a < b; break;
+                                case runtime::Operator::Le: result = a <= b; break;
+                                case runtime::Operator::Gt: result = a > b; break;
+                                case runtime::Operator::Ge: result = a >= b; break;
+                                case runtime::Operator::Eq: result = a == b; break;
+                                default: result = a != b; break;
+                            }
                         } else {
-                            result = compareSlow(op, proto.texts[in.y >> 1], l, r);
+                            result = compareSlow(op, proto.texts[in->y >> 1], l, r);
                         }
-                        if (result == ((in.y & 1) != 0)) ip = code + in.c;
-                        break;
+                        if (result == ((in->y & 1) != 0)) ip = code + in->c;
+                        NEXT;
                     }
 
-                    case Op::ForIn:
-                        if (!forIn(R, in)) ip = code + in.c;
-                        break;
-                    case Op::Call:
-                        call(proto, in, R, root);
-                        break;
-                    case Op::Return:
-                        return std::move(R[in.a]);
-                    case Op::ReturnVoid:
+                    OP(ForIn):
+                        if (!forIn(R, *in)) ip = code + in->c;
+                        NEXT;
+                    OP(Call):
+                        call(proto, *in, R, root);
+                        NEXT;
+                    OP(Return):
+                        return std::move(R[in->a]);
+                    OP(ReturnVoid):
                         return Value();
 
-                    case Op::NewArray:
-                        newArray(R[in.a], R + in.b, in.c);
-                        break;
-                    case Op::NewMap:
-                        newMap(R[in.a], R + in.b, in.c);
-                        break;
-                    case Op::Concat:
-                        concat(R[in.a], R + in.b, in.c);
-                        break;
-                    case Op::MapKey:
-                        if (!R[in.a].isString()) mapKey(R[in.a]);
-                        break;
-                    case Op::Index: {
+                    OP(NewArray):
+                        newArray(R[in->a], R + in->b, in->c);
+                        NEXT;
+                    OP(NewMap):
+                        newMap(R[in->a], R + in->b, in->c);
+                        NEXT;
+                    OP(Concat):
+                        concat(R[in->a], R + in->b, in->c);
+                        NEXT;
+                    OP(MapKey):
+                        if (!R[in->a].isString()) mapKey(R[in->a]);
+                        NEXT;
+                    OP(Index): {
                         // An array element by an int in range is the common case.
-                        const Value& base = R[in.b];
-                        const Value& key = R[in.c];
-                        if (base.is(Value::Kind::Array) && key.isInt() && in.a != in.b) {
+                        const Value& base = R[in->b];
+                        const Value& key = R[in->c];
+                        if (base.is(Value::Kind::Array) && key.isInt() && in->a != in->b) {
                             const auto& items = base.ref()->items;
                             long long at = key.asInt();
                             if (at >= 0 && static_cast<unsigned long long>(at) < items.size()) {
-                                R[in.a] = items[static_cast<size_t>(at)];
-                                break;
+                                R[in->a] = items[static_cast<size_t>(at)];
+                                NEXT;
                             }
                         }
-                        index(R[in.a], R[in.b], R[in.c]);
-                        break;
+                        index(R[in->a], R[in->b], R[in->c]);
+                        NEXT;
                     }
-                    case Op::Field: {
-                        FieldSite& site = proto.fields[static_cast<size_t>(in.c)];
-                        const Value& base = R[in.b];
-                        if (base.is(Value::Kind::Struct) && base.ref()->structType.get() == site.type && in.a != in.b) {
-                            R[in.a] = base.ref()->items[site.index];
-                            break;
+                    OP(Field): {
+                        FieldSite& site = proto.fields[static_cast<size_t>(in->c)];
+                        const Value& base = R[in->b];
+                        if (base.is(Value::Kind::Struct) && base.ref()->structType.get() == site.type && in->a != in->b) {
+                            R[in->a] = base.ref()->items[site.index];
+                            NEXT;
                         }
-                        field(R[in.a], R[in.b], site);
-                        break;
+                        field(R[in->a], R[in->b], site);
+                        NEXT;
                     }
-                    case Op::SetPath:
-                        setPath(proto, proto.paths[static_cast<size_t>(in.b)], R, R[in.a], root, scope, closure);
-                        break;
-                    case Op::Increment: {
-                        Value& target = R[in.b];
-                        int delta = (in.c & 1) ? 1 : -1;
+                    OP(SetPath):
+                        setPath(proto, proto.paths[static_cast<size_t>(in->b)], R, R[in->a], root, scope, closure);
+                        NEXT;
+                    OP(Increment): {
+                        Value& target = R[in->b];
+                        int delta = (in->c & 1) ? 1 : -1;
                         if (target.isInt() && fitsInt(target.asInt()) && fitsInt(target.asInt() + delta)) {
                             long long old = target.asInt();
                             target.setInt(old + delta);
-                            if (in.a >= 0) R[in.a].setInt(old);
-                            break;
+                            if (in->a >= 0) R[in->a].setInt(old);
+                            NEXT;
                         }
-                        incrementSlow(in.a >= 0 ? &R[in.a] : nullptr, target, delta, K[in.c >> 1].str());
-                        break;
+                        incrementSlow(in->a >= 0 ? &R[in->a] : nullptr, target, delta, K[in->c >> 1].str());
+                        NEXT;
                     }
-                    case Op::IncrementGlobal: {
-                        GlobalSite& site = proto.globals[static_cast<size_t>(in.b)];
+                    OP(IncrementGlobal): {
+                        GlobalSite& site = proto.globals[static_cast<size_t>(in->b)];
                         Value& target = *global(site, root, scope);
                         if (site.constant) constantChanged(site.name);
-                        incrementSlow(in.a >= 0 ? &R[in.a] : nullptr, target, in.c ? 1 : -1, site.name);
-                        break;
+                        int delta = in->c ? 1 : -1;
+                        if (target.isInt() && fitsInt(target.asInt() + delta)) {
+                            long long old = target.asInt();
+                            target.setInt(old + delta);
+                            if (in->a >= 0) R[in->a].setInt(old);
+                            NEXT;
+                        }
+                        incrementSlow(in->a >= 0 ? &R[in->a] : nullptr, target, delta, site.name);
+                        NEXT;
                     }
 
-                    case Op::Box:
-                        box(R[in.a]);
-                        break;
-                    case Op::Unbox:
-                        R[in.a] = R[in.b].ref()->items[0];
-                        break;
-                    case Op::BoxStore:
-                        R[in.a].ref()->items[0] = std::move(R[in.b]);
-                        break;
-                    case Op::BoxAssign: {
-                        Value& target = R[in.a].ref()->items[0];
-                        Value& value = R[in.b];
+                    OP(Box):
+                        box(R[in->a]);
+                        NEXT;
+                    OP(Unbox):
+                        R[in->a] = R[in->b].ref()->items[0];
+                        NEXT;
+                    OP(BoxStore):
+                        R[in->a].ref()->items[0] = std::move(R[in->b]);
+                        NEXT;
+                    OP(BoxAssign): {
+                        Value& target = R[in->a].ref()->items[0];
+                        Value& value = R[in->b];
                         if (target.kind() == value.kind() && !target.is(Value::Kind::Struct)) target = std::move(value);
-                        else assignSlow(target, value, K[in.c].str());
-                        break;
+                        else assignSlow(target, value, K[in->c].str());
+                        NEXT;
                     }
-                    case Op::GetCapture:
-                        R[in.a] = closure->items[static_cast<size_t>(in.b)].ref()->items[0];
-                        break;
-                    case Op::SetCapture: {
-                        Value& target = closure->items[static_cast<size_t>(in.a)].ref()->items[0];
-                        Value& value = R[in.b];
-                        if (in.x || (target.kind() == value.kind() && !target.is(Value::Kind::Struct))) target = std::move(value);
-                        else assignSlow(target, value, K[in.c].str());
-                        break;
+                    OP(GetCapture):
+                        R[in->a] = closure->items[static_cast<size_t>(in->b)].ref()->items[0];
+                        NEXT;
+                    OP(SetCapture): {
+                        Value& target = closure->items[static_cast<size_t>(in->a)].ref()->items[0];
+                        Value& value = R[in->b];
+                        if (in->x || (target.kind() == value.kind() && !target.is(Value::Kind::Struct))) target = std::move(value);
+                        else assignSlow(target, value, K[in->c].str());
+                        NEXT;
                     }
-                    case Op::IncrementRef: {
-                        Value& target = in.x ? closure->items[static_cast<size_t>(in.b)].ref()->items[0] : R[in.b].ref()->items[0];
-                        incrementSlow(in.a >= 0 ? &R[in.a] : nullptr, target, (in.c & 1) ? 1 : -1, K[in.c >> 1].str());
-                        break;
+                    OP(IncrementRef): {
+                        Value& target = in->x ? closure->items[static_cast<size_t>(in->b)].ref()->items[0] : R[in->b].ref()->items[0];
+                        incrementSlow(in->a >= 0 ? &R[in->a] : nullptr, target, (in->c & 1) ? 1 : -1, K[in->c >> 1].str());
+                        NEXT;
                     }
-                    case Op::Closure:
-                        makeClosure(proto, in.b, R[in.a], R, closure);
-                        break;
-                    case Op::CallValue:
-                        callValueInPlace(R, in.a, in.c, root, K[in.b].str());
-                        break;
-                    case Op::Method:
-                        callMethod(R, in.a, in.c, root, K[in.b].str());
-                        break;
-                    case Op::Declare: {
-                        Declaration* declaration = proto.declarations[static_cast<size_t>(in.b)];
-                        if (!in.c || !declaration->exists(root)) declaration->declare(root);
-                        break;
+                    OP(Closure):
+                        makeClosure(proto, in->b, R[in->a], R, closure);
+                        NEXT;
+                    OP(CallValue):
+                        callValueInPlace(R, in->a, in->c, root, K[in->b].str());
+                        NEXT;
+                    OP(Method):
+                        callMethod(R, in->a, in->c, root, K[in->b].str());
+                        NEXT;
+                    OP(Declare): {
+                        Declaration* declaration = proto.declarations[static_cast<size_t>(in->b)];
+                        if (!in->c || !declaration->exists(root)) declaration->declare(root);
+                        NEXT;
                     }
-                    case Op::Throw:
-                        raise(runtime::display(R[in.a]));
-                    case Op::Rethrow:
-                        rethrow(pending[static_cast<size_t>(in.a)]);
-                    case Op::TryEnter:
+                    OP(Throw):
+                        raise(runtime::display(R[in->a]));
+                    OP(Rethrow):
+                        rethrow(pending[static_cast<size_t>(in->a)]);
+                    OP(TryEnter):
                         ++guard.tryDepth;
-                        break;
-                    case Op::TryLeave:
+                        NEXT;
+                    OP(TryLeave):
                         --guard.tryDepth;
-                        break;
-                    case Op::Match:
-                        R[in.a].setBool(runtime::switchMatches(R[in.b], R[in.c]));
-                        break;
+                        NEXT;
+                    OP(Match):
+                        R[in->a].setBool(runtime::switchMatches(R[in->b], R[in->c]));
+                        NEXT;
 
-                    case Op::Statement:
-                        guard.line = in.a;
+                    OP(Statement):
+                        guard.line = in->a;
                         guard.file = proto.file;
-                        if (debug) debug->hook->statement(proto.file, in.a);
-                        break;
-                    case Op::ScopeEnter:
-                        if (debug) debug->enter(in.a != 0);
-                        break;
-                    case Op::ScopeLeave:
+                        if (debug) debug->hook->statement(proto.file, in->a);
+                        NEXT;
+                    OP(ScopeEnter):
+                        if (debug) debug->enter(in->a != 0);
+                        NEXT;
+                    OP(ScopeLeave):
                         if (debug) debug->leave();
-                        break;
-                    case Op::Declared:
-                        if (debug) markDeclared(*debug, in.a, in.a + 1, true);
-                        break;
+                        NEXT;
+                    OP(Declared):
+                        if (in->b) declareProgramGlobal(proto.globals[static_cast<size_t>(in->b - 1)], R[in->a], root);
+                        if (debug) markDeclared(*debug, in->a, in->a + 1, true);
+                        NEXT;
                 }
             }
         } catch (...) {
@@ -1026,6 +1176,13 @@ void run(BlockNode& program, Context& root, Unit unit) {
         const std::vector<std::string>* names;
         bool frame;
         ~Frame() {
+            // The top level's variables outlive its registers as ordinary globals, for
+            // code that runs later: another runSource, a callback, Interpreter::getGlobal.
+            for (const auto& variable : root.programGlobals) root.variables.emplace(variable.first, *variable.second);
+            if (!root.programGlobals.empty()) {
+                root.programGlobals.clear();
+                ++root.generation; // lookups cached the registers
+            }
             root.slots = slots;
             root.slotNames = names;
             root.frame = frame;

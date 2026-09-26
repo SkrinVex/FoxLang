@@ -136,6 +136,27 @@ target_include_directories(foxlang-lsp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/l
 target_link_libraries(foxlang-lsp PRIVATE foxlang_core foxlang_json)
 
 # CTest integration
+# Release builds optimize across source files when linking: calls between the VM,
+# the runtime and the builtins become direct and small helpers are inlined.
+option(FOXLANG_LTO "Link-time optimization for release builds" ON)
+if(FOXLANG_LTO)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT foxlang_ipo OUTPUT foxlang_ipo_error LANGUAGES CXX)
+    if(foxlang_ipo)
+        set_property(TARGET foxlang_core foxlang_bundle foxlang_json foxlang_debug foxlang foxlang-lsp
+                     PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+        # Functions inlined across files would make every FoxLang call's native frame in
+        # the VM loop twice as large, and the recursion a program gets half as deep.
+        if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            set_source_files_properties(src/core/Vm.cpp PROPERTIES COMPILE_OPTIONS "-fno-lto")
+        elseif(MSVC)
+            set_source_files_properties(src/core/Vm.cpp PROPERTIES COMPILE_OPTIONS "/GL-")
+        endif()
+    else()
+        message(STATUS "Link-time optimization is not available: ${foxlang_ipo_error}")
+    endif()
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
     enable_testing()

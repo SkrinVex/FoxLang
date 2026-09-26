@@ -193,12 +193,16 @@ struct Proto {
     bool lambda = false;
     bool method = false; // a struct's method: parameter 0 is `this`, not counted in messages
     int registers = 0;
-    int pendingErrors = 0;
-    std::vector<int> boxedParams;      // parameters a lambda captures: boxed when a call begins             // finally blocks that can hold an error
+    int pendingErrors = 0;             // finally blocks that can hold an error
+    std::vector<int> boxedParams;      // parameters a lambda captures: boxed when a call begins
     bool debug = false;                // compiled for a debugger: statement and scope events
     // A function's signature, checked by every call.
     std::vector<Conversion> params;
     Conversion result{Value::Kind::Void, "void", ""};
+    // A body that only passes its parameters, in order, to one call, like the standard
+    // library's `void draw_rect(int x, ...) { gfx_rect(x, ...); }`: that call's site.
+    // Arguments that already have the parameters' types go there directly.
+    int forward = -1;
     // The names of the slots, for the debugger and the console.
     std::shared_ptr<const std::vector<std::string>> slotNames;
     int slots = 0;

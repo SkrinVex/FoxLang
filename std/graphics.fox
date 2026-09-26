@@ -46,3 +46,6 @@ void draw_image_part(int image, int source_x, int source_y, int source_width, in
 int image_pixel(int image, int x, int y) { return gfx_image_pixel(image, x, y); }
 int image_alpha(int image, int x, int y) { return gfx_image_alpha(image, x, y); }
 void free_image(int image) { gfx_image_free(image); }
+void draw_rects(array rects) { gfx_rects(rects); }
+void draw_sprites(int image, int frame_width, int frame_height, array sprites) { gfx_sprites(image, frame_width, frame_height, sprites); }
+void draw_tiles(int image, int tile_width, int tile_height, array tiles, int columns, int x, int y) { gfx_tiles(image, tile_width, tile_height, tiles, columns, x, y); }

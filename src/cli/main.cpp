@@ -19,6 +19,7 @@
 #endif
 
 bool foxlangHasBundleDescriptor();
+bool foxlangHasBundlePayload();
 
 // Reports the diagnostics the editor already sees, for a terminal or CI, without executing code.
 static int check(const std::string& path) {
@@ -97,7 +98,10 @@ int main(int argc, char* argv[]) {
     }
 #if (defined(__linux__) || defined(_WIN32)) && (defined(__x86_64__) || defined(_M_X64))
     if (!foxlangHasBundleDescriptor()) throw std::runtime_error("Bundle Error: damaged stub descriptor");
-    auto embedded = foxlang::bundle::unpack(foxlang::bundle::readImage(foxlang::bundle::executablePath()));
+    // Reading the executable (megabytes) is only for a built app, which carries its program.
+    auto embedded = foxlangHasBundlePayload()
+                        ? foxlang::bundle::unpack(foxlang::bundle::readImage(foxlang::bundle::executablePath()))
+                        : std::nullopt;
     if (embedded) {
         auto sources = std::make_shared<foxlang::bundle::Sources>(std::move(*embedded));
         foxlang::InterpreterOptions options;

@@ -13,3 +13,10 @@ extern const volatile unsigned char foxlangBundleDescriptor[40] = {
 bool foxlangHasBundleDescriptor() {
     return foxlangBundleDescriptor[0] == 'F';
 }
+
+// `foxlang build` sets the mode word (bytes 12..15) in the file; the loaded image carries
+// it, so a plain foxlang knows without reading its whole executable from disk.
+bool foxlangHasBundlePayload() {
+    return foxlangBundleDescriptor[12] || foxlangBundleDescriptor[13] || foxlangBundleDescriptor[14] ||
+           foxlangBundleDescriptor[15];
+}

@@ -439,7 +439,7 @@ print(add(2, 3), factorial(5));
   действует прежняя.
 * Глубина вложенных вызовов ограничена стеком потока: бесконечная рекурсия
   завершается ошибкой `call depth limit` с числом вызовов, а не аварийным падением.
-  При обычных 8 МБ стека это несколько тысяч уровней (около 4700 для простой функции).
+  При обычных 8 МБ стека это несколько тысяч уровней (около 5800 для простой функции).
 * `return` вне функции — ошибка.
 
 **Функции и встроенные функции с одинаковым именем.** Если имя совпадает со
@@ -1027,7 +1027,7 @@ if (is_number(answer)) {
 | `json_type(string json, string path) -> string` | `object`, `array`, `string`, `number`, `bool`, `null` или пустая строка |
 | `json_escape(string text) -> string` | экранирование для вставки внутрь JSON-строки |
 | `json_value(any value) -> string` | значение FoxLang как JSON: строка в кавычках, массив — JSON-массив, словарь и структура — объект |
-| `json_decode(string json) -> any` | JSON целиком: объект — `map`, массив — `array`, целое — `int`, дробное — `float`, `null` — `null` |
+| `json_decode(string json) -> any` | JSON целиком: объект — `map`, массив — `array`, целое — `int`, дробное — `float`, `null` — `null`; текст, который не является JSON целиком (например, `tru` или `[1, 2`), — ошибка, её можно перехватить `try` |
 | `json_set(string json, string path, any value) -> string` | новый документ со значением по пути |
 | `json_set_raw(string json, string path, string raw_json) -> string` | то же, но значение — готовый JSON |
 | `json_valid(string json) -> bool` | корректен ли документ |
@@ -1215,7 +1215,10 @@ print(page);
 `gfx_image_alpha(int image, int x, int y)`,
 `gfx_image_draw(int image, int x, int y, int width, int height, int opacity)`,
 `gfx_image_draw_part(int image, int source_x, int source_y, int source_width, int source_height, int x, int y, int width, int height)`,
-`gfx_image_free(int image)`, `gfx_resizable(bool resizable)`, `gfx_set_size(int width, int height)`, `gfx_resized()`.
+`gfx_image_free(int image)`, `gfx_rects(array rects)`,
+`gfx_sprites(int image, int frame_width, int frame_height, array sprites)`,
+`gfx_tiles(int image, int tile_width, int tile_height, array tiles, int columns, int x, int y)`,
+`gfx_resizable(bool resizable)`, `gfx_set_size(int width, int height)`, `gfx_resized()`.
 Звук (основа модуля [`sound`](#using-sound)): `sound_play(string path)`,
 `sound_tone(float frequency, int milliseconds, float volume)`, `sound_stop()`.
 Обычно их вызывают через модуль с понятными именами.
@@ -1470,7 +1473,9 @@ reset_color();
 `draw_image(int image, int x, int y)`, `draw_image_scaled(int image, int x, int y, int width, int height)`,
 `draw_image_alpha(int image, int x, int y, int opacity)`,
 `draw_image_part(int image, int source_x, int source_y, int source_width, int source_height, int x, int y, int width, int height)`,
-`free_image(int image)`.
+`free_image(int image)`, `draw_rects(array rects)`,
+`draw_sprites(int image, int frame_width, int frame_height, array sprites)`,
+`draw_tiles(int image, int tile_width, int tile_height, array tiles, int columns, int x, int y)`.
 Подробности и пример — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
 
 ### using sound;
@@ -1961,6 +1966,11 @@ Windows) с программным 2D-рисованием, картинками
 полупрозрачной целиком, а `draw_image_part` рисует часть — кадр спрайта или плитку из
 атласа. `image_pixel` и `image_alpha` читают пиксель, например для карты столкновений.
 
+**Много объектов за кадр.** Сотни спрайтов или карта из тысяч плиток рисуются одним
+вызовом: `draw_tiles` берёт массив номеров плиток и рисует только те, что видны в
+окне, `draw_sprites` — массив троек «кадр, x, y», `draw_rects` — пятёрок «x, y,
+ширина, высота, цвет». Это в разы быстрее, чем вызывать `draw_image_part` в цикле.
+
 **Размер окна.** `set_window_resizable(true)` разрешает менять размер окна мышью,
 `set_window_size` меняет его из программы. В кадре после изменения
 `window_resized()` истинно, а `window_width()` и `window_height()` возвращают новый
@@ -2272,5 +2282,10 @@ VS Code и Zed. Без сборки то же делает `cmake -P cmake/Versi
 модули из `std/`, тесты из `ctest -N`. Скрипт запускает каждая сборка (цель
 `site_facts`) и выкладка сайта, а одноимённый тест сообщает, если закоммичена
 страница со старыми цифрами.
+
+**Оптимизация при компоновке** (LTO) включена для сборки Release, если компилятор
+её поддерживает; выключить — `-DFOXLANG_LTO=OFF`. Файл виртуальной машины
+`src/core/Vm.cpp` в неё не входит: встроенные в цикл VM чужие функции увеличили бы
+кадр каждого вызова и уменьшили допустимую глубину рекурсии.
 
 Состав тестов описан в [tests/README.md](tests/README.md).
