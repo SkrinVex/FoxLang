@@ -224,13 +224,22 @@ void Surface::image(const Image& picture, int sx, int sy, int sw, int sh, int x,
     int left = static_cast<int>(std::max<int64_t>(area.left, x)), top = static_cast<int>(std::max<int64_t>(area.top, y));
     int right = static_cast<int>(std::min<int64_t>(area.right, int64_t(x) + width));
     int bottom = static_cast<int>(std::min<int64_t>(area.bottom, int64_t(y) + height));
+    if (left >= right || top >= bottom) return;
+    // Which source column each target column shows is the same on every row.
+    bool unscaled = sw == width;
+    thread_local std::vector<int> columns;
+    if (!unscaled) {
+        columns.resize(size_t(right - left));
+        for (int col = left; col < right; ++col)
+            columns[size_t(col - left)] = sx + static_cast<int>((int64_t(col - x) * sw) / width);
+    }
     for (int row = top; row < bottom; ++row) {
         int from = sy + static_cast<int>((int64_t(row - y) * sh) / height);
         const uint32_t* source = picture.pixels.data() + size_t(from) * picture.width;
         uint32_t* target = pixels_.data() + size_t(row) * width_;
         for (int col = left; col < right; ++col) {
-            uint32_t color = source[sx + static_cast<int>((int64_t(col - x) * sw) / width)];
-            uint32_t alpha = ((color >> 24) * uint32_t(opacity) + 127) / 255;
+            uint32_t color = source[unscaled ? sx + (col - x) : columns[size_t(col - left)]];
+            uint32_t alpha = opacity == 255 ? color >> 24 : ((color >> 24) * uint32_t(opacity) + 127) / 255;
             if (alpha == 0) continue;
             if (alpha == 255) {
                 target[col] = color & 0xffffff;

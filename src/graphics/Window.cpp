@@ -15,7 +15,10 @@
 #include <windowsx.h>
 #include <mutex>
 #else
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <xcb/xcb.h>
+#include <xcb/xcbext.h>
 #endif
 
 namespace foxlang::graphics {
@@ -263,9 +266,15 @@ struct Window::Native {
     unsigned keysymsPerCode = 0, minKeycode = 0;
     xcb_atom_t clipboardAtom = XCB_NONE, utf8Atom = XCB_NONE, targetsAtom = XCB_NONE, transferAtom = XCB_NONE;
     std::string ownedClipboard;       // what this window offers while it owns CLIPBOARD
+    // MIT-SHM hands the frame over in shared memory instead of through the socket. A
+    // remote display, or a system without System V shared memory, gets xcb_put_image.
+    uint32_t shmSegment = 0;
+    uint8_t* shmPixels = nullptr;
+    bool shmPending = false;          // the server may still be reading the last frame
     explicit Native(Window& w) : owner(w) {}
     ~Native() {
         if (connection) {
+            detachShm();
             if (gc) xcb_free_gc(connection, gc);
             if (back) xcb_free_pixmap(connection, back);
             if (window) xcb_destroy_window(connection, window);
@@ -278,6 +287,60 @@ struct Window::Native {
         Reply<xcb_generic_error_t> error(xcb_request_check(connection, cookie), &std::free);
         if (error) fail("X11 request failed (code " + std::to_string(error->error_code) + ")");
         if (xcb_connection_has_error(connection)) fail("X11 connection lost");
+    }
+    // The three MIT-SHM requests, sent the way libxcb-shm sends them, so that the
+    // extension needs no library of its own.
+    static xcb_extension_t& shmExtension() {
+        static xcb_extension_t id{"MIT-SHM", 0};
+        return id;
+    }
+    unsigned shmRequest(uint8_t opcode, void* body, size_t size, bool checked) {
+        xcb_protocol_request_t request{2, &shmExtension(), opcode, 1};
+        iovec parts[4];
+        parts[2].iov_base = body;
+        parts[2].iov_len = size;
+        parts[3].iov_base = nullptr;
+        parts[3].iov_len = (0 - size) & 3;
+        return xcb_send_request(connection, checked ? XCB_REQUEST_CHECKED : 0, parts + 2, &request);
+    }
+    void attachShm(size_t bytes) {
+        detachShm();
+        if (const char* off = std::getenv("FOXLANG_X11_SHM"); off && std::string(off) == "0") return;
+        const auto* extension = xcb_get_extension_data(connection, &shmExtension());
+        if (!extension || !extension->present) return;
+        int id = shmget(IPC_PRIVATE, bytes, IPC_CREAT | 0600);
+        if (id < 0) return;
+        void* address = shmat(id, nullptr, 0);
+        if (address == reinterpret_cast<void*>(-1)) {
+            shmctl(id, IPC_RMID, nullptr);
+            return;
+        }
+        uint32_t segment = xcb_generate_id(connection);
+        struct { uint8_t major, minor; uint16_t length; uint32_t segment, id; uint8_t readOnly, pad[3]; }
+            attach{0, 0, 0, segment, static_cast<uint32_t>(id), 1, {}};
+        xcb_void_cookie_t cookie{shmRequest(1, &attach, sizeof attach, true)};
+        Reply<xcb_generic_error_t> error(xcb_request_check(connection, cookie), &std::free);
+        shmctl(id, IPC_RMID, nullptr); // the memory goes once both sides let go of it
+        if (error || xcb_connection_has_error(connection)) {
+            shmdt(address);
+            return;
+        }
+        shmSegment = segment;
+        shmPixels = static_cast<uint8_t*>(address);
+    }
+    void detachShm() {
+        if (!shmPixels) return;
+        struct { uint8_t major, minor; uint16_t length; uint32_t segment; } detach{0, 0, 0, shmSegment};
+        shmRequest(2, &detach, sizeof detach, false);
+        shmdt(shmPixels);
+        shmPixels = nullptr;
+        shmSegment = 0;
+        shmPending = false;
+    }
+    // Requests are handled in order: an answer to a later one means the server is done
+    // reading the shared frame.
+    void waitForServer() {
+        Reply<xcb_get_input_focus_reply_t> reply(xcb_get_input_focus_reply(connection, xcb_get_input_focus(connection), nullptr), &std::free);
     }
     xcb_atom_t atom(const char* name) {
         auto cookie = xcb_intern_atom(connection, 0, static_cast<uint16_t>(std::strlen(name)), name);
@@ -430,7 +493,8 @@ struct Window::Native {
         size_t requestBytes = size_t(xcb_get_maximum_request_length(connection)) * 4;
         if (requestBytes <= 64 || stride > requestBytes - 64) fail("X11 maximum image request is too small");
         rowsPerRequest = (requestBytes - 64) / stride;
-        image.resize(stride * height);
+        attachShm(stride * height);
+        if (!shmPixels) image.resize(stride * height);
         window = xcb_generate_id(connection);
         uint32_t values[] = {screen->black_pixel, XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE |
             XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_STRUCTURE_NOTIFY};
@@ -532,7 +596,9 @@ struct Window::Native {
         stride = ((size_t(width) * bits + pad - 1) / pad) * (pad / 8);
         size_t requestBytes = size_t(xcb_get_maximum_request_length(connection)) * 4;
         rowsPerRequest = std::max<size_t>(1, (requestBytes - 64) / stride);
-        image.assign(stride * size_t(height), 0);
+        attachShm(stride * size_t(height));
+        if (shmPixels) std::vector<uint8_t>().swap(image);
+        else image.assign(stride * size_t(height), 0);
         if (back) xcb_free_pixmap(connection, back);
         back = xcb_generate_id(connection);
         xcb_create_pixmap(connection, depth, back, window, static_cast<uint16_t>(width), static_cast<uint16_t>(height));
@@ -549,16 +615,33 @@ struct Window::Native {
     }
     void present() {
         const auto& surface = owner.surface();
+        if (shmPending) {
+            waitForServer();
+            shmPending = false;
+        }
+        uint8_t* target = shmPixels ? shmPixels : image.data();
         if (bits == 32 && byteOrder == XCB_IMAGE_ORDER_LSB_FIRST && red == 0xff0000 && green == 0xff00 && blue == 0xff && stride == size_t(surface.width()) * 4) {
-            std::memcpy(image.data(), surface.pixels().data(), image.size());
+            std::memcpy(target, surface.pixels().data(), stride * size_t(surface.height()));
         } else {
             for (int y = 0; y < surface.height(); ++y) for (int x = 0; x < surface.width(); ++x) {
                 uint32_t c = surface.pixels()[size_t(y) * surface.width() + x];
                 uint32_t pixel = channel((c >> 16) & 255, red) | channel((c >> 8) & 255, green) | channel(c & 255, blue);
-                for (unsigned b = 0; b < bits / 8; ++b) image[size_t(y) * stride + size_t(x) * (bits / 8) + b] = static_cast<uint8_t>(pixel >> (8 * (byteOrder == XCB_IMAGE_ORDER_LSB_FIRST ? b : bits / 8 - 1 - b)));
+                for (unsigned b = 0; b < bits / 8; ++b) target[size_t(y) * stride + size_t(x) * (bits / 8) + b] = static_cast<uint8_t>(pixel >> (8 * (byteOrder == XCB_IMAGE_ORDER_LSB_FIRST ? b : bits / 8 - 1 - b)));
             }
         }
-        for (size_t y = 0; y < size_t(surface.height()); y += rowsPerRequest) {
+        if (shmPixels) {
+            auto width = static_cast<uint16_t>(surface.width()), height = static_cast<uint16_t>(surface.height());
+            struct {
+                uint8_t major, minor; uint16_t length;
+                uint32_t drawable, gc;
+                uint16_t totalWidth, totalHeight, sourceX, sourceY, sourceWidth, sourceHeight;
+                int16_t x, y;
+                uint8_t depth, format, sendEvent, pad;
+                uint32_t segment, offset;
+            } put{0, 0, 0, back, gc, width, height, 0, 0, width, height, 0, 0, depth, XCB_IMAGE_FORMAT_Z_PIXMAP, 0, 0, shmSegment, 0};
+            shmRequest(3, &put, sizeof put, false);
+            shmPending = true;
+        } else for (size_t y = 0; y < size_t(surface.height()); y += rowsPerRequest) {
             auto rows = std::min(rowsPerRequest, size_t(surface.height()) - y);
             xcb_put_image(connection, XCB_IMAGE_FORMAT_Z_PIXMAP, back, gc, static_cast<uint16_t>(surface.width()), static_cast<uint16_t>(rows), 0, static_cast<int16_t>(y), 0, depth, static_cast<uint32_t>(rows * stride), image.data() + y * stride);
         }

@@ -102,6 +102,26 @@ close_window();
 | `draw_image_part(int image, int source_x, int source_y, int source_width, int source_height, int x, int y, int width, int height)` | часть картинки: кадр спрайта, плитка атласа |
 | `image_pixel(int image, int x, int y)`, `image_alpha(int image, int x, int y)` | цвет `rgb(...)` и непрозрачность пикселя |
 | `free_image(int image)` | освобождает картинку |
+| `draw_sprites(int image, int frame_width, int frame_height, array sprites)` | много кадров атласа за вызов: `sprites` — тройки «номер кадра, x, y»; кадры нумеруются слева направо и сверху вниз с 0 |
+| `draw_tiles(int image, int tile_width, int tile_height, array tiles, int columns, int x, int y)` | карта плиток: `tiles` — номера плиток по строкам, `columns` в строке, угол карты в (x, y); номер меньше 0 — пустая клетка; рисуются только видимые плитки |
+| `draw_rects(array rects)` | много прямоугольников за вызов: пятёрки «x, y, ширина, высота, цвет» |
+
+Для игр с большим числом объектов пакетные функции заметно быстрее цикла из
+`draw_image_part`: один вызов из программы вместо сотен, а плитки за краем окна
+не перебираются вовсе.
+
+```cpp
+using graphics;
+int atlas = load_image("tiles.png");          // атлас плиток 16×16
+array level = [0, 0, 1, 1, -1, 2, 2, 2];         // -1 — пусто
+open_window(320, 240, "Карта");
+while (window_poll()) {
+    clear_window(rgb(0, 0, 0));
+    draw_tiles(atlas, 16, 16, level, 4, 0, 0);   // 4 плитки в строке
+    draw_sprites(atlas, 16, 16, [3, 100, 50, 3, 140, 50]);
+    present_window();
+}
+```
 
 PNG поддерживается целиком: серые, цветные и палитровые изображения, 1–16 бит на
 канал, прозрачность (альфа-канал и `tRNS`), чересстрочная развёртка Adam7. BMP —

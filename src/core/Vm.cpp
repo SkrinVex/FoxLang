@@ -67,6 +67,8 @@ private:
 };
 
 void Window::nextChunk(size_t size) {
+    // Bounded, so the allocation below cannot be asked for the whole address space.
+    if (size > (size_t{1} << 28)) throw std::length_error("register window too large");
     RegisterStack& stack = registers;
     size_t next = stack.top ? stack.chunk + 1 : 0;
     if (next < stack.chunks.size() && stack.sizes[next] < size) {
@@ -311,12 +313,30 @@ FOXLANG_COLD void convert(const Conversion& conversion, Value& value) {
                              " but ended without a value");
 }
 
+FOXLANG_APART void refresh(CallSite& site, Context& root);
+
+// Arguments that need no conversion go straight on to the builtin a forwarding body
+// calls: no frame, and an error names the line of the call made to the forwarder.
+const runtime::Builtin* forwardsTo(Proto& proto, const Value* args, size_t count, Context& root) {
+    if (proto.forward < 0) return nullptr;
+    CallSite& site = proto.calls[static_cast<size_t>(proto.forward)];
+    if (!site.resolved || site.root != &root || site.generation != root.functionGeneration) refresh(site, root);
+    if (!site.builtin || site.function) return nullptr;
+    for (size_t i = 0; i < count; ++i) {
+        const Conversion& param = proto.params[i];
+        if (!param.type.empty() && !runtime::storesAsIs(param.kind, args[i])) return nullptr;
+    }
+    return site.builtin;
+}
+
 Value callFunction(const FuncDefNode& function, Value* args, size_t count, Context& root) {
     DebugHook* hook = runtime::debugHook();
     Proto& proto = const_cast<Proto&>(protoOf(function, hook != nullptr));
     if (count != proto.params.size()) wrongCount(proto, count);
     Value result;
-    {
+    if (const runtime::Builtin* builtin = forwardsTo(proto, args, count, root)) {
+        result = runtime::invoke(*builtin, Arguments(args, count), root);
+    } else {
         Window window(static_cast<size_t>(proto.registers));
         Value* R = window.base();
         for (size_t i = 0; i < count; ++i) {

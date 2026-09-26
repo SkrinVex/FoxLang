@@ -112,8 +112,11 @@
       <item>draw_line</item>
       <item>draw_rect</item>
       <item>draw_rect_alpha</item>
+      <item>draw_rects</item>
       <item>draw_ring</item>
+      <item>draw_sprites</item>
       <item>draw_text</item>
+      <item>draw_tiles</item>
       <item>ends_with</item>
       <item>env</item>
       <item>env_default</item>
@@ -191,6 +194,7 @@
       <item>gfx_pressed</item>
       <item>gfx_rect</item>
       <item>gfx_rect_alpha</item>
+      <item>gfx_rects</item>
       <item>gfx_repeat</item>
       <item>gfx_resizable</item>
       <item>gfx_resized</item>
@@ -198,9 +202,11 @@
       <item>gfx_ring</item>
       <item>gfx_set_clipboard</item>
       <item>gfx_set_size</item>
+      <item>gfx_sprites</item>
       <item>gfx_text</item>
       <item>gfx_text_input</item>
       <item>gfx_text_width</item>
+      <item>gfx_tiles</item>
       <item>gfx_ui_click</item>
       <item>gfx_ui_drag</item>
       <item>gfx_ui_drag_x</item>

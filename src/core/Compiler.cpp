@@ -1151,6 +1151,25 @@ private:
 
 } // namespace
 
+// The call site a body forwards its parameters to, or -1 (see Proto::forward).
+int forwardedCall(const FuncDefNode& function, const Proto& proto) {
+    const BlockNode& body = *function.block();
+    if (body.stmts.size() != 1 || proto.method || proto.debug) return -1;
+    const Node* statement = body.stmts[0].get();
+    if (auto* returned = dynamic_cast<const ReturnNode*>(statement)) statement = returned->expr.get();
+    else if (proto.result.kind != Value::Kind::Void) return -1;
+    auto* call = dynamic_cast<const FuncCallNode*>(statement);
+    if (!call || call->ref.slot >= 0 || call->ref.slot == VarRef::captured) return -1;
+    if (call->args.size() != function.params.size()) return -1;
+    for (size_t i = 0; i < call->args.size(); ++i) {
+        auto* arg = dynamic_cast<const VarAccessNode*>(call->args[i].get());
+        if (!arg || arg->ref.slot != static_cast<int>(i) || body.layout->boxed[i]) return -1;
+    }
+    for (size_t i = 0; i < proto.calls.size(); ++i)
+        if (proto.calls[i].name == call->name) return static_cast<int>(i);
+    return -1;
+}
+
 std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug) {
     BlockNode* body = function.block();
     if (!body) throw std::logic_error("a function body must be a block");
@@ -1179,6 +1198,7 @@ std::shared_ptr<Proto> compileFunction(const FuncDefNode& function, bool debug) 
     compiler.end(body->range.end.line);
     compiler.epilogue();
     compiler.finish();
+    proto->forward = forwardedCall(function, *proto);
     return proto;
 }
 

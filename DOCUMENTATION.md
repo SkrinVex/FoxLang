@@ -1215,7 +1215,10 @@ print(page);
 `gfx_image_alpha(int image, int x, int y)`,
 `gfx_image_draw(int image, int x, int y, int width, int height, int opacity)`,
 `gfx_image_draw_part(int image, int source_x, int source_y, int source_width, int source_height, int x, int y, int width, int height)`,
-`gfx_image_free(int image)`, `gfx_resizable(bool resizable)`, `gfx_set_size(int width, int height)`, `gfx_resized()`.
+`gfx_image_free(int image)`, `gfx_rects(array rects)`,
+`gfx_sprites(int image, int frame_width, int frame_height, array sprites)`,
+`gfx_tiles(int image, int tile_width, int tile_height, array tiles, int columns, int x, int y)`,
+`gfx_resizable(bool resizable)`, `gfx_set_size(int width, int height)`, `gfx_resized()`.
 Звук (основа модуля [`sound`](#using-sound)): `sound_play(string path)`,
 `sound_tone(float frequency, int milliseconds, float volume)`, `sound_stop()`.
 Обычно их вызывают через модуль с понятными именами.
@@ -1470,7 +1473,9 @@ reset_color();
 `draw_image(int image, int x, int y)`, `draw_image_scaled(int image, int x, int y, int width, int height)`,
 `draw_image_alpha(int image, int x, int y, int opacity)`,
 `draw_image_part(int image, int source_x, int source_y, int source_width, int source_height, int x, int y, int width, int height)`,
-`free_image(int image)`.
+`free_image(int image)`, `draw_rects(array rects)`,
+`draw_sprites(int image, int frame_width, int frame_height, array sprites)`,
+`draw_tiles(int image, int tile_width, int tile_height, array tiles, int columns, int x, int y)`.
 Подробности и пример — в [docs/GRAPHICS.md](docs/GRAPHICS.md).
 
 ### using sound;
@@ -1960,6 +1965,11 @@ Windows) с программным 2D-рисованием, картинками
 прозрачностью, `draw_image_scaled` растягивает, `draw_image_alpha` делает её
 полупрозрачной целиком, а `draw_image_part` рисует часть — кадр спрайта или плитку из
 атласа. `image_pixel` и `image_alpha` читают пиксель, например для карты столкновений.
+
+**Много объектов за кадр.** Сотни спрайтов или карта из тысяч плиток рисуются одним
+вызовом: `draw_tiles` берёт массив номеров плиток и рисует только те, что видны в
+окне, `draw_sprites` — массив троек «кадр, x, y», `draw_rects` — пятёрок «x, y,
+ширина, высота, цвет». Это в разы быстрее, чем вызывать `draw_image_part` в цикле.
 
 **Размер окна.** `set_window_resizable(true)` разрешает менять размер окна мышью,
 `set_window_size` меняет его из программы. В кадре после изменения

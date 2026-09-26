@@ -35,6 +35,7 @@ with tempfile.TemporaryDirectory(prefix='fox-native-window-') as directory:
     source=dev/'main.fox'
     source.write_text('''using graphics;
 open_window(320, 240, "'''+title+'''");
+int atlas = load_image("tiles.bmp");
 int frames = 0;
 int presses = 0;
 while (window_poll()) {
@@ -42,6 +43,9 @@ while (window_poll()) {
     draw_rect(20, 20, 40, 30, rgb(240, 60, 20));
     draw_circle(140, 80, 16, rgb(30, 220, 70));
     draw_text(10, 140, "Привет Fox", 2, rgb(255, 255, 255));
+    draw_tiles(atlas, 16, 16, [0, 1, -1, 1], 2, 200, 150);
+    draw_sprites(atlas, 16, 16, [1, 260, 20, 0, 290, 20]);
+    draw_rects([20, 200, 10, 10, rgb(1, 2, 3), 40, 200, 10, 10, rgb(4, 5, 6)]);
     if (key_pressed("SPACE")) { presses++; }
     if (key_down("SPACE")) { write_file("key.txt", "held"); }
     if (key_pressed("MOUSE_LEFT")) { write_file("mouse.txt", "" + mouse_x() + "," + mouse_y()); }
@@ -61,6 +65,12 @@ print("GRAPHICS_STANDALONE_OK");
     assert build.returncode==0,(build.stdout,build.stderr)
     shutil.rmtree(dev)
     assert list(clean.iterdir())==[app]
+    # A 32x16 atlas of two tiles: blue on the left, yellow on the right (bottom-up BMP rows).
+    row=(b'\xff\x00\x00'*16+b'\x00\xff\xff'*16)
+    pixels=row*16
+    header=b'BM'+(54+len(pixels)).to_bytes(4,'little')+bytes(4)+(54).to_bytes(4,'little')
+    info=(40).to_bytes(4,'little')+(32).to_bytes(4,'little')+(16).to_bytes(4,'little')+(1).to_bytes(2,'little')+(24).to_bytes(2,'little')+bytes(24)
+    (clean/'tiles.bmp').write_bytes(header+info+pixels)
     env={**os.environ,'PATH':'','FOXLANG_HOME':str(root/'absent')}
     process=subprocess.Popen([str(app)],cwd=clean,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8')
     driver=None
@@ -71,6 +81,10 @@ print("GRAPHICS_STANDALONE_OK");
         assert driver.pixel(5,5)==0x0a141e,hex(driver.pixel(5,5))
         assert driver.pixel(25,25)==0xf03c14,hex(driver.pixel(25,25))
         assert driver.pixel(140,80)==0x1edc46,hex(driver.pixel(140,80))
+        # Batches: a tile map with an empty cell, sprites by frame number, rectangles.
+        for (x,y),color in {(205,155):0x0000ff,(221,155):0xffff00,(205,171):0x0a141e,(221,171):0xffff00,
+                            (265,25):0xffff00,(295,25):0x0000ff,(25,205):0x010203,(45,205):0x040506}.items():
+            assert driver.pixel(x,y)==color,((x,y),hex(driver.pixel(x,y)))
         driver.send_key('SPACE',True)
         wait_for(lambda:(clean/'key.txt').exists(),process,'key down')
         # Repeated keydown without release must not count as another press.
