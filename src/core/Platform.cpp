@@ -13,6 +13,9 @@
     #include <sys/select.h>
     #include <pthread.h>
 #endif
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/stack.h>
+#endif
 
 namespace foxlang {
 namespace platform {
@@ -48,6 +51,8 @@ size_t stackBudget() {
     ULONG_PTR low = 0, high = 0;
     GetCurrentThreadStackLimits(&low, &high);
     if (high > low) size = static_cast<size_t>(high - low);
+#elif defined(__EMSCRIPTEN__)
+    size = emscripten_stack_get_base() - emscripten_stack_get_end();
 #else
     pthread_attr_t attributes;
     if (pthread_getattr_np(pthread_self(), &attributes) == 0) {

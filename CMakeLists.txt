@@ -38,7 +38,7 @@ if(WIN32)
 endif()
 
 # Reusable FoxLang core library
-add_library(foxlang_core STATIC
+set(foxlang_core_sources
     src/core/Context.cpp
     src/core/Platform.cpp
     src/core/Network.cpp
@@ -74,6 +74,12 @@ add_library(foxlang_core STATIC
     src/graphics/Image.cpp
     src/graphics/Builtins.cpp
 )
+if(EMSCRIPTEN)
+    # The browser playground: no libcurl or Mbed TLS, so no HTTP client or HTTPS server.
+    list(REMOVE_ITEM foxlang_core_sources src/core/HttpClient.cpp src/core/TlsServer.cpp)
+    list(APPEND foxlang_core_sources src/web/Unavailable.cpp)
+endif()
+add_library(foxlang_core STATIC ${foxlang_core_sources})
 
 target_include_directories(foxlang_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -81,6 +87,19 @@ target_include_directories(foxlang_core PUBLIC
 )
 target_include_directories(foxlang_core PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_definitions(foxlang_core PRIVATE FOXLANG_VERSION="${PROJECT_VERSION}")
+if(EMSCRIPTEN)
+    # WebAssembly for the playground page (site/playground): the page loads
+    # foxlang.js/foxlang.wasm into a web worker. Nothing else is built.
+    target_compile_options(foxlang_core PUBLIC -fwasm-exceptions)
+    add_executable(foxlang_web src/web/Playground.cpp)
+    target_link_libraries(foxlang_web PRIVATE foxlang_core)
+    set_target_properties(foxlang_web PROPERTIES OUTPUT_NAME foxlang SUFFIX .js)
+    target_link_options(foxlang_web PRIVATE -fwasm-exceptions
+        -sMODULARIZE=1 -sEXPORT_NAME=createFoxLang -sENVIRONMENT=worker,node
+        -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=512MB -sSTACK_SIZE=4MB
+        -sEXPORTED_RUNTIME_METHODS=ccall,FS -sEXIT_RUNTIME=0 -sINVOKE_RUN=0)
+    return()
+endif()
 include(cmake/Networking.cmake)
 include(cmake/Graphics.cmake)
 if(WIN32)

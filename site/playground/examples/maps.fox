@@ -1,0 +1,16 @@
+// Словари и JSON.
+map prices = {"яблоко": 45, "груша": 60, "слива": 30};
+prices["вишня"] = 120;
+
+int total = 0;
+for (string fruit in prices) {
+    print("${fruit} — ${prices[fruit]} ₽");
+    total += prices[fruit];
+}
+print("Всё вместе: ${total} ₽");
+
+// Любое значение превращается в JSON и обратно.
+string text = json_value({"город": "Казань", "лисы": [1, 2, 3], "зима": true});
+print(text);
+map data = json_decode(text);
+print("Лис в городе: ${size(data["лисы"])}");

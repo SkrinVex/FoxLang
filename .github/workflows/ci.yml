@@ -26,6 +26,23 @@ jobs:
       - name: Verify no shared libraries and run standalone tests on Ubuntu
         run: xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/foxlang
 
+  # The playground page's FoxLang: WebAssembly built with Emscripten, run in Node.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.10
+      - name: Build FoxLang for WebAssembly
+        run: |
+          emcmake cmake -S . -B web -DCMAKE_BUILD_TYPE=Release
+          cmake --build web -j4
+          cp web/foxlang.js web/foxlang.wasm site/playground/
+      - name: Run the playground's examples and limits
+        run: node tests/web/test_playground.js site/playground
+
   desktop:
     timeout-minutes: 25
     strategy:

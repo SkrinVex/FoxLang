@@ -1,0 +1,21 @@
+// Структуры, массивы и сортировка.
+struct Fox {
+    string name;
+    int age;
+    float speed;
+}
+
+array foxes = [
+    Fox("Рыжик", 3, 48.5),
+    Fox("Алиса", 5, 52.0),
+    Fox("Лисёнок", 1, 31.2)
+];
+
+array_sort(foxes, (Fox a, Fox b) => a.speed > b.speed);
+for (Fox fox in foxes) {
+    print("${fox.name}: ${fox.age} г., ${fox.speed} км/ч");
+}
+
+Fox fastest = foxes[0];
+fastest.age += 1; // структура — ссылка: меняется и элемент массива
+print("Самая быстрая лиса — ${fastest.name}, через год ей будет ${fastest.age}");

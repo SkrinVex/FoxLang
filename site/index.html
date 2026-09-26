@@ -119,6 +119,17 @@ h1 {
   text-wrap: balance;
 }
 .lede { font-size: 20px; color: var(--muted); max-width: 60ch; margin: 0; }
+.try {
+  display: inline-block;
+  margin-top: 22px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  background: var(--fox);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.try:hover { filter: brightness(1.08); }
 .facts {
   display: grid;
   grid-template-columns: repeat(2, auto);
@@ -360,6 +371,7 @@ img { max-width: 100%; }
     <p class="eyebrow">FoxLang 8.12 · объяснение с нуля</p>
     <h1>Как устроен язык FoxLang</h1>
     <p class="lede">Что происходит между строчкой <code>print("Привет!");</code> и словом на экране: как язык читает текст, хранит числа и списки, вызывает функции, ловит ошибки, рисует окно точка за точкой, отвечает браузеру и почему для него есть отладчик.</p>
+    <a class="try" href="playground/">Попробовать в браузере →</a>
   </div>
   <div class="facts" aria-label="FoxLang в цифрах">
     <div><b>3</b><span>шага от текста до результата</span></div>
