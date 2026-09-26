@@ -943,7 +943,7 @@ python3 benchmarks/run.py --baseline old/foxlang <span class="c"># сравни�
       <div class="bench-legend" id="bench-legend"></div>
       <div class="bench-chart" id="bench-langs" role="img" aria-label="Время бенчмарков на FoxLang и других языках"></div>
       <div class="note">
-        <p>Честно о том, что видно на графике. С версии 8.3 FoxLang, как Python и Lua, выполняет байткод, а не дерево, и на этих задачах идёт вровень с Python: где-то быстрее (циклы, структуры, сортировка), где-то медленнее (словари, JSON). Lua устроен так же, но его виртуальную машину вылизывают тридцать лет, поэтому она ещё в несколько раз быстрее. JavaScript в Node.js превращает горячий код в машинный прямо во время работы, об этом было в таблице <a href="#pipeline">выше</a>. Эти языки развивают большие команды десятки лет, так что сравнение — это ориентир, а не соревнование.</p>
+        <p>Честно о том, что видно на графике. FoxLang, как Python и Lua, выполняет байткод на виртуальной машине. С версии 8.15 он обгоняет Python на всех этих задачах, а с Lua идёт примерно вровень: на словарях, JSON, сортировке и строках быстрее, на некоторых других пока медленнее. JavaScript в Node.js превращает горячий код в машинный прямо во время работы (об этом было в таблице <a href="#pipeline">выше</a>), поэтому в тесных циклах он впереди. Разница в несколько процентов лежит в пределах шума, а на другой машине числа будут другими, так что сравнение служит ориентиром, а не соревнованием.</p>
       </div>
 
       <h3>Новая версия и предыдущая</h3>
@@ -1518,12 +1518,15 @@ print(square(4));</pre>
       var row = document.createElement("div"); row.className = "bench-row";
       var own = b.seconds.foxlang;
       var measured = present.filter(function (key) { return key in b.seconds; });
-      var others = measured.filter(function (key) { return key !== "foxlang" && b.seconds[key] !== null; })
-                           .map(function (key) { return b.seconds[key]; });
+      var others = measured.filter(function (key) { return key !== "foxlang" && b.seconds[key] !== null; });
       var note = "";
       if (own && others.length) {
-        var fastest = Math.min.apply(null, others);
-        note = own <= fastest ? "FoxLang быстрее всех" : "самый быстрый быстрее FoxLang в " + times(own / fastest);
+        var leader = others.reduce(function (best, key) { return b.seconds[key] < b.seconds[best] ? key : best; });
+        var fastest = b.seconds[leader];
+        // Within 5% the order is measurement noise, not a result.
+        if (own <= fastest) note = "FoxLang быстрее всех";
+        else if (own <= fastest * 1.05) note = "наравне с " + SHORT[leader];
+        else note = SHORT[leader] + " быстрее FoxLang в " + times(own / fastest);
       }
       row.appendChild(heading(b.name, note));
       var max = Math.max.apply(null, measured.map(function (key) { return b.seconds[key] || 0; }));
