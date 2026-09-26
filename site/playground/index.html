@@ -364,6 +364,28 @@ main {
   cursor: crosshair;
 }
 .screen canvas:focus-visible { box-shadow: 0 0 0 2px var(--fox); }
+.screen { position: relative; flex-direction: column; align-items: center; gap: 8px; }
+/* Phones have no keyboard for a canvas: this button opens the on-screen one. */
+.type-button {
+  align-self: flex-end;
+  min-height: 40px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.type-input {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  font-size: 16px;
+}
 .output .err { color: var(--out-err); }
 .output .input { color: var(--out-in); }
 .output .note, .output .hint { color: var(--code-com); }
@@ -1106,7 +1128,44 @@ footer {
     }, { passive: false });
     canvas.addEventListener("contextmenu", function (event) { event.preventDefault(); });
     canvas.addEventListener("focus", function () { send({ kind: "focus", focused: true }); });
-    canvas.addEventListener("blur", function () { send({ kind: "focus", focused: false }); });
+    canvas.addEventListener("blur", function (event) {
+      if (event.relatedTarget !== typing) send({ kind: "focus", focused: false });
+    });
+
+    // On a touch screen a hidden text box brings up the on-screen keyboard; what is
+    // typed there goes to the program as text, Backspace and Enter as keys.
+    var typing = null;
+    if (window.matchMedia("(pointer: coarse)").matches) {
+      typing = document.createElement("input");
+      typing.className = "type-input";
+      typing.setAttribute("aria-label", "Ввод текста в окно программы");
+      typing.autocapitalize = "off";
+      typing.autocomplete = "off";
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "type-button";
+      button.textContent = "⌨ Клавиатура";
+      button.title = "Клавиатура";
+      button.setAttribute("aria-label", "Открыть клавиатуру");
+      button.addEventListener("click", function () { typing.focus(); });
+      function tapKey(code) {
+        send({ kind: "key", code: code, down: true });
+        send({ kind: "key", code: code, down: false });
+      }
+      typing.addEventListener("beforeinput", function (event) {
+        if (event.inputType === "deleteContentBackward") tapKey(8);
+        else if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") tapKey(13);
+        else if (event.data) send({ kind: "text", text: event.data });
+        event.preventDefault();
+      });
+      typing.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") { tapKey(13); event.preventDefault(); }
+      });
+      typing.addEventListener("blur", function () { send({ kind: "focus", focused: false }); });
+      typing.addEventListener("focus", function () { send({ kind: "focus", focused: true }); });
+      screenBox.appendChild(typing);
+      screenBox.appendChild(button);
+    }
     return canvas;
   }
 
