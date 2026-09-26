@@ -14,7 +14,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <mutex>
-#else
+#elif !defined(__EMSCRIPTEN__)
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <xcb/xcb.h>
@@ -248,6 +248,21 @@ struct Window::Native {
         if (!SetClipboardData(CF_UNICODETEXT, memory)) GlobalFree(memory);
         CloseClipboard();
     }
+};
+#elif defined(__EMSCRIPTEN__)
+// The browser playground runs programs in a web worker, which has no window to open.
+struct Window::Native {
+    explicit Native(Window&) {}
+    void open(const std::string&) {
+        fail("windows are not available in the browser playground; run the program with foxlang on a computer");
+    }
+    void poll() {}
+    void present() {}
+    void resizeBuffers() {}
+    void setResizable(bool) {}
+    void setSize(int, int) {}
+    std::string clipboard() { return ""; }
+    void setClipboard(const std::string&) {}
 };
 #else
 struct Window::Native {

@@ -13,6 +13,9 @@ on:
       - 'src/core/builtins/**'
       - 'src/graphics/Builtins.cpp'
       - 'packaging/site_facts.py'
+      - 'src/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
   # A new release brings new benchmark results for the page.
   workflow_run:
     workflows: ["Build and Auto Release FoxLang"]
@@ -52,6 +55,17 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libxcb1-dev libxau-dev libxdmcp-dev
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
           python3 packaging/site_facts.py --build build --write
+      # The playground runs FoxLang in the visitor's browser: the interpreter built
+      # for WebAssembly, checked on its examples before it is published.
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.10
+      - name: Build FoxLang for the playground
+        run: |
+          emcmake cmake -S . -B web -DCMAKE_BUILD_TYPE=Release
+          cmake --build web -j4
+          cp web/foxlang.js web/foxlang.wasm site/playground/
+          node tests/web/test_playground.js site/playground
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

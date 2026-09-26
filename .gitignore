@@ -1,5 +1,6 @@
 build/
 build*/
+/web/
 __pycache__/
 dist/
 /foxlang

@@ -1,0 +1,15 @@
+// Ввод: строки берутся из поля «Ввод программы» под редактором.
+string name = input("Как тебя зовут? ");
+print("Приятно познакомиться, ${name}!");
+
+int sum = 0;
+int count = 0;
+while (true) {
+    string line = input("Число (пустая строка — конец): ");
+    if (line == "") {
+        break;
+    }
+    sum += to_int(line);
+    count++;
+}
+print("Чисел: ${count}, сумма: ${sum}");

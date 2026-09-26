@@ -106,6 +106,11 @@ struct CallDepth {
                 if (measured > 64) guard.limit = static_cast<int>(guard.budget / measured);
             }
             bool spent = (used > 0 && static_cast<size_t>(used) > guard.budget) || guard.depth >= guard.limit;
+#ifdef __EMSCRIPTEN__
+            // WebAssembly calls also take the browser's own stack, which cannot be
+            // measured and runs out after two or three thousand FoxLang calls.
+            spent = spent || guard.depth >= 1000;
+#endif
             if (spent) exceeded(name, guard.depth);
         }
         ++guard.depth;
