@@ -143,6 +143,7 @@ HTTPS включается вызовом `listen_tls(port, certificate, private
 proxy. Больше примеров — в [examples/](examples): сайт-гостевая книга из нескольких
 файлов с шаблонами, формами и загрузкой файлов ([examples/website](examples/website)),
 файловый браузер с диалогами ([examples/file_browser.fox](examples/file_browser.fox)),
+лабиринт в псевдо-3D на лучах, как в Wolfenstein 3D ([examples/raycaster.fox](examples/raycaster.fox)),
 игра, частотный словарь, список дел в файле, HTTP-клиент, REST API, Telegram-боты на
 webhook и long polling, TCP, терминал и графика.
 

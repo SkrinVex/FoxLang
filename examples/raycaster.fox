@@ -1,0 +1,357 @@
+// Псевдо-3D: лабиринт из лучей, как в Wolfenstein 3D (1992).
+//
+// Настоящего 3D тут нет. Карта плоская, клетки 16 × 16, а на каждый столбец экрана
+// из глаза игрока выпускается луч. Он идёт по клеткам, пока не упрётся в стену.
+// Чем дальше стена, тем ниже её столбик на экране. Столбики рядом дают картинку,
+// которая выглядит объёмной.
+//
+// Управление:
+//   W / S или ↑ / ↓        вперёд и назад
+//   A / D                   шаг вбок
+//   ← / →  или мышь с зажатой кнопкой   поворот
+//   SHIFT или ПРОБЕЛ        бег
+//   M                       карта сверху
+//   R                       начать заново
+// На телефоне в песочнице: стрелки джойстика ходят и поворачивают, пробел ускоряет.
+//
+// Собери все звёзды. Запуск: foxlang examples/raycaster.fox
+using graphics;
+
+int W = 480;
+int H = 300;
+int COLUMN = 2;           // ширина столбика одного луча в пикселях
+int RAYS = W / COLUMN;    // сколько лучей в кадре
+
+// ---------------------------------------------------------------- карта
+// 0 пусто, 1..4 стены разного цвета. Края карты все из стен: луч всегда упрётся.
+array rows = [
+    "1111111111111111",
+    "1000000000300001",
+    "1022220000300001",
+    "1020000000000001",
+    "1020011110004401",
+    "1000010010000401",
+    "1000010010000401",
+    "1330000000000001",
+    "1000000000011101",
+    "1000440000010001",
+    "1000400000010001",
+    "1000000222000001",
+    "1011000200000331",
+    "1010000200000001",
+    "1000000000000001",
+    "1111111111111111"
+];
+int MAP_W = size(rows[0]);
+int MAP_H = size(rows);
+array cells;
+for (int y = 0; y < MAP_H; y++) {
+    array chars = str_split(rows[y], "");
+    for (int x = 0; x < MAP_W; x++) {
+        push(cells, to_int(chars[x]));
+    }
+}
+
+int cell(int x, int y) {
+    if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) { return 1; }
+    return cells[y * MAP_W + x];
+}
+
+// Цвета стен по номеру клетки: камень, кирпич, дерево, лисья охра.
+array wallR = [0, 150, 170, 120, 220];
+array wallG = [0, 150, 70, 85, 120];
+array wallB = [0, 160, 60, 55, 40];
+
+// Цвет стены с учётом тени и тумана: далёкое темнее и тонет в сумраке.
+int shade(int kind, float light) {
+    light = clamp(light, 0.0, 1.0);
+    int fogR = 18;
+    int fogG = 20;
+    int fogB = 30;
+    return rgb(to_int(fogR + (wallR[kind] - fogR) * light),
+               to_int(fogG + (wallG[kind] - fogG) * light),
+               to_int(fogB + (wallB[kind] - fogB) * light));
+}
+
+// ---------------------------------------------------------------- игрок
+// Позиция в клетках, направление взгляда (dirX, dirY) и плоскость экрана
+// (planeX, planeY) поперёк взгляда: её длина 0.66 даёт обзор около 66°.
+float px = 0;
+float py = 0;
+float dirX = 0;
+float dirY = 0;
+float planeX = 0;
+float planeY = 0;
+
+array starX;
+array starY;
+array starTaken;
+int taken = 0;
+float playTime = 0;
+bool won = false;
+
+void restart() {
+    px = 1.5;
+    py = 1.5;
+    dirX = 1;
+    dirY = 0;
+    planeX = 0;
+    planeY = 0.66;
+    starX = [8.5, 14.5, 3.5, 6.5, 12.5, 3.5, 10.5, 14.5];
+    starY = [1.5, 1.5, 3.5, 7.5, 10.5, 13.5, 13.5, 14.5];
+    starTaken = [];
+    for (int i = 0; i < size(starX); i++) { push(starTaken, false); }
+    taken = 0;
+    playTime = 0;
+    won = false;
+}
+
+void turn(float angle) {
+    float c = cos(angle);
+    float s = sin(angle);
+    float oldDir = dirX;
+    dirX = dirX * c - dirY * s;
+    dirY = oldDir * s + dirY * c;
+    float oldPlane = planeX;
+    planeX = planeX * c - planeY * s;
+    planeY = oldPlane * s + planeY * c;
+}
+
+// Шаг с проверкой стен по каждой оси отдельно: у стены игрок скользит вдоль неё.
+void walk(float dx, float dy) {
+    float margin = 0.2;
+    float edgeX = margin;
+    if (dx < 0) { edgeX = -margin; }
+    float edgeY = margin;
+    if (dy < 0) { edgeY = -margin; }
+    if (cell(to_int(px + dx + edgeX), to_int(py)) == 0) { px += dx; }
+    if (cell(to_int(px), to_int(py + dy + edgeY)) == 0) { py += dy; }
+}
+
+// ---------------------------------------------------------------- кадр
+array depth;   // расстояние до стены в каждом столбике: звёзды за стеной не видны
+for (int i = 0; i < RAYS; i++) { push(depth, 0.0); }
+
+void drawSkyAndFloor() {
+    array bands;
+    int horizon = H / 2;
+    int steps = 12;
+    int band = horizon / steps + 1;
+    for (int i = 0; i < steps; i++) {
+        // Потолок темнеет к горизонту, пол светлеет к игроку: так видна глубина.
+        int c = 46 - i * 3;
+        push(bands, 0); push(bands, i * band); push(bands, W); push(bands, band); push(bands, rgb(c - 12, c - 8, c + 6));
+        int f = 26 + i * 5;
+        push(bands, 0); push(bands, horizon + i * band); push(bands, W); push(bands, band); push(bands, rgb(f, f - 6, f - 14));
+    }
+    draw_rects(bands);
+}
+
+void drawWalls() {
+    array rects;
+    for (int x = 0; x < RAYS; x++) {
+        // Луч через этот столбик: от -1 (левый край экрана) до 1 (правый).
+        float cameraX = 2.0 * x / RAYS - 1;
+        float rayX = dirX + planeX * cameraX;
+        float rayY = dirY + planeY * cameraX;
+        int mapX = to_int(px);
+        int mapY = to_int(py);
+        // Сколько луч проходит между соседними вертикальными и горизонтальными линиями сетки.
+        float deltaX = 1000000.0;
+        if (rayX != 0) { deltaX = abs(1 / rayX); }
+        float deltaY = 1000000.0;
+        if (rayY != 0) { deltaY = abs(1 / rayY); }
+        int stepX = 1;
+        float sideX = (mapX + 1.0 - px) * deltaX;
+        if (rayX < 0) {
+            stepX = -1;
+            sideX = (px - mapX) * deltaX;
+        }
+        int stepY = 1;
+        float sideY = (mapY + 1.0 - py) * deltaY;
+        if (rayY < 0) {
+            stepY = -1;
+            sideY = (py - mapY) * deltaY;
+        }
+        // DDA: шаг за шагом к ближайшей линии сетки, пока клетка не окажется стеной.
+        int side = 0;
+        int hit = 0;
+        while (hit == 0) {
+            if (sideX < sideY) {
+                sideX += deltaX;
+                mapX += stepX;
+                side = 0;
+            } else {
+                sideY += deltaY;
+                mapY += stepY;
+                side = 1;
+            }
+            hit = cell(mapX, mapY);
+        }
+        // Расстояние до стены вдоль взгляда, а не по лучу: иначе края экрана вогнутся «рыбьим глазом».
+        float dist = sideY - deltaY;
+        if (side == 0) { dist = sideX - deltaX; }
+        if (dist < 0.05) { dist = 0.05; }
+        depth[x] = dist;
+
+        int lineH = to_int(H / dist);
+        int top = H / 2 - lineH / 2;
+        if (top < 0) { top = 0; }
+        if (lineH > H) { lineH = H; }
+
+        // Где на стене клетки попал луч (0..1): у краёв клетки стык темнее.
+        float wallX = px + dist * rayX;
+        if (side == 0) { wallX = py + dist * rayY; }
+        wallX -= floor(wallX);
+        float light = 1.0 - dist / 11.0;
+        if (side == 1) { light *= 0.72; }
+        if (wallX < 0.04 || wallX > 0.96) { light *= 0.6; }
+        push(rects, x * COLUMN); push(rects, top); push(rects, COLUMN); push(rects, lineH); push(rects, shade(hit, light));
+    }
+    draw_rects(rects);
+}
+
+void drawStars(float time) {
+    // Экран в клетках: обратная матрица к паре «взгляд, плоскость».
+    float invDet = 1.0 / (planeX * dirY - dirX * planeY);
+    // Дальние звёзды рисуются первыми, ближние поверх.
+    array order;
+    array dist;
+    for (int i = 0; i < size(starX); i++) {
+        if (starTaken[i]) { continue; }
+        float dx = starX[i] - px;
+        float dy = starY[i] - py;
+        float d = dx * dx + dy * dy;
+        int at = 0;
+        while (at < size(order) && dist[at] > d) { at++; }
+        insert(order, at, i);
+        insert(dist, at, d);
+    }
+    array rects;
+    for (int k = 0; k < size(order); k++) {
+        int i = order[k];
+        float sx = starX[i] - px;
+        float sy = starY[i] - py;
+        float across = invDet * (dirY * sx - dirX * sy);   // вбок от взгляда
+        float ahead = invDet * (-planeY * sx + planeX * sy); // вперёд, глубина
+        if (ahead < 0.2) { continue; }
+        int centerCol = to_int((RAYS / 2) * (1 + across / ahead));
+        float radius = (H / ahead) * 0.14;
+        // Звезда покачивается вверх и вниз, каждая в своём ритме.
+        int centerY = to_int(H / 2 + (H / ahead) * 0.12 + sin(time * 3 + i) * (H / ahead) * 0.05);
+        int half = to_int(radius / COLUMN) + 1;
+        float light = 1.0 - ahead / 11.0;
+        light = clamp(light, 0.15, 1.0);
+        int glow = rgb(to_int(255 * light), to_int(214 * light), to_int(90 * light));
+        int core = rgb(to_int(255 * light), to_int(245 * light), to_int(200 * light));
+        for (int c = centerCol - half; c <= centerCol + half; c++) {
+            if (c < 0 || c >= RAYS || depth[c] < ahead) { continue; }
+            float offset = (c - centerCol) * COLUMN;
+            float chord = radius * radius - offset * offset;
+            if (chord <= 0) { continue; }
+            int h = to_int(sqrt(chord));
+            push(rects, c * COLUMN); push(rects, centerY - h); push(rects, COLUMN); push(rects, h * 2); push(rects, glow);
+            if (h > 3) {
+                push(rects, c * COLUMN); push(rects, centerY - h / 3); push(rects, COLUMN); push(rects, (h / 3) * 2); push(rects, core);
+            }
+        }
+    }
+    draw_rects(rects);
+}
+
+void drawMap() {
+    int scale = 6;
+    int ox = W - MAP_W * scale - 8;
+    int oy = 8;
+    draw_rect_alpha(ox - 3, oy - 3, MAP_W * scale + 6, MAP_H * scale + 6, rgb(0, 0, 0), 150);
+    array rects;
+    for (int y = 0; y < MAP_H; y++) {
+        for (int x = 0; x < MAP_W; x++) {
+            int kind = cells[y * MAP_W + x];
+            if (kind > 0) {
+                push(rects, ox + x * scale); push(rects, oy + y * scale); push(rects, scale); push(rects, scale);
+                push(rects, rgb(wallR[kind], wallG[kind], wallB[kind]));
+            }
+        }
+    }
+    for (int i = 0; i < size(starX); i++) {
+        if (!starTaken[i]) {
+            push(rects, ox + to_int(starX[i] * scale) - 1); push(rects, oy + to_int(starY[i] * scale) - 1);
+            push(rects, 3); push(rects, 3); push(rects, rgb(255, 214, 90));
+        }
+    }
+    draw_rects(rects);
+    int mx = ox + to_int(px * scale);
+    int my = oy + to_int(py * scale);
+    draw_line(mx, my, mx + to_int(dirX * 10), my + to_int(dirY * 10), rgb(255, 138, 51));
+    draw_circle(mx, my, 2, rgb(255, 255, 255));
+}
+
+// ---------------------------------------------------------------- игра
+open_window(W, H, "FoxLang: лабиринт в псевдо-3D");
+restart();
+bool showMap = true;
+float fps = 60;
+float time = 0;
+int lastMouse = -1;
+
+while (window_poll()) {
+    float dt = frame_delta();
+    if (dt > 0.1) { dt = 0.1; }
+    time += dt;
+    if (dt > 0) { fps = fps * 0.95 + (1.0 / dt) * 0.05; }
+    if (key_pressed("ESCAPE")) { break; }
+    if (key_pressed("M")) { showMap = !showMap; }
+    if (key_pressed("R")) { restart(); }
+
+    if (!won) {
+        playTime += dt;
+        float speed = 2.6;
+        if (key_down("SHIFT") || key_down("SPACE")) { speed = 4.5; }
+        float move = 0;
+        if (key_down("W") || key_down("UP")) { move += speed * dt; }
+        if (key_down("S") || key_down("DOWN")) { move -= speed * dt; }
+        float strafe = 0;
+        if (key_down("D")) { strafe += speed * dt; }
+        if (key_down("A")) { strafe -= speed * dt; }
+        walk(dirX * move + planeX / 0.66 * strafe, dirY * move + planeY / 0.66 * strafe);
+
+        if (key_down("LEFT")) { turn(-2.4 * dt); }
+        if (key_down("RIGHT")) { turn(2.4 * dt); }
+        // Мышь с зажатой кнопкой (или палец) поворачивает взгляд.
+        if (key_down("MOUSE_LEFT")) {
+            if (lastMouse >= 0) { turn((mouse_x() - lastMouse) * 0.008); }
+            lastMouse = mouse_x();
+        } else {
+            lastMouse = -1;
+        }
+
+        for (int i = 0; i < size(starX); i++) {
+            float dx = starX[i] - px;
+            float dy = starY[i] - py;
+            if (!starTaken[i] && dx * dx + dy * dy < 0.35 * 0.35) {
+                starTaken[i] = true;
+                taken++;
+                if (taken == size(starX)) { won = true; }
+            }
+        }
+    }
+
+    drawSkyAndFloor();
+    drawWalls();
+    drawStars(time);
+    if (showMap) { drawMap(); }
+
+    draw_rect_alpha(0, 0, 150, 24, rgb(0, 0, 0), 140);
+    draw_text(8, 6, "Звёзды " + taken + "/" + size(starX), 2, rgb(255, 214, 90));
+    draw_text(8, H - 16, to_int(fps) + " FPS", 1, rgb(150, 160, 175));
+    if (won) {
+        draw_rect_alpha(0, H / 2 - 36, W, 72, rgb(0, 0, 0), 170);
+        string title = "Все звёзды собраны!";
+        draw_text((W - text_width(title, 3)) / 2, H / 2 - 26, title, 3, rgb(255, 214, 90));
+        string line = "за " + to_int(playTime) + " с, R чтобы сыграть снова";
+        draw_text((W - text_width(line, 2)) / 2, H / 2 + 8, line, 2, rgb(230, 230, 235));
+    }
+    present_window();
+}
+close_window();

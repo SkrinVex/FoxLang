@@ -112,7 +112,7 @@ print("x=" + x);
   expect(printed.includes("x=2") && printed.includes("caught ой"), "keys arrive while the program polls", { code: windowCode, out: printed, err: "" });
 
   // Every window example opens, draws and ends when the window is closed.
-  for (const file of ["game.fox", "todo.fox", "paint.fox"]) {
+  for (const file of ["game.fox", "todo.fox", "paint.fox", "raycaster.fox"]) {
     let shownFrames = 0, closePolls = 0, log = "";
     const program = await createGraphics({
       print: (text) => { log += text + "\n"; },
