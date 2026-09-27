@@ -519,6 +519,7 @@ footer {
     <option value="game">Игра в окне</option>
     <option value="todo">Окно с кнопками (ui)</option>
     <option value="paint">Рисовалка</option>
+    <option value="raycaster">Псевдо-3D лабиринт</option>
   </select>
   <button class="btn icon" id="theme" type="button" aria-label="Тема оформления">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path id="theme-icon" d=""/></svg>
@@ -595,7 +596,8 @@ footer {
     modules: ["modules/main.fox", "modules/shapes.fox", "modules/tools/report.fox"],
     game: ["game.fox"],
     todo: ["todo.fox"],
-    paint: ["paint.fox"]
+    paint: ["paint.fox"],
+    raycaster: ["raycaster.fox"]
   };
 
   var $ = function (id) { return document.getElementById(id); };

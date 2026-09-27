@@ -64,6 +64,13 @@ add_custom_target(site_facts ALL
     COMMENT "Updating the numbers on the site")
 add_test(NAME site_facts COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/packaging/site_facts.py
          --build ${CMAKE_BINARY_DIR} --ctest ${CMAKE_CTEST_COMMAND})
+# The playground shows examples/raycaster.fox from its own copy (the site is published
+# from site/ alone): the two stay the same file, and the example passes foxlang check.
+add_test(NAME examples_raycaster_copy COMMAND ${CMAKE_COMMAND} -E compare_files
+         ${CMAKE_SOURCE_DIR}/examples/raycaster.fox ${CMAKE_SOURCE_DIR}/site/playground/examples/raycaster.fox)
+add_test(NAME examples_raycaster_check COMMAND foxlang check ${CMAKE_SOURCE_DIR}/examples/raycaster.fox)
+set_tests_properties(examples_raycaster_check PROPERTIES PASS_REGULAR_EXPRESSION "no problems found"
+                     ENVIRONMENT "FOXLANG_HOME=${CMAKE_SOURCE_DIR}")
 add_test(NAME packaging_versions COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_versions.py ${CMAKE_SOURCE_DIR})
 add_executable(test_bundle unit/test_bundle.cpp)
 target_link_libraries(test_bundle PRIVATE foxlang_bundle)
