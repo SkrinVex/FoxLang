@@ -6,10 +6,15 @@ Set-StrictMode -Version Latest
 $PackageDir = (Resolve-Path -LiteralPath $PackageDir).Path
 $BaseTemp = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }
 $TempRoot = Join-Path $BaseTemp "foxlang-installer-test-$PID"
+$ReleaseDir = Join-Path $TempRoot 'extracted'
 $InstallDir = Join-Path $TempRoot 'FoxLang'
 New-Item -ItemType Directory -Force -Path $TempRoot | Out-Null
 try {
-    & (Join-Path $PackageDir 'install.ps1') -InstallDir $InstallDir -SkipEnvironment -SkipVSCode
+    New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
+    Get-ChildItem -LiteralPath $PackageDir | Copy-Item -Destination $ReleaseDir -Recurse -Force
+    & (Join-Path $ReleaseDir 'install.ps1') -InstallDir $InstallDir -SkipEnvironment -SkipVSCode
+    & (Join-Path $ReleaseDir 'install.ps1') -InstallDir $InstallDir -SkipEnvironment -SkipVSCode
+    Remove-Item -LiteralPath $ReleaseDir -Recurse -Force
     $env:FOXLANG_HOME = $InstallDir
     $env:PATH = "$InstallDir;$env:PATH"
     $Version = (Get-Content -LiteralPath (Join-Path $PackageDir 'VERSION') -Raw).Trim()
