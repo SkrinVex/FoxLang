@@ -280,7 +280,8 @@ main {
   white-space: pre;
 }
 .gutter .bad { color: var(--out-err); }
-.code { position: relative; flex: 1; min-width: 0; }
+/* Both layers must span the longest line, including the part outside the viewport. */
+.code { position: relative; flex: 1 0 auto; width: max-content; min-width: 0; }
 .code pre, .code textarea {
   margin: 0;
   padding: 10px 12px 40px 4px;
@@ -373,6 +374,11 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.pad, .pad * {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 .dpad {
   display: grid;
@@ -1211,6 +1217,8 @@ footer {
       }
       var pad = document.createElement("div");
       pad.className = "pad";
+      pad.addEventListener("contextmenu", function (event) { event.preventDefault(); });
+      pad.addEventListener("selectstart", function (event) { event.preventDefault(); });
       var dpad = document.createElement("div");
       dpad.className = "dpad";
       dpad.appendChild(padKey("▲", 38, "up", "Вверх"));
