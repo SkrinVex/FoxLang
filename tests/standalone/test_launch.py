@@ -60,6 +60,17 @@ with tempfile.TemporaryDirectory(prefix='fox-launch-') as directory:
             result = subprocess.run([*map(str, prefix), *flags], cwd=root, capture_output=True, timeout=30)
             assert result.returncode != 0 and result.stderr, flags
     assert '--foxlang-fullscreen' in run([apps[0], '--foxlang-help']).stdout
+    assert json.loads(run([binary, '--foxlang-width', '640', source, '--custom']).stdout) == ['--custom']
+    # Console switching must keep redirected stdin and stdout usable.
+    echo_source = root / 'echo.fox'
+    echo_source.write_text('print(input(""));', encoding='utf-8')
+    for flag in ['--no-console', '--console']:
+        echo_app = root / ('echo-' + flag[2:] + ('.exe' if os.name == 'nt' else ''))
+        run([binary, 'build', echo_source, flag, '-o', echo_app])
+        for mode in ['--foxlang-console', '--foxlang-no-console']:
+            echoed = subprocess.run([str(echo_app), mode], cwd=root, input='redirected input\n',
+                capture_output=True, text=True, encoding='utf-8', timeout=30)
+            assert echoed.returncode == 0 and echoed.stdout == 'redirected input\n', (flag, mode, echoed)
     # Console association must match the requested mode without touching the parent's
     # console. The app writes its args and waits so the OS state can be inspected.
     if os.name == 'nt':
@@ -80,7 +91,7 @@ with tempfile.TemporaryDirectory(prefix='fox-launch-') as directory:
             for flags, console in [([], default_console), (['--foxlang-console'], True), (['--foxlang-no-console'], False)]:
                 probe = subprocess.run([sys.executable, str(Path(__file__).resolve()), '--detached-probe',
                     str(app), str(root), 'yes' if console else 'no', *flags], cwd=root,
-                    creationflags=subprocess.CREATE_NO_WINDOW, capture_output=True, timeout=20)
+                    creationflags=subprocess.DETACHED_PROCESS, capture_output=True, timeout=20)
                 assert probe.returncode == 0, (build_mode, flags, probe.stdout, probe.stderr)
                 marker = root / 'ready.txt'
                 marker.unlink(missing_ok=True)

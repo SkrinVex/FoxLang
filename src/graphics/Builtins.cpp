@@ -155,7 +155,7 @@ void drawTiles(Call& c) {
 
 const std::vector<Signature>& signatures() {
     static const std::vector<Signature> result = {
-        {"gfx_open", "open_window", "void", {{"int","width"},{"int","height"},{"string","title"}}, "Открыть нативное графическое окно. Одно окно на интерпретатор, 64..4096 пикселей по каждой оси, не более 8388608 пикселей.",
+        {"gfx_open", "open_window", "void", {{"int","width"},{"int","height"},{"string","title"}}, "Открыть нативное графическое окно, изменяемое по размеру по умолчанию. Одно окно на интерпретатор, 64..4096 пикселей по каждой оси, не более 8388608 пикселей.",
          [](Call& c) { auto& slot = c.ctx.getRoot()->graphics; if (slot) fail("close the existing window before opening another"); int width = integer(c, 0), height = integer(c, 1);
              bool fullscreen = false;
              if (c.ctx.interpreter) {
@@ -223,9 +223,9 @@ const std::vector<Signature>& signatures() {
          [](Call& c) { return Value::boolean(window(c).fullscreen()); }},
         {"gfx_set_fullscreen", "set_window_fullscreen", "void", {{"bool","fullscreen"}}, "Переключить полноэкранный режим без смены разрешения монитора. При выходе восстанавливается положение и размер окна. Только Windows/X11.",
          [](Call& c) { window(c).setFullscreen(c.args[0].asBool()); return Value(); }},
-        {"gfx_resizable", "set_window_resizable", "void", {{"bool","resizable"}}, "Разрешает (true) или запрещает менять размер окна мышью. Размер области рисования следует за окном: 64..4096 точек по каждой оси.",
+        {"gfx_resizable", "set_window_resizable", "void", {{"bool","resizable"}}, "Разрешает (true, по умолчанию) или запрещает менять размер окна мышью. Размер области рисования следует за окном: 64..4096 точек по каждой оси.",
          [](Call& c) { window(c).setResizable(c.args[0].asBool()); return Value(); }},
-        {"gfx_set_size", "set_window_size", "void", {{"int","width"},{"int","height"}}, "Меняет размер окна и области рисования: 64..4096 по каждой оси, не более 8388608 пикселей.",
+        {"gfx_set_size", "set_window_size", "void", {{"int","width"},{"int","height"}}, "Меняет размер обычного окна и области рисования; сначала выйдите из fullscreen. Существующие пиксели в пересекающейся области сохраняются. 64..4096 по каждой оси, не более 8388608 пикселей.",
          [](Call& c) { Window& w = window(c); w.setSize(integer(c, 0), integer(c, 1)); return Value(); }},
         {"gfx_resized", "window_resized", "bool", {}, "Изменился ли размер окна с прошлого кадра — пора заново расставить элементы.",
          [](Call& c) { return Value::boolean(window(c).resized()); }},

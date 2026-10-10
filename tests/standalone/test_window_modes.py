@@ -66,6 +66,7 @@ print(json_value(os_args()));
             try:
                 driver = NativeWindow(title)
                 wait_for(driver.find, process)
+                wait_for(driver.managed, process)
                 wait_for(lambda: state() == 'false|420|260', process)
                 assert driver.resizable(), 'new windows must be resizable'
                 driver.resize(510, 330)
@@ -76,6 +77,7 @@ print(json_value(os_args()));
                 for locked in [False, True]:
                     if locked:
                         key('L'); wait_for(lambda: not driver.resizable(), process)
+                    before = driver.geometry()
                     key('F')
                     wait_for(lambda: state().startswith('true|'), process)
                     wait_for(lambda: state() != 'true|510|330' and state().startswith('true|'), process)
@@ -83,10 +85,14 @@ print(json_value(os_args()));
                     key('F')
                     wait_for(lambda: state() == 'false|510|330', process)
                     assert driver.resizable() == (not locked)
+                    wait_for(lambda: driver.geometry() == before, process)
                 key('U'); wait_for(driver.resizable, process)
                 driver.close_window()
                 out, err = process.communicate(timeout=15)
                 assert process.returncode == 0 and out.strip() == '["--custom"]', (out, err)
+            except AssertionError:
+                print('Window diagnostics:', command, state(), driver.geometry() if driver and driver.handle else None, flush=True)
+                raise
             finally:
                 if driver: driver.dispose()
                 if process.poll() is None: process.kill(); process.communicate()
@@ -96,6 +102,7 @@ print(json_value(os_args()));
         driver = NativeWindow(title)
         try:
             wait_for(driver.find, process)
+            wait_for(driver.managed, process)
             wait_for(lambda: state().startswith('true|') and state() != 'true|300|200', process)
             driver.close_window()
             out, err = process.communicate(timeout=15)
@@ -103,6 +110,27 @@ print(json_value(os_args()));
         finally:
             driver.dispose()
             if process.poll() is None: process.kill(); process.communicate()
+        # The supplied programs must actually redraw a larger viewport too.
+        repository = Path(__file__).resolve().parents[2]
+        for example, title in [('examples/raycaster.fox', 'FoxLang: лабиринт в псевдо-3D'),
+                               ('site/playground/examples/paint.fox', 'Рисовалка')]:
+            process = subprocess.Popen([binary, str(repository / example)], cwd=root,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            driver = NativeWindow(title)
+            try:
+                wait_for(driver.find, process)
+                wait_for(driver.managed, process)
+                driver.resize(700, 450)
+                wait_for(lambda: driver.geometry()[2:] == (700, 450), process)
+                wait_for(lambda: driver.pixel(600, 100) != 0, process)
+                driver.resize(400, 280)
+                wait_for(lambda: driver.geometry()[2:] == (400, 280), process)
+                driver.close_window()
+                out, err = process.communicate(timeout=15)
+                assert process.returncode == 0, (example, out, err)
+            finally:
+                driver.dispose()
+                if process.poll() is None: process.kill(); process.communicate()
     print('WINDOW_MODES_OK')
 finally:
     if probe: probe.dispose()

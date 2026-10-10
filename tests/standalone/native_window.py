@@ -167,6 +167,34 @@ class NativeWindow:
         try:return self.api.XGetPixel(image,0,0) & 0xffffff
         finally:self.api.XDestroyImage(image)
 
+    def geometry(self):
+        if os.name == 'nt':
+            class Rect(C.Structure):
+                _fields_ = [('left', C.c_long), ('top', C.c_long), ('right', C.c_long), ('bottom', C.c_long)]
+            self.api.GetClientRect.argtypes = [C.c_void_p, C.c_void_p]
+            rect = Rect()
+            assert self.api.GetClientRect(self.handle, C.byref(rect))
+            return (*self.screen(0, 0), rect.right, rect.bottom)
+        self.api.XGetGeometry.argtypes = [C.c_void_p, C.c_ulong, C.POINTER(C.c_ulong),
+            C.POINTER(C.c_int), C.POINTER(C.c_int), C.POINTER(C.c_uint), C.POINTER(C.c_uint),
+            C.POINTER(C.c_uint), C.POINTER(C.c_uint)]
+        self.api.XTranslateCoordinates.argtypes = [C.c_void_p, C.c_ulong, C.c_ulong, C.c_int, C.c_int,
+            C.POINTER(C.c_int), C.POINTER(C.c_int), C.POINTER(C.c_ulong)]
+        root, child = C.c_ulong(), C.c_ulong()
+        x, y = C.c_int(), C.c_int()
+        width, height, border, depth = C.c_uint(), C.c_uint(), C.c_uint(), C.c_uint()
+        assert self.api.XGetGeometry(self.display, self.handle, C.byref(root), C.byref(x), C.byref(y),
+            C.byref(width), C.byref(height), C.byref(border), C.byref(depth))
+        self.api.XTranslateCoordinates(self.display, self.handle, self.root, 0, 0, C.byref(x), C.byref(y), C.byref(child))
+        return x.value, y.value, width.value, height.value
+
+    def managed(self):
+        """Wait until the window manager has finished mapping the client."""
+        if os.name == 'nt':
+            self.api.IsWindowVisible.argtypes = [C.c_void_p]
+            return bool(self.api.IsWindowVisible(self.handle))
+        return self.property('WM_STATE')[:1] == [1] and self.handle in self.property('_NET_CLIENT_LIST', root=True)
+
     def resize(self, width, height):
         """Ask the OS to resize the client area, just like a window-manager drag."""
         if os.name == 'nt':
