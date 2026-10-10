@@ -11,11 +11,26 @@ function config() {
     return vscode.workspace.getConfiguration('foxlang');
 }
 
+function installationHome() {
+    if (process.env.FOXLANG_HOME) return process.env.FOXLANG_HOME;
+    if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
+        return path.join(process.env.LOCALAPPDATA, 'FoxLang');
+    }
+    return '';
+}
+
+function runtimeEnvironment(extra = {}) {
+    const home = installationHome();
+    return Object.assign({}, home ? { FOXLANG_HOME: home } : {}, extra);
+}
+
 function resolveExecutable() {
     const custom = config().get('run.executablePath');
     if (custom && custom !== 'foxlang') return custom;
     const name = process.platform === 'win32' ? 'foxlang.exe' : 'foxlang';
     const candidates = [];
+    const installedHome = installationHome();
+    if (installedHome) candidates.push(path.join(installedHome, name));
     for (const folder of vscode.workspace.workspaceFolders || []) {
         candidates.push(path.join(folder.uri.fsPath, 'build', name));
         candidates.push(path.join(folder.uri.fsPath, 'build', 'Release', name));
@@ -54,7 +69,7 @@ function commandLine(command, file, extraArgs) {
 const labels = { run: 'Запуск', check: 'Проверка', build: 'Сборка' };
 // Full paths in error messages let the problem matcher find files from any directory,
 // so it needs no workspace folder.
-const environment = { FOXLANG_ABSOLUTE_PATHS: '1' };
+const environment = runtimeEnvironment({ FOXLANG_ABSOLUTE_PATHS: '1' });
 
 // A task for a file inside an open folder; null for a file opened on its own, which
 // VS Code cannot run as a task.
@@ -134,4 +149,4 @@ function activate(context) {
     }));
 }
 
-module.exports = { activate, config, entryFile, resolveExecutable };
+module.exports = { activate, config, entryFile, resolveExecutable, installationHome, runtimeEnvironment };

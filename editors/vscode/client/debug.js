@@ -35,7 +35,7 @@ class ProgramAdapter {
                 shellPath: run.resolveExecutable(),
                 shellArgs: ['debug-adapter', '--connect', `127.0.0.1:${this.server.address().port}`],
                 cwd: config.cwd,
-                env: Object.assign({ FOXLANG_ABSOLUTE_PATHS: '1' }, config.env || {})
+                env: run.runtimeEnvironment(Object.assign({ FOXLANG_ABSOLUTE_PATHS: '1' }, config.env || {}))
             });
             terminal.show(true);
             this.timer = setTimeout(() => {

@@ -126,7 +126,21 @@ jobs:
           fi
           cp -R std dist/std
           cp -R editors dist/editors
+          cp VERSION dist/VERSION
+          cp packaging/windows/install.ps1 dist/install.ps1
+          cp packaging/windows/install.cmd dist/install.cmd
+          cp packaging/windows/uninstall.ps1 dist/uninstall.ps1
+          cp packaging/windows/uninstall.cmd dist/uninstall.cmd
+          # Vendored Windows dependencies are linked statically; include any DLLs emitted beside the binaries.
+          for dll_dir in build build/Release; do
+            if [ -d "$dll_dir" ]; then
+              find "$dll_dir" -maxdepth 1 -type f -iname '*.dll' -exec cp -t dist {} +
+            fi
+          done
           python packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" "dist/foxlang-${{ needs.version.outputs.version }}.vsix"
+      - name: Smoke-test the installable Windows package
+        shell: pwsh
+        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist
       - shell: pwsh
         run: Compress-Archive -Path dist/* -DestinationPath "FoxLang-${{ needs.version.outputs.version }}-windows-x86_64.zip"
       - uses: actions/upload-artifact@v4
