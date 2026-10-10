@@ -25,13 +25,14 @@ def wait_for(predicate, process=None):
 
 manager = None
 probe = None
+manager_log = tempfile.TemporaryFile(mode="w+")
 try:
     if os.name != 'nt':
         probe = NativeWindow('probe')
         if not probe.property('_NET_SUPPORTING_WM_CHECK', root=True):
             if not shutil.which('openbox'):
                 raise RuntimeError('Install openbox for fullscreen integration tests')
-            manager = subprocess.Popen(['openbox'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            manager = subprocess.Popen(['openbox', '--sm-disable'], stdout=manager_log, stderr=manager_log)
             wait_for(lambda: probe.property('_NET_SUPPORTING_WM_CHECK', root=True), manager)
     with tempfile.TemporaryDirectory(prefix='fox-window-modes-') as directory:
         root = Path(directory)
@@ -92,6 +93,15 @@ print(json_value(os_args()));
                 assert process.returncode == 0 and out.strip() == '["--custom"]', (out, err)
             except AssertionError:
                 print('Window diagnostics:', command, state(), driver.geometry() if driver and driver.handle else None, flush=True)
+                if os.name != 'nt':
+                    print('WM diagnostics:', manager.poll() if manager else 'existing',
+                        driver.property('WM_STATE'), driver.property('_NET_CLIENT_LIST', root=True),
+                        driver.property('_NET_SUPPORTING_WM_CHECK', root=True), flush=True)
+                    if manager and manager.poll() is None:
+                        for name in ['status', 'wchan']:
+                            path = Path('/proc') / str(manager.pid) / name
+                            if path.exists(): print(path.read_text(), flush=True)
+                    manager_log.seek(0); print(manager_log.read(), flush=True)
                 raise
             finally:
                 if driver: driver.dispose()
@@ -137,3 +147,4 @@ finally:
     if manager:
         manager.terminate()
         manager.wait(timeout=10)
+    manager_log.close()

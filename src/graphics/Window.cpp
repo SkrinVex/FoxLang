@@ -715,8 +715,11 @@ struct Window::Native {
             } else if (type == XCB_PROPERTY_NOTIFY) {
                 auto* e = reinterpret_cast<xcb_property_notify_event_t*>(event);
                 if (e->atom == stateAtom) {
+                    bool wasFull = full;
                     full = hasAtom(window, stateAtom, fullscreenAtom);
-                    if (!full) sizeHints(windowedWidth ? windowedWidth : owner.surface().width(),
+                    // Updating hints for unrelated state notifications can trigger a
+                    // WM_NORMAL_HINTS / _NET_WM_STATE feedback loop in window managers.
+                    if (wasFull && !full) sizeHints(windowedWidth ? windowedWidth : owner.surface().width(),
                                          windowedHeight ? windowedHeight : owner.surface().height());
                     requestedFull = full;
                 }
