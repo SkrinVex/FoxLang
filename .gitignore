@@ -1,5 +1,7 @@
 build/
 build*/
+!site/builder/
+!site/builder/**
 /web/
 __pycache__/
 node_modules/

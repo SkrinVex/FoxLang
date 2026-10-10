@@ -66,6 +66,8 @@ jobs:
           cmake --build web -j4
           cp web/foxlang.js web/foxlang.wasm web/foxlang-graphics.js web/foxlang-graphics.wasm site/playground/
           node tests/web/test_playground.js site/playground
+          node tests/web/test_builder_model.js
+          node tests/web/test_builder_runtime.js site/playground
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

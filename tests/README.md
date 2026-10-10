@@ -111,3 +111,10 @@ VS Code, Kate и Zed с runtime и `std/*.fox`.
 ```bash
 ctest --test-dir build -R 'lsp|semantic|packaging_versions' --output-on-failure
 ```
+
+### Конструктор интерфейсов
+
+`npm --prefix tests/web test` проверяет модель проекта, генерацию кода, редактор на ПК/телефоне и протокол встроенного предпросмотра.
+`node tests/web/test_builder_runtime.js site/playground` проверяет сгенерированные формы настоящим WebAssembly-runtime.
+`node tests/web/test_builder.js --runtime` проверяет запуск конструктора в браузере через настоящий worker.
+Последние две команды требуют собранные артефакты песочницы. Подробнее — [руководство конструктора](../docs/BUILDER.md).

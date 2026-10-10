@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="Визуальный конструктор интерфейсов FoxLang: макеты для телефона и ПК, живой запуск и готовый код."
+    />
+    <title>FoxLang UI — конструктор интерфейсов</title>
+    <link rel="stylesheet" href="builder.css" />
+    <script src="model.js" defer></script>
+    <script src="builder.js" defer></script>
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="../">FoxLang <span>UI</span></a
+      ><span class="tag">КОНСТРУКТОР ИНТЕРФЕЙСОВ</span>
+      <nav aria-label="Ссылки">
+        <a href="../playground/">Песочница</a><a href="../#graphics">О языке</a
+        ><a
+          href="https://github.com/SkrinVex/FoxLang/blob/master/docs/BUILDER.md"
+          >Руководство</a
+        ><a href="https://github.com/SkrinVex/FoxLang">GitHub ↗</a>
+      </nav>
+    </header>
+    <section class="intro">
+      <div>
+        <p class="eyebrow">ОТ МАКЕТА К ПРОГРАММЕ</p>
+        <h1>Ваш интерфейс.<br /><em>На FoxLang.</em></h1>
+        <p>
+          Соберите окно из элементов, проверьте на телефоне и ПК, заберите
+          готовый код.
+        </p>
+      </div>
+      <div class="project-actions">
+        <label
+          >Начать с шаблона<select id="template">
+            <option value="welcome">Приветствие</option>
+            <option value="login">Форма входа</option>
+            <option value="blank">Пустое окно</option>
+          </select></label
+        ><button id="new">Создать</button
+        ><button id="save">Сохранить проект</button
+        ><button id="import">Открыть проект…</button
+        ><input id="file" type="file" accept=".json,application/json" hidden />
+      </div>
+    </section>
+    <div class="toolbar">
+      <div class="segmented" aria-label="Макет">
+        <button data-mode="desktop" aria-pressed="true">ПК</button
+        ><button data-mode="mobile" aria-pressed="false">Телефон</button>
+      </div>
+      <div class="segmented" aria-label="Режим редактора">
+        <button data-tab="design" aria-pressed="true">Макет</button
+        ><button data-tab="preview" aria-pressed="false">Запуск</button
+        ><button data-tab="code" aria-pressed="false">Код</button>
+      </div>
+      <div class="history">
+        <button id="undo" title="Отменить (Ctrl+Z)" aria-label="Отменить">
+          ↶</button
+        ><button
+          id="redo"
+          title="Повторить (Ctrl+Shift+Z)"
+          aria-label="Повторить"
+        >
+          ↷
+        </button>
+      </div>
+      <span id="saved" role="status">Сохраняется в этом браузере</span>
+    </div>
+    <main class="workspace">
+      <aside class="library panel">
+        <details open>
+          <summary>Элементы <span>01</span></summary>
+          <div id="palette" class="palette"></div>
+        </details>
+        <details open>
+          <summary>Слои <span id="count">0</span></summary>
+          <ol id="layers"></ol>
+          <p class="hint">
+            Поздние слои рисуются поверх ранних. Выберите слой или элемент на
+            макете.
+          </p>
+        </details>
+      </aside>
+      <section class="work panel" aria-label="Рабочая область">
+        <div class="work-head">
+          <span id="size-label"></span
+          ><button id="properties-jump" type="button">Свойства ↓</button
+          ><label id="zoom-label"
+            >Масштаб<select id="zoom">
+              <option value="fit">Вписать</option>
+              <option value="1">100%</option>
+              <option value="0.75">75%</option>
+              <option value="0.5">50%</option>
+            </select></label
+          >
+        </div>
+        <section id="design-view">
+          <div id="stage-scroll">
+            <div id="stage-space">
+              <div
+                id="stage"
+                tabindex="0"
+                aria-label="Макет окна. Выберите элемент; стрелки перемещают, Delete удаляет."
+              ></div>
+            </div>
+          </div>
+          <p class="work-note">
+            Перетаскивайте элементы и тяните за угол. Стрелки — сдвиг на 1 px,
+            Shift — на 10 px. Точные размеры — в свойствах.
+          </p>
+        </section>
+        <section id="preview-view" hidden>
+          <div class="preview-bar">
+            <button id="run" class="primary">▶ Запустить</button
+            ><button id="stop">Остановить</button
+            ><span id="preview-note" role="status"
+              >Запускается тот же код, который вы экспортируете.</span
+            >
+          </div>
+          <iframe
+            id="preview"
+            title="Предпросмотр FoxLang"
+            data-src="../playground/?embed=builder"
+          ></iframe>
+          <p class="work-note">
+            Настоящий FoxLang в браузере. После изменения макета нажмите
+            «Запустить» снова. На телефоне кнопка клавиатуры расположена под
+            окном.
+          </p>
+        </section>
+        <section id="code-view" hidden>
+          <div class="preview-bar">
+            <button id="copy">Копировать</button
+            ><button id="download" class="primary">Скачать .fox</button
+            ><a id="playground" target="_blank" rel="noopener"
+              >В песочницу ↗</a
+            >
+          </div>
+          <textarea
+            id="code"
+            readonly
+            spellcheck="false"
+            aria-label="Готовый код FoxLang"
+          ></textarea>
+          <p class="work-note">
+            Состояния полей и флажков уже сохраняются между кадрами. Добавьте
+            свою логику в отмеченные обработчики кнопок.
+          </p>
+        </section>
+      </section>
+      <aside class="inspector panel">
+        <details open>
+          <summary>Окно <span>02</span></summary>
+          <form id="window-form">
+            <label>Заголовок<input id="title" maxlength="120" /></label>
+            <div class="two">
+              <label
+                >Ширина<input
+                  id="width"
+                  type="number"
+                  min="160"
+                  max="1920" /></label
+              ><label
+                >Высота<input id="height" type="number" min="160" max="1080"
+              /></label>
+            </div>
+            <label
+              >Порог мобильного макета, px<input
+                id="breakpoint"
+                type="number"
+                min="200"
+                max="1200"
+            /></label>
+            <p class="hint">
+              При ширине окна меньше порога код выбирает макет телефона.
+              Изменения размеров относятся к выбранному макету.
+            </p>
+            <div class="two">
+              <label>Фон<input id="background" type="color" /></label
+              ><label>Акцент<input id="accent" type="color" /></label>
+            </div>
+          </form>
+        </details>
+        <details open>
+          <summary>Свойства <span>03</span></summary>
+          <p id="empty" class="hint">
+            Выберите элемент на макете или добавьте новый.
+          </p>
+          <form id="element-form" hidden>
+            <div class="element-head">
+              <strong id="element-name"></strong><code id="element-id"></code>
+            </div>
+            <label
+              >Подпись / подсказка<input id="text" maxlength="200"
+            /></label>
+            <label id="value-label"
+              >Начальный текст<input id="value" maxlength="500" /></label
+            ><label id="checked-label" class="check"
+              ><input id="checked" type="checkbox" />Включён при запуске</label
+            >
+            <label id="message-label"
+              >Сообщение при нажатии<input id="message" maxlength="500"
+            /></label>
+            <div class="two">
+              <label>X<input id="x" type="number" min="0" max="4096" /></label
+              ><label>Y<input id="y" type="number" min="0" max="4096" /></label
+              ><label
+                >Ширина<input id="w" type="number" min="8" max="4096" /></label
+              ><label
+                >Высота<input id="h" type="number" min="8" max="4096"
+              /></label>
+            </div>
+            <label
+              >По горизонтали<select id="horizontal">
+                <option value="left">От левого края</option>
+                <option value="center">По центру</option>
+                <option value="right">От правого края</option>
+                <option value="stretch">Растягивать по ширине</option>
+              </select></label
+            >
+            <label
+              >По вертикали<select id="vertical">
+                <option value="top">От верхнего края</option>
+                <option value="bottom">От нижнего края</option>
+              </select></label
+            >
+            <div class="two">
+              <label id="color-label"
+                >Цвет<input id="color" type="color" /></label
+              ><label id="scale-label"
+                >Масштаб текста<select id="scale">
+                  <option>1</option>
+                  <option>2</option>
+                  <option>3</option>
+                  <option>4</option>
+                </select></label
+              >
+            </div>
+            <div class="element-actions">
+              <button type="button" id="duplicate">Дублировать</button
+              ><button type="button" id="delete" class="danger">Удалить</button
+              ><button type="button" id="backward">Ниже</button
+              ><button type="button" id="forward">Выше</button>
+            </div>
+            <p class="hint">
+              Положение и привязки — отдельные для ПК и телефона. Текст и
+              состояние — общие. Панель — фон, а не контейнер.
+            </p>
+          </form>
+        </details>
+      </aside>
+    </main>
+    <p id="notice" role="status" aria-live="polite"></p>
+    <footer>
+      <strong>Макет — начало. Логика — ваша.</strong>
+      <p>
+        Конструктор создаёт обычную программу с модулями <code>graphics</code> и
+        <code>ui</code>. Экспортированный файл работает в FoxLang на Windows,
+        Linux и в песочнице.
+      </p>
+      <a href="https://github.com/SkrinVex/FoxLang/blob/master/docs/GRAPHICS.md"
+        >Графический API</a
+      >
+      ·
+      <a href="https://github.com/SkrinVex/FoxLang/blob/master/DOCUMENTATION.md"
+        >Документация языка</a
+      >
+      · <a href="../">Как работает FoxLang</a>
+      <p>
+        Проект автоматически сохраняется локально. Скачайте JSON для переноса
+        между устройствами. Редактор макета схематичен; точный вид и поведение
+        проверяйте во вкладке «Запуск».
+      </p>
+    </footer>
+  </body>
+</html>
