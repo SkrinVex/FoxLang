@@ -37,7 +37,7 @@ const { chromium } = require('playwright');
           postMessage(message) {
             if (message.type === 'check') setTimeout(() => this.emit({ type: 'problems', id: message.id, problems: {} }), 0);
             if (message.type === 'input') window.inputs.push(message);
-            if (message.type === 'run' && message.canvas) setTimeout(() => this.emit({ type: 'window', width: 160, height: 100, title: 'Test' }), 0);
+            if (message.type === 'run' && message.canvas) setTimeout(() => this.emit({ type: 'window', width: 640, height: 500, title: 'Test' }), 0);
           }
           terminate() {}
         };
@@ -87,6 +87,28 @@ const { chromium } = require('playwright');
           assert.equal(await page.locator(selector).first().evaluate(e => getComputedStyle(e).userSelect), 'none');
           assert(await page.locator(selector).first().evaluate(e => !e.dispatchEvent(new Event('contextmenu', { bubbles: true, cancelable: true }))), 'context menu must be suppressed');
           assert(await page.locator(selector).first().evaluate(e => !e.dispatchEvent(new Event('selectstart', { bubbles: true, cancelable: true }))), 'selection must be suppressed');
+        }
+        // Large GUI windows must not clip the second row or keyboard on phones.
+        for (const viewport of [{ width: 390, height: 720 }, { width: 320, height: 568 },
+                                { width: 740, height: 360 }, { width: 430, height: 844 }]) {
+          await page.setViewportSize(viewport);
+          assert(await page.evaluate(() => {
+            const pane = document.querySelector('#output-pane');
+            pane.scrollTop = 0;
+            return document.querySelector('.pad').getBoundingClientRect().bottom <= pane.getBoundingClientRect().bottom;
+          }), `controls must fit without scrolling a hidden pane at ${viewport.width}x${viewport.height}`);
+          for (const selector of ['.pad-key.up', '.pad-key.left', '.pad-key.down', '.pad-key.right', '.space', '.type-button']) {
+            const button = page.locator(selector);
+            await button.scrollIntoViewIfNeeded();
+            assert(await button.evaluate(e => {
+              const r = e.getBoundingClientRect();
+              const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+              const pane = document.querySelector('#output-pane').getBoundingClientRect();
+              return e.contains(hit) && r.bottom <= pane.bottom && r.right <= pane.right;
+            }), `${selector} must be visible and reachable at ${viewport.width}x${viewport.height}`);
+          }
+          await page.locator('.type-button').tap();
+          assert(await page.locator('.type-input').evaluate(e => document.activeElement === e));
         }
         const key = page.locator('.pad-key.up');
         await key.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch' });
