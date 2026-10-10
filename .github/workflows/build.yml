@@ -130,6 +130,7 @@ jobs:
           cp packaging/windows/install.ps1 dist/install.ps1
           cp packaging/windows/install.cmd dist/install.cmd
           cp packaging/windows/uninstall.ps1 dist/uninstall.ps1
+          cp packaging/windows/uninstall.cmd dist/uninstall.cmd
           # Vendored Windows dependencies are linked statically; include any DLLs emitted beside the binaries.
           for dll_dir in build build/Release; do
             if [ -d "$dll_dir" ]; then

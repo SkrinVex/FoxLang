@@ -77,6 +77,17 @@ if (-not $SkipEnvironment) {
         [Environment]::SetEnvironmentVariable('Path', ((@($PathParts) + $InstallDir) -join ';'), 'User')
     }
 }
+if (-not $SkipEnvironment) {
+    try {
+        if (-not ('FoxLang.EnvironmentNotifier' -as [type])) {
+            Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; namespace FoxLang { public static class EnvironmentNotifier { [DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); } }'
+        }
+        $BroadcastResult = [IntPtr]::Zero
+        [FoxLang.EnvironmentNotifier]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [IntPtr]::Zero, 'Environment', 2, 5000, [ref]$BroadcastResult) | Out-Null
+    } catch {
+        Write-Warning 'PATH обновлён, но Windows не получил уведомление об изменении переменных среды.'
+    }
+}
 $env:FOXLANG_HOME = $InstallDir
 if (($env:PATH -split ';') -notcontains $InstallDir) { $env:PATH = "$InstallDir;$env:PATH" }
 
