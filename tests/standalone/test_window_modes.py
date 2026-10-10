@@ -26,14 +26,19 @@ def wait_for(predicate, process=None):
 manager = None
 probe = None
 manager_log = tempfile.TemporaryFile(mode="w+")
+manager_ready = tempfile.TemporaryDirectory(prefix="fox-wm-ready-")
 try:
     if os.name != 'nt':
         probe = NativeWindow('probe')
         if not probe.property('_NET_SUPPORTING_WM_CHECK', root=True):
             if not shutil.which('openbox'):
                 raise RuntimeError('Install openbox for fullscreen integration tests')
-            manager = subprocess.Popen(['openbox', '--sm-disable'], stdout=manager_log, stderr=manager_log)
-            wait_for(lambda: probe.property('_NET_SUPPORTING_WM_CHECK', root=True), manager)
+            # EWMH support is announced before Openbox starts listening for map
+            # requests. Its startup hook runs only after window management is ready.
+            ready = Path(manager_ready.name) / 'ready'
+            manager = subprocess.Popen(['openbox', '--sm-disable', '--startup', 'touch ' + str(ready)],
+                stdout=manager_log, stderr=manager_log)
+            wait_for(ready.exists, manager)
     with tempfile.TemporaryDirectory(prefix='fox-window-modes-') as directory:
         root = Path(directory)
         title = 'Fox window modes ' + root.name
@@ -97,10 +102,6 @@ print(json_value(os_args()));
                     print('WM diagnostics:', manager.poll() if manager else 'existing',
                         driver.property('WM_STATE'), driver.property('_NET_CLIENT_LIST', root=True),
                         driver.property('_NET_SUPPORTING_WM_CHECK', root=True), flush=True)
-                    if manager and manager.poll() is None:
-                        for name in ['status', 'wchan']:
-                            path = Path('/proc') / str(manager.pid) / name
-                            if path.exists(): print(path.read_text(), flush=True)
                     manager_log.seek(0); print(manager_log.read(), flush=True)
                 raise
             finally:
@@ -148,3 +149,4 @@ finally:
         manager.terminate()
         manager.wait(timeout=10)
     manager_log.close()
+    manager_ready.cleanup()
