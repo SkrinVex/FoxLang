@@ -56,7 +56,18 @@ jobs:
           cmake --build web -j4
           cp web/foxlang.js web/foxlang.wasm web/foxlang-graphics.js web/foxlang-graphics.wasm site/playground/
       - name: Run the playground's examples and limits
-        run: node tests/web/test_playground.js site/playground
+        run: |
+          node tests/web/test_playground.js site/playground
+          node tests/web/test_builder_runtime.js site/playground
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run the interface builder with real WebAssembly in Chromium
+        working-directory: tests/web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          node test_builder.js --runtime
 
   desktop:
     timeout-minutes: 25

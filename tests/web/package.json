@@ -1,6 +1,10 @@
 {
   "name": "foxlang-playground-tests",
   "private": true,
-  "scripts": { "test": "node test_editor.js" },
-  "devDependencies": { "playwright": "1.58.2" }
+  "scripts": {
+    "test": "node test_builder_model.js && node test_editor.js && node test_builder.js"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2"
+  }
 }

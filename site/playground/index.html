@@ -514,6 +514,15 @@ footer {
   footer { font-size: 12px; }
 }
 
+/* The builder uses the same runtime, input handling and watchdog as this page. */
+html[data-builder-embed] body { height: auto; }
+html[data-builder-embed] .bar, html[data-builder-embed] .views,
+html[data-builder-embed] footer, html[data-builder-embed] #code-pane,
+html[data-builder-embed] #stdin-box { display: none; }
+html[data-builder-embed] main { display: block; flex: none; min-height: 0; padding: 4px; }
+html[data-builder-embed] #output-pane { min-height: 120px; }
+html[data-builder-embed] .output { flex: none; max-height: 180px; }
+html[data-builder-embed] .screen canvas { max-height: none; }
 </style>
 </head>
 <body>
@@ -582,7 +591,8 @@ footer {
   Программа выполняется в вашем браузере, на сервер ничего не отправляется. Запускается
   <code>main.fox</code>, остальные файлы подключаются через <code>using</code> и <code>include</code>.
   Окно (<code>using graphics</code>) рисуется прямо на странице; сети, звука и запуска
-  программ здесь нет, файлы живут в памяти до конца запуска. Ограничения:
+  программ здесь нет, файлы живут в памяти до конца запуска.
+  <a href="../builder/">Собрать интерфейс в конструкторе</a>. Ограничения:
   <span id="limit-seconds">10</span> секунд (программе с окном хватит того, что она не
   зависает), 512 МБ памяти, рекурсия до 100 000 уровней (у лямбд и методов до 1000).
   Остальное умеет <a href="https://github.com/SkrinVex/FoxLang#readme">полная версия</a>.
@@ -618,8 +628,14 @@ footer {
   var stdin = $("stdin"), problemsBox = $("problems"), tabsBox = $("tabs"), toast = $("toast");
   var main = $("main");
 
-  function storageGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
-  function storageSet(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* private mode */ } }
+  var builderEmbed = new URLSearchParams(location.search).get("embed") === "builder" && window.parent !== window;
+  var builderInitialized = false;
+  if (builderEmbed) document.documentElement.dataset.builderEmbed = "true";
+  function builderReady() {
+    if (builderEmbed && builderInitialized && !runButton.disabled) parent.postMessage({type: "foxlang-builder-ready"}, location.origin);
+  }
+  function storageGet(key) { if (builderEmbed) return null; try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function storageSet(key, value) { if (builderEmbed) return; try { localStorage.setItem(key, value); } catch (e) { /* private mode */ } }
 
   // ---------------------------------------------------------------- theme
   var ICONS = {
@@ -989,6 +1005,7 @@ footer {
         version = message.version;
         statusBox.textContent = "FoxLang " + version + " готов";
         runButton.disabled = false;
+        builderReady();
         if (!output.textContent) hint();
       }
       return;
@@ -1433,8 +1450,31 @@ footer {
     toastTimer = setTimeout(function () { toast.classList.remove("show"); }, 2200);
   }
 
+  // Only the same-origin parent may control the explicitly embedded preview.
+  window.addEventListener("message", function (event) {
+    if (!builderEmbed || event.source !== parent || event.origin !== location.origin || !builderInitialized) return;
+    var message = event.data;
+    if (message && message.type === "foxlang-builder-stop") stop();
+    if (message && message.type === "foxlang-builder-run" && !runButton.disabled) {
+      var files = message.files;
+      if (!files || Object.keys(files).length !== 2 ||
+          typeof files["main.fox"] !== "string" || typeof files["layout.fox"] !== "string" ||
+          files["main.fox"].length + files["layout.fox"].length > 500000) return;
+      setFiles([{name: ENTRY, text: files["main.fox"]}, {name: "layout.fox", text: files["layout.fox"]}]);
+      setView("output");
+      run();
+    }
+  });
+  if (builderEmbed) {
+    setView("output");
+    new ResizeObserver(function () {
+      parent.postMessage({type: "foxlang-builder-height", height: Math.ceil(main.getBoundingClientRect().height) + 8}, location.origin);
+    }).observe(main);
+  }
+
   // ---------------------------------------------------------------- start
   function start() {
+    if (builderEmbed) return Promise.resolve([{name: ENTRY, text: "// Предпросмотр конструктора\n"}]);
     var shared = location.hash.match(/^#code=([A-Za-z0-9_-]+)$/);
     if (shared) {
       return decodeProgram(shared[1]).catch(function () {
@@ -1453,7 +1493,7 @@ footer {
 
   $("limit-seconds").textContent = TIME_LIMIT_MS / 1000;
   spare.plain = newWorker("plain");
-  start().then(setFiles, function () { setFiles([{ name: ENTRY, text: 'print("Привет, FoxLang!");\n' }]); });
+  start().then(function (list) { setFiles(list); builderInitialized = true; builderReady(); }, function () { setFiles([{ name: ENTRY, text: 'print("Привет, FoxLang!");\n' }]); });
 })();
 </script>
 </body>
