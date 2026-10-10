@@ -16,6 +16,14 @@ function log(msg) {
     }
 }
 
+function installationHome() {
+    if (process.env.FOXLANG_HOME) return process.env.FOXLANG_HOME;
+    if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
+        return path.join(process.env.LOCALAPPDATA, 'FoxLang');
+    }
+    return '';
+}
+
 function resolveServerPath() {
     const config = vscode.workspace.getConfiguration('foxlang');
     let customPath = config.get('lsp.serverPath');
@@ -39,7 +47,9 @@ function resolveServerPath() {
 
     // Check common installation paths
     const home = process.env.HOME || process.env.USERPROFILE || '';
+    const installedHome = installationHome();
     const candidatePaths = [
+        ...(installedHome ? [path.join(installedHome, process.platform === 'win32' ? 'foxlang-lsp.exe' : 'foxlang-lsp')] : []),
         path.join(home, '.local', 'bin', 'foxlang-lsp'),
         path.join(home, '.local', 'share', 'foxlang', 'foxlang-lsp'),
         '/usr/local/bin/foxlang-lsp',
@@ -123,8 +133,12 @@ function startServer(context) {
     log(`Starting FoxLang LSP server: ${serverPath}`);
 
     try {
+        const installedHome = installationHome();
+        const env = Object.assign({}, process.env);
+        if (installedHome) env.FOXLANG_HOME = installedHome;
         serverProcess = cp.spawn(serverPath, [], {
-            stdio: ['pipe', 'pipe', 'pipe']
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env
         });
     } catch (err) {
         log(`Failed to spawn server process: ${err.message}`);

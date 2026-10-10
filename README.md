@@ -74,8 +74,7 @@ for (int i = 0; i < size(words); i++) {
 ## Установка
 
 Готовые пакеты для Linux и Windows — в [GitHub Releases](https://github.com/SkrinVex/FoxLang/releases).
-Linux-пакет содержит установщик: `./install.sh` кладёт `foxlang` и `foxlang-lsp` в
-`~/.local/bin` и настраивает подсветку и языковой сервер для Kate, VS Code и Zed.
+Linux-пакет содержит установщик: ./install.sh кладёт foxlang и foxlang-lsp в ~/.local/bin и настраивает редакторы. В Windows распакуйте ZIP и запустите install.cmd: он установит FoxLang в %LOCALAPPDATA%\FoxLang, добавит команды в пользовательский PATH и установит расширение VS Code. Для обновления скачайте новый ZIP и запустите install.cmd ещё раз; распакованную папку после установки можно удалить. Удаление доступно через %LOCALAPPDATA%\FoxLang\uninstall.ps1.
 
 Сборка из исходников (CMake 3.18+, компиляторы C и C++17; на Linux ещё pkg-config
 и `libxcb1-dev libxau-dev libxdmcp-dev`):
