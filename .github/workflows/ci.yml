@@ -106,3 +106,28 @@ jobs:
           $BIN --help | grep -q "DOCUMENTATION.md"
           test "$($LSP_BIN --version)" = "foxlang-lsp $(tr -d '[:space:]' < VERSION)"
           $LSP_BIN --help | grep -q "Language Server"
+
+      - name: Prepare Windows installer payload
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ -f build/Release/foxlang.exe ]; then
+            cp build/Release/foxlang.exe build/Release/foxlang-lsp.exe dist/
+          else
+            cp build/foxlang.exe build/foxlang-lsp.exe dist/
+          fi
+          cp VERSION dist/VERSION
+          cp -R std dist/std
+          cp -R editors dist/editors
+          cp packaging/windows/install.ps1 packaging/windows/install.cmd dist/
+          cp packaging/windows/uninstall.ps1 packaging/windows/uninstall.cmd dist/
+          python packaging/package_vsix.py editors/vscode "$(tr -d '[:space:]' < VERSION)" "dist/foxlang-$(tr -d '[:space:]' < VERSION).vsix"
+          for dll_dir in build build/Release; do
+            if [ -d "$dll_dir" ]; then find "$dll_dir" -maxdepth 1 -type f -iname '*.dll' -exec cp -t dist {} +; fi
+          done
+
+      - name: Smoke-test Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist
