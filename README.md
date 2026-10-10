@@ -98,10 +98,17 @@ cmake --install build --prefix ./install
 foxlang program.fox [аргументы...]   # запуск
 foxlang check program.fox            # проверка без запуска
 foxlang build program.fox -o app     # самостоятельное приложение
+foxlang build game.fox --no-console # GUI EXE без терминала в Windows
 foxlang --version
 foxlang help                         # все команды: запуск, проверка, сборка, тесты…
 foxlang help build                   # подробно об одной команде
 ```
+
+Параметры консоли, размера окна и fullscreen доступны и у готового приложения:
+`app --foxlang-console --foxlang-width 960 --foxlang-height 540`.
+Пользовательские флаги доступны через `os_args()`; `--` завершает разбор системных
+флагов. Полные правила и примеры — [Запуск и параметры окна](docs/LAUNCH.md).
+
 
 Код возврата: `0` — успех, `1` — ошибка (синтаксис, тип, выполнение, отсутствующий
 модуль или секрет), либо значение, переданное в `exit(code)`.

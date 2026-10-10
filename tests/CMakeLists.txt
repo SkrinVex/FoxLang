@@ -82,6 +82,12 @@ set_tests_properties(standalone_graphics PROPERTIES TIMEOUT 90 LABELS standalone
 add_test(NAME images
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_images.py $<TARGET_FILE:foxlang>)
 set_tests_properties(images PROPERTIES TIMEOUT 120 LABELS standalone)
+add_test(NAME launch_options
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_launch.py $<TARGET_FILE:foxlang>)
+set_tests_properties(launch_options PROPERTIES TIMEOUT 120 LABELS standalone)
+add_test(NAME window_modes
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_window_modes.py $<TARGET_FILE:foxlang>)
+set_tests_properties(window_modes PROPERTIES TIMEOUT 120 LABELS standalone SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
 add_test(NAME window_size
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_window_size.py $<TARGET_FILE:foxlang>)
 set_tests_properties(window_size PROPERTIES TIMEOUT 90 LABELS standalone SKIP_RETURN_CODE 77)

@@ -170,7 +170,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
 
     // Process
     add({"os_args", "array", {}, 0, false, "os",
-         "Аргументы командной строки после имени программы: `foxlang app.fox a b` и `./app a b` дают `[a, b]`."},
+         "Пользовательские аргументы после имени программы: `foxlang app.fox a b` и `./app a b` дают `[a, b]`. Системные `--foxlang-*` исключаются; после `--` аргументы передаются буквально."},
         [](Call& c) {
             ValueList items;
             if (c.ctx.interpreter)

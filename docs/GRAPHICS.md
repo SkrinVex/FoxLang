@@ -39,6 +39,49 @@ foxlang build game.fox -o game
 обычные консольные FoxLang-программы: графическая система подключается только
 при `open_window`.
 
+## Размеры и полноэкранный режим
+
+За рамку обычного окна можно потянуть мышью; максимизация также поддерживается.
+`window_width()` и `window_height()` возвращают размер области рисования,
+`window_resized()` сообщает об изменении в текущем кадре после `window_poll()`.
+Приложение само перестраивает интерфейс под новый размер: фиксированные координаты
+не масштабируются автоматически. При увеличении холста сохраняются старые пиксели,
+новая область чёрная; при уменьшении обрезанная часть теряется. Paint закрашивает
+новые полосы белым, а псевдо-3D пересчитывает число лучей и буфер глубины.
+
+`set_window_fullscreen(true)` переводит окно в полноэкранный режим без смены
+разрешения монитора. `set_window_fullscreen(false)` возвращает прежнее положение,
+размер и возможность растягивания; `window_fullscreen()` сообщает состояние.
+На Linux нужен оконный менеджер с EWMH (например, GNOME, KDE, Openbox), в том числе
+через XWayland. Без него переход выдаёт ошибку. Подтверждение перехода на X11
+приходит во время `window_poll()`, поэтому состояние и размеры проверяют в цикле.
+`set_window_size` допустим в обычном режиме: сначала выйдите из fullscreen и
+дождитесь `window_fullscreen() == false`. Фиксированное окно тоже может переходить
+в fullscreen. В браузерной песочнице запрос fullscreen через это API выдаёт ошибку:
+полноэкранный доступ страницы требует отдельного пользовательского жеста.
+
+```foxlang
+using graphics;
+open_window(800, 600, "Размеры и fullscreen");
+while (window_poll()) {
+    if (key_pressed("F11")) { set_window_fullscreen(!window_fullscreen()); }
+    if (key_pressed("ESCAPE")) {
+        if (window_fullscreen()) { set_window_fullscreen(false); }
+        else { break; }
+    }
+    clear_window(rgb(20, 30, 40));
+    draw_circle(window_width() / 2, window_height() / 2, 20, rgb(240, 120, 30));
+    present_window();
+    wait(16);
+}
+close_window();
+```
+
+Начальный размер и режим можно переопределить без изменения исходника:
+`foxlang game.fox --foxlang-width 960 --foxlang-height 540 --foxlang-fullscreen`.
+Windows GUI EXE без терминала: `foxlang build game.fox --no-console`.
+Все флаги запуска и правила пользовательских аргументов — [LAUNCH.md](LAUNCH.md).
+
 ## API
 
 | Функция | Результат и назначение |
@@ -56,6 +99,8 @@ foxlang build game.fox -o game
 | `key_down(string key)` | `bool`: удерживается ли клавиша/кнопка |
 | `key_pressed(string key)` | `bool`: новое нажатие в текущем кадре |
 | `mouse_x()`, `mouse_y()` | `int`: координаты указателя относительно окна |
+| `set_window_fullscreen(bool fullscreen)` | Включить/выключить нативный fullscreen, восстановить обычное окно при выходе |
+| `window_fullscreen()` | `bool`: текущее состояние fullscreen; на X11 подтверждается в `window_poll()` |
 | `window_focused()` | `bool`: имеет ли окно фокус клавиатуры |
 | `draw_line(int x1, int y1, int x2, int y2, int color)` | Отрезок толщиной в пиксель |
 | `draw_frame(int x, int y, int width, int height, int thickness, int color)` | Контур прямоугольника |
@@ -175,8 +220,9 @@ PNG поддерживается целиком: серые, цветные и �
 
 Одновременно поддерживается одно окно на интерпретатор. Чтобы открыть другое,
 сначала закройте предыдущее. Размеры — 64..4096 по каждой оси, суммарно не более
-8388608 пикселей; `set_window_resizable(true)` разрешает менять размер окна.
-Полноэкранный режим, нативный Wayland и 3D не поддерживаются, звук — в модуле `sound`. API рассчитан на вызовы из потока интерпретатора.
+8388608 пикселей. Нативные окна изменяют размер мышью по умолчанию;
+`set_window_resizable(false)` запрещает это. Нативный Wayland и аппаратное 3D
+не поддерживаются; звук — в модуле `sound`. API рассчитан на поток интерпретатора.
 
 Окно принадлежит экземпляру интерпретатора и освобождается при `reset()` или
 уничтожении интерпретатора. Ошибки открытия окна или аргументов возвращаются
@@ -217,7 +263,7 @@ Windows-сборке достаточно системных `user32` и `gdi32`
 Linux без рабочего стола может запускать тест через Xvfb:
 
 ```bash
-sudo apt-get install xvfb libx11-6
+sudo apt-get install xvfb libx11-6 openbox
 FOXLANG_REQUIRE_GRAPHICS_TESTS=1 xvfb-run -a ctest --test-dir build -R graphics --output-on-failure
 ```
 

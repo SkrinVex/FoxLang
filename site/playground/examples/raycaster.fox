@@ -296,6 +296,10 @@ float time = 0;
 int lastMouse = -1;
 
 while (window_poll()) {
+    W = window_width();
+    H = window_height();
+    RAYS = max(1, (W + COLUMN - 1) / COLUMN);
+    if (size(depth) != RAYS) { resize(depth, RAYS); }
     float dt = frame_delta();
     if (dt > 0.1) { dt = 0.1; }
     time += dt;

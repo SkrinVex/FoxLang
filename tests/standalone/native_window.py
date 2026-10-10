@@ -167,6 +167,73 @@ class NativeWindow:
         try:return self.api.XGetPixel(image,0,0) & 0xffffff
         finally:self.api.XDestroyImage(image)
 
+    def geometry(self):
+        if os.name == 'nt':
+            class Rect(C.Structure):
+                _fields_ = [('left', C.c_long), ('top', C.c_long), ('right', C.c_long), ('bottom', C.c_long)]
+            self.api.GetClientRect.argtypes = [C.c_void_p, C.c_void_p]
+            rect = Rect()
+            assert self.api.GetClientRect(self.handle, C.byref(rect))
+            return (*self.screen(0, 0), rect.right, rect.bottom)
+        self.api.XGetGeometry.argtypes = [C.c_void_p, C.c_ulong, C.POINTER(C.c_ulong),
+            C.POINTER(C.c_int), C.POINTER(C.c_int), C.POINTER(C.c_uint), C.POINTER(C.c_uint),
+            C.POINTER(C.c_uint), C.POINTER(C.c_uint)]
+        self.api.XTranslateCoordinates.argtypes = [C.c_void_p, C.c_ulong, C.c_ulong, C.c_int, C.c_int,
+            C.POINTER(C.c_int), C.POINTER(C.c_int), C.POINTER(C.c_ulong)]
+        root, child = C.c_ulong(), C.c_ulong()
+        x, y = C.c_int(), C.c_int()
+        width, height, border, depth = C.c_uint(), C.c_uint(), C.c_uint(), C.c_uint()
+        assert self.api.XGetGeometry(self.display, self.handle, C.byref(root), C.byref(x), C.byref(y),
+            C.byref(width), C.byref(height), C.byref(border), C.byref(depth))
+        self.api.XTranslateCoordinates(self.display, self.handle, self.root, 0, 0, C.byref(x), C.byref(y), C.byref(child))
+        return x.value, y.value, width.value, height.value
+
+    def managed(self):
+        """Wait until the window manager has finished mapping the client."""
+        if os.name == 'nt':
+            self.api.IsWindowVisible.argtypes = [C.c_void_p]
+            return bool(self.api.IsWindowVisible(self.handle))
+        return self.property('WM_STATE')[:1] == [1] and self.handle in self.property('_NET_CLIENT_LIST', root=True)
+
+    def resize(self, width, height):
+        """Ask the OS to resize the client area, just like a window-manager drag."""
+        if os.name == 'nt':
+            class Rect(C.Structure):
+                _fields_ = [('left', C.c_long), ('top', C.c_long), ('right', C.c_long), ('bottom', C.c_long)]
+            self.api.GetWindowLongPtrW.argtypes = [C.c_void_p, C.c_int]
+            self.api.GetWindowLongPtrW.restype = C.c_ssize_t
+            self.api.SetWindowPos.argtypes = [C.c_void_p, C.c_void_p, C.c_int, C.c_int, C.c_int, C.c_int, C.c_uint]
+            rect = Rect(0, 0, width, height)
+            self.api.AdjustWindowRect(C.byref(rect), self.api.GetWindowLongPtrW(self.handle, -16), False)
+            assert self.api.SetWindowPos(self.handle, None, 0, 0, rect.right - rect.left, rect.bottom - rect.top, 2 | 4 | 16)
+        else:
+            self.api.XResizeWindow.argtypes = [C.c_void_p, C.c_ulong, C.c_uint, C.c_uint]
+            self.api.XResizeWindow(self.display, self.handle, width, height)
+            self.api.XFlush(self.display)
+
+    def property(self, name, root=False):
+        """A 32-bit X11 property, represented as longs by Xlib on this platform."""
+        self.api.XGetWindowProperty.argtypes = [C.c_void_p, C.c_ulong, C.c_ulong, C.c_long, C.c_long,
+            C.c_int, C.c_ulong, C.POINTER(C.c_ulong), C.POINTER(C.c_int), C.POINTER(C.c_ulong),
+            C.POINTER(C.c_ulong), C.POINTER(C.c_void_p)]
+        atom = self.api.XInternAtom(self.display, name.encode(), 0)
+        kind, count, remaining = C.c_ulong(), C.c_ulong(), C.c_ulong()
+        fmt, data = C.c_int(), C.c_void_p()
+        self.api.XGetWindowProperty(self.display, self.root if root else self.handle, atom, 0, 1024, 0, 0,
+            C.byref(kind), C.byref(fmt), C.byref(count), C.byref(remaining), C.byref(data))
+        try:
+            return list(C.cast(data, C.POINTER(C.c_ulong))[:count.value]) if data and fmt.value == 32 else []
+        finally:
+            if data: self.api.XFree(data)
+
+    def resizable(self):
+        if os.name == 'nt':
+            self.api.GetWindowLongPtrW.argtypes = [C.c_void_p, C.c_int]
+            self.api.GetWindowLongPtrW.restype = C.c_ssize_t
+            return bool(self.api.GetWindowLongPtrW(self.handle, -16) & 0x40000)
+        hints = self.property('WM_NORMAL_HINTS')
+        return len(hints) >= 9 and hints[5] < hints[7] and hints[6] < hints[8]
+
     def close_window(self):
         if os.name == 'nt':
             self.api.PostMessageW(self.handle,0x10,0,0)

@@ -11,7 +11,7 @@ RUN apk add --no-cache \
     ca-certificates \
     pkgconf \
     libxcb-dev libxcb-static libxau-dev libxdmcp-dev libbsd-static libmd-dev \
-    xvfb-run libx11 \
+    xvfb-run libx11 openbox \
     bash
 
 WORKDIR /usr/src/foxlang
