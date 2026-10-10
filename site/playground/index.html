@@ -501,6 +501,12 @@ footer {
   .views button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); border-color: var(--muted); }
   main { grid-template-columns: minmax(0, 1fr); padding: 8px 12px; }
   main[data-view="code"] #output-pane, main[data-view="output"] #code-pane { display: none; }
+  /* A graphics window and its controls need their full height. Let the page
+     scroll instead of clipping the lower buttons inside the result pane. */
+  main[data-view="output"] { flex: none; min-height: 360px; }
+  #output-pane .output { max-height: 50vh; }
+  .bar, .views, footer { flex-shrink: 0; }
+  .pad { flex-wrap: wrap; }
   /* 16px text keeps phones from zooming in on the editor. */
   .editor, .output, .stdin textarea { font-size: 16px; line-height: 23px; }
   .gutter { min-width: 34px; padding-left: 6px; padding-right: 6px; }
