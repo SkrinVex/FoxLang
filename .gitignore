@@ -2,6 +2,7 @@ build/
 build*/
 /web/
 __pycache__/
+node_modules/
 dist/
 /foxlang
 /foxlang.exe

@@ -66,6 +66,7 @@ while (window_poll()) {
     if (!ui_typing() && !dialog && key_pressed("N")) {
         dialog = true;
         ui_focus("name");
+        write_file("shortcut-ready.txt", "ready");
     }
     scroll = ui_scroll_begin("list", 20, 160, 110, 120, scroll, 400);
     for (int i = 0; i < 20; i++) {
@@ -120,13 +121,22 @@ def settle(workdir, frames=3):
     """Waits until the program has run a few more frames, so input has been handled."""
     def frame():
         try:
-            return int((workdir / 'frame.txt').read_text() or 0)
+            return int((workdir / 'frame.txt').read_text())
         except (OSError, ValueError):
-            return 0
-    target = frame() + frames
+            # write_file truncates before writing. An empty read is not frame zero:
+            # that would make the wait finish immediately on the next valid read.
+            return None
     deadline = time.monotonic() + 10
-    while frame() < target and time.monotonic() < deadline:
+    target = None
+    while time.monotonic() < deadline:
+        current = frame()
+        if current is not None:
+            if target is None:
+                target = current + frames
+            elif current >= target:
+                return
         time.sleep(0.01)
+    raise AssertionError('Timed out waiting for UI frames')
 
 
 def click(driver, workdir, x, y):
@@ -255,6 +265,7 @@ with tempfile.TemporaryDirectory(prefix='fox-ui-') as directory:
         settle(workdir, 2)
         driver.send_key('N', True)
         driver.send_key('N', False)
+        wait_for(lambda: (workdir / 'shortcut-ready.txt').exists(), process, 'shortcut dialog opened')
         settle(workdir)
         driver.type_text('k')
         settle(workdir)

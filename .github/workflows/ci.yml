@@ -10,6 +10,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  playground-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+        working-directory: tests/web
+      - run: npx playwright install --with-deps chromium
+        working-directory: tests/web
+      - run: npm test
+        working-directory: tests/web
+
   portable-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 25

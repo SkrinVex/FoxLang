@@ -6,6 +6,7 @@ dist/
 dist-*/
 *.vsix
 __pycache__/
+**/node_modules/
 *.o
 *.a
 .env
