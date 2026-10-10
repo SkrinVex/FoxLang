@@ -25,7 +25,8 @@ const create = require(
       });
       app.FS.mkdirTree("/project");
       app.FS.chdir("/project");
-      app.FS.writeFile("main.fox", M.generate(p, mode));
+      for (const [name, source] of Object.entries(M.files(p, mode)))
+        app.FS.writeFile(name, source);
       assert.equal(
         await app.ccall(
           "foxlang_run",
@@ -58,6 +59,14 @@ const create = require(
     vertical: "bottom",
   };
   M.add(p, "button").layouts.desktop.y = 510;
+  p.main = M.defaultMain().replace(
+    "print(layout_message(id));",
+    'print("CUSTOM=" + id);',
+  );
+  // A layout edit must not regenerate or replace the user handler.
+  const originalMain = p.main;
+  button.layouts.desktop.x += 30;
+  assert.equal(M.files(p)["main.fox"], originalMain);
   let polls = 0,
     log = "",
     sizes = new Set();
@@ -89,9 +98,10 @@ const create = require(
   });
   app.FS.mkdirTree("/project");
   app.FS.chdir("/project");
+  app.FS.writeFile("layout.fox", M.generate(p));
   app.FS.writeFile(
     "main.fox",
-    M.generate(p) +
+    p.main +
       `\nprint("FIELD=" + value_${field.id});\nprint("CHECK=" + checked_${check.id});\n`,
   );
   assert.equal(
@@ -107,7 +117,7 @@ const create = require(
   );
   assert(log.includes("FIELD=A"), log);
   assert(log.includes("CHECK=true"), log);
-  assert.equal(log.split("Кнопка нажата").length - 1, 2, log);
+  assert.equal(log.split("CUSTOM=" + button.id).length - 1, 2, log);
   assert(sizes.has("800x560") && sizes.has("360x640"));
   console.log("BUILDER_RUNTIME_OK");
 })().catch((e) => {

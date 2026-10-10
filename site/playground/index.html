@@ -1455,8 +1455,12 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     if (!builderEmbed || event.source !== parent || event.origin !== location.origin || !builderInitialized) return;
     var message = event.data;
     if (message && message.type === "foxlang-builder-stop") stop();
-    if (message && message.type === "foxlang-builder-run" && typeof message.code === "string" && message.code.length <= 500000 && !runButton.disabled) {
-      setFiles([{name: ENTRY, text: message.code}]);
+    if (message && message.type === "foxlang-builder-run" && !runButton.disabled) {
+      var files = message.files;
+      if (!files || Object.keys(files).length !== 2 ||
+          typeof files["main.fox"] !== "string" || typeof files["layout.fox"] !== "string" ||
+          files["main.fox"].length + files["layout.fox"].length > 500000) return;
+      setFiles([{name: ENTRY, text: files["main.fox"]}, {name: "layout.fox", text: files["layout.fox"]}]);
       setView("output");
       run();
     }

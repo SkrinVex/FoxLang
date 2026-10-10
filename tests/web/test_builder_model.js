@@ -72,3 +72,36 @@ const large = M.template();
 large.elements[0].text = "W".repeat(200);
 large.elements[0].scale = 4;
 assert.deepEqual(M.validate(M.validate(large)), M.validate(large));
+
+// Migration, non-reused IDs, and user-owned source survive all generation.
+const legacy = M.template();
+delete legacy.main;
+delete legacy.nextId;
+const migrated = M.validate(legacy);
+assert.equal(migrated.main, M.defaultMain());
+const custom = M.validate(M.template());
+custom.main =
+  "// exact user source\n" +
+  M.defaultMain().replace("print(layout_message(id));", 'print("CUSTOM");');
+const originalMain = custom.main;
+const removed = custom.elements.pop();
+const added = M.add(custom, "button");
+assert.notEqual(added.id, removed.id);
+added.layouts.desktop.x += 25;
+assert.equal(M.files(custom)["main.fox"], originalMain);
+assert.equal(M.validate(JSON.parse(JSON.stringify(custom))).main, originalMain);
+assert.equal(M.files(custom, "mobile")["main.fox"], originalMain);
+assert(M.files(custom)["layout.fox"].includes('clicked = "' + added.id + '"'));
+assert.throws(() => M.validate({ ...custom, main: 42 }));
+assert.throws(() => M.validate({ ...custom, main: "x".repeat(100001) }));
+assert.throws(() => M.validate({ ...custom, nextId: 1 }));
+
+assert.equal(
+  M.files({ ...custom, main: "" })["main.fox"],
+  "",
+  "empty user source is not replaced by a template",
+);
+assert.equal(
+  M.files({ ...custom, main: "unfinished syntax {\r\n" })["main.fox"],
+  "unfinished syntax {\r\n",
+);

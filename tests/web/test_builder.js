@@ -124,8 +124,19 @@ const runtime = process.argv.includes("--runtime");
       assert.equal(await page.locator("#x").inputValue(), "42");
       await page.locator("#duplicate").click();
       assert.equal(await page.locator("#stage .widget").count(), 7);
+      const deletedId = await page.locator("#element-id").textContent();
       await page.locator("#delete").click();
       assert.equal(await page.locator("#stage .widget").count(), 6);
+      await page.locator("#undo").click();
+      await page.locator("#redo").click();
+      await page.locator("#layers button").last().click();
+      await page.locator("#duplicate").click();
+      assert.notEqual(
+        await page.locator("#element-id").textContent(),
+        deletedId,
+        "deleted IDs are never reused, including after undo/redo",
+      );
+      await page.locator("#undo").click();
       if (!mobile) {
         const item = page.locator("#stage .button");
         const box = await item.boundingBox();
@@ -184,12 +195,51 @@ const runtime = process.argv.includes("--runtime");
       await page.locator("#x").fill("16");
       await page.locator("#x").press("Tab");
       await page.locator("[data-tab=code]").click();
+      // Edit user logic, then move the existing button and return to code.
+      assert.equal(await page.locator("#code").getAttribute("readonly"), null);
+      const customMain = (await page.locator("#code").inputValue()).replace(
+        "print(layout_message(id));",
+        'print("MY_HANDLER=" + id);',
+      );
+      await page.locator("#code").fill(customMain);
+      await page.locator("[data-tab=design]").click();
+      const moved = page.locator("#stage .button");
+      await moved.evaluate((node) =>
+        node.scrollIntoView({ block: "center", behavior: "instant" }),
+      );
+      await page.evaluate(
+        () =>
+          new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve)),
+          ),
+      );
+      const movedBox = await moved.boundingBox();
+      await page.mouse.move(movedBox.x + 10, movedBox.y + 10);
+      await page.mouse.down();
+      await page.mouse.move(movedBox.x + 28, movedBox.y + 20, { steps: 4 });
+      await page.mouse.up();
+      assert(Number(await page.locator("#x").inputValue()) > 16);
+      await page.locator("#undo").click();
+      await page.locator("#redo").click();
+      await page.locator("[data-tab=code]").click();
+      assert.equal(await page.locator("#code").inputValue(), customMain);
+      await page.locator("#code-file").selectOption("layout.fox");
+      assert.notEqual(
+        await page.locator("#code").getAttribute("readonly"),
+        null,
+      );
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        "code controls fit the viewport",
+      );
       const code = await page.locator("#code").inputValue();
       assert(code.includes("open_window(360, 640"));
       assert(code.includes("ui_button"));
       assert(code.includes('Нажать \\" 🦊'));
       const downloadPromise = page.waitForEvent("download");
-      await page.locator("#download").click();
+      await page.locator("#download-layout").click();
       const download = await downloadPromise;
       assert.equal(await fs.readFile(await download.path(), "utf8"), code);
       const savePromise = page.waitForEvent("download");
@@ -198,13 +248,26 @@ const runtime = process.argv.includes("--runtime");
         await fs.readFile(await (await savePromise).path(), "utf8"),
       );
       assert.equal(M.validate(saved).elements.length, 6);
-      await page
-        .locator("#file")
-        .setInputFiles({
-          name: "bad.json",
-          mimeType: "application/json",
-          buffer: Buffer.from('{"format":"no"}'),
-        });
+      assert.equal(saved.main, customMain);
+      const mainDownload = page.waitForEvent("download");
+      await page.locator("#download").click();
+      assert.equal(
+        await fs.readFile(await (await mainDownload).path(), "utf8"),
+        customMain,
+      );
+      const share = new URL(
+        await page.locator("#playground").getAttribute("href"),
+        page.url(),
+      );
+      const shared = JSON.parse(
+        Buffer.from(share.hash.slice(7), "base64url").toString("utf8"),
+      );
+      assert.deepEqual(shared, { "main.fox": customMain, "layout.fox": code });
+      await page.locator("#file").setInputFiles({
+        name: "bad.json",
+        mimeType: "application/json",
+        buffer: Buffer.from('{"format":"no"}'),
+      });
       await page.waitForFunction(() =>
         document
           .querySelector("#notice")
@@ -213,19 +276,21 @@ const runtime = process.argv.includes("--runtime");
       assert.equal(await page.locator("#code").inputValue(), code);
       await page.reload();
       await page.locator("[data-tab=code]").click();
+      assert.equal(await page.locator("#code").inputValue(), customMain);
+      await page.locator("#code-file").selectOption("layout.fox");
       await page.locator("[data-mode=mobile]").click();
       assert.equal(
         await page.locator("#code").inputValue(),
         code,
         "autosave roundtrip",
       );
-      await page
-        .locator("#file")
-        .setInputFiles({
-          name: "new.json",
-          mimeType: "application/json",
-          buffer: Buffer.from(JSON.stringify(M.template())),
-        });
+      await page.locator("#file").setInputFiles({
+        name: "new.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(
+          JSON.stringify({ ...M.template(), main: customMain }),
+        ),
+      });
       await page.waitForFunction(
         () => document.querySelector("#count").textContent === "5",
       );
@@ -254,7 +319,7 @@ const runtime = process.argv.includes("--runtime");
         await page.mouse.click(box.x + 60 * s, box.y + 245 * s);
         await frame
           .locator("#output")
-          .getByText("Кнопка нажата", { exact: false })
+          .getByText("MY_HANDLER=", { exact: false })
           .waitFor({ timeout: 15000 });
       } else {
         const iframe = page
@@ -263,15 +328,31 @@ const runtime = process.argv.includes("--runtime");
         const runs = await iframe.evaluate(() => window.workerRuns.length);
         assert(
           (
-            await iframe.evaluate(() => window.workerRuns.at(-1).files[0].text)
+            await iframe.evaluate(
+              () =>
+                window.workerRuns
+                  .at(-1)
+                  .files.find((f) => f.name === "layout.fox").text,
+            )
           ).includes("using ui;"),
+        );
+        assert.equal(
+          await iframe.evaluate(
+            () =>
+              window.workerRuns.at(-1).files.find((f) => f.name === "main.fox")
+                .text,
+          ),
+          customMain,
         );
         await iframe.evaluate(() =>
           window.dispatchEvent(
             new MessageEvent("message", {
               source: parent,
               origin: "https://other.invalid",
-              data: { type: "foxlang-builder-run", code: "print(123);" },
+              data: {
+                type: "foxlang-builder-run",
+                files: { "main.fox": "print(123);", "layout.fox": "" },
+              },
             }),
           ),
         );

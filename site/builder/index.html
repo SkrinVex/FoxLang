@@ -133,21 +133,33 @@
         </section>
         <section id="code-view" hidden>
           <div class="preview-bar">
+            <label
+              >Файл
+              <select id="code-file">
+                <option value="main.fox">main.fox — моя логика</option>
+                <option value="layout.fox">layout.fox — макет</option>
+              </select></label
+            >
             <button id="copy">Копировать</button
-            ><button id="download" class="primary">Скачать .fox</button
+            ><button id="download" class="primary">Скачать main.fox</button
+            ><button id="download-layout">Скачать layout.fox</button
             ><a id="playground" target="_blank" rel="noopener"
               >В песочницу ↗</a
             >
           </div>
           <textarea
             id="code"
-            readonly
+            maxlength="100000"
             spellcheck="false"
-            aria-label="Готовый код FoxLang"
+            aria-label="Код выбранного файла FoxLang"
           ></textarea>
           <p class="work-note">
-            Состояния полей и флажков уже сохраняются между кадрами. Добавьте
-            свою логику в отмеченные обработчики кнопок.
+            Редактируйте main.fox: изменения сохраняются в проекте и не
+            стираются при правках макета. layout.fox создаётся автоматически и
+            доступен только для чтения. Скачайте оба файла в одну папку и
+            запускайте main.fox. После удаления элемента его ID больше не
+            используется; связанные с ним обработчики и обращения к переменным
+            проверьте самостоятельно.
           </p>
         </section>
       </section>
@@ -258,7 +270,7 @@
       <strong>Макет — начало. Логика — ваша.</strong>
       <p>
         Конструктор создаёт обычную программу с модулями <code>graphics</code> и
-        <code>ui</code>. Экспортированный файл работает в FoxLang на Windows,
+        <code>ui</code>. Экспортированные файлы работают в FoxLang на Windows,
         Linux и в песочнице.
       </p>
       <a href="https://github.com/SkrinVex/FoxLang/blob/master/docs/GRAPHICS.md"

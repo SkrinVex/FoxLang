@@ -26,7 +26,7 @@
     if (
       typeof value !== "string" ||
       value.length > limit ||
-      /[\x00-\x08\x0b-\x1f\x7f]/.test(value)
+      /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)
     )
       fail(`${name}: недопустимый текст (максимум ${limit} символов)`);
     if (
@@ -44,6 +44,27 @@
     if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value))
       fail("Цвет должен иметь вид #rrggbb");
     return value.toLowerCase();
+  }
+  function defaultMain() {
+    return [
+      "// Пользовательская логика: конструктор не перезаписывает этот файл.",
+      'include("layout.fox");',
+      "",
+      "void on_click(string id) {",
+      '    // Пример: if (id == "e5") { print(value_e3); return; }',
+      "    // ID выбранного элемента указан в его свойствах.",
+      "    print(layout_message(id));",
+      "}",
+      "",
+      "layout_open();",
+      "while (window_poll()) {",
+      "    string clicked = layout_draw();",
+      '    if (clicked != "") { on_click(clicked); }',
+      "    present_window();",
+      "}",
+      "close_window();",
+      "",
+    ].join("\n");
   }
   function validate(input) {
     if (!input || input.format !== "foxlang-ui" || input.version !== 1)
@@ -142,7 +163,18 @@
         layouts,
       };
     });
+    const minimumId =
+      Math.max(0, ...elements.map((e) => Number(e.id.slice(1)))) + 1;
+    const nextId =
+      input.nextId === undefined
+        ? minimumId
+        : integer(input.nextId, minimumId, 1000000, "Следующий ID");
     return {
+      main:
+        input.main === undefined
+          ? defaultMain()
+          : text(input.main, 100000, "main.fox"),
+      nextId,
       format: "foxlang-ui",
       version: 1,
       title: text(input.title, 120, "Название окна") || "Мой интерфейс",
@@ -155,6 +187,8 @@
   }
   function blank() {
     return {
+      main: defaultMain(),
+      nextId: 1,
       format: "foxlang-ui",
       version: 1,
       title: "Мой интерфейс",
@@ -171,8 +205,12 @@
   function add(project, type) {
     if (!Object.hasOwn(types, type) || project.elements.length >= 100)
       fail("Нельзя добавить элемент");
-    let next = 1;
-    while (project.elements.some((e) => e.id === "e" + next)) next++;
+    const next = Math.max(
+      project.nextId || 1,
+      ...project.elements.map((e) => Number(e.id.slice(1)) + 1),
+    );
+    if (next > 999999) fail("Исчерпаны ID элементов: создайте новый проект");
+    project.nextId = next + 1;
     const id = "e" + next;
     const height =
       { label: 24, field: 28, checkbox: 14, panel: 160 }[type] || 36;
@@ -263,13 +301,15 @@
     if (!initial) fail("Неизвестный размер запуска");
     const lines = [
       "// Создано в FoxLang UI — https://skrinvex.github.io/FoxLang/builder/",
-      "// Состояние хранится между кадрами. Логику кнопок добавьте в обработчики ниже.",
+      "// Генерируемый layout.fox. Изменяйте обработчики в main.fox.",
       "using graphics;",
       "using ui;",
       "",
-      `open_window(${initial.width}, ${initial.height}, ${quote(p.title)});`,
-      "set_window_resizable(true);",
-      `UI_ACCENT = ${rgb(p.accent)};`,
+      "void layout_open() {",
+      `    open_window(${initial.width}, ${initial.height}, ${quote(p.title)});`,
+      "    set_window_resizable(true);",
+      `    UI_ACCENT = ${rgb(p.accent)};`,
+      "}",
       "",
     ];
     for (const e of p.elements) {
@@ -280,7 +320,8 @@
     }
     lines.push(
       "",
-      "while (window_poll()) {",
+      "string layout_draw() {",
+      '    string clicked = "";',
       `    clear_window(${rgb(p.background)});`,
       `    if (window_width() < ${p.breakpoint}) {`,
     );
@@ -325,14 +366,40 @@
         if (["button", "primary"].includes(e.type))
           lines.push(
             `        if (${e.type === "primary" ? "ui_primary_button" : "ui_button"}(${id}, ${args}, ${r.h}, ${quote(e.text)})) {`,
-            "            // Ваш обработчик нажатия.",
-            `            print(${quote(e.message)});`,
+            `            clicked = ${id};`,
             "        }",
           );
       }
     }
-    lines.push("    }", "    present_window();", "}", "close_window();", "");
+    lines.push(
+      "    }",
+      "    return clicked;",
+      "}",
+      "",
+      "string layout_message(string id) {",
+    );
+    for (const e of p.elements)
+      if (["button", "primary"].includes(e.type))
+        lines.push(
+          `    if (id == ${quote(e.id)}) { return ${quote(e.message)}; }`,
+        );
+    lines.push('    return "";', "}", "");
     return lines.join("\n");
   }
-  return { types, clone, validate, blank, add, template, rect, generate };
+  function files(input, initialMode = "desktop") {
+    const p = validate(input);
+    return { "main.fox": p.main, "layout.fox": generate(p, initialMode) };
+  }
+  return {
+    types,
+    clone,
+    validate,
+    blank,
+    add,
+    template,
+    rect,
+    generate,
+    files,
+    defaultMain,
+  };
 });

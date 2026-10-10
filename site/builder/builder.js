@@ -124,13 +124,15 @@
         project.elements.indexOf(e) === project.elements.length - 1;
     }
     draw();
-    const code = M.generate(project, mode);
-    $("code").value = code;
-    const bytes = new TextEncoder().encode(code);
+    const files = M.files(project, mode);
+    const code = files[$("code-file").value];
+    $("code").readOnly = $("code-file").value !== "main.fox";
+    if ($("code").value !== code) $("code").value = code;
+    const bytes = new TextEncoder().encode(JSON.stringify(files));
     let binary = "";
     for (const byte of bytes) binary += String.fromCharCode(byte);
     $("playground").href =
-      "../playground/#code=t" +
+      "../playground/#code=T" +
       btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     if (frameStarted)
       $("preview-note").textContent =
@@ -319,7 +321,9 @@
       to = back ? redo : undo;
     if (!from.length) return;
     to.push(M.clone(project));
+    const nextId = project.nextId;
     project = from.pop();
+    project.nextId = Math.max(nextId, project.nextId);
     persist();
     render();
   }
@@ -432,14 +436,25 @@
       "application/json",
     );
   $("download").onclick = () =>
+    download("main.fox", project.main, "text/plain;charset=utf-8");
+  $("download-layout").onclick = () =>
     download(
-      "interface.fox",
+      "layout.fox",
       M.generate(project, mode),
       "text/plain;charset=utf-8",
     );
+  $("code-file").onchange = render;
+  $("code").oninput = () => {
+    if ($("code-file").value === "main.fox")
+      change(() => {
+        project.main = $("code").value;
+      });
+  };
   $("copy").onclick = async () => {
     try {
-      await navigator.clipboard.writeText(M.generate(project, mode));
+      await navigator.clipboard.writeText(
+        M.files(project, mode)[$("code-file").value],
+      );
       notice("Код скопирован");
     } catch {
       $("code").focus();
@@ -448,7 +463,11 @@
     }
   };
   $("new").onclick = () => {
-    if (!confirm("Заменить текущий макет шаблоном? Можно отменить через ↶."))
+    if (
+      !confirm(
+        "Заменить весь проект, включая main.fox, шаблоном? Можно отменить через ↶.",
+      )
+    )
       return;
     change(() => {
       project = M.template($("template").value);
@@ -503,7 +522,7 @@
       return;
     }
     $("preview").contentWindow.postMessage(
-      { type: "foxlang-builder-run", code: M.generate(project, mode) },
+      { type: "foxlang-builder-run", files: M.files(project, mode) },
       location.origin,
     );
     frameStarted = true;
