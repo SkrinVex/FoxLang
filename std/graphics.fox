@@ -33,6 +33,8 @@ void clip_begin(int x, int y, int width, int height) { gfx_clip_begin(x, y, widt
 void clip_end() { gfx_clip_end(); }
 void set_window_resizable(bool resizable) { gfx_resizable(resizable); }
 void set_window_size(int width, int height) { gfx_set_size(width, height); }
+bool window_fullscreen() { return gfx_fullscreen(); }
+void set_window_fullscreen(bool fullscreen) { gfx_set_fullscreen(fullscreen); }
 bool window_resized() { return gfx_resized(); }
 int load_image(string path) { return gfx_image_load(path); }
 int image_width(int image) { return gfx_image_width(image); }

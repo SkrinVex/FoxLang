@@ -26,6 +26,9 @@ struct InterpreterOptions {
     std::shared_ptr<const SourceProvider> sources;
     // Command-line arguments after the program name, returned by os_args().
     std::vector<std::string> arguments;
+    // Initial open_window overrides; zero keeps the size specified by the program.
+    int windowWidth = 0, windowHeight = 0;
+    bool windowFullscreen = false;
 };
 
 class Interpreter {
@@ -49,6 +52,7 @@ public:
 
     const std::set<std::string>& getLoadedModules() const;
     const std::vector<std::string>& getArguments() const { return options.arguments; }
+    const InterpreterOptions& getOptions() const { return options; }
     const SourceProvider& getSources() const { return *sources; }
     void executeInclude(const std::string& path, const std::string& currentFile, bool importOnly);
     // With an alias, `using math as m;` also defines m: a map of the module's functions

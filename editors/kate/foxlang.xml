@@ -176,6 +176,7 @@
       <item>gfx_down</item>
       <item>gfx_focused</item>
       <item>gfx_frame</item>
+      <item>gfx_fullscreen</item>
       <item>gfx_height</item>
       <item>gfx_image_alpha</item>
       <item>gfx_image_draw</item>
@@ -201,6 +202,7 @@
       <item>gfx_rgb</item>
       <item>gfx_ring</item>
       <item>gfx_set_clipboard</item>
+      <item>gfx_set_fullscreen</item>
       <item>gfx_set_size</item>
       <item>gfx_sprites</item>
       <item>gfx_text</item>
@@ -402,6 +404,7 @@
       <item>set_env</item>
       <item>set_header</item>
       <item>set_permissions</item>
+      <item>set_window_fullscreen</item>
       <item>set_window_resizable</item>
       <item>set_window_size</item>
       <item>show_cursor</item>
@@ -494,6 +497,7 @@
       <item>wait</item>
       <item>warn</item>
       <item>window_focused</item>
+      <item>window_fullscreen</item>
       <item>window_height</item>
       <item>window_poll</item>
       <item>window_resized</item>

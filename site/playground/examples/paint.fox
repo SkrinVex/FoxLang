@@ -14,6 +14,13 @@ int lastY = -1;
 clear_window(rgb(255, 255, 255));
 
 while (window_poll()) {
+    int oldWidth = width;
+    int oldHeight = height;
+    width = window_width();
+    height = window_height();
+    // Existing pixels survive resizing; paint only the newly exposed strips white.
+    if (width > oldWidth) { draw_rect(oldWidth, 36, width - oldWidth, height - 36, rgb(255, 255, 255)); }
+    if (height > oldHeight) { draw_rect(0, oldHeight, width, height - oldHeight, rgb(255, 255, 255)); }
     brush = clamp(brush + mouse_wheel(), 1, 20);
     int x = mouse_x();
     int y = mouse_y();

@@ -137,10 +137,17 @@ std::optional<Sources> unpack(const Bytes& image) {
     return decode(payload);
 }
 
-Bytes pack(Bytes image, const Sources& sources) {
+Bytes pack(Bytes image, const Sources& sources, bool noConsole) {
     auto descriptor = descriptorOffset(image);
     if (unpack(image)) invalid("cannot use a bundled program as a CLI stub");
     if (image.size() > maxImage) invalid("stub exceeds 256 MiB");
+    // Change the PE subsystem, keeping the existing CRT entry point. Windows then
+    // starts GUI builds without allocating a console, including during startup.
+    if (matches(image, 0, "MZ")) {
+        auto optional = static_cast<std::size_t>(get(image, 60, 4)) + 24;
+        put(image, optional + 68, noConsole ? 2 : 3, 2);
+        put(image, optional + 64, 0, 4); // stale PE checksum after packaging
+    }
     auto payload = encode(sources);
     put(image, descriptor + 12, 1, 4);
     put(image, descriptor + 16, image.size(), 8);

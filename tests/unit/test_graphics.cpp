@@ -8,6 +8,15 @@
 #define CHECK(condition) do { if (!(condition)) { std::cerr << "FAIL " #condition << ':' << __LINE__ << '\n'; return 1; } } while (0)
 int main() {
     using foxlang::graphics::Surface;
+    Surface resized(80, 60);
+    resized.clear(0x123456);
+    resized.rectangle(20, 20, 5, 5, 0xabcdef);
+    resized.resize(120, 90);
+    CHECK(resized.pixels()[22 * 120 + 22] == 0xabcdef);
+    CHECK(resized.pixels()[59 * 120 + 79] == 0x123456);
+    CHECK(resized.pixels()[80 * 120 + 110] == 0);
+    resized.resize(40, 30);
+    CHECK(resized.pixels()[22 * 40 + 22] == 0xabcdef);
     Surface pixels(32, 24);
     pixels.clear(0x102030);
     pixels.rectangle(-2, -2, 4, 4, 0xff0000);

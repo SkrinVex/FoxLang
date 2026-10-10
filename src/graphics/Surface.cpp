@@ -140,6 +140,14 @@ void Surface::popClip() {
     if (clips_.empty()) throw std::runtime_error("Graphics Error: clip_end without a matching clip_begin");
     clips_.pop_back();
 }
+void Surface::resize(int width, int height) {
+    Surface next(width, height);
+    for (int y = 0; y < std::min(height_, height); ++y)
+        std::copy_n(pixels_.begin() + size_t(y) * width_, std::min(width_, width),
+                    next.pixels_.begin() + size_t(y) * width);
+    *this = std::move(next);
+}
+
 void Surface::clear(uint32_t color) { std::fill(pixels_.begin(), pixels_.end(), color & 0xffffff); }
 void Surface::rectangle(int x, int y, int width, int height, uint32_t color) {
     if (width < 0 || height < 0) throw std::runtime_error("Graphics Error: rectangle size must not be negative");

@@ -14,6 +14,7 @@ class Surface {
 public:
     Surface(int width, int height);
     void clear(uint32_t color);
+    void resize(int width, int height);
     void rectangle(int x, int y, int width, int height, uint32_t color);
     // Mixes color into the rectangle: alpha 0 leaves it, 255 covers it.
     void blend(int x, int y, int width, int height, uint32_t color, int alpha);
@@ -151,6 +152,8 @@ public:
     void closeEvent() { open_ = false; }
     // The drawing area follows the window when the user may resize it.
     void setResizable(bool resizable);
+    void setFullscreen(bool fullscreen);
+    bool fullscreen() const;
     void setSize(int width, int height);
     void sizeEvent(int width, int height) { pendingWidth_ = width; pendingHeight_ = height; }
     // True in the frame after the window changed size.

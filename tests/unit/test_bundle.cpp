@@ -101,6 +101,10 @@ int main(int argc, char** argv) {
             executable.resize(stub.size());
             rejects([&] { unpack(executable); });
         }
+        auto gui = pack(peFixture(), sources, true);
+        auto console = pack(peFixture(), sources, false);
+        require(gui.at(88 + 68) == 2 && console.at(88 + 68) == 3, "wrong Windows subsystem");
+        require(unpack(gui)->files == sources.files, "GUI packaging lost payload");
         auto pe = peFixture();
         for (auto offset : {60, 68, 84, 88, 344, 348}) {
             auto bad = pe;

@@ -38,7 +38,7 @@ public:
 };
 }
 
-void build(const fs::path& input, fs::path output) {
+void build(const fs::path& input, fs::path output, bool noConsole) {
     if (output.empty()) output = input.stem();
 #ifdef _WIN32
     auto extension = output.extension().string();
@@ -49,7 +49,7 @@ void build(const fs::path& input, fs::path output) {
     if (fs::exists(fs::symlink_status(output))) throw std::runtime_error("Build Error: output already exists: " + platform::pathToUtf8(output));
     if (!fs::is_regular_file(input)) throw std::runtime_error("Build Error: could not open file '" + platform::pathToUtf8(input) + "'");
     auto sources = collect(platform::pathToUtf8(input), *filesystemSources());
-    auto image = pack(readImage(executablePath()), sources);
+    auto image = pack(readImage(executablePath()), sources, noConsole);
     TemporaryDirectory temporary(output.parent_path());
     auto candidate = temporary.path / "program";
     {

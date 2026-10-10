@@ -1220,6 +1220,7 @@ print(page);
 `gfx_image_free(int image)`, `gfx_rects(array rects)`,
 `gfx_sprites(int image, int frame_width, int frame_height, array sprites)`,
 `gfx_tiles(int image, int tile_width, int tile_height, array tiles, int columns, int x, int y)`,
+`gfx_fullscreen()`, `gfx_set_fullscreen(bool fullscreen)`,
 `gfx_resizable(bool resizable)`, `gfx_set_size(int width, int height)`, `gfx_resized()`.
 Звук (основа модуля [`sound`](#using-sound)): `sound_play(string path)`,
 `sound_tone(float frequency, int milliseconds, float volume)`, `sound_stop()`.
@@ -1469,6 +1470,7 @@ reset_color();
 `window_width()`, `window_height()`, `text_input()`, `key_repeat(string key)`,
 `mouse_wheel()`, `double_clicked()`, `clipboard_text()`, `set_clipboard_text(string text)`,
 `clip_begin(int x, int y, int width, int height)`, `clip_end()`,
+`window_fullscreen()`, `set_window_fullscreen(bool fullscreen)`,
 `set_window_resizable(bool resizable)`, `set_window_size(int width, int height)`, `window_resized()`,
 `load_image(string path)`, `image_width(int image)`, `image_height(int image)`,
 `image_pixel(int image, int x, int y)`, `image_alpha(int image, int x, int y)`,
@@ -1950,7 +1952,17 @@ CMake. Аргументы командной строки приложения �
 * Linux-сборка создаёт Linux-приложение, Windows-сборка — `.exe`; кросс-упаковки нет.
 * Существующий выходной файл не перезаписывается.
 
-Полное описание формата и ограничений — в [docs/STANDALONE.md](docs/STANDALONE.md).
+`foxlang build game.fox --no-console` создаёт Windows GUI EXE без терминала;
+`--console` выбирает консольный EXE (по умолчанию). У исходной и готовой программы
+режим запуска переопределяют `--foxlang-console` / `--foxlang-no-console`.
+`--foxlang-width N`, `--foxlang-height N`, `--foxlang-fullscreen` и
+`--foxlang-windowed` задают начальные параметры окна. Это зарезервированные флаги:
+остальные аргументы доступны через `os_args()`, а после `--` все аргументы
+передаются буквально. `--foxlang-help` отдельно показывает справку runtime.
+На Linux консольные флаги не меняют потоки и не создают терминал.
+
+Полные правила, ограничения и примеры — [docs/LAUNCH.md](docs/LAUNCH.md).
+Описание формата и упаковки — [docs/STANDALONE.md](docs/STANDALONE.md).
 
 ---
 
@@ -1974,10 +1986,17 @@ Windows) с программным 2D-рисованием, картинками
 окне, `draw_sprites` — массив троек «кадр, x, y», `draw_rects` — пятёрок «x, y,
 ширина, высота, цвет». Это в разы быстрее, чем вызывать `draw_image_part` в цикле.
 
-**Размер окна.** `set_window_resizable(true)` разрешает менять размер окна мышью,
+**Размер окна.** Нативное окно по умолчанию изменяет размер мышью;
+`set_window_resizable(false)` запрещает изменение,
 `set_window_size` меняет его из программы. В кадре после изменения
 `window_resized()` истинно, а `window_width()` и `window_height()` возвращают новый
-размер — самое время заново расставить элементы.
+размер — самое время заново расставить элементы. При увеличении сохраняется
+существующий холст, новая область чёрная; при уменьшении обрезанная часть теряется.
+`set_window_fullscreen(true/false)` переключает нативный полноэкранный режим,
+`window_fullscreen()` возвращает состояние. При выходе восстанавливаются размер
+и положение. В Linux нужен EWMH-менеджер окон, подтверждение приходит при
+`window_poll`. Перед `set_window_size` нужно выйти из fullscreen. В браузере
+полноэкранный режим этого API не поддержан. Примеры — [docs/GRAPHICS.md](docs/GRAPHICS.md).
 
 ```cpp
 using graphics;
@@ -2222,7 +2241,8 @@ int main() {
   функциями и загруженными модулями; экземпляры независимы друг от друга.
 * `foxlang::InterpreterOptions`: `foxHome` (каталог модулей), `loadDotEnv` (читать ли
   `.env` в `runFile`), `sources` (свой `SourceProvider` вместо файловой системы),
-  `arguments` (аргументы для `os_args`).
+  `arguments` (аргументы для `os_args`), `windowWidth`/`windowHeight` (0 сохраняет
+  размер из программы), `windowFullscreen` (начальный полноэкранный режим).
 * `foxlang::RunResult`: `success`, `exitCode` (1 при ошибке или код из `exit`),
   `errorMessage`.
 * `interpreter.setGlobal(имя, тип, текст)` объявляет глобальную переменную типа `int`,

@@ -98,6 +98,33 @@ struct Window::Native {
     BITMAPINFO bitmap{};
     wchar_t highSurrogate = 0;
     int wheelRemainder = 0;
+    bool full = false, resizable = true;
+    WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};
+    LONG_PTR windowStyle = WS_OVERLAPPEDWINDOW;
+    bool fullscreen() const { return full; }
+    void setFullscreen(bool on) {
+        if (full == on) return;
+        if (on) {
+            MONITORINFO monitor{sizeof(MONITORINFO)};
+            if (!GetWindowPlacement(hwnd, &placement) ||
+                !GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor))
+                fail("cannot read monitor geometry");
+            windowStyle = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            full = true;
+            SetWindowLongPtrW(hwnd, GWL_STYLE, windowStyle & ~LONG_PTR(WS_OVERLAPPEDWINDOW));
+            SetWindowPos(hwnd, HWND_TOP, monitor.rcMonitor.left, monitor.rcMonitor.top,
+                         monitor.rcMonitor.right - monitor.rcMonitor.left,
+                         monitor.rcMonitor.bottom - monitor.rcMonitor.top, SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+        } else {
+            full = false;
+            LONG_PTR style = resizable ? windowStyle | WS_THICKFRAME | WS_MAXIMIZEBOX
+                                      : windowStyle & ~LONG_PTR(WS_THICKFRAME | WS_MAXIMIZEBOX);
+            SetWindowLongPtrW(hwnd, GWL_STYLE, style);
+            SetWindowPlacement(hwnd, &placement);
+            SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                         SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+    }
     explicit Native(Window& window) : owner(window) {}
     ~Native() { if (hwnd) DestroyWindow(hwnd); }
     void paint(HDC dc) {
@@ -167,6 +194,18 @@ struct Window::Native {
                 return 0;
             case WM_CAPTURECHANGED:
                 self->owner.keyEvent(1, false); self->owner.keyEvent(2, false); return 0;
+            case WM_GETMINMAXINFO: {
+                if (!self->full) {
+                    auto* limits = reinterpret_cast<MINMAXINFO*>(lparam);
+                    RECT small{0, 0, 64, 64}, large{0, 0, 4096, 4096};
+                    auto style = static_cast<DWORD>(GetWindowLongPtrW(handle, GWL_STYLE));
+                    AdjustWindowRect(&small, style, FALSE);
+                    AdjustWindowRect(&large, style, FALSE);
+                    limits->ptMinTrackSize = {small.right - small.left, small.bottom - small.top};
+                    limits->ptMaxTrackSize = {large.right - large.left, large.bottom - large.top};
+                }
+                return 0;
+            }
             case WM_SIZE:
                 if (wparam != SIZE_MINIMIZED && LOWORD(lparam) > 0 && HIWORD(lparam) > 0)
                     self->owner.sizeEvent(LOWORD(lparam), HIWORD(lparam));
@@ -202,7 +241,7 @@ struct Window::Native {
         bitmap.bmiHeader.biPlanes = 1;
         bitmap.bmiHeader.biBitCount = 32;
         bitmap.bmiHeader.biCompression = BI_RGB;
-        DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+        DWORD style = WS_OVERLAPPEDWINDOW;
         RECT rect{0, 0, owner.surface().width(), owner.surface().height()};
         AdjustWindowRect(&rect, style, FALSE);
         hwnd = CreateWindowExW(0, L"FoxLangGraphicsWindow", wide.c_str(), style,
@@ -216,11 +255,17 @@ struct Window::Native {
         bitmap.bmiHeader.biWidth = owner.surface().width();
         bitmap.bmiHeader.biHeight = -owner.surface().height();
     }
-    void setResizable(bool resizable) {
+    void setResizable(bool on) {
+        resizable = on;
+        if (full) return;
+        int width = owner.surface().width(), height = owner.surface().height();
         LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
         style = resizable ? (style | WS_THICKFRAME | WS_MAXIMIZEBOX) : (style & ~LONG_PTR(WS_THICKFRAME | WS_MAXIMIZEBOX));
         SetWindowLongPtrW(hwnd, GWL_STYLE, style);
-        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        RECT rect{0, 0, width, height};
+        AdjustWindowRect(&rect, static_cast<DWORD>(style), FALSE);
+        SetWindowPos(hwnd, nullptr, 0, 0, rect.right - rect.left, rect.bottom - rect.top,
+                     SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
     void setSize(int width, int height) {
         RECT rect{0, 0, width, height};
@@ -305,6 +350,8 @@ struct Window::Native {
         }
         fox_canvas_present(rgba.data(), surface.width(), surface.height());
     }
+    bool fullscreen() const { return false; }
+    void setFullscreen(bool on) { if (on) fail("fullscreen requires a native Windows or X11 window"); }
     void resizeBuffers() {}
     void setResizable(bool resizable) { fox_canvas_resizable(resizable); }
     void setSize(int width, int height) { owner.sizeEvent(width, height); }
@@ -328,7 +375,45 @@ EMSCRIPTEN_KEEPALIVE void foxlang_close() { if (shown) shown->closeEvent(); }
 struct Window::Native {
     Window& owner;
     xcb_connection_t* connection = nullptr;
-    xcb_window_t window = XCB_NONE;
+    xcb_window_t window = XCB_NONE, root = XCB_NONE;
+    xcb_atom_t stateAtom = XCB_NONE, fullscreenAtom = XCB_NONE;
+    bool full = false, requestedFull = false;
+    int windowedWidth = 0, windowedHeight = 0;
+    bool fullscreen() const { return full; }
+    bool hasAtom(xcb_window_t target, xcb_atom_t property, xcb_atom_t value) {
+        auto cookie = xcb_get_property(connection, 0, target, property, XCB_ATOM_ATOM, 0, 4096);
+        Reply<xcb_get_property_reply_t> reply(xcb_get_property_reply(connection, cookie, nullptr), &std::free);
+        if (!reply || reply->type != XCB_ATOM_ATOM || reply->format != 32) return false;
+        auto* values = static_cast<xcb_atom_t*>(xcb_get_property_value(reply.get()));
+        auto count = xcb_get_property_value_length(reply.get()) / 4;
+        return std::find(values, values + count, value) != values + count;
+    }
+    void setFullscreen(bool on) {
+        if (requestedFull == on && full == on) return;
+        if (!hasAtom(root, atom("_NET_SUPPORTED"), fullscreenAtom))
+            fail("fullscreen requires an EWMH-compatible X11 window manager");
+        // Let the window manager choose the monitor, remove decorations and restore
+        // the original geometry. A fixed-size window must not constrain fullscreen.
+        if (on) {
+            if (!full && !requestedFull) {
+                windowedWidth = owner.surface().width(); windowedHeight = owner.surface().height();
+            }
+            sizeHints(64, 64, true);
+        } else sizeHints(windowedWidth, windowedHeight);
+        xcb_client_message_event_t event{};
+        event.response_type = XCB_CLIENT_MESSAGE;
+        event.format = 32;
+        event.window = window;
+        event.type = stateAtom;
+        event.data.data32[0] = on ? 1 : 0;
+        event.data.data32[1] = fullscreenAtom;
+        event.data.data32[3] = 1; // normal application, EWMH source indication
+        check(xcb_send_event_checked(connection, 0, root,
+              XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
+              reinterpret_cast<const char*>(&event)));
+        xcb_flush(connection);
+        requestedFull = on;
+    }
     xcb_pixmap_t back = XCB_NONE;
     xcb_gcontext_t gc = XCB_NONE;
     xcb_atom_t protocols = XCB_NONE, deleteWindow = XCB_NONE;
@@ -552,6 +637,9 @@ struct Window::Native {
         for (int i = 0; i < screenIndex && screens.rem; ++i) xcb_screen_next(&screens);
         if (!screens.rem) fail("X11 screen not found");
         auto* screen = screens.data;
+        root = screen->root;
+        stateAtom = atom("_NET_WM_STATE");
+        fullscreenAtom = atom("_NET_WM_STATE_FULLSCREEN");
         depth = screen->root_depth;
         byteOrder = setup->image_byte_order;
         uint8_t pad = 0;
@@ -572,7 +660,7 @@ struct Window::Native {
         if (!shmPixels) image.resize(stride * height);
         window = xcb_generate_id(connection);
         uint32_t values[] = {screen->black_pixel, XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE |
-            XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_STRUCTURE_NOTIFY};
+            XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE};
         check(xcb_create_window_checked(connection, depth, window, screen->root, 0, 0,
             static_cast<uint16_t>(width), static_cast<uint16_t>(height), 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual,
             XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK, values));
@@ -582,10 +670,7 @@ struct Window::Native {
         check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, protocols, XCB_ATOM_ATOM, 32, 1, &deleteWindow));
         check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, atom("_NET_WM_NAME"), atom("UTF8_STRING"), 8, static_cast<uint32_t>(title.size()), title.data()));
         check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, static_cast<uint32_t>(title.size()), title.data()));
-        uint32_t hints[18]{};
-        hints[0] = (1 << 4) | (1 << 5);
-        hints[5] = hints[7] = static_cast<uint32_t>(width); hints[6] = hints[8] = static_cast<uint32_t>(height);
-        check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NORMAL_HINTS, XCB_ATOM_WM_SIZE_HINTS, 32, 18, hints));
+        sizeHints(width, height);
         back = xcb_generate_id(connection);
         check(xcb_create_pixmap_checked(connection, depth, back, window, static_cast<uint16_t>(width), static_cast<uint16_t>(height)));
         gc = xcb_generate_id(connection);
@@ -627,6 +712,14 @@ struct Window::Native {
             } else if (type == XCB_CONFIGURE_NOTIFY) {
                 auto* e = reinterpret_cast<xcb_configure_notify_event_t*>(event);
                 if (e->window == window && e->width > 0 && e->height > 0) owner.sizeEvent(e->width, e->height);
+            } else if (type == XCB_PROPERTY_NOTIFY) {
+                auto* e = reinterpret_cast<xcb_property_notify_event_t*>(event);
+                if (e->atom == stateAtom) {
+                    full = hasAtom(window, stateAtom, fullscreenAtom);
+                    if (!full) sizeHints(windowedWidth ? windowedWidth : owner.surface().width(),
+                                         windowedHeight ? windowedHeight : owner.surface().height());
+                    requestedFull = full;
+                }
             } else if (type == XCB_FOCUS_IN) owner.focusEvent(true);
             else if (type == XCB_FOCUS_OUT) owner.focusEvent(false);
             else if (type == XCB_MAPPING_NOTIFY) { refreshKeys(); owner.focusEvent(owner.focused()); }
@@ -641,20 +734,20 @@ struct Window::Native {
         }
         if (xcb_connection_has_error(connection)) fail("X11 connection lost");
     }
-    bool resizable = false;
-    void sizeHints(int width, int height) {
+    bool resizable = true;
+    void sizeHints(int width, int height, bool forceResizable = false) {
         uint32_t hints[18]{};
         hints[0] = (1 << 4) | (1 << 5); // minimum and maximum size
-        hints[5] = static_cast<uint32_t>(resizable ? 64 : width);
-        hints[6] = static_cast<uint32_t>(resizable ? 64 : height);
-        hints[7] = static_cast<uint32_t>(resizable ? 4096 : width);
-        hints[8] = static_cast<uint32_t>(resizable ? 4096 : height);
+        hints[5] = static_cast<uint32_t>((resizable || forceResizable) ? 64 : width);
+        hints[6] = static_cast<uint32_t>((resizable || forceResizable) ? 64 : height);
+        hints[7] = static_cast<uint32_t>((resizable || forceResizable) ? 4096 : width);
+        hints[8] = static_cast<uint32_t>((resizable || forceResizable) ? 4096 : height);
         xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NORMAL_HINTS, XCB_ATOM_WM_SIZE_HINTS, 32, 18, hints);
         xcb_flush(connection);
     }
     void setResizable(bool on) {
         resizable = on;
-        sizeHints(owner.surface().width(), owner.surface().height());
+        if (!full && !requestedFull) sizeHints(owner.surface().width(), owner.surface().height());
     }
     void setSize(int width, int height) {
         if (!resizable) sizeHints(width, height);
@@ -759,12 +852,15 @@ void Window::applySize(int width, int height) {
     height = std::clamp(height, 64, 4096);
     if (int64_t(width) * height > 8388608) height = static_cast<int>(8388608 / width);
     if (width == surface_.width() && height == surface_.height()) return;
-    surface_ = Surface(width, height);
+    surface_.resize(width, height);
     native_->resizeBuffers();
     resized_ = true;
 }
 void Window::setResizable(bool resizable) { native_->setResizable(resizable); }
+void Window::setFullscreen(bool fullscreen) { native_->setFullscreen(fullscreen); }
+bool Window::fullscreen() const { return native_->fullscreen(); }
 void Window::setSize(int width, int height) {
+    if (fullscreen()) fail("leave fullscreen before setting the window size");
     if (width < 64 || height < 64 || width > 4096 || height > 4096 || int64_t(width) * height > 8388608)
         fail("window size must be 64..4096 on each side and at most 8388608 pixels");
     native_->setSize(width, height);

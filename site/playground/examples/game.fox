@@ -14,6 +14,8 @@ int starY = random(40, height - 20);
 int score = 0;
 
 while (window_poll()) {
+    width = window_width();
+    height = window_height();
     float dt = frame_delta();
     if (key_down("LEFT") || key_down("A")) { x -= speed * dt; }
     if (key_down("RIGHT") || key_down("D")) { x += speed * dt; }

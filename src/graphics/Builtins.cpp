@@ -1,5 +1,6 @@
 #include "Builtins.h"
 #include "Graphics.h"
+#include "foxlang/FoxLang.h"
 #include "foxlang/Runtime.h"
 #include "foxlang/Platform.h"
 #include "../core/builtins/Builtin.h"
@@ -155,7 +156,17 @@ void drawTiles(Call& c) {
 const std::vector<Signature>& signatures() {
     static const std::vector<Signature> result = {
         {"gfx_open", "open_window", "void", {{"int","width"},{"int","height"},{"string","title"}}, "Открыть нативное графическое окно. Одно окно на интерпретатор, 64..4096 пикселей по каждой оси, не более 8388608 пикселей.",
-         [](Call& c) { auto& slot = c.ctx.getRoot()->graphics; if (slot) fail("close the existing window before opening another"); slot = std::make_shared<Window>(integer(c, 0), integer(c, 1), c.args[2].str()); return Value(); }},
+         [](Call& c) { auto& slot = c.ctx.getRoot()->graphics; if (slot) fail("close the existing window before opening another"); int width = integer(c, 0), height = integer(c, 1);
+             bool fullscreen = false;
+             if (c.ctx.interpreter) {
+                 const auto& options = c.ctx.interpreter->getOptions();
+                 if (options.windowWidth) width = options.windowWidth;
+                 if (options.windowHeight) height = options.windowHeight;
+                 fullscreen = options.windowFullscreen;
+             }
+             auto opened = std::make_shared<Window>(width, height, c.args[2].str());
+             if (fullscreen) opened->setFullscreen(true);
+             slot = std::move(opened); return Value(); }},
         {"gfx_poll", "window_poll", "bool", {}, "Обработать события кадра. Возвращает false после закрытия окна. Вызывать один раз в начале кадра.",
          [](Call& c) { return Value::boolean(window(c).poll()); }},
         {"gfx_close", "close_window", "void", {}, "Закрыть окно и освободить ресурсы. Повторный вызов допустим.",
@@ -208,6 +219,10 @@ const std::vector<Signature>& signatures() {
          [](Call& c) { return Value::integer(window(c).surface().width()); }},
         {"gfx_height", "window_height", "int", {}, "Высота области рисования окна в пикселях.",
          [](Call& c) { return Value::integer(window(c).surface().height()); }},
+        {"gfx_fullscreen", "window_fullscreen", "bool", {}, "Полноэкранный режим окна. На X11 состояние подтверждается оконным менеджером при window_poll.",
+         [](Call& c) { return Value::boolean(window(c).fullscreen()); }},
+        {"gfx_set_fullscreen", "set_window_fullscreen", "void", {{"bool","fullscreen"}}, "Переключить полноэкранный режим без смены разрешения монитора. При выходе восстанавливается положение и размер окна. Только Windows/X11.",
+         [](Call& c) { window(c).setFullscreen(c.args[0].asBool()); return Value(); }},
         {"gfx_resizable", "set_window_resizable", "void", {{"bool","resizable"}}, "Разрешает (true) или запрещает менять размер окна мышью. Размер области рисования следует за окном: 64..4096 точек по каждой оси.",
          [](Call& c) { window(c).setResizable(c.args[0].asBool()); return Value(); }},
         {"gfx_set_size", "set_window_size", "void", {{"int","width"},{"int","height"}}, "Меняет размер окна и области рисования: 64..4096 по каждой оси, не более 8388608 пикселей.",

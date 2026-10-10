@@ -12,6 +12,7 @@
 #include "Image.h"
 #include "DebugAdapter.h"
 #include "Help.h"
+#include "Launch.h"
 #include "Tools.h"
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -65,7 +66,7 @@ static int check(const std::string& path) {
 }
 
 static int report(const foxlang::RunResult& result) {
-    if (!result.errorMessage.empty()) std::cerr << "FoxLang: " << result.errorMessage << std::endl;
+    if (!result.errorMessage.empty()) foxlang::cli::reportError(result.errorMessage);
     return result.exitCode;
 }
 
@@ -110,7 +111,13 @@ static std::vector<std::string> argumentsFrom(int argc, char* argv[], int first)
 int main(int argc, char* argv[]) {
     try {
     const std::vector<std::string> args = argumentsFrom(argc, argv, 0);
+    if (argc == 2 && args[1] == "--foxlang-help") {
+        foxlang::cli::configureConsole(foxlang::cli::ConsoleMode::Console);
+        foxlang::cli::printCommandHelp(std::cout, "run");
+        return 0;
+    }
     if (argc == 2 && std::string(argv[1]) == "--foxlang-licenses") {
+        foxlang::cli::configureConsole(foxlang::cli::ConsoleMode::Console);
         std::cout << foxlang::platform::thirdPartyLicenses();
         return 0;
     }
@@ -122,10 +129,11 @@ int main(int argc, char* argv[]) {
                         : std::nullopt;
     if (embedded) {
         auto sources = std::make_shared<foxlang::bundle::Sources>(std::move(*embedded));
-        foxlang::InterpreterOptions options;
+        auto launch = foxlang::cli::parseLaunch(std::vector<std::string>(args.begin() + 1, args.end()));
+        foxlang::cli::configureConsole(launch.console);
+        auto options = std::move(launch.interpreter);
         options.sources = sources;
         options.loadDotEnv = false;
-        options.arguments = argumentsFrom(argc, argv, 1);
         runAndExit(options, [&](foxlang::Interpreter& interpreter) {
             return interpreter.runSource(sources->read(sources->entry), sources->entry);
         });
@@ -166,25 +174,31 @@ int main(int argc, char* argv[]) {
     }
 
     if (std::string(argv[1]) == "build") {
-        if (argc != 3 && argc != 5) {
-            throw std::runtime_error("Usage: foxlang build <file.fox> [-o|--output app]");
-        }
-        if (args[2].empty() || args[2][0] == '-') throw std::runtime_error("Build Error: expected an input source file");
+        if (argc < 3 || args[2].empty() || args[2][0] == '-')
+            throw std::runtime_error("Usage: foxlang build <file.fox> [-o app] [--console|--no-console]");
         std::string output;
-        if (argc == 5) {
-            if (std::string(argv[3]) != "-o" && std::string(argv[3]) != "--output") throw std::runtime_error("Build Error: unknown option '" + std::string(argv[3]) + "'");
-            output = args[4];
-            if (output.empty() || output[0] == '-') throw std::runtime_error("Build Error: expected output filename");
+        bool noConsole = false;
+        for (size_t i = 3; i < args.size(); ++i) {
+            if (args[i] == "--console") noConsole = false;
+            else if (args[i] == "--no-console") noConsole = true;
+            else if (args[i] == "-o" || args[i] == "--output") {
+                if (++i == args.size() || args[i].empty() || args[i][0] == '-')
+                    throw std::runtime_error("Build Error: expected output filename");
+                output = args[i];
+            } else throw std::runtime_error("Build Error: unknown option '" + args[i] + "'");
         }
-        foxlang::bundle::build(foxlang::platform::pathFromUtf8(args[2]), foxlang::platform::pathFromUtf8(output));
+        foxlang::bundle::build(foxlang::platform::pathFromUtf8(args[2]), foxlang::platform::pathFromUtf8(output), noConsole);
         return 0;
     }
 
-    foxlang::InterpreterOptions options;
-    options.arguments = argumentsFrom(argc, argv, 2);
-    runAndExit(options, [&](foxlang::Interpreter& interpreter) { return interpreter.runFile(args[1]); });
+    auto launch = foxlang::cli::parseLaunch(std::vector<std::string>(args.begin() + 1, args.end()));
+    if (launch.interpreter.arguments.empty()) throw std::runtime_error("expected a script filename");
+    std::string script = launch.interpreter.arguments.front();
+    launch.interpreter.arguments.erase(launch.interpreter.arguments.begin());
+    foxlang::cli::configureConsole(launch.console);
+    runAndExit(launch.interpreter, [&](foxlang::Interpreter& interpreter) { return interpreter.runFile(script); });
     } catch (const std::exception& error) {
-        std::cerr << "FoxLang: " << error.what() << std::endl;
+        foxlang::cli::reportError(error.what());
         return 1;
     }
 }
