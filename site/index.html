@@ -243,6 +243,7 @@ code {
 ul.plain, ol.steps { margin: 0 0 16px; padding-left: 1.2em; }
 ul.plain li, ol.steps li { margin-bottom: 6px; }
 
+pre { max-width: 100%; overflow-x: auto; }
 pre.fox {
   background: var(--code-bg); color: var(--code-ink);
   font-family: var(--mono); font-size: 14.5px; line-height: 1.6;
@@ -898,7 +899,7 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
       <h2>Android: библиотека и своё APK</h2>
       <p>На Android 9 и новее FoxLang можно встроить в приложение на Kotlin/Java через AAR или упаковать проект <code>.fox</code> в APK. Работает тот же C++ runtime: стандартные модули, файлы, сеть, графика и звук.</p>
       <p><code>FoxView</code> показывает окно программы внутри Activity. Касания управляют мышью, экранная клавиатура передаёт Unicode, размер холста подстраивается под экран и поворот. <code>FoxControls</code> добавляет стрелки, пробел и кнопку клавиатуры. Макеты из конструктора используют тот же API.</p>
-      <pre><code>python3 packaging/build_android.py main.fox --name "Моя программа" -o app.apk</code></pre>
+      <pre class="fox"><code>python3 packaging/build_android.py main.fox --name "Моя программа" -o app.apk</code></pre>
       <p>Для сборки нужны JDK, Android SDK и NDK. Обычный APK подписан отладочным ключом; релиз подписывается вашим ключом. SDK исполняет программы на рабочем потоке, а Activity управляет запуском, отменой и освобождением ресурсов. Файлы и системные операции подчиняются разрешениям Android.</p>
       <p>Все экземпляры SDK используют общий рабочий поток: долгая программа задерживает запуск другой до завершения или отмены. На Android 9/15 CI проверяет исполнение на эмуляторах x86_64; для всех четырёх ABI проверяются сборка и структура библиотек.</p>
       <p>Попробуйте <a href="https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-android-raycaster.apk">Android APK с лабиринтом в псевдо-3D</a>: это тот же <a href="https://github.com/SkrinVex/FoxLang/blob/master/examples/raycaster.fox">raycaster.fox</a>, с экранными кнопками и полноэкранным режимом. <a href="https://github.com/SkrinVex/FoxLang/blob/master/docs/ANDROID_PERFORMANCE.md">Замеры передачи и вывода кадров</a> выполняются отдельно от VM и сохраняются вместе с моделью устройства.</p>
