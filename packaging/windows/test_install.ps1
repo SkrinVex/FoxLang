@@ -97,14 +97,17 @@ try {
     }
     if (Test-Path -LiteralPath $InstallDir) { throw 'Uninstaller left the installation directory behind.' }
     if (Test-Path -LiteralPath $ExtensionDir) { throw 'Uninstaller left the VS Code extension behind.' }
-    if ([Environment]::GetEnvironmentVariable('Path', 'User') -cne $SavedUserPath -or
-        [Environment]::GetEnvironmentVariable('FOXLANG_HOME', 'User') -cne $SavedUserHome) {
-        throw 'SkipEnvironment changed user environment variables.'
-    }
-    Write-Host "WINDOWS_INSTALLER_OK PowerShell=$($PSVersionTable.PSVersion) Direct=$Direct"
 } finally {
     foreach ($Name in $SavedEnvironment.Keys) {
         [Environment]::SetEnvironmentVariable($Name, $SavedEnvironment[$Name], 'Process')
     }
     Remove-Item -LiteralPath $TempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
+
+# User PATH can contain %USERPROFILE% and %LOCALAPPDATA%; compare it only after
+# restoring those process variables so expansion uses the same values as before.
+if ([Environment]::GetEnvironmentVariable('Path', 'User') -cne $SavedUserPath -or
+    [Environment]::GetEnvironmentVariable('FOXLANG_HOME', 'User') -cne $SavedUserHome) {
+    throw 'SkipEnvironment changed user environment variables.'
+}
+Write-Host "WINDOWS_INSTALLER_OK PowerShell=$($PSVersionTable.PSVersion) Direct=$Direct"
