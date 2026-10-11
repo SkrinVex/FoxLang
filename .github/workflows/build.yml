@@ -138,9 +138,12 @@ jobs:
             fi
           done
           python packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" "dist/foxlang-${{ needs.version.outputs.version }}.vsix"
-      - name: Smoke-test the installable Windows package
-        shell: pwsh
+      - name: Test packaged CMD launchers with Windows PowerShell 5.1
+        shell: powershell
         run: ./packaging/windows/test_install.ps1 -PackageDir ./dist
+      - name: Test packaged scripts with PowerShell 7
+        shell: pwsh
+        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist -Direct
       - shell: pwsh
         run: Compress-Archive -Path dist/* -DestinationPath "FoxLang-${{ needs.version.outputs.version }}-windows-x86_64.zip"
       - uses: actions/upload-artifact@v4

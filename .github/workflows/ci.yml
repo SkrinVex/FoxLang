@@ -153,7 +153,11 @@ jobs:
             if [ -d "$dll_dir" ]; then find "$dll_dir" -maxdepth 1 -type f -iname '*.dll' -exec cp -t dist {} +; fi
           done
 
-      - name: Smoke-test Windows installer
+      - name: Test CMD launchers with Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist
+      - name: Test installer scripts with PowerShell 7
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist
+        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist -Direct

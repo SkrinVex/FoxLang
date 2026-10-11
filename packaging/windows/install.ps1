@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'FoxLang'),
     [switch]$SkipEnvironment,
@@ -18,7 +18,7 @@ if (-not (Test-Path -LiteralPath $VersionFile -PathType Leaf)) { throw 'VERSION 
 $Version = (Get-Content -LiteralPath $VersionFile -Raw).Trim()
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Некорректный номер версии: $Version" }
 
-$RequiredFiles = @('foxlang.exe', 'foxlang-lsp.exe')
+$RequiredFiles = @('foxlang.exe', 'foxlang-lsp.exe', 'uninstall.ps1', 'uninstall.cmd')
 foreach ($Name in $RequiredFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $SourceDir $Name) -PathType Leaf)) { throw "$Name не найден рядом с установщиком." }
 }
@@ -34,7 +34,7 @@ Remove-Item -LiteralPath $StageDir -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $StageDir | Out-Null
 
 try {
-    foreach ($Name in $RequiredFiles + @('VERSION', 'std', 'editors', 'uninstall.ps1')) {
+    foreach ($Name in $RequiredFiles + @('VERSION', 'std', 'editors')) {
         $Item = Join-Path $SourceDir $Name
         if (Test-Path -LiteralPath $Item) {
             Copy-Item -LiteralPath $Item -Destination $StageDir -Recurse -Force
@@ -113,9 +113,11 @@ if (-not $SkipVSCode) {
             Get-ChildItem -LiteralPath $ExtensionsDir -Directory -ErrorAction SilentlyContinue |
                 Where-Object { $_.Name -match '^(SkrinVex|skrinvex)\.foxlang-language-' } |
                 Remove-Item -Recurse -Force
-            $TempDir = Join-Path $env:TEMP "foxlang-vsix-$PID"
+            $TempDir = Join-Path $env:TEMP ("foxlang-vsix-" + [Guid]::NewGuid().ToString('N'))
             try {
-                Expand-Archive -LiteralPath $Vsix -DestinationPath $TempDir -Force
+                # A VSIX is a ZIP, but Expand-Archive in Windows PowerShell rejects .vsix.
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                [System.IO.Compression.ZipFile]::ExtractToDirectory($Vsix, $TempDir)
                 $ExtensionSource = Join-Path $TempDir 'extension'
                 if (-not (Test-Path -LiteralPath (Join-Path $ExtensionSource 'package.json'))) { throw 'В VSIX не найден package.json расширения.' }
                 $ExtensionTarget = Join-Path $ExtensionsDir "SkrinVex.foxlang-language-$Version"

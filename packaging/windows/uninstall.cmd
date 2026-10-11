@@ -1,12 +1,17 @@
 @echo off
-setlocal
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0uninstall.ps1" %*
-set "FOXLANG_EXIT=%ERRORLEVEL%"
-echo.
-if "%FOXLANG_EXIT%"=="0" (
+setlocal DisableDelayedExpansion
+cd /d "%TEMP%"
+rem Parse the entire block before uninstall.ps1 removes this launcher from disk.
+(
+  powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0uninstall.ps1" %*
+  if errorlevel 1 (
+    echo.
+    echo Uninstallation failed.
+    pause
+    exit /b 1
+  )
+  echo.
   echo Uninstallation finished.
-) else (
-  echo Uninstallation failed with exit code %FOXLANG_EXIT%.
+  pause
+  exit /b 0
 )
-pause
-exit /b %FOXLANG_EXIT%
