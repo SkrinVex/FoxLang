@@ -1,33 +1,97 @@
-[CmdletBinding()]
-param([string]$PackageDir = './dist')
+﻿[CmdletBinding()]
+param(
+    [string]$PackageDir = './dist',
+    [switch]$Direct
+)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $PackageDir = (Resolve-Path -LiteralPath $PackageDir).Path
 $BaseTemp = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }
 $TempRoot = Join-Path $BaseTemp "foxlang-installer-test-$PID"
-$ReleaseDir = Join-Path $TempRoot 'extracted'
-$InstallDir = Join-Path $TempRoot 'FoxLang'
+$ReleaseDir = Join-Path $TempRoot 'Распакованный архив'
+$InstallDir = Join-Path $TempRoot 'FoxLang Лиса & !'
+$ProfileDir = Join-Path $TempRoot 'user profile'
+$SavedEnvironment = @{}
+foreach ($Name in @('USERPROFILE', 'LOCALAPPDATA', 'ProgramFiles', 'PATH', 'FOXLANG_HOME')) {
+    $SavedEnvironment[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
+}
+$SavedUserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+$SavedUserHome = [Environment]::GetEnvironmentVariable('FOXLANG_HOME', 'User')
+
+function Invoke-Cmd([string]$Launcher, [string]$Arguments) {
+    # Exercise the same powershell.exe -File path as double-clicking the launcher.
+    # Redirecting stdin closes PAUSE without adding a test-only switch to the launcher.
+    & $env:ComSpec /d /c ('""{0}" {1} <nul"' -f $Launcher, $Arguments)
+    if ($LASTEXITCODE -ne 0) { throw "$Launcher failed with exit code $LASTEXITCODE." }
+}
+
 New-Item -ItemType Directory -Force -Path $TempRoot | Out-Null
 try {
-    New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
-    Get-ChildItem -LiteralPath $PackageDir | Copy-Item -Destination $ReleaseDir -Recurse -Force
-    & (Join-Path $ReleaseDir 'install.ps1') -InstallDir $InstallDir -SkipEnvironment -SkipVSCode
-    & (Join-Path $ReleaseDir 'install.ps1') -InstallDir $InstallDir -SkipEnvironment -SkipVSCode
+    # Verify bytes after the same ZIP round-trip used by release archives.
+    $Archive = Join-Path $TempRoot 'release.zip'
+    Compress-Archive -Path (Join-Path $PackageDir '*') -DestinationPath $Archive
+    Expand-Archive -LiteralPath $Archive -DestinationPath $ReleaseDir
+    foreach ($Name in @('install.ps1', 'uninstall.ps1')) {
+        $Script = Join-Path $ReleaseDir $Name
+        $Bytes = [System.IO.File]::ReadAllBytes($Script)
+        if ($Bytes.Length -lt 3 -or $Bytes[0] -ne 0xef -or $Bytes[1] -ne 0xbb -or $Bytes[2] -ne 0xbf) {
+            throw "$Name must have a UTF-8 BOM for Windows PowerShell 5.1."
+        }
+        $ParseTokens = $null
+        $ParseErrors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($Script, [ref]$ParseTokens, [ref]$ParseErrors) | Out-Null
+        if ($ParseErrors.Count) { throw ($ParseErrors | Out-String) }
+    }
+
+    # Isolate VS Code detection and extensions from the developer/CI user's profile.
+    $env:USERPROFILE = $ProfileDir
+    $env:LOCALAPPDATA = Join-Path $ProfileDir 'AppData\Local'
+    $env:ProgramFiles = Join-Path $ProfileDir 'Program Files'
+    $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+    $ExtensionsDir = Join-Path $ProfileDir '.vscode\extensions'
+    New-Item -ItemType Directory -Force -Path $ExtensionsDir | Out-Null
+    $Version = (Get-Content -LiteralPath (Join-Path $PackageDir 'VERSION') -Raw).Trim()
+    $ExtensionDir = Join-Path $ExtensionsDir "SkrinVex.foxlang-language-$Version"
+    foreach ($Attempt in 1..2) {
+        if ($Direct) {
+            & (Join-Path $ReleaseDir 'install.ps1') -InstallDir $InstallDir -SkipEnvironment
+        } else {
+            Invoke-Cmd (Join-Path $ReleaseDir 'install.cmd') ('-InstallDir "{0}" -SkipEnvironment' -f $InstallDir)
+        }
+        $Manifest = Get-Content -LiteralPath (Join-Path $ExtensionDir 'package.json') -Raw | ConvertFrom-Json
+        if ($Manifest.version -ne $Version) { throw 'VSIX fallback installed the wrong extension version.' }
+    }
     Remove-Item -LiteralPath $ReleaseDir -Recurse -Force
+    foreach ($Name in @('uninstall.cmd', 'uninstall.ps1')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $InstallDir $Name) -PathType Leaf)) { throw "Installed $Name is missing." }
+    }
     $env:FOXLANG_HOME = $InstallDir
     $env:PATH = "$InstallDir;$env:PATH"
-    $Version = (Get-Content -LiteralPath (Join-Path $PackageDir 'VERSION') -Raw).Trim()
     $CliVersion = (& (Join-Path $InstallDir 'foxlang.exe') --version | Out-String).Trim()
-    if ($CliVersion -ne "FoxLang $Version") { throw "CLI reports '$CliVersion'." }
+    if ($LASTEXITCODE -ne 0 -or $CliVersion -ne "FoxLang $Version") { throw "CLI reports '$CliVersion'." }
     $LspVersion = (& (Join-Path $InstallDir 'foxlang-lsp.exe') --version | Out-String).Trim()
-    if ($LspVersion -ne "foxlang-lsp $Version") { throw "LSP reports '$LspVersion'." }
+    if ($LASTEXITCODE -ne 0 -or $LspVersion -ne "foxlang-lsp $Version") { throw "LSP reports '$LspVersion'." }
     if (-not (Test-Path -LiteralPath (Join-Path $InstallDir 'std') -PathType Container)) { throw 'Installed standard library is missing.' }
     $Program = Join-Path $TempRoot 'smoke.fox'
     [System.IO.File]::WriteAllText($Program, 'print("FOX_INSTALL_OK");')
     $Output = (& (Join-Path $InstallDir 'foxlang.exe') $Program 2>&1 | Out-String)
     if ($LASTEXITCODE -ne 0 -or $Output -notmatch 'FOX_INSTALL_OK') { throw "Installed runtime smoke test failed: $Output" }
-    Write-Host 'WINDOWS_INSTALLER_OK'
+    if ($Direct) {
+        & (Join-Path $InstallDir 'uninstall.ps1') -SkipEnvironment
+    } else {
+        Invoke-Cmd (Join-Path $InstallDir 'uninstall.cmd') '-SkipEnvironment'
+    }
+    if (Test-Path -LiteralPath $InstallDir) { throw 'Uninstaller left the installation directory behind.' }
+    if (Test-Path -LiteralPath $ExtensionDir) { throw 'Uninstaller left the VS Code extension behind.' }
+    if ([Environment]::GetEnvironmentVariable('Path', 'User') -cne $SavedUserPath -or
+        [Environment]::GetEnvironmentVariable('FOXLANG_HOME', 'User') -cne $SavedUserHome) {
+        throw 'SkipEnvironment changed user environment variables.'
+    }
+    Write-Host "WINDOWS_INSTALLER_OK PowerShell=$($PSVersionTable.PSVersion) Direct=$Direct"
 } finally {
+    foreach ($Name in $SavedEnvironment.Keys) {
+        [Environment]::SetEnvironmentVariable($Name, $SavedEnvironment[$Name], 'Process')
+    }
     Remove-Item -LiteralPath $TempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

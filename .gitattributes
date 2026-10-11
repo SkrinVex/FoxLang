@@ -1,2 +1,7 @@
 # Preserve the reviewed Mozilla snapshot checksum on Windows checkouts.
 /resources/ca/mozilla.pem text eol=lf
+
+# Windows PowerShell 5.1 requires a UTF-8 BOM for non-ASCII script text.
+# The installer test checks the BOM; these rules preserve Windows line endings.
+/packaging/windows/*.ps1 text eol=crlf
+/packaging/windows/*.cmd text eol=crlf
