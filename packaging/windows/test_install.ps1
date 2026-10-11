@@ -22,8 +22,21 @@ $SavedUserHome = [Environment]::GetEnvironmentVariable('FOXLANG_HOME', 'User')
 function Invoke-Cmd([string]$Launcher, [string]$Arguments) {
     # Exercise the same powershell.exe -File path as double-clicking the launcher.
     # Redirecting stdin closes PAUSE without adding a test-only switch to the launcher.
-    & $env:ComSpec /d /c ('""{0}" {1} <nul"' -f $Launcher, $Arguments)
-    if ($LASTEXITCODE -ne 0) { throw "$Launcher failed with exit code $LASTEXITCODE." }
+    # Pass cmd.exe its command line unchanged; PowerShell's native argument
+    # marshalling otherwise re-quotes the embedded spaces and ampersand.
+    $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $StartInfo.FileName = $env:ComSpec
+    $StartInfo.Arguments = '/d /s /c ""{0}" {1}"' -f $Launcher, $Arguments
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.RedirectStandardInput = $true
+    $Process = [System.Diagnostics.Process]::Start($StartInfo)
+    try {
+        $Process.StandardInput.Close()
+        $Process.WaitForExit()
+        if ($Process.ExitCode -ne 0) { throw "$Launcher failed with exit code $($Process.ExitCode)." }
+    } finally {
+        $Process.Dispose()
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $TempRoot | Out-Null
@@ -84,14 +97,17 @@ try {
     }
     if (Test-Path -LiteralPath $InstallDir) { throw 'Uninstaller left the installation directory behind.' }
     if (Test-Path -LiteralPath $ExtensionDir) { throw 'Uninstaller left the VS Code extension behind.' }
-    if ([Environment]::GetEnvironmentVariable('Path', 'User') -cne $SavedUserPath -or
-        [Environment]::GetEnvironmentVariable('FOXLANG_HOME', 'User') -cne $SavedUserHome) {
-        throw 'SkipEnvironment changed user environment variables.'
-    }
-    Write-Host "WINDOWS_INSTALLER_OK PowerShell=$($PSVersionTable.PSVersion) Direct=$Direct"
 } finally {
     foreach ($Name in $SavedEnvironment.Keys) {
         [Environment]::SetEnvironmentVariable($Name, $SavedEnvironment[$Name], 'Process')
     }
     Remove-Item -LiteralPath $TempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
+
+# User PATH can contain %USERPROFILE% and %LOCALAPPDATA%; compare it only after
+# restoring those process variables so expansion uses the same values as before.
+if ([Environment]::GetEnvironmentVariable('Path', 'User') -cne $SavedUserPath -or
+    [Environment]::GetEnvironmentVariable('FOXLANG_HOME', 'User') -cne $SavedUserHome) {
+    throw 'SkipEnvironment changed user environment variables.'
+}
+Write-Host "WINDOWS_INSTALLER_OK PowerShell=$($PSVersionTable.PSVersion) Direct=$Direct"
