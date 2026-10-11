@@ -29,6 +29,9 @@ with tempfile.TemporaryDirectory() as temp:
     try: (project / "escape.fox").symlink_to(project / "private.key")
     except OSError: pass # Windows developers may lack symlink permission.
     else:
+        try: m.stage_project(project / "escape.fox", project, [], d / "entry-symlink")
+        except ValueError: pass
+        else: raise AssertionError("entry symlink was packaged")
         try: m.stage_project(project / "nested/app.fox", project, [], d / "symlink")
         except ValueError: pass
         else: raise AssertionError("symlink was packaged")

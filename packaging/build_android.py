@@ -21,6 +21,16 @@ def allowed(path):
 
 def stage_project(entry, project, assets, target):
     entry, project = Path(entry).absolute(), Path(project).resolve()
+    if not project.is_dir():
+        raise ValueError("Project must be an existing directory")
+    # Check links before resolving the entry. Resolve both sides for Windows
+    # short directory names (RUNNER~1 and runneradmin name the same directory).
+    for path in (entry, *entry.parents):
+        if path.is_symlink():
+            raise ValueError(f"Refusing entry through symlink: {path}")
+        if path.exists() and path.samefile(project):
+            break
+    entry = entry.resolve()
     relative = entry.relative_to(project)
     if entry.suffix != ".fox" or not entry.is_file() or not allowed(relative):
         raise ValueError("Entry must be a .fox file inside the project directory")
