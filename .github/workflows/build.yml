@@ -1,8 +1,8 @@
 name: Build and Auto Release FoxLang
 
 on:
-  # Started by hand as well: a failed release build is otherwise a dead end, because
-  # only a change to VERSION starts this workflow and fixing the code does not change it.
+  # Retry a failed release manually or after a Windows installer fix without
+  # changing VERSION. The version job skips releases whose tag already exists.
   workflow_dispatch:
     inputs:
       allow_slower:
@@ -13,6 +13,7 @@ on:
     branches: [master]
     paths:
       - VERSION
+      - 'packaging/windows/**'
 
 permissions:
   contents: write
