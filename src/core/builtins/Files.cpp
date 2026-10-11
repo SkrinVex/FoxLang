@@ -62,6 +62,10 @@ bool protectedPath(const fs::path& path) {
     std::error_code ec;
     fs::path absolute = fs::weakly_canonical(fs::absolute(path, ec), ec);
     if (absolute.empty() || absolute == absolute.root_path()) return true;
+#ifdef __ANDROID__
+    if (android::current() && fs::weakly_canonical(pathOf(android::host().directory()), ec) == absolute)
+        return true;
+#endif
     const char* home = std::getenv("HOME");
     if (!home) home = std::getenv("USERPROFILE");
     return home && *home && fs::weakly_canonical(pathOf(home), ec) == absolute;

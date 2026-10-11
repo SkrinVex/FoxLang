@@ -30,6 +30,8 @@ public class EngineTest {
             assertEquals("42",engine.getGlobal("answer").get(5,TimeUnit.SECONDS).text);
             FoxLang.RunResult paths=run(engine,"assert(path_join(\"one\",\"two\")==\"one/two\"); assert(path_parent(\"one/two\")==\"one\"); assert(fs_is_dir(fs_temp_dir())); assert(fs_home()==os_cwd()); write_file(path_join(fs_temp_dir(),\"scratch.txt\"),\"temporary\");");
             assertTrue(paths.error,paths.success);
+            FoxLang.RunResult protectedHome=run(engine,"bool refused=false; try { fs_remove_all(fs_home()); } catch(e) { refused=true; } assert(refused);");
+            assertTrue(protectedHome.error,protectedHome.success);
             engine.setGlobal("host_value","string","Kotlin → 🦊").get(5,TimeUnit.SECONDS);
             assertEquals("Kotlin → 🦊\n",run(engine,"print(host_value);").output);
             assertFalse(run(engine,"int broken = ;").success);
