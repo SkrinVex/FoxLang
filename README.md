@@ -2,7 +2,7 @@
 
 ![Версия](https://img.shields.io/github/v/release/SkrinVex/FoxLang?label=version&color=orange)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
-![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
+![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
 [![Песочница](https://img.shields.io/badge/%D0%BF%D0%B5%D1%81%D0%BE%D1%87%D0%BD%D0%B8%D1%86%D0%B0-%D0%BF%D0%BE%D0%BF%D1%80%D0%BE%D0%B1%D0%BE%D0%B2%D0%B0%D1%82%D1%8C%20%D0%B2%20%D0%B1%D1%80%D0%B0%D1%83%D0%B7%D0%B5%D1%80%D0%B5-d9620f)](https://skrinvex.github.io/FoxLang/playground/)
 
@@ -11,6 +11,8 @@ C-подобным синтаксисом, строгими типами, мас
 библиотекой для строк, файлов, JSON, HTTP, серверов и 2D-графики. Программу можно
 запустить интерпретатором или собрать в один исполняемый файл, которому не нужен
 установленный FoxLang.
+
+**Android:** [встроить язык в Kotlin/Java или собрать APK из `.fox`](docs/ANDROID.md).
 
 **Визуально собрать интерфейс:** [конструктор FoxLang UI](https://skrinvex.github.io/FoxLang/builder/) —
 макеты для ПК и телефона, живой запуск, отдельные `layout.fox` и `main.fox`: правки макета не стирают вашу логику. [Руководство](docs/BUILDER.md).
@@ -48,7 +50,7 @@ for (int i = 0; i < size(words); i++) {
 - Веб-сервер для сайтов и API: маршруты с параметрами (`/users/:id`), статические
   файлы, HTML-шаблоны, формы и загрузка файлов, cookies, редиректы, скачивание, CORS,
   HTTPS без reverse proxy. HTTP(S)-клиент со статусом ответа, TCP и DNS — на Linux и
-  Windows, без внешних утилит.
+  Windows и Android, без внешних утилит.
 - Сборка JSON без склейки строк (`json_set`, `json_value`) и чтение по путям.
 - Нативное окно с 2D-рисованием, картинками PNG/BMP, изменяемым размером, звуком,
   текстом (строчные и прописные, латиница и кириллица),
@@ -165,7 +167,13 @@ webhook и long polling, TCP, терминал и графика.
 |---|---|---|---|
 | Linux x86_64 | да | да | CI: Ubuntu и статическая сборка в Alpine |
 | Windows x86_64 | да | да | CI: MSVC, запуск `.exe` в чистом каталоге |
-| Android | ядро собирается NDK | нет | не проверяется |
+| Android 9+ | NDK/JNI, AAR для Java/Kotlin | APK из `.fox` | CI: 4 ABI, эмуляторы API 28/35 |
+
+Android: [SDK, сборка APK и ограничения платформы](docs/ANDROID.md).
+
+```bash
+python3 packaging/build_android.py examples/raycaster.fox --name "Лабиринт" -o game.apk
+```
 
 ## Редакторы
 

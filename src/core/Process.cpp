@@ -1,3 +1,6 @@
+#ifdef __ANDROID__
+#include "foxlang/Android.h"
+#endif
 // Starting other programs: no shell is involved, so arguments reach the program
 // exactly as given and cannot be reinterpreted as commands.
 #include "foxlang/Platform.h"
@@ -142,6 +145,8 @@ bool openWithDefaultApp(const std::string& target) {
 #ifdef _WIN32
     auto result = reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", wide(target).c_str(), nullptr, nullptr, SW_SHOWNORMAL));
     return result > 32;
+#elif defined(__ANDROID__)
+    return android::host().openUri(target);
 #elif defined(__APPLE__)
     return runProcess("open", {target}, nullptr) == 0;
 #else

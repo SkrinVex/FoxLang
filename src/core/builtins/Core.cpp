@@ -86,22 +86,20 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
          "Печатает значения через пробел и переводит строку. Массив выводится как `[1, 2, 3]`.\n\n"
          "```foxlang\nprint(\"Счёт:\", score);\n```"},
         [](Call& c) {
+            std::string line;
             for (size_t i = 0; i < c.count(); ++i) {
-                if (i > 0) std::cout << ' ';
-                std::cout << display(c.at(i));
+                if (i > 0) line += ' ';
+                line += display(c.at(i));
             }
-            std::cout << std::endl;
+            platform::writeOutput(line + "\n");
             return nothing();
         });
     add({"input", "string", {{"string", "prompt"}}, 0, false, "",
          "Читает строку из стандартного ввода. Необязательное приглашение печатается без перевода строки. "
          "В конце ввода возвращает пустую строку.\n\n```foxlang\nstring name = input(\"Имя: \");\n```"},
         [](Call& c) {
-            if (c.has(0)) std::cout << c.text(0) << std::flush;
-            std::string line;
-            if (!std::getline(std::cin, line)) return text("");
-            if (!line.empty() && line.back() == '\r') line.pop_back();
-            return text(line);
+            if (c.has(0)) platform::writeOutput(c.text(0));
+            return text(platform::readInput());
         });
     add({"getch", "string", {}, 0, false, "",
          "Читает одну клавишу из терминала без ожидания Enter и без эха."},

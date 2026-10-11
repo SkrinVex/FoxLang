@@ -429,7 +429,7 @@ img { max-width: 100%; }
 <header class="hero">
   <div>
     <canvas class="pixel-fox" id="fox" width="12" height="12" aria-hidden="true"></canvas>
-    <p class="eyebrow">FoxLang 8.16.1 · объяснение с нуля</p>
+    <p class="eyebrow">FoxLang 8.17.0 · объяснение с нуля</p>
     <h1>Как устроен язык FoxLang</h1>
     <p class="lede">Что происходит между строчкой <code>print("Привет!");</code> и словом на экране: как язык читает текст, хранит числа и списки, вызывает функции, ловит ошибки, рисует окно точка за точкой, отвечает браузеру и почему для него есть отладчик.</p>
     <a class="try" href="playground/">Попробовать в браузере →</a>
@@ -439,7 +439,7 @@ img { max-width: 100%; }
     <div><b>3</b><span>шага от текста до результата</span></div>
     <div><b>235</b><span>встроенных функций</span></div>
     <div><b>16</b><span>модулей библиотеки</span></div>
-    <div><b>112</b><span>автотестов CTest на Linux</span></div>
+    <div><b>113</b><span>автотестов CTest на Linux</span></div>
   </div>
 </header>
 
@@ -690,9 +690,9 @@ print(double_it(21), upper("лиса"));   // 42 ЛИСА</pre>
             <tr><td>Сеть</td><td>HTTP и HTTPS, TCP, DNS</td><td>встроенные библиотеки curl и mbedTLS</td></tr>
             <tr><td>Веб-сервер</td><td>маршруты <code>/users/:id</code>, файлы, шаблоны, формы, cookies, HTTPS</td><td>свой сервер внутри <code>foxlang</code></td></tr>
             <tr><td>JSON</td><td>текст в словари и массивы и обратно</td><td><code>json_decode</code>, <code>json_value</code></td></tr>
-            <tr><td>Графика</td><td>окно, фигуры, текст, картинки PNG, мышь, клавиатура</td><td>X11 на Linux, Win32 на Windows</td></tr>
+            <tr><td>Графика</td><td>окно, фигуры, текст, картинки PNG, мышь, клавиатура</td><td>X11 на Linux, Win32 на Windows, FoxView на Android</td></tr>
             <tr><td>Интерфейс</td><td>кнопки, поля ввода, модальные окна, прокрутка</td><td>модуль <code>ui</code></td></tr>
-            <tr><td>Звук</td><td>WAV-файлы и тоны</td><td>PlaySound на Windows, pw-play или aplay на Linux</td></tr>
+            <tr><td>Звук</td><td>WAV-файлы и тоны</td><td>PlaySound на Windows, pw-play или aplay на Linux, MediaPlayer на Android</td></tr>
           </tbody>
         </table>
       </div>
@@ -737,7 +737,7 @@ close_window();</pre>
         <div class="frame-wrap"><canvas id="frame" width="448" height="280" aria-label="Кадр из пикселей"></canvas></div>
         <div class="frame-status"><code id="frame-code">нажми clear_window, чтобы начать кадр</code><span id="frame-pos"></span></div>
         <label class="frame-text" for="frame-input">Текст для draw_text (шрифт FoxLang, масштаб 1)</label>
-        <input id="frame-input" type="text" value="Fox 8.16.1" maxlength="10" spellcheck="false" autocomplete="off">
+        <input id="frame-input" type="text" value="Fox 8.17.0" maxlength="10" spellcheck="false" autocomplete="off">
       </div>
 
       <h3>Как рисуются фигуры</h3>
@@ -769,7 +769,7 @@ close_window();</pre>
       <p>При рисовании полупрозрачная точка <strong>смешивается</strong> с тем, что уже нарисовано: новый цвет = старый × (1 − α) + цвет картинки × α, где α — непрозрачность от 0 до 1. Так тень или стекло пропускают фон.</p>
 
       <h3>Окно, клавиатура и мышь</h3>
-      <p>С операционной системой FoxLang разговаривает напрямую: на Linux через протокол X11 (он работает и под Wayland), на Windows через Win32. Когда ты жмёшь клавишу или двигаешь мышь, система кладёт в очередь окна <strong>событие</strong>. <code>window_poll()</code> в начале кадра разбирает всю очередь и запоминает состояние:</p>
+      <p>С операционной системой FoxLang разговаривает напрямую: на Linux через протокол X11 (он работает и под Wayland), на Windows через Win32, на Android через FoxView/JNI. Когда ты жмёшь клавишу или двигаешь мышь, система кладёт в очередь окна <strong>событие</strong>. <code>window_poll()</code> в начале кадра разбирает всю очередь и запоминает состояние:</p>
       <ul class="plain">
         <li><code>key_down("A")</code> — клавиша сейчас зажата, пригодно для движения;</li>
         <li><code>key_pressed("A")</code> — клавишу нажали именно в этом кадре, пригодно для прыжка или выстрела;</li>
@@ -790,7 +790,7 @@ close_window();</pre>
       </ol>
 
       <h3>Звук</h3>
-      <p>Модуль <code>sound</code> проигрывает WAV-файлы и тоны, не останавливая программу. Тон FoxLang строит сам: считает 44 100 значений синусоиды на каждую секунду звука, плавно поднимает и опускает громкость в начале и в конце, чтобы не было щелчка, и отдаёт звук системе: на Windows через <code>PlaySound</code>, на Linux через проигрыватель рабочего стола.</p>
+      <p>Модуль <code>sound</code> проигрывает WAV-файлы и тоны, не останавливая программу. Тон FoxLang строит сам: считает 44 100 значений синусоиды на каждую секунду звука, плавно поднимает и опускает громкость в начале и в конце, чтобы не было щелчка, и отдаёт звук системе: на Windows через <code>PlaySound</code>, на Linux через проигрыватель рабочего стола, на Android через MediaPlayer.</p>
       <pre class="fox" data-fox>using sound;
 beep(440, 200);                  // «ля» первой октавы, 0.2 секунды
 play_sound("sounds/jump.wav");</pre>
@@ -894,9 +894,19 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
       <p><a class="try" href="builder/">Открыть конструктор →</a> · <a href="https://github.com/SkrinVex/FoxLang/blob/master/docs/BUILDER.md">Руководство и ограничения</a></p>
     </section>
 
+    <section id="android">
+      <h2>Android: библиотека и своё APK</h2>
+      <p>На Android 9 и новее FoxLang можно встроить в приложение на Kotlin/Java через AAR или упаковать проект <code>.fox</code> в APK. Работает тот же C++ runtime: стандартные модули, файлы, сеть, графика и звук.</p>
+      <p><code>FoxView</code> показывает окно программы внутри Activity. Касания управляют мышью, экранная клавиатура передаёт Unicode, размер холста подстраивается под экран и поворот. <code>FoxControls</code> добавляет стрелки, пробел и кнопку клавиатуры. Макеты из конструктора используют тот же API.</p>
+      <pre><code>python3 packaging/build_android.py main.fox --name "Моя программа" -o app.apk</code></pre>
+      <p>Для сборки нужны JDK, Android SDK и NDK. Обычный APK подписан отладочным ключом; релиз подписывается вашим ключом. SDK исполняет программы на рабочем потоке, а Activity управляет запуском, отменой и освобождением ресурсов. Файлы и системные операции подчиняются разрешениям Android.</p>
+      <p><a class="try" href="https://github.com/SkrinVex/FoxLang/blob/master/docs/ANDROID.md">Android: установка, Kotlin API и сборка APK →</a></p>
+    </section>
+
     <section id="project">
       <h2>Как устроен сам проект</h2>
       <pre class="files">FoxLang/
+├── android/        <i>AAR, FoxView, APK runner и Android-тесты</i>
 ├── src/core/       <i>сердце: лексер, парсер, компилятор, виртуальная машина, анализатор</i>
 │   └── builtins/   <i>встроенные функции на C++</i>
 ├── src/graphics/   <i>окно, рисование, картинки, интерфейс</i>
@@ -905,19 +915,19 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
 ├── src/cli/        <i>команда foxlang: запуск, check, test, fmt</i>
 ├── std/            <i>стандартная библиотека на FoxLang</i>
 ├── editors/        <i>расширения для VS Code, Kate и Zed</i>
-├── tests/          <i>112 автотестов CTest на Linux</i>
+├── tests/          <i>113 автотестов CTest на Linux</i>
 ├── docs/           <i>документация</i>
 └── VERSION         <i>номер версии, одно место на весь проект</i></pre>
       <ul class="plain">
         <li><strong>Сборка.</strong> CMake собирает исходники C++ в две программы: <code>foxlang</code> и <code>foxlang-lsp</code>.</li>
-        <li><strong>Тесты.</strong> 112 проверок CTest на Linux: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши. Windows запускает свой набор CTest без Linux shell-интеграций. Проверки WebAssembly, редактора и конструктора в браузере запускаются отдельно и в это число не входят.</li>
-        <li><strong>Релизы.</strong> Когда меняется <code>VERSION</code> и изменения попадают в ветку <code>master</code>, GitHub сам собирает версии для Linux и Windows, гоняет все тесты на обеих системах и публикует релиз с архивами и расширениями для редакторов.</li>
+        <li><strong>Тесты.</strong> 113 проверок CTest на Linux: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши. Windows запускает свой набор CTest без Linux shell-интеграций. Android instrumentation и проверки WebAssembly, редактора и конструктора в браузере запускаются отдельно и в это число не входят.</li>
+        <li><strong>Релизы.</strong> Когда меняется <code>VERSION</code> и изменения попадают в ветку <code>master</code>, GitHub сам собирает версии для Linux, Windows и Android, запускает проверки платформ и публикует релиз с архивами и расширениями для редакторов.</li>
       </ul>
     </section>
 
     <section id="checks">
       <h2>Как проверяется, что всё работает</h2>
-      <p>У языка много движущихся частей, и сломать одну, чиня другую, очень легко. Поэтому почти каждое изменение сопровождается тестами, а тесты запускаются автоматически на двух системах.</p>
+      <p>У языка много движущихся частей, и сломать одну, чиня другую, очень легко. Поэтому почти каждое изменение сопровождается тестами, а тесты запускаются автоматически на Linux, Windows и Android.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Вид теста</th><th>Что проверяет</th></tr></thead>
@@ -936,7 +946,7 @@ void test_add() {
     assert_equal(2 + 3, 5);
     assert([1, 2] == [1, 2], "массивы сравниваются по содержимому");
 }</pre>
-      <p>Когда меняется номер в файле <code>VERSION</code>, GitHub собирает FoxLang для Linux и Windows, прогоняет все тесты на обеих системах и только после этого публикует релиз. Если хоть один тест упал, релиза нет.</p>
+      <p>Когда меняется номер в файле <code>VERSION</code>, GitHub собирает FoxLang для Linux, Windows и Android, прогоняет проверки платформ и только после этого публикует релиз. Если хоть один тест упал, релиза нет.</p>
     </section>
 
     <section id="speed">
@@ -994,7 +1004,7 @@ print(square(4));</pre>
   </article>
 </div>
 
-<footer>FoxLang 8.16.1 · исходники и документация — <a href="https://github.com/SkrinVex/FoxLang" target="_blank" rel="noopener">github.com/SkrinVex/FoxLang</a></footer>
+<footer>FoxLang 8.17.0 · исходники и документация — <a href="https://github.com/SkrinVex/FoxLang" target="_blank" rel="noopener">github.com/SkrinVex/FoxLang</a></footer>
 
 <script type="application/json" id="bench-data">
 {"version":"8.1.0","date":"2026-09-25","machine":{"os":"Linux x86_64","cpu":"Intel(R) Celeron(R) N4020C CPU @ 1.10GHz"},"runs":5,"languages":{"foxlang":{"name":"FoxLang","version":"FoxLang 8.1.0"},"foxlang_baseline":{"name":"FoxLang (previous)","version":"FoxLang 8.0.0"},"python":{"name":"Python","version":"Python 3.14.7"},"lua":{"name":"Lua","version":"Lua 5.4.9"},"javascript":{"name":"JavaScript (Node.js)","version":"v26.10.0"}},"benchmarks":[{"name":"array_sum","about":"Growing an array and reading it back by index.","seconds":{"foxlang":0.8220495040004607,"foxlang_baseline":0.8046430410031462,"python":0.11204682500101626,"lua":0.04474602800473804,"javascript":0.08812319800199475}},{"name":"fib","about":"Function calls: naive recursive Fibonacci.","seconds":{"foxlang":0.6164286349958275,"foxlang_baseline":0.6133975439952337,"python":0.07494633600435918,"lua":0.02926724500139244,"javascript":0.07089768599689705}},{"name":"json_roundtrip","about":"Turning records into JSON text and back.","seconds":{"foxlang":0.3555030940042343,"foxlang_baseline":0.34874510599911446,"python":0.20824911999807227,"javascript":0.135121507999429}},{"name":"loop","about":"Integer arithmetic in a tight loop.","seconds":{"foxlang":2.797177840999211,"foxlang_baseline":2.7681683769988013,"python":0.5878342849973706,"lua":0.10385304999363143,"javascript":0.08476455699565122}},{"name":"map_lookup","about":"Inserting keys into a map and looking every one of them up.","seconds":{"foxlang":0.6534529349955847,"foxlang_baseline":null,"python":0.28541876199597027,"lua":0.6466928770023515,"javascript":0.4442104150002706}},{"name":"records","about":"Creating many small records and reading their fields.","seconds":{"foxlang":0.9637308169985772,"foxlang_baseline":0.9543194729994866,"python":0.25225184000009904,"lua":0.19137996299832594,"javascript":0.13434408799366793}},{"name":"sort_numbers","about":"Sorting numbers with the language's own sort.","seconds":{"foxlang":0.5961958159969072,"foxlang_baseline":0.5898370669965516,"python":0.25797608100401703,"lua":0.254622147003829,"javascript":0.23630277100164676}},{"name":"split_join","about":"Building text, joining and splitting it.","seconds":{"foxlang":0.600587403998361,"foxlang_baseline":19.539538478995382,"python":0.14139736899960553,"lua":0.4179613119995338,"javascript":0.17239006900490494}}]}

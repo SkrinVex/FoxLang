@@ -1,0 +1,20 @@
+plugins { id 'com.android.application' }
+def parts = file('../../VERSION').text.trim().split('\\.').collect { it.toInteger() }
+android {
+    namespace 'org.foxlang.runner'
+    compileSdk 35
+    ndkVersion '27.3.13750724'
+    if (System.getenv('FOXLANG_NDK_DIR')) ndkPath System.getenv('FOXLANG_NDK_DIR')
+    defaultConfig {
+        applicationId project.findProperty('foxlangApplicationId') ?: 'org.foxlang.runner'
+        minSdk 28
+        targetSdk 35
+        versionCode parts[0] * 1000000 + parts[1] * 1000 + parts[2]
+        versionName file('../../VERSION').text.trim()
+        resValue 'string', 'app_name', project.findProperty('foxlangAppName') ?: 'FoxLang'
+    }
+    if (project.hasProperty('foxlangAssets')) sourceSets.main.assets.srcDirs = [file(project.property('foxlangAssets'))]
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    buildTypes { release { minifyEnabled false } }
+}
+dependencies { implementation project(':foxlang') }

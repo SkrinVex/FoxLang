@@ -86,7 +86,7 @@ enum class StaticResult { NotFound, Served, Redirect };
 
 StaticResult serveStatic(const std::string& directory, const std::vector<std::string>& rest,
                          const std::string& requestPath, platform::HttpReply& reply) {
-    fs::path file = fs::u8path(directory);
+    fs::path file = platform::pathFromUtf8(directory);
     for (const auto& segment : rest) {
         if (segment.empty() || segment[0] == '.' || segment.find_first_of("\\:\0", 0, 3) != std::string::npos)
             return StaticResult::NotFound;
@@ -110,7 +110,7 @@ void invokeHandler(const Value& handler, Context& rootCtx, platform::HttpReply& 
     if (handler.isString()) {
         auto definition = rootCtx.getFunc(handler.str());
         if (!definition) {
-            std::cerr << "[HTTP ERROR] Handler function '" << handler.str() << "' not found" << std::endl;
+            platform::writeOutput("[HTTP ERROR] Handler function '" + handler.str() + "' not found\n", true);
             reply = {500, "application/json; charset=utf-8", "{\"error\":\"Handler not found\"}", {}};
             return;
         }
@@ -123,7 +123,7 @@ void invokeHandler(const Value& handler, Context& rootCtx, platform::HttpReply& 
     try {
         runtime::callValue(function, nullptr, 0, rootCtx);
     } catch (const std::exception& error) {
-        std::cerr << "[HTTP ERROR] " << runtime::locate(error.what(), "") << std::endl;
+        platform::writeOutput("[HTTP ERROR] " + runtime::locate(error.what(), "") + "\n", true);
         reply = {500, "application/json; charset=utf-8", "{\"error\":\"Handler failed\"}", {}};
     }
 }
@@ -275,7 +275,7 @@ std::string mimeType(const std::string& path) {
 
 bool sendFile(platform::HttpReply& reply, const std::string& path, const std::string& contentType) {
     std::error_code ec;
-    auto file = fs::u8path(path);
+    auto file = platform::pathFromUtf8(path);
     if (!fs::is_regular_file(file, ec)) return false;
     std::ifstream stream(file, std::ios::binary);
     if (!stream) return false;

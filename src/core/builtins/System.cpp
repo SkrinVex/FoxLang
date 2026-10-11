@@ -1,3 +1,6 @@
+#ifdef __ANDROID__
+#include "foxlang/Android.h"
+#endif
 // Builtins that talk to the operating system: files, environment, logging, time,
 // process information and the terminal.
 #include "Builtin.h"
@@ -16,13 +19,7 @@ namespace {
 namespace fs = std::filesystem;
 
 // Paths are UTF-8 text in FoxLang; Windows needs them widened, not reinterpreted.
-fs::path pathOf(const std::string& text) {
-#ifdef _WIN32
-    return fs::u8path(text);
-#else
-    return fs::path(text);
-#endif
-}
+fs::path pathOf(const std::string& text) { return platform::pathFromUtf8(text); }
 
 Value writeText(Call& c, std::ios::openmode mode) {
     std::ofstream file(pathOf(c.text(0)), std::ios::binary | mode);
@@ -33,12 +30,12 @@ Value writeText(Call& c, std::ios::openmode mode) {
 }
 
 Value logLine(Call& c, int level, const char* label) {
-    if (level >= getLogLevelThreshold()) std::cerr << '[' << label << "] " << c.text(0) << std::endl;
+    if (level >= getLogLevelThreshold()) platform::writeOutput(std::string("[") + label + "] " + c.text(0) + "\n", true);
     return nothing();
 }
 
 Value terminal(const char* sequence) {
-    std::cout << sequence << std::flush;
+    platform::writeOutput(sequence);
     return nothing();
 }
 
@@ -177,12 +174,14 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
                 for (const auto& argument : c.ctx.interpreter->getArguments()) items.push_back(text(argument));
             return makeArray(std::move(items));
         });
-    add({"os_platform", "string", {}, 0, false, "os", "Операционная система: `linux`, `windows`, `macos` или `other`."},
+    add({"os_platform", "string", {}, 0, false, "os", "Операционная система: `android`, `linux`, `windows`, `macos` или `other`."},
         [](Call&) {
 #if defined(_WIN32)
             return text("windows");
 #elif defined(__APPLE__)
             return text("macos");
+#elif defined(__ANDROID__)
+            return text("android");
 #elif defined(__linux__)
             return text("linux");
 #else
@@ -191,6 +190,9 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
         });
     add({"os_cwd", "string", {}, 0, false, "os", "Текущий рабочий каталог процесса."},
         [](Call&) {
+#ifdef __ANDROID__
+            if (android::current()) return text(android::host().directory());
+#endif
             std::error_code ec;
             return text(fs::current_path(ec).u8string());
         });
@@ -202,13 +204,13 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
         [](Call&) { return terminal("\033[H"); });
     add({"term_write", "void", {{"string", "text"}}, 1, false, "terminal", "Выводит текст без перевода строки."},
         [](Call& c) {
-            std::cout << c.text(0) << std::flush;
+            platform::writeOutput(c.text(0));
             return nothing();
         });
     add({"term_goto", "void", {{"int", "row"}, {"int", "col"}}, 2, false, "terminal",
          "Перемещает курсор; строки и столбцы нумеруются с 1."},
         [](Call& c) {
-            std::cout << "\033[" << c.amount(0, 10000) << ';' << c.amount(1, 10000) << 'H' << std::flush;
+            platform::writeOutput("\033[" + std::to_string(c.amount(0, 10000)) + ";" + std::to_string(c.amount(1, 10000)) + "H");
             return nothing();
         });
     add({"term_hide_cursor", "void", {}, 0, false, "terminal", "Скрывает курсор терминала."},
@@ -218,7 +220,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
     add({"term_color", "void", {{"int", "ansi_code"}}, 1, false, "terminal",
          "Включает ANSI-атрибут текста: 31 красный, 32 зелёный, 33 жёлтый, 34 синий, 36 голубой, 1 жирный."},
         [](Call& c) {
-            std::cout << "\033[" << c.amount(0, 255) << 'm' << std::flush;
+            platform::writeOutput("\033[" + std::to_string(c.amount(0, 255)) + "m");
             return nothing();
         });
     add({"term_reset", "void", {}, 0, false, "terminal", "Сбрасывает цвета и атрибуты текста."},

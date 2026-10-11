@@ -1,0 +1,3 @@
+-keep class org.foxlang.android.FoxLang { *; }
+-keep interface org.foxlang.android.FoxLang$Host { *; }
+-keepclassmembers class * implements org.foxlang.android.FoxLang$Host { *; }

@@ -14,6 +14,8 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <mutex>
+#elif defined(__ANDROID__)
+#include "foxlang/Android.h"
 #elif defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
 // The page's side of a playground window (see Window::Native below).
@@ -313,6 +315,41 @@ struct Window::Native {
         if (!SetClipboardData(CF_UNICODETEXT, memory)) GlobalFree(memory);
         CloseClipboard();
     }
+};
+#elif defined(__ANDROID__)
+struct Window::Native {
+    Window& owner;
+    bool resize = true, full = false;
+    explicit Native(Window& window) : owner(window) {}
+    ~Native() { android::host().close(); }
+    void open(const std::string& title) {
+        android::host().open(owner.surface().width(), owner.surface().height(), title);
+        owner.focusEvent(true);
+    }
+    void poll() {
+        for (const auto& e : android::host().poll()) {
+            switch(e.kind) {
+                case android::Event::Key: owner.keyEvent(e.a, e.b != 0); break;
+                case android::Event::Text: owner.textEvent(e.text); break;
+                case android::Event::Mouse: owner.mouseEvent(e.a, e.b); break;
+                case android::Event::Wheel: owner.wheelEvent(e.a); break;
+                case android::Event::Focus: owner.focusEvent(e.a != 0); break;
+                case android::Event::Size: if (resize) owner.sizeEvent(e.a, e.b); break;
+                case android::Event::Close: owner.closeEvent(); break;
+            }
+        }
+    }
+    void present() {
+        const auto& s = owner.surface();
+        android::host().present(s.pixels().data(), s.width(), s.height());
+    }
+    void resizeBuffers() {}
+    void setSize(int w, int h) { owner.sizeEvent(w, h); }
+    void setResizable(bool enabled) { resize = enabled; android::host().resizable(enabled); }
+    void setFullscreen(bool enabled) { android::host().fullscreen(enabled); full = enabled; }
+    bool fullscreen() const { return full; }
+    std::string clipboard() { return android::host().clipboard(); }
+    void setClipboard(const std::string& text) { android::host().clipboard(text); }
 };
 #elif defined(__EMSCRIPTEN__)
 // The browser playground: the page hands the worker a canvas. A window draws into it,

@@ -187,8 +187,15 @@ jobs:
           name: benchmarks-release
           path: benchmarks.json
 
+  build-android:
+    needs: version
+    if: needs.version.outputs.exists == 'false'
+    uses: ./.github/workflows/android.yml
+    with:
+      artifact-name: android-release
+
   release:
-    needs: [version, build-linux, build-windows, benchmarks]
+    needs: [version, build-linux, build-windows, build-android, benchmarks]
     if: needs.version.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
