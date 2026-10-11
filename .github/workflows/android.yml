@@ -87,5 +87,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: android-tests-api-${{ matrix.api }}-${{ inputs.artifact-name || 'ci' }}
+          name: android-tests-${{ inputs.artifact-name || 'ci' }}-api-${{ matrix.api }}
           path: android/foxlang/build/reports/androidTests/
