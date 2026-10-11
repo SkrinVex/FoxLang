@@ -83,7 +83,7 @@ public class FoxView extends View implements FoxLang.Host {
         canvas.drawColor(Color.rgb(24,29,36));
         synchronized(frameLock) { if(frame != null) canvas.drawBitmap(frame, null, destination(), paint); }
     }
-    @Override public void onClose() { post(() -> { pointerId = -1; onFullscreen(false); hideKeyboard(); }); }
+    @Override public void onClose() { post(() -> { pointerId = -1; applyFullscreen(false); hideKeyboard(); }); }
     @Override public void onResizable(boolean enabled) { post(() -> { resizable = enabled; reportSize(); }); }
     private void reportSize() {
         if(engine != null && resizable && getWidth()>0 && getHeight()>0) {
@@ -92,14 +92,15 @@ public class FoxView extends View implements FoxLang.Host {
         }
     }
     @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) { super.onSizeChanged(w,h,oldw,oldh); reportSize(); }
-    @Override public void onFullscreen(boolean enabled) { post(() -> {
+    @Override public void onFullscreen(boolean enabled) { post(() -> applyFullscreen(enabled)); }
+    private void applyFullscreen(boolean enabled) {
         fullscreen.accept(enabled);
         Activity a = activity(); if(a == null) return;
         if(Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController c = a.getWindow().getInsetsController();
             if(c != null) { c.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE); if(enabled)c.hide(WindowInsets.Type.systemBars()); else c.show(WindowInsets.Type.systemBars()); }
         } else a.getWindow().getDecorView().setSystemUiVisibility(enabled ? SYSTEM_UI_FLAG_FULLSCREEN|SYSTEM_UI_FLAG_HIDE_NAVIGATION|SYSTEM_UI_FLAG_IMMERSIVE_STICKY : SYSTEM_UI_FLAG_VISIBLE);
-    }); }
+    }
     private void pointer(MotionEvent e, int index) {
         synchronized(frameLock) {
             RectF r = destination();

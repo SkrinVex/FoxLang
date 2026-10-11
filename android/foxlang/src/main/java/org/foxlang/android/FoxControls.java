@@ -54,6 +54,7 @@ public final class FoxControls extends LinearLayout {
     public void releaseKeys() {
         for(int code: held) engine.key(code, false);
         held.clear();
+        for(int i=0;i<getChildCount();i++)getChildAt(i).setPressed(false);
     }
     @Override public void onWindowFocusChanged(boolean focused) { super.onWindowFocusChanged(focused); if(!focused)releaseKeys(); }
     @Override protected void onDetachedFromWindow() { releaseKeys(); super.onDetachedFromWindow(); }
