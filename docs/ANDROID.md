@@ -37,10 +37,39 @@ Gradle также принимает `sdk.dir` в локальном `android/lo
 - AAR: `android/foxlang/build/outputs/aar/foxlang-release.aar`.
 - Пример APK со списком дел: `android/app/build/outputs/apk/debug/app-debug.apk`.
 - Для всех ABI добавьте `-PfoxlangAbis=arm64-v8a,armeabi-v7a,x86_64,x86`.
-- Релиз GitHub содержит `foxlang-android.aar` и `foxlang-android-demo.apk`.
+- Релиз GitHub содержит `foxlang-android.aar`, `foxlang-android-demo.apk` (список дел)
+  и `foxlang-android-raycaster.apk` (игра).
 
 Первый запуск сборки скачивает Gradle, зависимости Maven, libcurl и Mbed TLS.
 Последние закреплены хешами в CMake, Gradle wrapper проверяет SHA-256 дистрибутива.
+
+## Демо: лабиринт в псевдо-3D
+
+[Скачать APK raycaster](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-android-raycaster.apk)
+или собрать из корня репозитория:
+
+```bash
+android/gradlew -p android :app:assembleDebug -PfoxlangDemo=raycaster
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n org.foxlang.raycaster/org.foxlang.runner.MainActivity
+```
+
+На Windows первая команда — `android\gradlew.bat -p android ...`.
+Gradle берёт **тот же файл** [`examples/raycaster.fox`](../examples/raycaster.fox),
+что запускается на ПК; отдельной Android-копии игры нет. Проверка APK сравнивает
+упакованный исходник с оригиналом. `foxlangDemo` нельзя сочетать с `foxlangAssets`.
+Пакет игры `org.foxlang.raycaster` устанавливается рядом со списком дел.
+
+Собирайте звёзды в лабиринте. Стрелки вверх/вниз двигают игрока, влево/вправо
+поворачивают, пробел ускоряет. Можно удерживать несколько кнопок или поворачивать
+взгляд перетаскиванием пальца по сцене. На аппаратной клавиатуре также работают
+WASD, M (карта), R (заново). На Android игра скрывает панели runner и системы,
+оставляя экранные кнопки. Поворот устройства меняет размер игрового холста.
+При уходе в фон исполнение останавливается; после возвращения нажмите «Запустить».
+
+В CI проверяются запуск игры, поворот, остановка, повторный запуск и пересоздание
+Activity. Трассы копирования/вывода кадров и снимки памяти сохраняются отдельно
+от тестов: [как измерить производительность на телефоне](ANDROID_PERFORMANCE.md).
 
 ## Собрать APK из своей программы
 
@@ -138,6 +167,10 @@ engine.runSource("print(40 + 2);").thenAccept { result ->
 Интерпретаторы имеют отдельные переменные и модули, но выполняются **последовательно
 на общем рабочем потоке**, поскольку нативный аллокатор общий для процесса.
 Долгая программа занимает очередь; `cancel()` и события ввода доставляются сразу.
+Это относится и к **разным** объектам `FoxLang`: пока первый выполняет игру или
+бесконечный цикл, `runSource()`, `getGlobal()` и `reset()` второго ждут. Отмена
+первого освобождает очередь, не отменяя второй. Несколько одновременно работающих
+VM внутри одного процесса пока не поддерживаются.
 Нельзя вызывать `.get()` / `.join()` из Host callbacks или из UI-потока.
 Отмена проверяется в VM и `wait()`. Блокирующий системный ввод-вывод завершает свой
 вызов/тайм-аут прежде, чем VM увидит отмену; это не принудительное завершение потока.
@@ -221,10 +254,16 @@ Scope. C++-клиент сам сериализует доступ к ядру �
 python3 tests/test_android_packaging.py
 cd android
 ./gradlew :foxlang:connectedDebugAndroidTest -PfoxlangAbis=x86_64
+./gradlew :app:connectedDebugAndroidTest -PfoxlangAbis=x86_64 -PfoxlangDemo=raycaster
 ```
 
-Вторая команда требует запущенный эмулятор или устройство. CI собирает четыре
+Команды Gradle требуют запущенный эмулятор или устройство с указанным ABI.
+Для ARM64-телефона укажите `-PfoxlangAbis=arm64-v8a`. CI собирает четыре
 ABI, проверяет содержимое AAR/APK и выравнивание библиотек, выполняет instrumentation
 на Android 9 и Android 15. Проверяются импорты, Unicode, переменные, файловый ввод,
 аргументы, сеть, графика, UI-события, размер окна, буфер обмена, WAV и отмена VM.
+Тест runner проверяет отмену запуска, ожидающего общий поток, работу кнопок,
+поворот и повторные циклы остановки/пересоздания Activity на примере raycaster.
+Проверка четырёх ABI подтверждает сборку и структуру библиотек; исполнение в CI
+проверяется на **x86_64-эмуляторах API 28/35**, а не на четырёх физических устройствах.
 Android instrumentation и браузерные тесты считаются отдельно от Linux CTest.

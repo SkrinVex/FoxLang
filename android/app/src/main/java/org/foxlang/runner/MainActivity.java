@@ -82,7 +82,9 @@ public class MainActivity extends Activity {
     private void start() {
         run.setEnabled(false);output.setText("");
         String input = stdin.getText().toString();
-        engine.reset().thenCompose(v->engine.runFile(entry,input)).whenComplete((result,error)->runOnUiThread(()->{
+        // Enqueue both now: runFile captures this launch's cancellation generation.
+        // A thenCompose callback could enqueue a fresh run after onStop cancelled it.
+        engine.reset().thenCombine(engine.runFile(entry,input),(ignored,result)->result).whenComplete((result,error)->runOnUiThread(()->{
             run.setEnabled(true);
             if(error!=null)output.append(error.toString());else if(!result.error.isEmpty())output.append(result.error);else if(result.cancelled())output.append("\nОстановлено");
         }));
