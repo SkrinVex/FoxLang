@@ -3,6 +3,8 @@ def parts = file('../../VERSION').text.trim().split('\\.').collect { it.toIntege
 android {
     namespace 'org.foxlang.runner'
     compileSdk 35
+    ndkVersion '27.3.13750724'
+    if (System.getenv('FOXLANG_NDK_DIR')) ndkPath System.getenv('FOXLANG_NDK_DIR')
     defaultConfig {
         applicationId project.findProperty('foxlangApplicationId') ?: 'org.foxlang.runner'
         minSdk 28

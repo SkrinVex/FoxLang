@@ -110,7 +110,7 @@ void invokeHandler(const Value& handler, Context& rootCtx, platform::HttpReply& 
     if (handler.isString()) {
         auto definition = rootCtx.getFunc(handler.str());
         if (!definition) {
-            std::cerr << "[HTTP ERROR] Handler function '" << handler.str() << "' not found" << std::endl;
+            platform::writeOutput("[HTTP ERROR] Handler function '" + handler.str() + "' not found\n", true);
             reply = {500, "application/json; charset=utf-8", "{\"error\":\"Handler not found\"}", {}};
             return;
         }
@@ -123,7 +123,7 @@ void invokeHandler(const Value& handler, Context& rootCtx, platform::HttpReply& 
     try {
         runtime::callValue(function, nullptr, 0, rootCtx);
     } catch (const std::exception& error) {
-        std::cerr << "[HTTP ERROR] " << runtime::locate(error.what(), "") << std::endl;
+        platform::writeOutput("[HTTP ERROR] " + runtime::locate(error.what(), "") + "\n", true);
         reply = {500, "application/json; charset=utf-8", "{\"error\":\"Handler failed\"}", {}};
     }
 }

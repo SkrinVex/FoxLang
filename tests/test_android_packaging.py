@@ -13,6 +13,8 @@ with tempfile.TemporaryDirectory() as temp:
     (project / "nested/helper.fox").write_text('string name = "🦊";', encoding="utf-8")
     (project / ".env").write_text("SECRET=hidden")
     (project / "private.key").write_text("not a resource")
+    (project / "build-release").mkdir()
+    (project / "build-release/generated.fox").write_text("not a source resource")
     (project / "logo.png").write_bytes(b"resource")
     staged = d / "assets"
     names = m.stage_project(project / "nested/app.fox", project, ["logo.png"], staged)

@@ -16,7 +16,7 @@ IGNORED = {"build", "dist", "node_modules", "__pycache__"}
 
 
 def allowed(path):
-    return not any(p.startswith(".") or p in IGNORED for p in path.parts)
+    return not any(p.startswith((".", "build-", "build_")) or p in IGNORED for p in path.parts)
 
 
 def stage_project(entry, project, assets, target):

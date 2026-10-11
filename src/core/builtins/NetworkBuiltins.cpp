@@ -75,7 +75,7 @@ void addNetworkBuiltins(std::vector<Builtin>& out) {
                 return text(std::move(response.body));
             } catch (const std::exception& error) {
                 lastStatus() = 0;
-                std::cerr << "[HTTP ERROR] " << error.what() << std::endl;
+                platform::writeOutput(std::string("[HTTP ERROR] ") + error.what() + "\n", true);
                 return text("");
             }
         });

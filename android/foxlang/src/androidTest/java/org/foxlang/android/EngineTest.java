@@ -155,18 +155,20 @@ public class EngineTest {
         try(ServerSocket server=tls.getServerSocketFactory().createServerSocket(0);FoxLang engine=new FoxLang(dir,new FoxLang.Host(){})) {
             server.setSoTimeout(15000);
             Thread responder=new Thread(()->{
-                for(int i=0;i<2;i++)try(Socket connection=server.accept()) {
+                for(int i=0;i<3;i++)try(Socket connection=server.accept()) {
                     connection.setSoTimeout(10000);
                     java.io.BufferedReader reader=new java.io.BufferedReader(new java.io.InputStreamReader(connection.getInputStream()));
                     String line;while((line=reader.readLine())!=null&&!line.isEmpty()){}
                     connection.getOutputStream().write("HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nTLS_OK".getBytes(StandardCharsets.US_ASCII));
-                } catch(Exception expectedForRejectedHostname) { /* client aborts the second handshake */ }
+                } catch(Exception expectedForRejectedCertificate) { /* clients abort rejected TLS handshakes */ }
             });responder.start();
             try {
                 FoxLang.RunResult trusted=run(engine,"using http; env_set(\"FOXLANG_CA_BUNDLE\",\"ca.pem\"); print(http_get(\"https://localhost:"+server.getLocalPort()+"/\"));");
                 assertTrue(trusted.error,trusted.success);assertTrue(trusted.output.contains("TLS_OK"));
-                FoxLang.RunResult wrongName=run(engine,"print(http_get(\"https://127.0.0.1:"+server.getLocalPort()+"/\"));");
-                assertFalse(wrongName.success);assertTrue(wrongName.error,wrongName.error.contains("HTTP Error"));
+                FoxLang.RunResult wrongName=run(engine,"assert(http_get(\"https://127.0.0.1:"+server.getLocalPort()+"/\")==\"\"); assert(http_status()==0);");
+                assertTrue(wrongName.error,wrongName.success);assertTrue(wrongName.output,wrongName.output.contains("HTTP ERROR"));
+                FoxLang.RunResult untrusted=run(engine,"env_set(\"FOXLANG_CA_BUNDLE\",\"embedded\"); assert(http_get(\"https://localhost:"+server.getLocalPort()+"/\")==\"\"); assert(http_status()==0);");
+                assertTrue(untrusted.error,untrusted.success);assertTrue(untrusted.output.contains("HTTP ERROR"));
             } finally {run(engine,"env_set(\"FOXLANG_CA_BUNDLE\",\"embedded\");");}
             responder.join(5000);assertFalse(responder.isAlive());
         }
