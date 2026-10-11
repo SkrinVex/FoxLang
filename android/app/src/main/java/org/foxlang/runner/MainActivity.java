@@ -23,6 +23,8 @@ public class MainActivity extends Activity {
     private Button run;
     private File project;
     private String entry;
+    private final StringBuilder pendingOutput = new StringBuilder();
+    private boolean outputPosted;
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
@@ -53,10 +55,24 @@ public class MainActivity extends Activity {
                 stdin.setVisibility(enabled ? View.GONE : View.VISIBLE);
                 console.setVisibility(enabled ? View.GONE : View.VISIBLE);
             });
-            view.setOutputListener((text,error)->runOnUiThread(()->{if(output.length()>64000)output.setText("");output.append(text);}));
+            view.setOutputListener((text,error)->appendOutput(text));
             run.setOnClickListener(v->start());stop.setOnClickListener(v->engine.cancel());keyboard.setOnClickListener(v->view.showKeyboard());
             start();
         } catch(Exception error){output.setText(error.toString());run.setEnabled(false);}
+    }
+    private void appendOutput(String text) {
+        synchronized(pendingOutput) {
+            pendingOutput.append(text);
+            if(pendingOutput.length()>64000)pendingOutput.delete(0,pendingOutput.length()-64000);
+            if(outputPosted)return;
+            outputPosted=true;
+        }
+        output.postOnAnimation(()->{
+            String chunk;
+            synchronized(pendingOutput){chunk=pendingOutput.toString();pendingOutput.setLength(0);outputPosted=false;}
+            String all=output.getText().toString()+chunk;
+            output.setText(all.length()>64000 ? all.substring(all.length()-64000) : all);
+        });
     }
     private void copyAssets(String source,File target)throws Exception {
         String[] children=getAssets().list(source);
