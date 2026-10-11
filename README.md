@@ -13,6 +13,7 @@ C-подобным синтаксисом, строгими типами, мас
 установленный FoxLang.
 
 **Android:** [встроить язык в Kotlin/Java или собрать APK из `.fox`](docs/ANDROID.md).
+Демо игры: [raycaster APK](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-android-raycaster.apk) · [исходник](examples/raycaster.fox) · [замеры кадров на устройстве](docs/ANDROID_PERFORMANCE.md).
 
 **Визуально собрать интерфейс:** [конструктор FoxLang UI](https://skrinvex.github.io/FoxLang/builder/) —
 макеты для ПК и телефона, живой запуск, отдельные `layout.fox` и `main.fox`: правки макета не стирают вашу логику. [Руководство](docs/BUILDER.md).

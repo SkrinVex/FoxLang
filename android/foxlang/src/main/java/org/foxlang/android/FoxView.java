@@ -14,6 +14,7 @@ import android.graphics.RectF;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Trace;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.KeyCharacterMap;
@@ -63,15 +64,18 @@ public class FoxView extends View implements FoxLang.Host {
         post(() -> { resizable = true; Activity a = activity(); if(a != null) a.setTitle(title); setVisibility(VISIBLE); requestFocus(); reportSize(); });
     }
     @Override public void onFrame(int[] pixels, int width, int height) {
-        synchronized(frameLock) {
-            if(frame == null || frame.getWidth() != width || frame.getHeight() != height) {
-                // The old bitmap is left to Android's renderer/GC; do not recycle a
-                // bitmap which a hardware display list may still reference.
-                frame = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Trace.beginSection("FoxView.upload");
+        try {
+            synchronized(frameLock) {
+                if(frame == null || frame.getWidth() != width || frame.getHeight() != height) {
+                    // The old bitmap is left to Android's renderer/GC; do not recycle a
+                    // bitmap which a hardware display list may still reference.
+                    frame = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                }
+                canvasWidth = width; canvasHeight = height;
+                frame.setPixels(pixels, 0, width, 0, 0, width, height);
             }
-            canvasWidth = width; canvasHeight = height;
-            frame.setPixels(pixels, 0, width, 0, 0, width, height);
-        }
+        } finally { Trace.endSection(); }
         postInvalidate();
     }
     private RectF destination() {
@@ -80,8 +84,11 @@ public class FoxView extends View implements FoxLang.Host {
         return new RectF((getWidth()-w)/2, (getHeight()-h)/2, (getWidth()+w)/2, (getHeight()+h)/2);
     }
     @Override protected void onDraw(Canvas canvas) {
-        canvas.drawColor(Color.rgb(24,29,36));
-        synchronized(frameLock) { if(frame != null) canvas.drawBitmap(frame, null, destination(), paint); }
+        Trace.beginSection("FoxView.draw");
+        try {
+            canvas.drawColor(Color.rgb(24,29,36));
+            synchronized(frameLock) { if(frame != null) canvas.drawBitmap(frame, null, destination(), paint); }
+        } finally { Trace.endSection(); }
     }
     @Override public void onClose() { post(() -> { pointerId = -1; applyFullscreen(false); hideKeyboard(); }); }
     @Override public void onResizable(boolean enabled) { post(() -> { resizable = enabled; reportSize(); }); }

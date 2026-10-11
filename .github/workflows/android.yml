@@ -41,11 +41,18 @@ jobs:
       - name: Verify packaging and 16 KB compatibility
         run: |
           python3 tests/test_android_packaging.py
+          python3 tests/test_android_trace.py
           python3 tests/test_android_artifacts.py --aar android/foxlang/build/outputs/aar/foxlang-release.aar --apk android/app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
           mkdir -p dist-android
           cp android/foxlang/build/outputs/aar/foxlang-release.aar dist-android/foxlang-android.aar
           cp android/app/build/outputs/apk/debug/app-debug.apk dist-android/foxlang-android-demo.apk
+      - name: Build and verify the raycaster APK from the shared example
+        run: |
+          android/gradlew -p android --no-daemon :app:assembleDebug -PfoxlangDemo=raycaster -PfoxlangAbis=arm64-v8a,armeabi-v7a,x86_64,x86
+          python3 tests/test_android_artifacts.py --aar dist-android/foxlang-android.aar --apk android/app/build/outputs/apk/debug/app-debug.apk --source examples/raycaster.fox
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist-android/foxlang-android-raycaster.apk
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact-name || 'android-ci' }}
@@ -83,9 +90,15 @@ jobs:
           arch: x86_64
           target: default
           disable-animations: true
-          script: cd android && ./gradlew --no-daemon :foxlang:connectedDebugAndroidTest -PfoxlangAbis=x86_64
+          script: |
+            android/gradlew -p android --no-daemon :foxlang:connectedDebugAndroidTest :app:connectedDebugAndroidTest -PfoxlangAbis=x86_64 -PfoxlangDemo=raycaster
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            python3 packaging/profile_android.py --output android-profile
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: android-tests-${{ inputs.artifact-name || 'ci' }}-api-${{ matrix.api }}
-          path: android/foxlang/build/reports/androidTests/
+          path: |
+            android/foxlang/build/reports/androidTests/
+            android/app/build/reports/androidTests/
+            android-profile/

@@ -2,11 +2,13 @@
 import argparse
 import struct
 import zipfile
+from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--aar", required=True)
 parser.add_argument("--apk", required=True)
 parser.add_argument("--abis", default="arm64-v8a,armeabi-v7a,x86_64,x86")
+parser.add_argument("--source", type=Path, help="verify that a single-file demo contains the exact shared example")
 args = parser.parse_args()
 machines = {"arm64-v8a": 183, "armeabi-v7a": 40, "x86_64": 62, "x86": 3}
 for path, prefix in [(args.aar, "jni"), (args.apk, "lib")]:
@@ -29,9 +31,14 @@ for path, prefix in [(args.aar, "jni"), (args.apk, "lib")]:
                         assert alignment >= (16384 if is64 else 4096), (name, alignment)
                 assert loads, name
         if prefix == "lib":
-            assert archive.read("assets/foxlang-entry.txt").strip()
+            entry = archive.read("assets/foxlang-entry.txt").decode().strip()
+            assert entry
             assert any(n.startswith("assets/program/") and n.endswith(".fox") for n in archive.namelist())
             assert not any("/.env" in n for n in archive.namelist())
+            if args.source:
+                assert entry == args.source.name
+                assert archive.read("assets/program/" + entry) == args.source.read_bytes()
+                assert [n for n in archive.namelist() if n.startswith("assets/program/")] == ["assets/program/" + entry]
         else:
             with zipfile.ZipFile(__import__("io").BytesIO(archive.read("classes.jar"))) as classes:
                 assert "org/foxlang/android/FoxLang.class" in classes.namelist()

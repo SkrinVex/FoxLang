@@ -2,6 +2,7 @@
 #include "foxlang/FoxLang.h"
 #include "NetworkLicenses.h"
 #include <jni.h>
+#include <android/trace.h>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -14,6 +15,13 @@
 
 namespace {
 using namespace foxlang;
+// System Trace/Perfetto can measure the frame path without timing VM execution.
+// Disabled tracing does not allocate strings or issue trace writes.
+struct TraceSection {
+    bool enabled;
+    explicit TraceSection(const char* name, bool on) : enabled(on) { if (enabled) ATrace_beginSection(name); }
+    ~TraceSection() { if (enabled) ATrace_endSection(); }
+};
 std::mutex runtimeMutex, handlesMutex;
 struct Session {
     std::unique_ptr<Interpreter> interpreter;
@@ -94,11 +102,18 @@ struct Host final : android::Host {
     }
     void present(const uint32_t* pixels, int w, int h) override {
         checkCancelled();
-        auto frame = env->NewIntArray(w * h);
-        if (!frame) { env->ExceptionClear(); throw std::runtime_error("Android frame allocation failed"); }
-        std::vector<jint> argb(static_cast<size_t>(w) * h);
-        for (size_t i = 0; i < argb.size(); ++i) argb[i] = static_cast<jint>(0xff000000u | pixels[i]);
-        env->SetIntArrayRegion(frame, 0, w * h, argb.data());
+        const bool trace = ATrace_isEnabled();
+        const auto label = trace ? "FoxLang.present " + std::to_string(w) + "x" + std::to_string(h) : std::string{};
+        TraceSection presentTrace(label.c_str(), trace);
+        jintArray frame;
+        {
+            TraceSection copyTrace("FoxLang.frame.copy", trace);
+            frame = env->NewIntArray(w * h);
+            if (!frame) { env->ExceptionClear(); throw std::runtime_error("Android frame allocation failed"); }
+            std::vector<jint> argb(static_cast<size_t>(w) * h);
+            for (size_t i = 0; i < argb.size(); ++i) argb[i] = static_cast<jint>(0xff000000u | pixels[i]);
+            env->SetIntArrayRegion(frame, 0, w * h, argb.data());
+        }
         env->CallVoidMethod(callbacks, method("onFrame", "([III)V"), frame, w, h);
         env->DeleteLocalRef(frame); checked();
     }

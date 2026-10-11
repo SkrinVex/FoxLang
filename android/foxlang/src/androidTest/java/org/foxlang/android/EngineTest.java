@@ -75,9 +75,18 @@ public class EngineTest {
         CountDownLatch started=new CountDownLatch(1);
         try(FoxLang first=new FoxLang(directory(),new FoxLang.Host(){public void onOutput(String text,boolean error){started.countDown();}});
             FoxLang second=new FoxLang(directory(),new FoxLang.Host(){})) {
+            // Create both native sessions before occupying the shared worker.
+            first.reset().get(10,TimeUnit.SECONDS);second.reset().get(10,TimeUnit.SECONDS);
             CompletableFuture<FoxLang.RunResult> running=first.runSource("print(\"started\"); while(true){}");
-            assertTrue(started.await(10,TimeUnit.SECONDS));first.cancel();assertTrue(running.get(10,TimeUnit.SECONDS).cancelled());
-            assertTrue(run(second,"int separate=7;").success);
+            assertTrue(started.await(10,TimeUnit.SECONDS));
+            CompletableFuture<FoxLang.RunResult> queued=second.runSource("int separate=7;");
+            CompletableFuture<FoxLang.RunResult> cancelledQueue=first.runSource("print(\"must not run\");");
+            try { queued.get(200,TimeUnit.MILLISECONDS);fail("A second interpreter must wait for the shared worker"); }
+            catch(java.util.concurrent.TimeoutException expected) { /* documented serialization */ }
+            first.cancel();assertTrue(running.get(10,TimeUnit.SECONDS).cancelled());
+            assertTrue(queued.get(10,TimeUnit.SECONDS).success);
+            FoxLang.RunResult skipped=cancelledQueue.get(10,TimeUnit.SECONDS);
+            assertTrue(skipped.cancelled());assertEquals("",skipped.output);
             first.reset().get(5,TimeUnit.SECONDS);assertTrue(run(first,"int separate=9;").success);
             assertEquals("9",first.getGlobal("separate").get(5,TimeUnit.SECONDS).text);assertEquals("7",second.getGlobal("separate").get(5,TimeUnit.SECONDS).text);
         }
