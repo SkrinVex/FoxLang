@@ -14,6 +14,13 @@ catalog_spec = importlib.util.spec_from_file_location("sync_editor_builtins", ro
 catalog = importlib.util.module_from_spec(catalog_spec)
 catalog_spec.loader.exec_module(catalog)
 catalog.synchronize(root, check=True)
+# README and the testing guide share their facts with the site and std catalog.
+facts_spec = importlib.util.spec_from_file_location("site_facts", root / "packaging/site_facts.py")
+facts_module = importlib.util.module_from_spec(facts_spec)
+facts_spec.loader.exec_module(facts_module)
+assert not facts_module.synchronize(facts_module.facts(None, "ctest")), \
+    "Documentation facts are stale; run python3 packaging/site_facts.py --write"
+
 version = (root / "VERSION").read_text().strip()
 assert re.fullmatch(r"\d+\.\d+\.\d+", version)
 assert json.loads((root / "editors/vscode/package.json").read_text(encoding="utf-8"))["version"] == version
