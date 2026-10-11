@@ -945,7 +945,7 @@ void loadDotEnv(const std::string& scriptPath) {
 std::string resolveFoxFile(const std::string& requested, const std::string& currentFile, const std::string& foxHome) {
     namespace fs = std::filesystem;
     std::vector<fs::path> candidates;
-    fs::path req = platform::pathFromUtf8(requested);
+    fs::path req = fs::u8path(requested);
 
     if (req.is_absolute()) candidates.push_back(req);
     if (!currentFile.empty()) {
@@ -953,7 +953,7 @@ std::string resolveFoxFile(const std::string& requested, const std::string& curr
         std::string dir = (found == std::string::npos) ? "./" : currentFile.substr(0, found + 1);
         candidates.push_back(platform::pathFromUtf8(dir) / req);
     }
-    candidates.push_back(req);
+    candidates.push_back(platform::pathFromUtf8(requested));
 
     std::string home = foxHome.empty() ? platform::getEnvVar("FOXLANG_HOME") : foxHome;
     if (!home.empty()) {

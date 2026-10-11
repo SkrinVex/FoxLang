@@ -1130,7 +1130,7 @@ print(page);
 | `clock_ms() -> int` | миллисекунды с запуска программы по монотонным часам |
 | `time_format(string pattern) -> string` | локальное время по шаблону `strftime` (`%Y-%m-%d %H:%M:%S`) |
 | `os_args() -> array` | аргументы командной строки после имени программы |
-| `os_platform() -> string` | `linux`, `windows`, `macos` или `other` |
+| `os_platform() -> string` | `android`, `linux`, `windows`, `macos` или `other` |
 | `os_cwd() -> string` | текущий рабочий каталог |
 | `os_open(string target) -> bool` | открыть файл, папку или URL приложением по умолчанию |
 | `os_run(string program, [array args]) -> int` | запустить программу и дождаться; код возврата, `-1` — не запустилась |
@@ -2261,10 +2261,13 @@ int main() {
 * `foxlang::Lexer`, `foxlang::Parser`, `foxlang::SemanticAnalyzer` — разбор и
   статический анализ без выполнения.
 
-Для Android ядро собирается Android NDK в `libfoxlang.so`; путь к стандартной
-библиотеке задаётся через `options.foxHome` во внутреннем хранилище приложения, а
-сетевым функциям нужно разрешение `android.permission.INTERNET`. Android пока не
-входит в проверяемые платформы: TLS и доверенное хранилище там не проверены.
+Android 9+ поддерживается через NDK/JNI: AAR для Java/Kotlin, `FoxView` для
+`graphics`/`ui`, экранный ввод, WAV/тоны, HTTP/TLS и упаковщик APK из `.fox`.
+Нативная библиотека называется `libfoxlang_android.so`; стандартные модули и CA
+встроены. Экземпляры SDK выполняются последовательно на рабочем потоке, отменяются
+через `cancel()` и закрываются через `close()`. Подробные примеры, сборка,
+жизненный цикл и ограничения Android — в [docs/ANDROID.md](docs/ANDROID.md).
+Android CI собирает четыре ABI и запускает instrumentation на API 28/35.
 
 ---
 
@@ -2304,7 +2307,7 @@ VS Code и Zed. Без сборки то же делает `cmake -P cmake/Versi
 `packaging/site_facts.py`: версию из `VERSION`, функции из каталога встроенных,
 модули из `std/`, тесты из `ctest -N`. Скрипт запускает каждая сборка (цель
 `site_facts`) и выкладка сайта, а одноимённый тест сообщает, если закоммичена
-страница со старыми цифрами. Число модулей в README и руководстве по тестированию сверяется тем же `packaging/site_facts.py`. Число тестов на сайте относится к Linux CTest; браузерные проверки выполняются отдельно.
+страница со старыми цифрами. Число модулей в README и руководстве по тестированию сверяется тем же `packaging/site_facts.py`. Число тестов на сайте относится к Linux CTest; браузерные проверки и Android instrumentation выполняются отдельно.
 
 **Конструктор интерфейсов:** [FoxLang UI](https://skrinvex.github.io/FoxLang/builder/)
 позволяет визуально собрать окно, настроить макеты телефона и ПК и экспортировать

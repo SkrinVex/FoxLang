@@ -1,4 +1,4 @@
-//! Нативная 2D-графика Linux/Windows: окно, фигуры, текст, клавиатура и мышь.
+//! Нативная 2D-графика Linux/Windows/Android: окно, фигуры, текст, клавиатура и мышь.
 //! Подробности — в docs/GRAPHICS.md.
 
 void open_window(int width, int height, string title) { gfx_open(width, height, title); }

@@ -1,4 +1,4 @@
-//! TCP-соединения и DNS на Linux и Windows. Дескриптор сокета — `int`; `-1` означает ошибку.
+//! TCP-соединения и DNS на Linux, Windows и Android. Дескриптор сокета — `int`; `-1` означает ошибку.
 
 int connect_tcp(string host, int port) { return tcp_connect(host, port); }
 int send_tcp(int socket, string data) { return tcp_send(socket, data); }

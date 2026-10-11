@@ -1,3 +1,9 @@
+#ifdef __ANDROID__
+#include "foxlang/Android.h"
+#define FOXLANG_CHECK_CANCEL() do { if (!(++androidTicks & 1023u)) foxlang::android::checkpoint(); } while (0)
+#else
+#define FOXLANG_CHECK_CANCEL() ((void)0)
+#endif
 // Runs bytecode (Compiler.cpp). A FoxLang call is a native call of execute(), so the
 // native stack is what the call depth limit measures, as it always has. Registers live
 // on a stack of fixed chunks: a frame's registers never move while it runs, so the
@@ -893,6 +899,7 @@ FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key))
 #define OP(name) case Op::name: L_##name
 #define NEXT                                                     \
     do {                                                         \
+        FOXLANG_CHECK_CANCEL();                                  \
         in = ip++;                                               \
         goto *jump[static_cast<int>(in->op)];                    \
     } while (0)
@@ -905,6 +912,10 @@ FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key))
 Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugFrame* debug, Object* closure) {
     // The function running now. A call to a FoxLang function continues in this loop
     // with the callee's code and registers (see OP(Call)); `calls` keeps what to go back to.
+#ifdef __ANDROID__
+    unsigned androidTicks = 0;
+    android::checkpoint();
+#endif
     Proto* P = &entry;
     Context* S = &entryScope;
     for (const auto& constant : P->preload) R[constant.first] = P->constants[static_cast<size_t>(constant.second)];
@@ -1004,6 +1015,7 @@ Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugF
     for (;;) {
         try {
             for (;;) {
+                FOXLANG_CHECK_CANCEL();
                 in = ip++;
                 switch (in->op) {
                     OP(Move):

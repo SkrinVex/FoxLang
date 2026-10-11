@@ -307,7 +307,7 @@ void addNetworkBuiltins(std::vector<Builtin>& out) {
         [](Call& c) {
             for (const auto& part : http::parseMultipart(platform::serverState(c.ctx).request)) {
                 if (part.name != c.text(0) || part.filename.empty()) continue;
-                std::ofstream file(std::filesystem::u8path(c.text(1)), std::ios::binary | std::ios::trunc);
+                std::ofstream file(platform::pathFromUtf8(c.text(1)), std::ios::binary | std::ios::trunc);
                 if (!file) return boolean(false);
                 file << part.data;
                 file.close();

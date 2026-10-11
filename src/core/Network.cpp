@@ -1,4 +1,7 @@
 #include "foxlang/Platform.h"
+#ifdef __ANDROID__
+#include "foxlang/Android.h"
+#endif
 #include "foxlang/AST.h"
 #include "TlsServer.h"
 #include <algorithm>
@@ -365,11 +368,14 @@ void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shou
     address.sin_port = htons(static_cast<unsigned short>(port));
     if (bind(server.fd, reinterpret_cast<sockaddr*>(&address), sizeof(address))) throw std::runtime_error("HTTP Server Error: bind() failed on port " + std::to_string(port));
     if (listen(server.fd, 32)) throw std::runtime_error("HTTP Server Error: listen() failed");
-    std::cerr << (tls ? "[HTTPS] Listening on 0.0.0.0:" : "[HTTP] Listening on 0.0.0.0:") << port << std::endl;
+    writeOutput(std::string(tls ? "[HTTPS] Listening on 0.0.0.0:" : "[HTTP] Listening on 0.0.0.0:") + std::to_string(port) + "\n", true);
     ServerState& state = serverState(rootCtx);
     state.stopRequested = false;
     auto stopped = [&] { return (shouldStop && shouldStop()) || state.stopRequested; };
     while (!stopped()) {
+#ifdef __ANDROID__
+        android::checkpoint();
+#endif
         int ready = readable(server.fd);
         if (ready < 0 && interrupted()) continue;
         if (ready < 0) throw std::runtime_error("HTTP Server Error: select() failed");
@@ -402,9 +408,9 @@ void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shou
         respond(connection, reply, request.method == "HEAD");
         if (state.accessLog) {
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
-            std::cerr << "[HTTP] " << ip << ' ' << (request.method.empty() ? "-" : request.method) << ' '
-                      << (request.path.empty() ? "-" : request.path) << (request.query.empty() ? "" : "?" + request.query)
-                      << " -> " << reply.status << " (" << elapsed << " ms)" << std::endl;
+            writeOutput(std::string("[HTTP] ") + ip + ' ' + (request.method.empty() ? "-" : request.method) + ' ' +
+                        (request.path.empty() ? "-" : request.path) + (request.query.empty() ? "" : "?" + request.query) +
+                        " -> " + std::to_string(reply.status) + " (" + std::to_string(elapsed) + " ms)\n", true);
         }
     }
 }

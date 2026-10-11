@@ -8,6 +8,8 @@
 
 namespace foxlang {
 namespace platform {
+void writeOutput(const std::string& text, bool error = false);
+std::string readInput();
 
 // FoxLang keeps paths as UTF-8 text. Windows reads a narrow std::string as its ANSI
 // code page, which cannot hold Cyrillic, so every conversion goes through these.

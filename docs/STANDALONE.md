@@ -1,5 +1,9 @@
 # Standalone приложения
 
+Для **Android APK** есть отдельный [упаковщик с SDK/NDK](ANDROID.md).
+Описанная ниже команда `foxlang build` создаёт executable для настольной ОС.
+
+
 `foxlang build main.fox -o app` создаёт один исполняемый файл со встроенным
 FoxLang runtime, основной программой и её FoxLang-модулями. Получателю не нужны
 установленный FoxLang, исходники, компилятор, CMake или отдельный runtime.

@@ -1,5 +1,7 @@
 # Software rendering needs no OpenGL, GPU driver SDK or separate graphics runtime.
-if(WIN32)
+if(ANDROID)
+    # Window.cpp delegates drawing and input to the Android Host (View/JNI).
+elseif(WIN32)
     target_link_libraries(foxlang_core PRIVATE user32 gdi32)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(PkgConfig REQUIRED)
@@ -34,5 +36,5 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(foxlang_core PRIVATE PkgConfig::XCB)
     endif()
 else()
-    message(FATAL_ERROR "Native graphics currently supports Linux and Windows")
+    message(FATAL_ERROR "Native graphics currently supports Android, Linux and Windows")
 endif()

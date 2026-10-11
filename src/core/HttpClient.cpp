@@ -71,6 +71,7 @@ HttpResponse httpRequest(const std::string& method, const std::string& url,
         option(CURLOPT_CAINFO, ca.c_str());
 #endif
     } else {
+        ca = pathToUtf8(pathFromUtf8(ca));
         option(CURLOPT_CAINFO, ca.c_str());
     }
     std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> headers(nullptr, curl_slist_free_all);

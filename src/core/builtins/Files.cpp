@@ -2,6 +2,9 @@
 // a build script needs beyond reading and writing whole files.
 #include "Builtin.h"
 #include "foxlang/Platform.h"
+#ifdef __ANDROID__
+#include "foxlang/Android.h"
+#endif
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -70,6 +73,9 @@ int& lastExitCode() {
 }
 
 std::string homeDirectory() {
+#ifdef __ANDROID__
+    if (android::current()) return android::host().directory();
+#endif
     const char* home = std::getenv("HOME");
     if (!home || !*home) home = std::getenv("USERPROFILE");
     if (home && *home) return home;
@@ -208,6 +214,13 @@ void addFileBuiltins(std::vector<Builtin>& out) {
     add({"fs_temp_dir", "string", {}, 0, false, "fs", "Каталог для временных файлов."},
         [](Call&) {
             std::error_code ec;
+#ifdef __ANDROID__
+            if (android::current()) {
+                auto temporary = pathOf(".foxlang-tmp");
+                fs::create_directories(temporary, ec);
+                return text(ec ? "" : textOf(temporary));
+            }
+#endif
             return text(textOf(fs::temp_directory_path(ec)));
         });
 
@@ -215,27 +228,27 @@ void addFileBuiltins(std::vector<Builtin>& out) {
          "Соединяет части пути разделителем ОС: `path_join(\"/home/lis\", \"notes.txt\")`. Абсолютный `name` заменяет `base`."},
         [](Call& c) {
             if (c.text(0).empty()) return text(c.text(1));
-            return text(textOf(pathOf(c.text(0)) / pathOf(c.text(1))));
+            return text(textOf(fs::u8path(c.text(0)) / fs::u8path(c.text(1))));
         });
     add({"path_parent", "string", {{"string", "path"}}, 1, false, "fs",
          "Каталог, в котором находится путь: `/home/lis/a.txt` → `/home/lis`; у корня родитель — он сам."},
         [](Call& c) {
-            auto path = pathOf(c.text(0));
+            auto path = fs::u8path(c.text(0));
             if (path.has_relative_path() && !path.has_filename()) path = path.parent_path(); // "dir/" -> "dir"
             auto parent = path.parent_path();
             return text(textOf(parent.empty() ? path.root_path() : parent));
         });
     add({"path_name", "string", {{"string", "path"}}, 1, false, "fs", "Последняя часть пути: имя файла или каталога."},
         [](Call& c) {
-            auto path = pathOf(c.text(0));
+            auto path = fs::u8path(c.text(0));
             if (path.has_relative_path() && !path.has_filename()) path = path.parent_path();
             return text(textOf(path.filename()));
         });
     add({"path_stem", "string", {{"string", "path"}}, 1, false, "fs", "Имя файла без расширения: `archive.tar.gz` → `archive.tar`."},
-        [](Call& c) { return text(textOf(pathOf(c.text(0)).stem())); });
+        [](Call& c) { return text(textOf(fs::u8path(c.text(0)).stem())); });
     add({"path_extension", "string", {{"string", "path"}}, 1, false, "fs",
          "Расширение с точкой (`.gz`) или пустая строка. Файл вида `.env` расширения не имеет."},
-        [](Call& c) { return text(textOf(pathOf(c.text(0)).extension())); });
+        [](Call& c) { return text(textOf(fs::u8path(c.text(0)).extension())); });
     add({"path_absolute", "string", {{"string", "path"}}, 1, false, "fs",
          "Полный путь без `.` и `..`, отсчитанный от рабочего каталога."},
         [](Call& c) {

@@ -12,7 +12,9 @@
 #include <mutex>
 #include <vector>
 
-#ifdef _WIN32
+#ifdef __ANDROID__
+#include "foxlang/Android.h"
+#elif defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -60,7 +62,15 @@ std::vector<uint8_t> toneWav(double frequency, long long milliseconds, double vo
     return wav;
 }
 
-#ifdef _WIN32
+#ifdef __ANDROID__
+bool playFile(const std::string& path) {
+    std::ifstream file(platform::pathFromUtf8(path), std::ios::binary);
+    std::vector<uint8_t> wav((std::istreambuf_iterator<char>(file)), {});
+    return android::host().playWav(wav);
+}
+bool playTone(std::vector<uint8_t> wav) { return android::host().playWav(wav); }
+void stopAll() { android::host().stopSound(); }
+#elif defined(_WIN32)
 
 std::mutex playing;
 std::vector<uint8_t> toneBuffer; // PlaySound reads a memory sound while it plays

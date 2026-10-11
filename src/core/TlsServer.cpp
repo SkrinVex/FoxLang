@@ -1,4 +1,5 @@
 #include "TlsServer.h"
+#include "foxlang/Platform.h"
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
@@ -51,8 +52,10 @@ TlsServer::TlsServer(const std::string& certificate, const std::string& privateK
     const unsigned char personalization[] = "FoxLang HTTPS server";
     checked(mbedtls_ctr_drbg_seed(&state->random, mbedtls_entropy_func, &state->entropy,
                                 personalization, sizeof(personalization) - 1), "initialize random generator");
-    checked(mbedtls_x509_crt_parse_file(&state->certificate, certificate.c_str()), "load certificate");
-    checked(mbedtls_pk_parse_keyfile(&state->key, privateKey.c_str(), nullptr,
+    const auto certificatePath = pathToUtf8(pathFromUtf8(certificate));
+    const auto keyPath = pathToUtf8(pathFromUtf8(privateKey));
+    checked(mbedtls_x509_crt_parse_file(&state->certificate, certificatePath.c_str()), "load certificate");
+    checked(mbedtls_pk_parse_keyfile(&state->key, keyPath.c_str(), nullptr,
                                     mbedtls_ctr_drbg_random, &state->random), "load private key");
     checked(mbedtls_pk_check_pair(&state->certificate.pk, &state->key,
                                  mbedtls_ctr_drbg_random, &state->random), "certificate/private key mismatch");

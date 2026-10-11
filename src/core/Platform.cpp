@@ -1,5 +1,8 @@
 #include "foxlang/Platform.h"
 #include <iostream>
+#ifdef __ANDROID__
+#include "foxlang/Android.h"
+#endif
 #include <cstdlib>
 
 #ifdef _WIN32
@@ -34,11 +37,31 @@ EM_JS(void, fox_pause, (double milliseconds), {
 namespace foxlang {
 namespace platform {
 
+void writeOutput(const std::string& text, bool error) {
+#ifdef __ANDROID__
+    if (android::current()) { android::host().output(text, error); return; }
+#endif
+    (error ? std::cerr : std::cout) << text << std::flush;
+}
+std::string readInput() {
+#ifdef __ANDROID__
+    if (android::current()) return android::host().input();
+#endif
+    std::string line;
+    if (!std::getline(std::cin, line)) return "";
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    return line;
+}
+
 std::filesystem::path pathFromUtf8(const std::string& text) {
 #ifdef _WIN32
     return std::filesystem::u8path(text);
 #else
-    return std::filesystem::path(text);
+    auto path = std::filesystem::path(text);
+#ifdef __ANDROID__
+    if (path.is_relative() && android::current()) return std::filesystem::path(android::host().directory()) / path;
+#endif
+    return path;
 #endif
 }
 
@@ -57,6 +80,9 @@ std::string pathToUtf8(const std::filesystem::path& path) {
 // for the unwinding and for the error report itself.
 
 void pause(long long milliseconds) {
+#ifdef __ANDROID__
+    if (android::current()) { android::host().pause(milliseconds); return; }
+#endif
 #ifdef __EMSCRIPTEN__
     fox_pause(static_cast<double>(milliseconds));
 #else
