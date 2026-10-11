@@ -1,0 +1,46 @@
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'packaging/windows/**'
+      - '.github/workflows/windows-installer.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'packaging/windows/**'
+      - '.github/workflows/windows-installer.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-installer-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  released-package:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply installer fixes to the latest published Windows package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo '${{ github.repository }}' --pattern '*-windows-x86_64.zip' --dir downloaded
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the released Windows package.' }
+          $Archives = @(Get-ChildItem downloaded -Filter '*.zip')
+          if ($Archives.Count -ne 1) { throw 'Expected one released Windows archive.' }
+          Expand-Archive -LiteralPath $Archives[0].FullName -DestinationPath dist
+          foreach ($Name in @('install.cmd', 'install.ps1', 'uninstall.cmd', 'uninstall.ps1')) {
+            Copy-Item -LiteralPath (Join-Path packaging/windows $Name) -Destination dist -Force
+          }
+      - name: Test repaired package with Windows PowerShell 5.1 and CMD
+        shell: powershell
+        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist
+      - name: Test repaired package with PowerShell 7
+        shell: pwsh
+        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist -Direct
