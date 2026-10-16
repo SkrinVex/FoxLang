@@ -1,9 +1,9 @@
-// Runs one FoxLang program in WebAssembly. The page keeps a worker loaded ahead of
+// Runs one Skrumi program in WebAssembly. The page keeps a worker loaded ahead of
 // time, uses it for one run and ends it when time runs out or the run is over, so
 // nothing here has to stop a program or clean up after one.
 // "worker.js?graphics" loads the build that can show a window (see CMakeLists.txt).
 const graphics = self.location.search === "?graphics";
-importScripts(graphics ? "foxlang-graphics.js" : "foxlang.js");
+importScripts(graphics ? "skrumi-graphics.js" : "skrumi.js");
 
 let pending = "";
 let pendingStream = "out";
@@ -142,7 +142,7 @@ loading.then((module) => {
 });
 
 // The program's files, in one directory that is also the working directory: error
-// messages then name "main.fox", and `using name;` finds "name.fox" next to it.
+// messages then name "main.skm", and `using name;` finds "name.skm" next to it.
 const ROOT = "/project";
 function writeFiles(module, files) {
   const FS = module.FS;

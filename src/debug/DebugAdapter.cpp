@@ -315,7 +315,7 @@ void Session::handle(const JsonValue& request) {
         launched_ = true;
         wake_.notify_all();
     } else if (command == "attach") {
-        respond(request, JsonValue(), "FoxLang запускает программу сам: используйте request \"launch\"");
+        respond(request, JsonValue(), "Skrumi запускает программу сам: используйте request \"launch\"");
     } else if (command == "setBreakpoints") {
         setBreakpoints(request);
     } else if (command == "setExceptionBreakpoints") {
@@ -335,7 +335,7 @@ void Session::handle(const JsonValue& request) {
         configured_ = true;
         wake_.notify_all();
     } else if (command == "threads") {
-        respond(request, Fields{{"threads", std::vector<JsonValue>{Fields{{"id", 1}, {"name", "FoxLang"}}}}});
+        respond(request, Fields{{"threads", std::vector<JsonValue>{Fields{{"id", 1}, {"name", "Skrumi"}}}}});
     } else if (command == "pause") {
         pauseRequested_ = true;
         respond(request);
@@ -505,9 +505,9 @@ int Session::serve() {
 
     if (!result.errorMessage.empty()) {
         if (standardStreams_) {
-            sendOutput("FoxLang: " + result.errorMessage + "\n", "stderr");
+            sendOutput("Skrumi: " + result.errorMessage + "\n", "stderr");
         } else {
-            std::cerr << "FoxLang: " << result.errorMessage << std::endl;
+            std::cerr << "Skrumi: " << result.errorMessage << std::endl;
         }
     }
     // Output captured from the program may still be on its way to the editor.
@@ -948,7 +948,7 @@ int runAdapter(const std::vector<std::string>& options) {
         if (options[i] == "--connect" && i + 1 < options.size()) {
             target = options[++i];
         } else {
-            throw std::runtime_error("Usage: foxlang debug-adapter [--connect host:port]");
+            throw std::runtime_error("Usage: skrumi debug-adapter [--connect host:port]");
         }
     }
     Session session(target.empty());

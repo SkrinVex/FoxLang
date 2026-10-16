@@ -1,6 +1,7 @@
 // foxlang fmt, foxlang test and foxlang disasm: source layout, the built-in test runner
 // and the bytecode listing.
 #include "Tools.h"
+#include "foxlang/SourceProvider.h"
 #include "foxlang/FoxLang.h"
 #include "foxlang/Formatter.h"
 #include "foxlang/Bytecode.h"
@@ -46,7 +47,7 @@ std::vector<fs::path> sourceFiles(const std::vector<std::string>& arguments, boo
                     it.disable_recursion_pending();
                 continue;
             }
-            if (it->path().extension() == ".fox" && wanted(it->path())) files.push_back(it->path());
+            if (isSourceFile(platform::pathToUtf8(it->path())) && wanted(it->path())) files.push_back(it->path());
         }
     }
     std::sort(files.begin(), files.end());
@@ -80,7 +81,7 @@ int format(const std::vector<std::string>& arguments) {
     std::vector<std::string> paths;
     for (const auto& argument : arguments) {
         if (argument == "--check") check = true;
-        else if (!argument.empty() && argument[0] == '-') throw std::runtime_error("Usage: foxlang fmt [--check] [files or directories...]");
+        else if (!argument.empty() && argument[0] == '-') throw std::runtime_error("Usage: skrumi fmt [--check] [files or directories...]");
         else paths.push_back(argument);
     }
     int changed = 0;
@@ -108,7 +109,7 @@ int test(const std::vector<std::string>& arguments) {
     std::vector<std::string> paths;
     for (size_t i = 0; i < arguments.size(); ++i) {
         if (arguments[i] == "--filter" && i + 1 < arguments.size()) filter = arguments[++i];
-        else if (!arguments[i].empty() && arguments[i][0] == '-') throw std::runtime_error("Usage: foxlang test [--filter text] [files or directories...]");
+        else if (!arguments[i].empty() && arguments[i][0] == '-') throw std::runtime_error("Usage: skrumi test [--filter text] [files or directories...]");
         else paths.push_back(arguments[i]);
     }
     int passed = 0, failed = 0;
@@ -190,7 +191,7 @@ void collectFunctions(Node* node, std::vector<FuncDefNode*>& out) {
 } // namespace
 
 int disassemble(const std::vector<std::string>& arguments) {
-    if (arguments.size() != 1) throw std::runtime_error("Usage: foxlang disasm <file.fox>");
+    if (arguments.size() != 1) throw std::runtime_error("Usage: skrumi disasm <file.fox>");
     fs::path path = platform::pathFromUtf8(arguments[0]);
     Lexer lexer(readText(path));
     Parser parser(lexer.tokenize(), arguments[0]);

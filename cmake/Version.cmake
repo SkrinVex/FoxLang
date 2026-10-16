@@ -1,4 +1,4 @@
-# VERSION is the only file that holds the FoxLang version. Everything else is derived:
+# VERSION is the only file that holds the Skrumi version. Everything else is derived:
 # the binaries receive it as FOXLANG_VERSION, and the editor manifests below, which
 # must carry a literal version, are rewritten from it on every CMake configure.
 #
@@ -33,7 +33,7 @@ function(foxlang_stamp_version relative pattern)
     set(new "${before_text}${FOXLANG_VERSION}${after_text}")
     if(NOT new STREQUAL old)
         file(WRITE "${path}" "${new}")
-        message(STATUS "FoxLang ${FOXLANG_VERSION}: updated ${relative}")
+        message(STATUS "Skrumi ${FOXLANG_VERSION}: updated ${relative}")
     endif()
 endfunction()
 

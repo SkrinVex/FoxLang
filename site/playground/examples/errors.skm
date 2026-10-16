@@ -1,0 +1,24 @@
+// Ошибки можно перехватить: try / catch / finally.
+int divide(int a, int b) {
+    if (b == 0) {
+        throw "делить на ноль нельзя";
+    }
+    return a / b;
+}
+
+try {
+    print(divide(10, 2));
+    print(divide(1, 0));
+} catch (string message) {
+    print("Поймали ошибку: " + message);
+} finally {
+    print("finally выполняется всегда");
+}
+
+// Ошибки самого языка тоже ловятся.
+try {
+    array items = [1, 2, 3];
+    print(items[10]);
+} catch (string message) {
+    print("Поймали: " + message);
+}

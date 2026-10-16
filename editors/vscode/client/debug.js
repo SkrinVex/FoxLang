@@ -1,4 +1,4 @@
-// Debugging FoxLang programs: F5, the Run and Debug view, breakpoints in .fox files.
+// Debugging Skrumi programs: F5, the Run and Debug view, breakpoints in .fox files.
 // The program runs in a terminal of its own, so input(), colours and graphics work as
 // in a normal run, and talks the Debug Adapter Protocol to VS Code over a local
 // connection that this adapter relays.
@@ -25,13 +25,13 @@ class ProgramAdapter {
 
     listen() {
         this.server = net.createServer(socket => this.connected(socket));
-        this.server.on('error', error => this.fail('Отладчик FoxLang не смог открыть порт: ' + error.message));
+        this.server.on('error', error => this.fail('Отладчик Skrumi не смог открыть порт: ' + error.message));
         this.server.listen(0, '127.0.0.1', () => {
             const config = this.configuration;
             // One debug terminal at a time: the previous run's output is no longer needed.
             if (terminal) terminal.dispose();
             terminal = vscode.window.createTerminal({
-                name: `FoxLang: отладка ${path.basename(config.program)}`,
+                name: `Skrumi: отладка ${path.basename(config.program)}`,
                 shellPath: run.resolveExecutable(),
                 shellArgs: ['debug-adapter', '--connect', `127.0.0.1:${this.server.address().port}`],
                 cwd: config.cwd,
@@ -40,7 +40,7 @@ class ProgramAdapter {
             terminal.show(true);
             this.timer = setTimeout(() => {
                 if (!this.socket) {
-                    this.fail('FoxLang не подключился к отладчику. Проверьте настройку foxlang.run.executablePath: нужен FoxLang 6.4 или новее.');
+                    this.fail('Skrumi не подключился к отладчику. Проверьте настройку foxlang.run.executablePath: нужен Skrumi 6.4 или новее.');
                 }
             }, CONNECT_TIMEOUT_MS);
         });
@@ -125,15 +125,15 @@ class ProgramAdapter {
 // F5 without launch.json debugs the main file (foxlang.run.entryFile) or the open one.
 const configurationProvider = {
     provideDebugConfigurations() {
-        return [{ type: DEBUG_TYPE, request: 'launch', name: 'FoxLang: текущий файл', program: '${file}' }];
+        return [{ type: DEBUG_TYPE, request: 'launch', name: 'Skrumi: текущий файл', program: '${file}' }];
     },
     resolveDebugConfiguration(folder, config) {
         if (!config.type && !config.request && !config.name) {
-            config = { type: DEBUG_TYPE, request: 'launch', name: 'FoxLang: отладка' };
+            config = { type: DEBUG_TYPE, request: 'launch', name: 'Skrumi: отладка' };
         }
         if (!config.program) config.program = run.entryFile();
         if (!config.program) {
-            vscode.window.showWarningMessage('Откройте файл .fox или укажите главный файл командой «FoxLang: сделать этот файл главным».');
+            vscode.window.showWarningMessage('Откройте файл .skm или .fox или укажите главный файл командой «Skrumi: сделать этот файл главным».');
             return undefined;
         }
         if (!path.isAbsolute(config.program) && folder) config.program = path.join(folder.uri.fsPath, config.program);
@@ -146,11 +146,11 @@ const configurationProvider = {
 async function startDebugging() {
     const program = run.entryFile();
     if (!program) {
-        vscode.window.showWarningMessage('Откройте файл .fox или укажите главный файл командой «FoxLang: сделать этот файл главным».');
+        vscode.window.showWarningMessage('Откройте файл .skm или .fox или укажите главный файл командой «Skrumi: сделать этот файл главным».');
         return;
     }
     const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(program));
-    await vscode.debug.startDebugging(folder, { type: DEBUG_TYPE, request: 'launch', name: `FoxLang: отладка ${path.basename(program)}`, program });
+    await vscode.debug.startDebugging(folder, { type: DEBUG_TYPE, request: 'launch', name: `Skrumi: отладка ${path.basename(program)}`, program });
 }
 
 function activate(context) {

@@ -4,9 +4,9 @@ use zed_extension_api::{
     StartDebuggingRequestArgumentsRequest, Worktree,
 };
 
-struct FoxLangExtension;
+struct SkrumiExtension;
 
-impl zed::Extension for FoxLangExtension {
+impl zed::Extension for SkrumiExtension {
     fn new() -> Self {
         Self
     }
@@ -17,8 +17,8 @@ impl zed::Extension for FoxLangExtension {
         worktree: &Worktree,
     ) -> Result<Command> {
         let path = worktree
-            .which("foxlang-lsp")
-            .ok_or_else(|| "foxlang-lsp executable not found in PATH. Please install FoxLang or ensure foxlang-lsp is in your PATH.".to_string())?;
+            .which("skrumi-lsp").or_else(|| worktree.which("foxlang-lsp"))
+            .ok_or_else(|| "foxlang-lsp executable not found in PATH. Please install Skrumi or ensure foxlang-lsp is in your PATH.".to_string())?;
 
         Ok(Command {
             command: path,
@@ -39,11 +39,11 @@ impl zed::Extension for FoxLangExtension {
         let command = match user_provided_debug_adapter_path {
             Some(path) => path,
             None => worktree
-                .which("foxlang")
-                .ok_or_else(|| "foxlang executable not found in PATH. Please install FoxLang 6.4 or newer.".to_string())?,
+                .which("skrumi").or_else(|| worktree.which("foxlang"))
+                .ok_or_else(|| "foxlang executable not found in PATH. Please install Skrumi 6.4 or newer.".to_string())?,
         };
         let parsed: serde_json::Value = serde_json::from_str(&config.config)
-            .map_err(|error| format!("Invalid FoxLang debug configuration: {error}"))?;
+            .map_err(|error| format!("Invalid Skrumi debug configuration: {error}"))?;
         let request = self.dap_request_kind(adapter_name, parsed)?;
         Ok(DebugAdapterBinary {
             command: Some(command),
@@ -65,8 +65,8 @@ impl zed::Extension for FoxLangExtension {
     ) -> Result<StartDebuggingRequestArgumentsRequest, String> {
         match config.get("request").and_then(|value| value.as_str()) {
             Some("launch") => Ok(StartDebuggingRequestArgumentsRequest::Launch),
-            Some("attach") => Err("FoxLang starts the program itself: use \"request\": \"launch\"".to_string()),
-            _ => Err("FoxLang debug configuration needs \"request\": \"launch\"".to_string()),
+            Some("attach") => Err("Skrumi starts the program itself: use \"request\": \"launch\"".to_string()),
+            _ => Err("Skrumi debug configuration needs \"request\": \"launch\"".to_string()),
         }
     }
 
@@ -90,9 +90,9 @@ impl zed::Extension for FoxLangExtension {
                     tcp_connection: None,
                 })
             }
-            DebugRequest::Attach(_) => Err("FoxLang starts the program itself: attaching is not supported".to_string()),
+            DebugRequest::Attach(_) => Err("Skrumi starts the program itself: attaching is not supported".to_string()),
         }
     }
 }
 
-zed::register_extension!(FoxLangExtension);
+zed::register_extension!(SkrumiExtension);

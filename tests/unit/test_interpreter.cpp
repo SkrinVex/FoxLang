@@ -1,4 +1,6 @@
-#include "foxlang/FoxLang.h"
+#include "skrumi/Skrumi.h"
+#include <type_traits>
+static_assert(std::is_same<skrumi::Interpreter, foxlang::Interpreter>::value, "C++ compatibility facade");
 #include <iostream>
 #include <cassert>
 

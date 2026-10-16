@@ -80,7 +80,7 @@ std::string encode(unsigned cp) {
     return out;
 }
 
-// Latin and Cyrillic letters, the alphabets FoxLang programs are written in.
+// Latin and Cyrillic letters, the alphabets Skrumi programs are written in.
 std::string changeCase(const std::string& text, bool upper) {
     std::string out;
     out.reserve(text.size());
@@ -108,7 +108,7 @@ std::string scalarText(const Value& value, const std::string& what) {
 
 constexpr size_t maxText = size_t{64} * 1024 * 1024;
 
-// A FoxLang value as JSON, appended to out: numbers and bools as literals, strings
+// A Skrumi value as JSON, appended to out: numbers and bools as literals, strings
 // quoted, arrays as JSON arrays, maps and structs as objects.
 void appendJson(std::string& out, const Value& value, int depth = 0) {
     if (value.isString()) {
@@ -312,7 +312,7 @@ void addTextBuiltins(std::vector<Builtin>& out) {
          "Тип значения по пути: `object`, `array`, `string`, `number`, `bool`, `null` или пустая строка, если пути нет."},
         [](Call& c) { return text(jsonType(c.text(0), c.text(1))); });
     add({"json_value", "string", {{"any", "value"}}, 1, false, "",
-         "Значение FoxLang в виде JSON: числа и `bool` как есть, `null` как `null`, строка в кавычках с экранированием, "
+         "Значение Skrumi в виде JSON: числа и `bool` как есть, `null` как `null`, строка в кавычках с экранированием, "
          "массив — JSON-массив, словарь и структура — JSON-объект.\n\n```foxlang\njson_value([1, \"лис\", true]) // [1,\"лис\",true]\n```"},
         [](Call& c) { return text(toJson(c.at(0))); });
     add({"json_decode", "any", {{"string", "json"}}, 1, false, "",

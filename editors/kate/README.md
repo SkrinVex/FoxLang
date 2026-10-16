@@ -1,19 +1,19 @@
-# FoxLang для текстового редактора Kate (KDE)
+# Skrumi для текстового редактора Kate (KDE)
 
-Интеграция языка FoxLang с редактором Kate: подсветка синтаксиса и полная поддержка Language Server Protocol (LSP).
+Интеграция языка Skrumi с редактором Kate: подсветка синтаксиса и полная поддержка Language Server Protocol (LSP).
 
 Файлы конфигурации в этом каталоге:
 * [`foxlang.xml`](foxlang.xml) — XML-схема подсветки синтаксиса (KSyntaxHighlighting).
 * [`settings.json`](settings.json) — готовый фрагмент конфигурации для плагина LSP Client.
-* [`externaltools/`](externaltools/) — внешние инструменты «FoxLang: запустить», «проверить» и «собрать приложение».
-* [`dap.json`](dap.json) — настройки плагина «Отладчик» для `foxlang debug-adapter`.
+* [`externaltools/`](externaltools/) — внешние инструменты «Skrumi: запустить», «проверить» и «собрать приложение».
+* [`dap.json`](dap.json) — настройки плагина «Отладчик» для `skrumi debug-adapter`.
 
-> **💡 Быстрая установка**: Скрипт `install.sh` из дистрибутива FoxLang автоматически устанавливает подсветку синтаксиса и регистрирует LSP для Kate!
+> **💡 Быстрая установка**: Скрипт `install.sh` из дистрибутива Skrumi автоматически устанавливает подсветку синтаксиса и регистрирует LSP для Kate!
 
 ## Запуск, проверка и сборка
 
 Инструменты из [`externaltools/`](externaltools/) появляются в меню **Сервис → Внешние
-инструменты → FoxLang**. Они сохраняют все документы, запускают `foxlang` в папке
+инструменты → Skrumi**. Они сохраняют все документы, запускают `skrumi` в папке
 текущего файла и показывают вывод в нижней панели. `install.sh` устанавливает их сам;
 вручную:
 
@@ -29,7 +29,7 @@ cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
 
 Включите плагин **Отладчик** (Настройка → Настроить Kate → Модули) и положите
 [`dap.json`](dap.json) в `~/.config/kate/debugger/dap.json` — `install.sh` делает это
-сам, если файла ещё нет; иначе добавьте секцию `foxlang` в свой файл:
+сам, если файла ещё нет; иначе добавьте секцию `skrumi` в свой файл:
 
 ```bash
 mkdir -p ~/.config/kate/debugger
@@ -55,11 +55,11 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 
 Файл также доступен для прямой загрузки со страницы релизов: [`foxlang.xml`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.xml).
 
-После этого файлы с расширением `.fox` будут автоматически распознаваться с подсветкой синтаксиса FoxLang (ключевые слова, типы, строки, числа, встроенные функции stdlib).
+После этого файлы с расширением `.skm` будут автоматически распознаваться с подсветкой синтаксиса Skrumi (ключевые слова, типы, строки, числа, встроенные функции stdlib).
 
 ---
 
-## 2. Подключение Language Server (`foxlang-lsp`) в Kate
+## 2. Подключение Language Server (`skrumi-lsp`) в Kate
 
 В Kate встроен мощный LSP-клиент (плагин **LSP Client** / **Клиент LSP**).
 
@@ -68,13 +68,13 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 2. Перейдите в **Settings** -> **Configure Kate...** -> вкладка **Plugins** (Плагины).
 3. Установите галочку напротив **LSP Client** (Клиент LSP) и нажмите **Apply**.
 
-### Шаг 2. Добавление конфигурации `foxlang-lsp`
+### Шаг 2. Добавление конфигурации `skrumi-lsp`
 1. Перейдите в **Settings** -> **Configure Kate...** -> раздел **LSP Client** -> вкладка **User Server Settings** (Пользовательские настройки сервера).
 2. Либо отредактируйте файл конфигурации напрямую:
    ```bash
    mkdir -p ~/.config/kate/lspclient
    ```
-   Добавьте сервер `foxlang` в `~/.config/kate/lspclient/settings.json`:
+   Добавьте сервер `skrumi` в `~/.config/kate/lspclient/settings.json`:
    ```json
    {
        "servers": {
@@ -82,12 +82,12 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
                "command": ["foxlang-lsp"],
                "root": "",
                "url": "https://github.com/SkrinVex/FoxLang",
-               "highlightingModeRegex": "^FoxLang$"
+               "highlightingModeRegex": "^Skrumi$"
            }
        }
    }
    ```
-   *Примечание: Если бинарник `foxlang-lsp` ещё не добавлен в системный `PATH`, укажите абсолютный путь к нему, например: `["/home/user/FoxLang/build/foxlang-lsp"]`.*
+   *Примечание: Если бинарник `skrumi-lsp` ещё не добавлен в системный `PATH`, укажите абсолютный путь к нему, например: `["/home/user/Skrumi/build/skrumi-lsp"]`.*
 
 3. Нажмите **Apply** / Сохранить.
 
@@ -95,7 +95,7 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 
 ## 3. Доступные возможности в Kate
 
-После настройки при открытии любого `.fox` файла в нижней строке состояния появится значок активного LSP-сервера `foxlang-lsp`:
+После настройки при открытии любого `.skm` файла в нижней строке состояния появится значок активного LSP-сервера `skrumi-lsp`:
 * **Ошибки и предупреждения (Diagnostics)**: подчёркивание ошибок в реальном времени, всплывающие подсказки и вкладка **Diagnostics** в нижней панели Kate.
 * **Автодополнение (Auto-completion)**: список ключевых слов, функций и переменных при наборе.
 * **Подсказки при наведении (Hover)**: всплывающее окно с сигнатурой функции или типом переменной.

@@ -24,7 +24,7 @@ private:
     std::map<std::string, std::string> buffers; // canonical path -> text
 };
 
-// The files that run together with a file. FoxLang has one global namespace per
+// The files that run together with a file. Skrumi has one global namespace per
 // program, so utils.fox may call a function that render.fox defines when main.fox
 // includes both. Such files are connected through include/using in either direction;
 // the index finds that group among the .fox files under a root directory.

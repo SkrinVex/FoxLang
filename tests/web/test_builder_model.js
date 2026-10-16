@@ -88,20 +88,27 @@ const removed = custom.elements.pop();
 const added = M.add(custom, "button");
 assert.notEqual(added.id, removed.id);
 added.layouts.desktop.x += 25;
-assert.equal(M.files(custom)["main.fox"], originalMain);
+assert.equal(M.files(custom)["main.skm"], originalMain);
 assert.equal(M.validate(JSON.parse(JSON.stringify(custom))).main, originalMain);
-assert.equal(M.files(custom, "mobile")["main.fox"], originalMain);
-assert(M.files(custom)["layout.fox"].includes('clicked = "' + added.id + '"'));
+assert.equal(M.files(custom, "mobile")["main.skm"], originalMain);
+assert(M.files(custom)["layout.skm"].includes('clicked = "' + added.id + '"'));
 assert.throws(() => M.validate({ ...custom, main: 42 }));
 assert.throws(() => M.validate({ ...custom, main: "x".repeat(100001) }));
 assert.throws(() => M.validate({ ...custom, nextId: 1 }));
 
 assert.equal(
-  M.files({ ...custom, main: "" })["main.fox"],
+  M.files({ ...custom, main: "" })["main.skm"],
   "",
   "empty user source is not replaced by a template",
 );
 assert.equal(
-  M.files({ ...custom, main: "unfinished syntax {\r\n" })["main.fox"],
+  M.files({ ...custom, main: "unfinished syntax {\r\n" })["main.skm"],
   "unfinished syntax {\r\n",
 );
+
+const oldProject = M.template();
+oldProject.main = 'include("layout.fox"); print("legacy");';
+assert.equal(M.files(oldProject)["main.fox"], oldProject.main);
+assert(M.files(oldProject)["layout.fox"]);
+
+assert(Object.keys(M.files(M.template())).every(name => name.endsWith('.skm')));

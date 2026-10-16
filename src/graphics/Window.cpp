@@ -1,4 +1,5 @@
 #include "Graphics.h"
+#include "foxlang/Platform.h"
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -371,7 +372,7 @@ struct Window::Native {
     }
     void open(const std::string& title) {
         if (!fox_canvas_open(owner.surface().width(), owner.surface().height(), title.c_str()))
-            fail("windows are not available here; run the program with foxlang on a computer");
+            fail("windows are not available here; run the program with skrumi on a computer");
         shown = &owner;
         owner.focusEvent(true);
         present();
@@ -502,7 +503,7 @@ struct Window::Native {
     }
     void attachShm(size_t bytes) {
         detachShm();
-        if (const char* off = std::getenv("FOXLANG_X11_SHM"); off && std::string(off) == "0") return;
+        if (platform::configEnv("FOXLANG_X11_SHM") == "0") return;
         const auto* extension = xcb_get_extension_data(connection, &shmExtension());
         if (!extension || !extension->present) return;
         int id = shmget(IPC_PRIVATE, bytes, IPC_CREAT | 0600);

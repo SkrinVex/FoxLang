@@ -1,4 +1,4 @@
-# Измерение графики FoxLang на Android
+# Измерение графики Skrumi на Android
 
 Raycaster рисует программно в C++ и передаёт полный кадр в `FoxView`. Путь кадра:
 RGB-буфер → преобразование в ARGB и Java `int[]` через JNI → `Bitmap.setPixels()`

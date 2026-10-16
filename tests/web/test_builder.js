@@ -223,7 +223,7 @@ const runtime = process.argv.includes("--runtime");
       await page.locator("#redo").click();
       await page.locator("[data-tab=code]").click();
       assert.equal(await page.locator("#code").inputValue(), customMain);
-      await page.locator("#code-file").selectOption("layout.fox");
+      await page.locator("#code-file").selectOption("layout.skm");
       assert.notEqual(
         await page.locator("#code").getAttribute("readonly"),
         null,
@@ -262,7 +262,7 @@ const runtime = process.argv.includes("--runtime");
       const shared = JSON.parse(
         Buffer.from(share.hash.slice(7), "base64url").toString("utf8"),
       );
-      assert.deepEqual(shared, { "main.fox": customMain, "layout.fox": code });
+      assert.deepEqual(shared, { "main.skm": customMain, "layout.skm": code });
       await page.locator("#file").setInputFiles({
         name: "bad.json",
         mimeType: "application/json",
@@ -277,7 +277,7 @@ const runtime = process.argv.includes("--runtime");
       await page.reload();
       await page.locator("[data-tab=code]").click();
       assert.equal(await page.locator("#code").inputValue(), customMain);
-      await page.locator("#code-file").selectOption("layout.fox");
+      await page.locator("#code-file").selectOption("layout.skm");
       await page.locator("[data-mode=mobile]").click();
       assert.equal(
         await page.locator("#code").inputValue(),
@@ -332,14 +332,14 @@ const runtime = process.argv.includes("--runtime");
               () =>
                 window.workerRuns
                   .at(-1)
-                  .files.find((f) => f.name === "layout.fox").text,
+                  .files.find((f) => f.name === "layout.skm").text,
             )
           ).includes("using ui;"),
         );
         assert.equal(
           await iframe.evaluate(
             () =>
-              window.workerRuns.at(-1).files.find((f) => f.name === "main.fox")
+              window.workerRuns.at(-1).files.find((f) => f.name === "main.skm")
                 .text,
           ),
           customMain,
@@ -351,7 +351,7 @@ const runtime = process.argv.includes("--runtime");
               origin: "https://other.invalid",
               data: {
                 type: "foxlang-builder-run",
-                files: { "main.fox": "print(123);", "layout.fox": "" },
+                files: { "main.skm": "print(123);", "layout.skm": "" },
               },
             }),
           ),

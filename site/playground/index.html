@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Песочница FoxLang</title>
-<meta name="description" content="Попробуйте язык FoxLang прямо в браузере: без установки, программа выполняется на вашем компьютере.">
+<title>Песочница Skrumi</title>
+<meta name="description" content="Попробуйте язык Skrumi прямо в браузере: без установки, программа выполняется на вашем компьютере.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -527,7 +527,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
 </head>
 <body>
 <header class="bar">
-  <a class="brand" href="../"><b>FoxLang</b><span>песочница</span></a>
+  <a class="brand" href="../"><b>Skrumi</b><span>песочница</span></a>
   <select id="examples" aria-label="Пример программы">
     <option value="">Примеры…</option>
     <option value="hello">Привет и циклы</option>
@@ -577,7 +577,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
   </section>
 
   <section class="pane" id="output-pane" aria-label="Результат">
-    <div class="pane-head"><span class="title">Вывод</span><span class="status" id="status">Загрузка FoxLang…</span></div>
+    <div class="pane-head"><span class="title">Вывод</span><span class="status" id="status">Загрузка Skrumi…</span></div>
     <div class="screen" id="screen" hidden></div>
     <pre class="output" id="output" aria-live="polite"></pre>
     <details class="stdin" id="stdin-box">
@@ -589,7 +589,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
 
 <footer>
   Программа выполняется в вашем браузере, на сервер ничего не отправляется. Запускается
-  <code>main.fox</code>, остальные файлы подключаются через <code>using</code> и <code>include</code>.
+  <code>main.skm</code>, остальные файлы подключаются через <code>using</code> и <code>include</code>.
   Окно (<code>using graphics</code>) рисуется прямо на странице; сети, звука и запуска
   программ здесь нет, файлы живут в памяти до конца запуска.
   <a href="../builder/">Собрать интерфейс в конструкторе</a>. Ограничения:
@@ -607,19 +607,19 @@ html[data-builder-embed] .screen canvas { max-height: none; }
   var FILES_KEY = "foxlang-playground-files";
   var OLD_SOURCE_KEY = "foxlang-playground-source";
   var THEME_KEY = "foxlang-playground-theme";
-  var ENTRY = "main.fox";
+  var ENTRY = "main.skm";
   var EXAMPLES = {
-    hello: ["hello.fox"],
-    functions: ["functions.fox"],
-    structs: ["structs.fox"],
-    maps: ["maps.fox"],
-    errors: ["errors.fox"],
-    input: ["input.fox"],
-    modules: ["modules/main.fox", "modules/shapes.fox", "modules/tools/report.fox"],
-    game: ["game.fox"],
-    todo: ["todo.fox"],
-    paint: ["paint.fox"],
-    raycaster: ["raycaster.fox"]
+    hello: ["hello.skm"],
+    functions: ["functions.skm"],
+    structs: ["structs.skm"],
+    maps: ["maps.skm"],
+    errors: ["errors.skm"],
+    input: ["input.skm"],
+    modules: ["modules/main.skm", "modules/shapes.skm", "modules/tools/report.skm"],
+    game: ["game.skm"],
+    todo: ["todo.skm"],
+    paint: ["paint.skm"],
+    raycaster: ["raycaster.skm"]
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -677,10 +677,10 @@ html[data-builder-embed] .screen canvas { max-height: none; }
 
   function validName(name) {
     return typeof name === "string" && name.length <= 60 &&
-      /^[A-Za-z0-9_][A-Za-z0-9_\-]*(\/[A-Za-z0-9_][A-Za-z0-9_\-]*)*\.fox$/.test(name);
+      /^[A-Za-z0-9_][A-Za-z0-9_\-]*(\/[A-Za-z0-9_][A-Za-z0-9_\-]*)*\.(?:skm|fox)$/.test(name);
   }
 
-  // main.fox first, the rest by name.
+  // main.skm first, the rest by name.
   function sortFiles() {
     files.sort(function (a, b) {
       if (a.name === ENTRY) return -1;
@@ -763,7 +763,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     var name = window.prompt(question, initial);
     if (name === null) return null;
     name = name.trim();
-    if (name && !/\.fox$/.test(name)) name += ".fox";
+    if (name && !/\.(?:skm|fox)$/.test(name)) name += ".skm";
     if (!validName(name)) {
       flash("Имя файла: латинские буквы, цифры, _ и -, папки через /");
       return null;
@@ -782,10 +782,10 @@ html[data-builder-embed] .screen canvas { max-height: none; }
 
   function addFile() {
     if (files.length >= 20) { flash("Не больше 20 файлов"); return; }
-    var name = askName("Имя нового файла:", "utils.fox");
+    var name = askName("Имя нового файла:", "utils.skm");
     if (!name) return;
-    var line = name.indexOf("/") < 0 ? "using " + name.replace(/\.fox$/, "") + ";" : 'include("' + name + '");';
-    files.push({ name: name, text: "// Подключите этот файл в main.fox строкой\n// " + line + "\n\n", problems: [] });
+    var line = name.indexOf("/") < 0 ? "using " + name.replace(/\.(?:skm|fox)$/, "") + ";" : 'include("' + name + '");';
+    files.push({ name: name, text: "// Подключите этот файл в main.skm строкой\n// " + line + "\n\n", problems: [] });
     sortFiles();
     select(indexOf(name));
     saveFiles();
@@ -815,6 +815,9 @@ html[data-builder-embed] .screen canvas { max-height: none; }
   }
 
   function setFiles(list) {
+    // Preserve old shared links and saved projects without renaming their imports.
+    ENTRY = list.some(function (f) { return f.name === "main.skm"; }) ? "main.skm" :
+      list.some(function (f) { return f.name === "main.fox"; }) ? "main.fox" : "main.skm";
     files = list.filter(function (f) { return validName(f.name); })
                 .map(function (f) { return { name: f.name, text: String(f.text), problems: [] }; });
     if (!files.some(function (f) { return f.name === ENTRY; })) files.push({ name: ENTRY, text: "", problems: [] });
@@ -1003,7 +1006,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
       }
       if (!version) {
         version = message.version;
-        statusBox.textContent = "FoxLang " + version + " готов";
+        statusBox.textContent = "Skrumi " + version + " готов";
         runButton.disabled = false;
         builderReady();
         if (!output.textContent) hint();
@@ -1011,7 +1014,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
       return;
     }
     if (message.type === "failed") {
-      statusBox.textContent = "FoxLang не загрузился: " + message.message;
+      statusBox.textContent = "Skrumi не загрузился: " + message.message;
       statusBox.className = "status bad";
       return;
     }
@@ -1368,7 +1371,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
       return response.text();
     });
   }
-  // The first file of an example becomes main.fox; the rest keep their place.
+  // The first file of an example becomes main.skm; the rest keep their place.
   function loadExample(name) {
     var paths = EXAMPLES[name];
     return Promise.all(paths.map(function (p) { return fetchText("examples/" + p); })).then(function (texts) {
@@ -1394,7 +1397,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
   });
 
   // A link carries the program itself after "#code=": one file as its text, several
-  // as {"main.fox": "...", ...}; "z" and "Z" compressed, "t" and "T" not.
+  // as {"main.skm": "...", ...}; "z" and "Z" compressed, "t" and "T" not.
   function toBase64Url(bytes) {
     var text = "";
     for (var i = 0; i < bytes.length; i++) text += String.fromCharCode(bytes[i]);
@@ -1457,10 +1460,12 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     if (message && message.type === "foxlang-builder-stop") stop();
     if (message && message.type === "foxlang-builder-run" && !runButton.disabled) {
       var files = message.files;
+      var entryName = files && typeof files["main.skm"] === "string" ? "main.skm" : "main.fox";
+      var layoutName = entryName === "main.skm" ? "layout.skm" : "layout.fox";
       if (!files || Object.keys(files).length !== 2 ||
-          typeof files["main.fox"] !== "string" || typeof files["layout.fox"] !== "string" ||
-          files["main.fox"].length + files["layout.fox"].length > 500000) return;
-      setFiles([{name: ENTRY, text: files["main.fox"]}, {name: "layout.fox", text: files["layout.fox"]}]);
+          typeof files[entryName] !== "string" || typeof files[layoutName] !== "string" ||
+          files[entryName].length + files[layoutName].length > 500000) return;
+      setFiles([{name: entryName, text: files[entryName]}, {name: layoutName, text: files[layoutName]}]);
       setView("output");
       run();
     }
@@ -1493,7 +1498,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
 
   $("limit-seconds").textContent = TIME_LIMIT_MS / 1000;
   spare.plain = newWorker("plain");
-  start().then(function (list) { setFiles(list); builderInitialized = true; builderReady(); }, function () { setFiles([{ name: ENTRY, text: 'print("Привет, FoxLang!");\n' }]); });
+  start().then(function (list) { setFiles(list); builderInitialized = true; builderReady(); }, function () { setFiles([{ name: ENTRY, text: 'print("Привет, Skrumi!");\n' }]); });
 })();
 </script>
 </body>

@@ -15,14 +15,14 @@ def build_vsix(source_dir, output_vsix, version):
         pkg = json.load(f)
 
     if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
-        raise ValueError(f"Invalid FoxLang version: {version}")
+        raise ValueError(f"Invalid Skrumi version: {version}")
     pkg_version = pkg.get('version')
     if pkg_version != version:
         raise ValueError(f"VS Code version {pkg_version!r} does not match requested version {version!r}")
     pkg_id = pkg.get('name', 'foxlang-language')
     pkg_publisher = pkg.get('publisher', 'SkrinVex')
-    display_name = pkg.get('displayName', 'FoxLang Programming Language')
-    description = pkg.get('description', 'FoxLang Language Support')
+    display_name = pkg.get('displayName', 'Skrumi Programming Language')
+    description = pkg.get('description', 'Skrumi Language Support')
 
     content_types = '''<?xml version="1.0" encoding="utf-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

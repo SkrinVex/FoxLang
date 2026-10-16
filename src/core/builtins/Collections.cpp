@@ -1,4 +1,4 @@
-// Array algorithms that are better done natively than in a FoxLang loop.
+// Array algorithms that are better done natively than in a Skrumi loop.
 #include "Builtin.h"
 #include <algorithm>
 #include <stdexcept>
@@ -8,7 +8,7 @@ namespace {
 
 bool isNumber(const Value& value) { return value.isNumber(); }
 
-// Numbers compare by value, everything else by text, so a FoxLang wrapper that
+// Numbers compare by value, everything else by text, so a Skrumi wrapper that
 // passes the needle as a string still finds the number 5 when asked for "5".
 bool sameValue(const Value& a, const Value& b) {
     if (isNumber(a) && isNumber(b)) {
@@ -46,7 +46,7 @@ bool test(Call& call, const Value& function, const Value& item) {
     return result.asBool();
 }
 
-// A merge sort by a FoxLang function. Unlike std::sort it stays within the array even
+// A merge sort by a Skrumi function. Unlike std::sort it stays within the array even
 // when the function does not order the items consistently.
 void sortBy(Call& call, ValueList& items, const Value& before) {
     ValueList buffer(items.size());

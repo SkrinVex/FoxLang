@@ -115,7 +115,7 @@ void reap() {
 }
 
 std::string findPlayer() {
-    std::string chosen = platform::getEnvVar("FOXLANG_SOUND_PLAYER");
+    std::string chosen = platform::configEnv("FOXLANG_SOUND_PLAYER");
     if (!chosen.empty()) return chosen;
     std::string path = platform::getEnvVar("PATH");
     for (const char* candidate : {"pw-play", "paplay", "aplay"}) {

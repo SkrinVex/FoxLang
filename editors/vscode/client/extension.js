@@ -12,14 +12,16 @@ const pendingRequests = new Map();
 
 function log(msg) {
     if (outputChannel) {
-        outputChannel.appendLine(`[FoxLang LSP] ${msg}`);
+        outputChannel.appendLine(`[Skrumi LSP] ${msg}`);
     }
 }
 
 function installationHome() {
+    if (process.env.SKRUMI_HOME) return process.env.SKRUMI_HOME;
     if (process.env.FOXLANG_HOME) return process.env.FOXLANG_HOME;
     if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
-        return path.join(process.env.LOCALAPPDATA, 'FoxLang');
+        const modern = path.join(process.env.LOCALAPPDATA, 'Skrumi');
+        return fs.existsSync(modern) ? modern : path.join(process.env.LOCALAPPDATA, 'FoxLang');
     }
     return '';
 }
@@ -27,18 +29,18 @@ function installationHome() {
 function resolveServerPath() {
     const config = vscode.workspace.getConfiguration('foxlang');
     let customPath = config.get('lsp.serverPath');
-    if (customPath && customPath !== 'foxlang-lsp') {
+    if (customPath && customPath !== 'skrumi-lsp') {
         return customPath;
     }
 
     // Check workspace local build first
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
         for (const folder of vscode.workspace.workspaceFolders) {
-            const localBin = path.join(folder.uri.fsPath, 'build', 'foxlang-lsp');
+            const localBin = path.join(folder.uri.fsPath, 'build', 'skrumi-lsp');
             if (fs.existsSync(localBin)) {
                 return localBin;
             }
-            const localBinWin = path.join(folder.uri.fsPath, 'build', 'foxlang-lsp.exe');
+            const localBinWin = path.join(folder.uri.fsPath, 'build', 'skrumi-lsp.exe');
             if (fs.existsSync(localBinWin)) {
                 return localBinWin;
             }
@@ -49,8 +51,9 @@ function resolveServerPath() {
     const home = process.env.HOME || process.env.USERPROFILE || '';
     const installedHome = installationHome();
     const candidatePaths = [
-        ...(installedHome ? [path.join(installedHome, process.platform === 'win32' ? 'foxlang-lsp.exe' : 'foxlang-lsp')] : []),
-        path.join(home, '.local', 'bin', 'foxlang-lsp'),
+        ...(installedHome ? [path.join(installedHome, process.platform === 'win32' ? 'skrumi-lsp.exe' : 'skrumi-lsp')] : []),
+        path.join(home, '.local', 'bin', 'skrumi-lsp'),
+        path.join(home, '.local', 'share', 'skrumi', 'skrumi-lsp'),
         path.join(home, '.local', 'share', 'foxlang', 'foxlang-lsp'),
         '/usr/local/bin/foxlang-lsp',
         '/usr/bin/foxlang-lsp'
@@ -62,7 +65,7 @@ function resolveServerPath() {
         }
     }
 
-    return 'foxlang-lsp';
+    return 'skrumi-lsp';
 }
 
 function sendMessage(msg) {
@@ -120,7 +123,7 @@ function handleMessage(msg) {
             else if (d.severity === 4) severity = vscode.DiagnosticSeverity.Hint;
 
             const diag = new vscode.Diagnostic(range, d.message, severity);
-            diag.source = 'foxlang';
+            diag.source = 'Skrumi';
             return diag;
         });
 
@@ -130,7 +133,7 @@ function handleMessage(msg) {
 
 function startServer(context) {
     const serverPath = resolveServerPath();
-    log(`Starting FoxLang LSP server: ${serverPath}`);
+    log(`Starting Skrumi LSP server: ${serverPath}`);
 
     try {
         const installedHome = installationHome();
@@ -142,13 +145,13 @@ function startServer(context) {
         });
     } catch (err) {
         log(`Failed to spawn server process: ${err.message}`);
-        vscode.window.showErrorMessage(`Не удалось запустить foxlang-lsp: ${err.message}`);
+        vscode.window.showErrorMessage(`Не удалось запустить skrumi-lsp: ${err.message}`);
         return;
     }
 
     serverProcess.on('error', err => {
         log(`Server error: ${err.message}`);
-        vscode.window.showErrorMessage(`Ошибка foxlang-lsp: ${err.message}. Проверьте путь в настройках.`);
+        vscode.window.showErrorMessage(`Ошибка skrumi-lsp: ${err.message}. Проверьте путь в настройках.`);
     });
 
     serverProcess.on('exit', (code, signal) => {
@@ -273,7 +276,7 @@ function syncDocumentClose(document) {
 }
 
 function activate(context) {
-    outputChannel = vscode.window.createOutputChannel('FoxLang Language Server');
+    outputChannel = vscode.window.createOutputChannel('Skrumi Language Server');
     diagnosticCollection = vscode.languages.createDiagnosticCollection('foxlang');
     context.subscriptions.push(diagnosticCollection);
     context.subscriptions.push(outputChannel);
@@ -504,7 +507,7 @@ function activate(context) {
             serverProcess = null;
         }
         startServer(context);
-        vscode.window.showInformationMessage('FoxLang Language Server перезапущен.');
+        vscode.window.showInformationMessage('Skrumi Language Server перезапущен.');
     }));
 }
 

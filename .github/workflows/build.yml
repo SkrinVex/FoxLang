@@ -1,4 +1,4 @@
-name: Build and Auto Release FoxLang
+name: Build and Auto Release Skrumi
 
 on:
   # Retry a failed release manually or after a Windows installer fix without
@@ -55,8 +55,8 @@ jobs:
         run: |
           cmake -B build-check -S . -DCMAKE_BUILD_TYPE=Release
           cmake --build build-check --config Release
-          test "$(./build-check/foxlang --version)" = "FoxLang ${{ steps.version.outputs.version }}"
-          test "$(./build-check/foxlang-lsp --version)" = "foxlang-lsp ${{ steps.version.outputs.version }}"
+          test "$(./build-check/skrumi --version)" = "Skrumi ${{ steps.version.outputs.version }}"
+          test "$(./build-check/skrumi-lsp --version)" = "skrumi-lsp ${{ steps.version.outputs.version }}"
 
   build-linux:
     needs: version
@@ -70,40 +70,41 @@ jobs:
       - name: Build Linux binary and run tests
         run: |
           docker buildx build --target portable --output type=local,dest=build-portable .
-          xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/foxlang
-          cp build-portable/foxlang foxlang.bin
-          cp build-portable/foxlang-lsp foxlang-lsp.bin
+          xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/skrumi
+          cp build-portable/skrumi skrumi.bin
+          cp build-portable/skrumi-lsp skrumi-lsp.bin
       - name: Build installable Linux package and editor assets
         shell: bash
         run: |
-          PKG="FoxLang-${{ needs.version.outputs.version }}-linux-x86_64"
+          PKG="Skrumi-${{ needs.version.outputs.version }}-linux-x86_64"
           mkdir -p "$PKG" dist-editors
-          cp foxlang.bin "$PKG/foxlang.bin"
-          cp foxlang-lsp.bin "$PKG/foxlang-lsp.bin"
+          cp skrumi.bin "$PKG/skrumi.bin"
+          cp skrumi-lsp.bin "$PKG/skrumi-lsp.bin"
           cp VERSION "$PKG/VERSION"
           cp packaging/linux/install.sh "$PKG/install.sh"
-          chmod +x "$PKG/install.sh" "$PKG/foxlang.bin" "$PKG/foxlang-lsp.bin"
+          chmod +x "$PKG/install.sh" "$PKG/skrumi.bin" "$PKG/skrumi-lsp.bin"
           cp -R std "$PKG/std"
           cp -R editors "$PKG/editors"
 
           # The VS Code package goes into the Linux package for install.sh and, once, into
           # the release under a fixed name so releases/latest/download/foxlang.vsix works.
-          python3 packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" dist-editors/foxlang.vsix
-          cp dist-editors/foxlang.vsix "$PKG/foxlang-${{ needs.version.outputs.version }}.vsix"
+          python3 packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" dist-editors/skrumi.vsix
+          cp dist-editors/skrumi.vsix "$PKG/skrumi-${{ needs.version.outputs.version }}.vsix"
 
           tar -czf "$PKG.tar.gz" "$PKG"
 
           cp editors/kate/foxlang.xml dist-editors/foxlang.xml
+          cp editors/kate/foxlang.xml dist-editors/skrumi.xml
+          cp dist-editors/skrumi.vsix dist-editors/foxlang.vsix
       - uses: actions/upload-artifact@v4
         with:
           name: linux-release
-          path: FoxLang-*-linux-x86_64.tar.gz
+          path: Skrumi-*-linux-x86_64.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: editors-release
           path: |
-            dist-editors/foxlang.xml
-            dist-editors/foxlang.vsix
+            dist-editors/*
 
   build-windows:
     needs: version
@@ -118,13 +119,15 @@ jobs:
           cmake --build build --config Release
           ctest --test-dir build -C Release --output-on-failure
           mkdir -p dist
-          if [ -f "./build/Release/foxlang.exe" ]; then
-            cp ./build/Release/foxlang.exe dist/foxlang.exe
-            cp ./build/Release/foxlang-lsp.exe dist/foxlang-lsp.exe
+          if [ -f "./build/Release/skrumi.exe" ]; then
+            cp ./build/Release/skrumi.exe dist/skrumi.exe
+            cp ./build/Release/skrumi-lsp.exe dist/skrumi-lsp.exe
           else
-            cp ./build/foxlang.exe dist/foxlang.exe
-            cp ./build/foxlang-lsp.exe dist/foxlang-lsp.exe
+            cp ./build/skrumi.exe dist/skrumi.exe
+            cp ./build/skrumi-lsp.exe dist/skrumi-lsp.exe
           fi
+          cp dist/skrumi.exe dist/foxlang.exe
+          cp dist/skrumi-lsp.exe dist/foxlang-lsp.exe
           cp -R std dist/std
           cp -R editors dist/editors
           cp VERSION dist/VERSION
@@ -138,7 +141,7 @@ jobs:
               find "$dll_dir" -maxdepth 1 -type f -iname '*.dll' -exec cp -t dist {} +
             fi
           done
-          python packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" "dist/foxlang-${{ needs.version.outputs.version }}.vsix"
+          python packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" "dist/skrumi-${{ needs.version.outputs.version }}.vsix"
       - name: Test packaged CMD launchers with Windows PowerShell 5.1
         shell: powershell
         run: ./packaging/windows/test_install.ps1 -PackageDir ./dist
@@ -146,11 +149,11 @@ jobs:
         shell: pwsh
         run: ./packaging/windows/test_install.ps1 -PackageDir ./dist -Direct
       - shell: pwsh
-        run: Compress-Archive -Path dist/* -DestinationPath "FoxLang-${{ needs.version.outputs.version }}-windows-x86_64.zip"
+        run: Compress-Archive -Path dist/* -DestinationPath "Skrumi-${{ needs.version.outputs.version }}-windows-x86_64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release
-          path: FoxLang-*-windows-x86_64.zip
+          path: Skrumi-*-windows-x86_64.zip
 
   # The release waits for this: the new build against the last release on the same
   # machine, and the same programs in other languages for the site's comparison.
@@ -180,8 +183,8 @@ jobs:
         shell: bash
         run: |
           tar -xzf new/*.tar.gz -C new
-          NEW="$(echo new/FoxLang-*/foxlang.bin)"
-          OLD="$(ls old/FoxLang-*/foxlang.bin 2>/dev/null || true)"
+          NEW="$(echo new/Skrumi-*/skrumi.bin)"
+          OLD="$(ls old/*/skrumi.bin old/*/foxlang.bin 2>/dev/null || true)"
           python3 benchmarks/run.py --foxlang "$NEW" ${OLD:+--baseline "$OLD"} \
             --require python --require lua --require ruby --require javascript \
             --json benchmarks.json ${{ inputs.allow_slower && '--max-slowdown 1000' || '' }}
@@ -218,7 +221,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" "$GITHUB_SHA" -m "FoxLang ${TAG#v}"
+          git tag -a "$TAG" "$GITHUB_SHA" -m "Skrumi ${TAG#v}"
           git push origin "$TAG"
 
       - name: Create GitHub Release
@@ -226,6 +229,6 @@ jobs:
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: FoxLang ${{ needs.version.outputs.version }}
+          name: Skrumi ${{ needs.version.outputs.version }}
           generate_release_notes: true
           files: dist/*

@@ -162,6 +162,12 @@ bool setEnvVar(const std::string& key, const std::string& value) {
 #endif
 }
 
+std::string configEnv(const std::string& legacyKey) {
+    const auto key = "SKRUMI_" + legacyKey.substr(8);
+    const char* value = std::getenv(key.c_str());
+    return value ? std::string(value) : getEnvVar(legacyKey);
+}
+
 std::string getEnvVar(const std::string& key) {
     const char* val = std::getenv(key.c_str());
     return val ? std::string(val) : "";

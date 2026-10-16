@@ -1,4 +1,9 @@
-# 🦊 FoxLang
+# 🦊 Skrumi
+
+> Previously known as FoxLang. Skrumi is the continuation of FoxLang under a new name.
+> The project retains its original development history and supports existing `.fox`
+> source files alongside the new `.skm` format. See the [migration guide](docs/MIGRATION_FROM_FOXLANG.md).
+
 
 ![Версия](https://img.shields.io/github/v/release/SkrinVex/FoxLang?label=version&color=orange)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
@@ -6,17 +11,17 @@
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
 [![Песочница](https://img.shields.io/badge/%D0%BF%D0%B5%D1%81%D0%BE%D1%87%D0%BD%D0%B8%D1%86%D0%B0-%D0%BF%D0%BE%D0%BF%D1%80%D0%BE%D0%B1%D0%BE%D0%B2%D0%B0%D1%82%D1%8C%20%D0%B2%20%D0%B1%D1%80%D0%B0%D1%83%D0%B7%D0%B5%D1%80%D0%B5-d9620f)](https://skrinvex.github.io/FoxLang/playground/)
 
-**FoxLang** — встраиваемый интерпретируемый язык общего назначения с понятным
+**Skrumi** — встраиваемый интерпретируемый язык общего назначения с понятным
 C-подобным синтаксисом, строгими типами, массивами, модулями и стандартной
 библиотекой для строк, файлов, JSON, HTTP, серверов и 2D-графики. Программу можно
 запустить интерпретатором или собрать в один исполняемый файл, которому не нужен
-установленный FoxLang.
+установленный Skrumi.
 
-**Android:** [встроить язык в Kotlin/Java или собрать APK из `.fox`](docs/ANDROID.md).
-Демо игры: [raycaster APK](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-android-raycaster.apk) · [исходник](examples/raycaster.fox) · [замеры кадров на устройстве](docs/ANDROID_PERFORMANCE.md).
+**Android:** [встроить язык в Kotlin/Java или собрать APK из `.skm`](docs/ANDROID.md).
+Демо игры: [raycaster APK](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-android-raycaster.apk) · [исходник](examples/raycaster.skm) · [замеры кадров на устройстве](docs/ANDROID_PERFORMANCE.md).
 
-**Визуально собрать интерфейс:** [конструктор FoxLang UI](https://skrinvex.github.io/FoxLang/builder/) —
-макеты для ПК и телефона, живой запуск, отдельные `layout.fox` и `main.fox`: правки макета не стирают вашу логику. [Руководство](docs/BUILDER.md).
+**Визуально собрать интерфейс:** [конструктор Skrumi UI](https://skrinvex.github.io/FoxLang/builder/) —
+макеты для ПК и телефона, живой запуск, отдельные `layout.skm` и `main.skm`: правки макета не стирают вашу логику. [Руководство](docs/BUILDER.md).
 
 **Попробовать без установки:** [песочница в браузере](https://skrinvex.github.io/FoxLang/playground/):
 пишешь код и сразу запускаешь, даже с телефона. Там же есть примеры, в том числе игры
@@ -61,18 +66,18 @@ for (int i = 0; i < size(words); i++) {
 - Файловая система целиком: права доступа, время изменения, владелец, копирование и
   перемещение каталогов, работа с путями; запуск программ и открытие файлов
   приложением по умолчанию.
-- `foxlang check` — статическая проверка без запуска; языковой сервер
-  `foxlang-lsp` с расширениями для VS Code, Kate и Zed. Проект из нескольких файлов
+- `skrumi check` — статическая проверка без запуска; языковой сервер
+  `skrumi-lsp` с расширениями для VS Code, Kate и Zed. Проект из нескольких файлов
   анализируется целиком, ошибки указывают файл и строку, программу можно запустить
   кнопкой ▶ прямо из редактора.
 - Отладчик (Debug Adapter Protocol) для VS Code, Kate и Zed: точки останова с
   условиями и счётчиками, лог-точки, шаги, стек вызовов, переменные и массивы,
   изменение значений, консоль и остановка на ошибке выполнения.
-- `foxlang test` — встроенные тесты с `assert` и `assert_equal`; `foxlang fmt` —
+- `skrumi test` — встроенные тесты с `assert` и `assert_equal`; `skrumi fmt` —
   единое оформление кода; в редакторе — поиск всех ссылок, переименование и
   форматирование.
-- `foxlang build` — самостоятельное приложение для Linux или Windows.
-- Библиотека `foxlang_core` для встраивания в программы на C++.
+- `skrumi build` — самостоятельное приложение для Linux или Windows.
+- Библиотека `skrumi_core` для встраивания в программы на C++.
 
 Полный справочник языка: [DOCUMENTATION.md](DOCUMENTATION.md). Как язык устроен
 изнутри, простыми словами и с живыми примерами: [skrinvex.github.io/FoxLang](https://skrinvex.github.io/FoxLang/).
@@ -80,11 +85,11 @@ for (int i = 0; i < size(words); i++) {
 ## Установка
 
 Готовые пакеты для Linux и Windows — в [GitHub Releases](https://github.com/SkrinVex/FoxLang/releases).
-Linux-пакет содержит установщик: `./install.sh` кладёт `foxlang` и `foxlang-lsp` в `~/.local/bin` и настраивает редакторы.
-В Windows распакуйте ZIP и запустите `install.cmd`: он установит FoxLang в `%LOCALAPPDATA%\FoxLang`, добавит команды в пользовательский `PATH` и установит расширение VS Code.
+Linux-пакет содержит установщик: `./install.sh` кладёт `skrumi` и `skrumi-lsp` в `~/.local/bin` и настраивает редакторы.
+В Windows распакуйте ZIP и запустите `install.cmd`: он установит Skrumi в `%LOCALAPPDATA%\Skrumi`, добавит команды в пользовательский `PATH` и установит расширение VS Code.
 Используется встроенный Windows PowerShell 5.1; отдельно устанавливать PowerShell 7 не требуется.
 Для обновления скачайте новый ZIP и запустите `install.cmd` ещё раз; распакованную папку после установки можно удалить.
-Удаление доступно через `%LOCALAPPDATA%\FoxLang\uninstall.cmd`.
+Удаление доступно через `%LOCALAPPDATA%\Skrumi\uninstall.cmd`.
 
 Сборка из исходников (CMake 3.18+, компиляторы C и C++17; на Linux ещё pkg-config
 и `libxcb1-dev libxau-dev libxdmcp-dev`):
@@ -97,22 +102,22 @@ cmake --build build --config Release
 cmake --install build --prefix ./install
 ```
 
-Добавьте `install/bin` в `PATH` или запускайте `install/bin/foxlang` напрямую.
+Добавьте `install/bin` в `PATH` или запускайте `install/bin/skrumi` напрямую.
 
 ## Использование
 
 ```bash
-foxlang program.fox [аргументы...]   # запуск
-foxlang check program.fox            # проверка без запуска
-foxlang build program.fox -o app     # самостоятельное приложение
-foxlang build game.fox --no-console # GUI EXE без терминала в Windows
-foxlang --version
-foxlang help                         # все команды: запуск, проверка, сборка, тесты…
-foxlang help build                   # подробно об одной команде
+skrumi program.skm [аргументы...]   # запуск
+skrumi check program.skm            # проверка без запуска
+skrumi build program.skm -o app     # самостоятельное приложение
+skrumi build game.skm --no-console # GUI EXE без терминала в Windows
+skrumi --version
+skrumi help                         # все команды: запуск, проверка, сборка, тесты…
+skrumi help build                   # подробно об одной команде
 ```
 
 Параметры консоли, размера окна и fullscreen доступны и у готового приложения:
-`app --foxlang-console --foxlang-width 960 --foxlang-height 540`.
+`app --skrumi-console --skrumi-width 960 --skrumi-height 540`.
 Пользовательские флаги доступны через `os_args()`; `--` завершает разбор системных
 флагов. Полные правила и примеры — [Запуск и параметры окна](docs/LAUNCH.md).
 
@@ -123,13 +128,13 @@ foxlang help build                   # подробно об одной кома
 ### Самостоятельные приложения
 
 ```bash
-foxlang build hello.fox -o hello
+skrumi build hello.skm -o hello
 ./hello          # Linux
 .\hello.exe      # Windows
 ```
 
-Внутри одного исполняемого файла — рантайм FoxLang, программа и все её модули.
-Получателю не нужны FoxLang, компилятор или CMake. Это упаковка со встроенным
+Внутри одного исполняемого файла — рантайм Skrumi, программа и все её модули.
+Получателю не нужны Skrumi, компилятор или CMake. Это упаковка со встроенным
 интерпретатором, а не компиляция в машинный код: исходник можно извлечь. `.env`,
 переменные окружения и файлы ресурсов не встраиваются. Linux создаёт Linux-приложения,
 Windows — `.exe`. Linux-пакет релизов собран статически на musl и не зависит от
@@ -158,8 +163,8 @@ listen(8080);
 HTTPS включается вызовом `listen_tls(port, certificate, private_key)` без reverse
 proxy. Больше примеров — в [examples/](examples): сайт-гостевая книга из нескольких
 файлов с шаблонами, формами и загрузкой файлов ([examples/website](examples/website)),
-файловый браузер с диалогами ([examples/file_browser.fox](examples/file_browser.fox)),
-лабиринт в псевдо-3D на лучах, как в Wolfenstein 3D ([examples/raycaster.fox](examples/raycaster.fox)),
+файловый браузер с диалогами ([examples/file_browser.skm](examples/file_browser.skm)),
+лабиринт в псевдо-3D на лучах, как в Wolfenstein 3D ([examples/raycaster.skm](examples/raycaster.skm)),
 игра, частотный словарь, список дел в файле, HTTP-клиент, REST API, Telegram-боты на
 webhook и long polling, TCP, терминал и графика.
 
@@ -169,17 +174,17 @@ webhook и long polling, TCP, терминал и графика.
 |---|---|---|---|
 | Linux x86_64 | да | да | CI: Ubuntu и статическая сборка в Alpine |
 | Windows x86_64 | да | да | CI: MSVC, запуск `.exe` в чистом каталоге |
-| Android 9+ | NDK/JNI, AAR для Java/Kotlin | APK из `.fox` | CI: 4 ABI, эмуляторы API 28/35 |
+| Android 9+ | NDK/JNI, AAR для Java/Kotlin | APK из `.skm` | CI: 4 ABI, эмуляторы API 28/35 |
 
 Android: [SDK, сборка APK и ограничения платформы](docs/ANDROID.md).
 
 ```bash
-python3 packaging/build_android.py examples/raycaster.fox --name "Лабиринт" -o game.apk
+python3 packaging/build_android.py examples/raycaster.skm --name "Лабиринт" -o game.apk
 ```
 
 ## Редакторы
 
-`foxlang-lsp` (LSP 3.17) даёт диагностику при вводе, автодополнение, подсказки при
+`skrumi-lsp` (LSP 3.17) даёт диагностику при вводе, автодополнение, подсказки при
 наведении и по параметрам, переход к определению и структуру файла. Описания
 встроенных функций и модулей берутся из того же каталога, по которому работает
 рантайм, поэтому подсказки всегда совпадают с языком.
@@ -199,16 +204,16 @@ python3 packaging/build_android.py examples/raycaster.fox --name "Лабирин
 
 ```bash
 docker run --rm ghcr.io/skrinvex/foxlang:latest --version
-docker run --rm -v "$(pwd)":/app ghcr.io/skrinvex/foxlang:latest script.fox
+docker run --rm -v "$(pwd)":/app ghcr.io/skrinvex/foxlang:latest script.skm
 ```
 
-Образ на Alpine с `foxlang`, `foxlang-lsp` и стандартной библиотекой публикуется
+Образ на Alpine с `skrumi`, `skrumi-lsp` и стандартной библиотекой публикуется
 при каждом push в `master` и при каждом выпуске.
 
 ## Встраивание в C++
 
 ```c++
-#include <foxlang/FoxLang.h>
+#include <skrumi/Skrumi.h>
 #include <iostream>
 
 int main() {
@@ -230,9 +235,9 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 Тесты охватывают лексер, парсер, интерпретатор, анализатор и LSP (C++), регрессии
-языка на FoxLang, ошибки и коды возврата, standalone-приложения, HTTP(S), TCP,
+языка на Skrumi, ошибки и коды возврата, standalone-приложения, HTTP(S), TCP,
 графику, а также проверяют, что каждый пример и каждый блок кода в документации
-проходит `foxlang check`. Подробно: [tests/README.md](tests/README.md).
+проходит `skrumi check`. Подробно: [tests/README.md](tests/README.md).
 
 Версия хранится только в файле `VERSION`: CMake передаёт её в исполняемые файлы и
 сам проставляет в манифесты расширений редакторов. Изменение `VERSION` в `master`
@@ -246,27 +251,27 @@ ctest --test-dir build -C Release --output-on-failure
 выпуску файлом `benchmarks.json` и показываются на [сайте](https://skrinvex.github.io/FoxLang/#speed).
 
 ```bash
-python3 benchmarks/run.py                            # FoxLang и другие языки
+python3 benchmarks/run.py                            # Skrumi и другие языки
 python3 benchmarks/run.py --baseline путь/к/foxlang  # сравнение с другой версией
 ```
 
 Подробно: [benchmarks/README.md](benchmarks/README.md).
 
 ```text
-FoxLang/
+Skrumi/
 ├── VERSION              # единственное место с номером версии
 ├── include/foxlang/     # публичный C++ API: Interpreter, Builtins, Parser, SemanticAnalyzer
-├── src/core/            # ядро foxlang_core: лексер, парсер, AST, рантайм, сеть
+├── src/core/            # ядро skrumi_core: лексер, парсер, AST, рантайм, сеть
 │   └── builtins/        # каталог встроенных функций, по разделам
 ├── src/graphics/        # программный рендерер и нативные окна
-├── src/cli/             # команда foxlang
+├── src/cli/             # команда skrumi
 ├── src/standalone/      # упаковка приложений
-├── src/lsp/             # языковой сервер foxlang-lsp
-├── std/                 # стандартная библиотека на FoxLang
+├── src/lsp/             # языковой сервер skrumi-lsp
+├── std/                 # стандартная библиотека на Skrumi
 ├── examples/            # примеры программ
 ├── editors/             # VS Code, Kate, Zed
 ├── tests/               # unit, регрессионные, standalone и LSP-тесты
-├── benchmarks/          # бенчмарки на FoxLang и других языках, run.py
+├── benchmarks/          # бенчмарки на Skrumi и других языках, run.py
 └── docs/                # руководства: редакторы, графика, standalone
 ```
 

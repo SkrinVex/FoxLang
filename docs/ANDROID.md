@@ -1,9 +1,9 @@
-# FoxLang на Android
+# Skrumi на Android
 
-FoxLang поддерживает два способа работы на **Android 9 (API 28) и новее**:
+Skrumi поддерживает два способа работы на **Android 9 (API 28) и новее**:
 
-- библиотека **AAR** с Java API, доступным из Kotlin, и `FoxView` для графики;
-- упаковка проекта `.fox` в **APK** с готовой Activity, экранными кнопками,
+- библиотека **AAR** с Java API, доступным из Kotlin, и `SkrumiView` для графики;
+- упаковка проекта `.skm` в **APK** с готовой Activity, экранными кнопками,
   клавиатурой, выводом и остановкой программы.
 
 Это тот же C++ runtime, что на ПК: модули, VM, `graphics`, `ui`, PNG/BMP,
@@ -37,8 +37,8 @@ Gradle также принимает `sdk.dir` в локальном `android/lo
 - AAR: `android/foxlang/build/outputs/aar/foxlang-release.aar`.
 - Пример APK со списком дел: `android/app/build/outputs/apk/debug/app-debug.apk`.
 - Для всех ABI добавьте `-PfoxlangAbis=arm64-v8a,armeabi-v7a,x86_64,x86`.
-- Релиз GitHub содержит `foxlang-android.aar`, `foxlang-android-demo.apk` (список дел)
-  и `foxlang-android-raycaster.apk` (игра).
+- Релиз GitHub содержит `skrumi-android.aar`, `skrumi-android-demo.apk` (список дел)
+  и `skrumi-android-raycaster.apk` (игра).
 
 Первый запуск сборки скачивает Gradle, зависимости Maven, libcurl и Mbed TLS.
 Последние закреплены хешами в CMake, Gradle wrapper проверяет SHA-256 дистрибутива.
@@ -55,7 +55,7 @@ adb shell am start -n org.foxlang.raycaster/org.foxlang.runner.MainActivity
 ```
 
 На Windows первая команда — `android\gradlew.bat -p android ...`.
-Gradle берёт **тот же файл** [`examples/raycaster.fox`](../examples/raycaster.fox),
+Gradle берёт **тот же файл** [`examples/raycaster.skm`](../examples/raycaster.skm),
 что запускается на ПК; отдельной Android-копии игры нет. Проверка APK сравнивает
 упакованный исходник с оригиналом. `foxlangDemo` нельзя сочетать с `foxlangAssets`.
 Пакет игры `org.foxlang.raycaster` устанавливается рядом со списком дел.
@@ -76,21 +76,21 @@ Activity. Трассы копирования/вывода кадров и сн�
 Из корня репозитория:
 
 ```bash
-python3 packaging/build_android.py /projects/game/main.fox \
+python3 packaging/build_android.py /projects/game/main.skm \
   --project /projects/game --asset images --asset sounds \
   --application-id com.example.mygame --name "Моя игра" \
   --abis arm64-v8a,x86_64 -o game.apk
 adb install -r game.apk
 ```
 
-Упаковщик сохраняет относительные пути всех `.fox` внутри проекта, включая
-`layout.fox` и `main.fox` из [конструктора](BUILDER.md). Входной файл может быть
+Упаковщик сохраняет относительные пути всех `.skm` внутри проекта, включая
+`layout.skm` и `main.skm` из [конструктора](BUILDER.md). Входной файл может быть
 во вложенном каталоге. Остальные ресурсы добавляются только через повторяемый
 `--asset`. Скрытые файлы, `.env`, каталоги сборки и символьные ссылки исключены
 либо отклоняются; посторонний файл с ключом не попадёт в APK автоматически.
 
 Без `--project` корнем проекта служит каталог входного файла. Ресурсы читаются
-относительно корня проекта, а `include("helper.fox")` — относительно файла с
+относительно корня проекта, а `include("helper.skm")` — относительно файла с
 этим вызовом. После установки файлы копируются во внутренний каталог приложения.
 Записанные программой данные сохраняются между запусками; при обновлении APK
 поставляемые файлы обновляются. Удаление приложения удаляет его данные.
@@ -98,7 +98,7 @@ adb install -r game.apk
 Обычная сборка подписана **отладочным ключом**. Для распространения:
 
 ```bash
-python3 packaging/build_android.py main.fox --release -o app-unsigned.apk
+python3 packaging/build_android.py main.skm --release -o app-unsigned.apk
 apksigner sign --ks my-release.jks --out app.apk app-unsigned.apk
 apksigner verify --verbose app.apk
 ```
@@ -106,7 +106,7 @@ apksigner verify --verbose app.apk
 Свой ключ храните вне проекта. `--release` не подписывает APK чужим или
 автоматически созданным ключом. Для AAB/Google Play используйте проект `android/app`
 как основу, задайте собственную `signingConfig` и запустите `:app:bundleRelease`.
-Команда настольного CLI `foxlang build` по-прежнему создаёт executable текущей ОС;
+Команда настольного CLI `skrumi build` по-прежнему создаёт executable текущей ОС;
 для Android используется этот упаковщик с SDK/NDK.
 
 ## Встраивание в Kotlin / Java
@@ -115,20 +115,20 @@ apksigner verify --verbose app.apk
 
 ```kotlin
 dependencies {
-    implementation(files("libs/foxlang-android.aar"))
+    implementation(files("libs/skrumi-android.aar"))
 }
 ```
 
 Минимальный Kotlin-пример для Activity:
 
 ```kotlin
-import org.foxlang.android.FoxLang
-import org.foxlang.android.FoxView
+import org.skrumi.android.Skrumi
+import org.skrumi.android.SkrumiView
 import java.io.File
 
-val view = FoxView(this)
+val view = SkrumiView(this)
 setContentView(view)
-val engine = FoxLang(File(filesDir, "program"), view, "--level", "2")
+val engine = Skrumi(File(filesDir, "program"), view, "--level", "2")
 view.setEngine(engine)
 view.setOutputListener { text, _ -> runOnUiThread { /* добавить text в свой вывод */ } }
 engine.runSource("print(40 + 2);").thenAccept { result ->
@@ -146,7 +146,7 @@ engine.runSource("print(40 + 2);").thenAccept { result ->
 
 | Метод | Назначение |
 |---|---|
-| `runSource(source)` | Выполнить текст с именем `main.fox` |
+| `runSource(source)` | Выполнить текст с именем `main.skm` |
 | `runSource(source, filename, stdin)` | Задать имя для ошибок/импортов и строки для `input()` |
 | `runFile(filename, stdin)` | Выполнить файл; вариант без `stdin` передаёт пустой ввод |
 | `getGlobal(name)` | Получить `Value.type` и текстовое представление `Value.text` |
@@ -154,8 +154,8 @@ engine.runSource("print(40 + 2);").thenAccept { result ->
 | `reset()` | Очистить переменные, модули, окно и сервер |
 | `cancel()` | Остановить текущее исполнение и уже поставленные в очередь запуски |
 | `close()` | Отменить исполнение и освободить интерпретатор после его остановки |
-| `FoxLang.version()` | Версия runtime |
-| `FoxLang.thirdPartyNotices()` | Тексты лицензий встроенных зависимостей |
+| `Skrumi.version()` | Версия runtime |
+| `Skrumi.thirdPartyNotices()` | Тексты лицензий встроенных зависимостей |
 
 `RunResult` содержит `success`, `exitCode`, `error`, `output`; `cancelled()`
 проверяет код 130. Синтаксические ошибки возвращаются в результате, ошибки
@@ -167,7 +167,7 @@ engine.runSource("print(40 + 2);").thenAccept { result ->
 Интерпретаторы имеют отдельные переменные и модули, но выполняются **последовательно
 на общем рабочем потоке**, поскольку нативный аллокатор общий для процесса.
 Долгая программа занимает очередь; `cancel()` и события ввода доставляются сразу.
-Это относится и к **разным** объектам `FoxLang`: пока первый выполняет игру или
+Это относится и к **разным** объектам `Skrumi`: пока первый выполняет игру или
 бесконечный цикл, `runSource()`, `getGlobal()` и `reset()` второго ждут. Отмена
 первого освобождает очередь, не отменяя второй. Несколько одновременно работающих
 VM внутри одного процесса пока не поддерживаются.
@@ -175,15 +175,15 @@ VM внутри одного процесса пока не поддержива
 Отмена проверяется в VM и `wait()`. Блокирующий системный ввод-вывод завершает свой
 вызов/тайм-аут прежде, чем VM увидит отмену; это не принудительное завершение потока.
 
-Без графики вместо `FoxView` передайте `object : FoxLang.Host {}`. Свой Host может
+Без графики вместо `SkrumiView` передайте `object : Skrumi.Host {}`. Свой Host может
 перехватить вывод, кадры ARGB, окно, буфер обмена, звук и URI. По умолчанию
 графика требует подключённый Host, а звук/URI возвращают `false`.
 Callbacks выполняются на рабочем потоке; изменения Android UI отправляйте через
-`post()` / `runOnUiThread()`. `FoxView` делает это самостоятельно.
+`post()` / `runOnUiThread()`. `SkrumiView` делает это самостоятельно.
 
 ## Графика, клавиатура, звук
 
-`open_window`, `graphics` и `ui` рисуют в `FoxView` внутри Activity.
+`open_window`, `graphics` и `ui` рисуют в `SkrumiView` внутри Activity.
 Окно по умолчанию подстраивается под доступное место в **dp**, включая поворот,
 многооконный режим и появление клавиатуры. Размер читается через `window_width()` /
 `window_height()`, событие — `window_resized()` после `window_poll()`.
@@ -193,14 +193,14 @@ Callbacks выполняются на рабочем потоке; измене�
 кадр масштабируется с сохранением пропорций, касания пересчитываются обратно.
 `set_window_size` меняет логический холст, а не размеры Activity в системе.
 `set_window_fullscreen` скрывает системные панели; свайп от края временно их
-возвращает. `FoxView.setFullscreenListener` позволяет Activity скрыть свою панель
+возвращает. `SkrumiView.setFullscreenListener` позволяет Activity скрыть свою панель
 управления; готовый runner скрывает также консоль и поле `stdin`.
 
 Касание соответствует левой кнопке мыши; поддерживаются отпускание/отмена жеста,
 аппаратная клавиатура, мышь и колесо. Кнопка клавиатуры вызывает
 `view.showKeyboard()`. Сначала выберите нужное `ui_text_field` касанием.
 IME передаёт Unicode, составной ввод и удаление; потеря фокуса освобождает клавиши.
-`FoxControls(context, engine, view)` добавляет стрелки, пробел и клавиатуру;
+`SkrumiControls(context, engine, view)` добавляет стрелки, пробел и клавиатуру;
 четвёртый аргумент `true` заменяет стрелки на WASD. Кнопки можно удерживать
 одновременно, текст на них не выделяется. Свои кнопки могут вызывать `key()`,
 `text()`, `pointer()`, `wheel()` и `closeWindow()` у SDK.
@@ -219,7 +219,7 @@ WAV и `play_tone` воспроизводятся через Android MediaPlayer
   операции над текстом пути сохраняют относительные пути. Доступ к файлам определяется разрешениями Android-приложения.
   SDK не является отдельной песочницей для недоверенного кода и не выдаёт
   разрешение на произвольное внешнее хранилище.
-- `os_open` через `FoxView` передаёт `http`, `https`, `mailto`, `content` URI в
+- `os_open` через `SkrumiView` передаёт `http`, `https`, `mailto`, `content` URI в
   Android Intent. Для обычного файла используйте FileProvider в приложении и
   передайте `content://`; desktop-пути не открываются автоматически.
 - Терминала у Activity нет: `getch()` возвращает пустую строку, `kbhit()` — `false`.
@@ -243,7 +243,7 @@ cmake --build build-android -j4
 `-DFOXLANG_BUILD_ANDROID_JNI=OFF` отключает JNI. Для встраивания через CMake
 используйте `add_subdirectory` и `target_link_libraries(... foxlang_core)`, чтобы
 получить также транзитивные зависимости curl/TLS.
-API интерпретатора находится в `FoxLang.h`, платформенный контракт — в
+API интерпретатора находится в `Skrumi.h`, платформенный контракт — в
 [`Android.h`](../include/foxlang/Android.h). Для окна, звука и перенаправления
 ввода создайте `android::Scope` со своим Host; уничтожьте окно/интерпретатор до
 Scope. C++-клиент сам сериализует доступ к ядру и доставку событий.

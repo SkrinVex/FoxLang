@@ -267,7 +267,7 @@ std::string mimeType(const std::string& path) {
         {".pdf", "application/pdf"}, {".zip", "application/zip"}, {".wasm", "application/wasm"},
         {".woff", "font/woff"}, {".woff2", "font/woff2"}, {".ttf", "font/ttf"}, {".otf", "font/otf"},
         {".mp3", "audio/mpeg"}, {".ogg", "audio/ogg"}, {".wav", "audio/wav"},
-        {".mp4", "video/mp4"}, {".webm", "video/webm"}, {".fox", "text/plain; charset=utf-8"},
+        {".mp4", "video/mp4"}, {".webm", "video/webm"}, {".skm", "text/plain; charset=utf-8"}, {".fox", "text/plain; charset=utf-8"},
     };
     auto found = types.find(lower(fs::u8path(path).extension().u8string()));
     return found == types.end() ? "application/octet-stream" : found->second;

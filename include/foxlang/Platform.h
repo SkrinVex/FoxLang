@@ -11,7 +11,7 @@ namespace platform {
 void writeOutput(const std::string& text, bool error = false);
 std::string readInput();
 
-// FoxLang keeps paths as UTF-8 text. Windows reads a narrow std::string as its ANSI
+// Skrumi keeps paths as UTF-8 text. Windows reads a narrow std::string as its ANSI
 // code page, which cannot hold Cyrillic, so every conversion goes through these.
 std::filesystem::path pathFromUtf8(const std::string& text);
 std::string pathToUtf8(const std::filesystem::path& path);
@@ -34,6 +34,7 @@ void pause(long long milliseconds);
 
 // Environment variables
 bool setEnvVar(const std::string& key, const std::string& value);
+std::string configEnv(const std::string& legacyKey);
 std::string getEnvVar(const std::string& key);
 
 // In-process HTTP(S); TLS and HTTP implementation are linked into the runtime.

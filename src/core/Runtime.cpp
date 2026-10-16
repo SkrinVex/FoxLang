@@ -44,7 +44,7 @@ const std::string* internFile(const std::string& name) {
 std::string displayPath(const std::string& identity) {
     if (identity.rfind("@", 0) == 0) return identity.substr(1);
     // Editors that turn "file:line:" into links ask for full paths.
-    if (!platform::getEnvVar("FOXLANG_ABSOLUTE_PATHS").empty()) return identity;
+    if (!platform::configEnv("FOXLANG_ABSOLUTE_PATHS").empty()) return identity;
     namespace fs = std::filesystem;
     std::error_code ec;
     fs::path path = platform::pathFromUtf8(identity);
@@ -374,7 +374,7 @@ void coerce(const std::string& type, Value& value, const std::string& what) {
 }
 
 int getLogLevelThreshold() {
-    std::string raw = platform::getEnvVar("FOXLANG_LOG_LEVEL");
+    std::string raw = platform::configEnv("FOXLANG_LOG_LEVEL");
     std::string level = !raw.empty() ? raw : "info";
     std::transform(level.begin(), level.end(), level.begin(), [](unsigned char ch){ return static_cast<char>(std::tolower(ch)); });
     if (level == "debug") return 10;
@@ -955,7 +955,7 @@ std::string resolveFoxFile(const std::string& requested, const std::string& curr
     }
     candidates.push_back(platform::pathFromUtf8(requested));
 
-    std::string home = foxHome.empty() ? platform::getEnvVar("FOXLANG_HOME") : foxHome;
+    std::string home = foxHome.empty() ? platform::configEnv("FOXLANG_HOME") : foxHome;
     if (!home.empty()) {
         candidates.push_back(platform::pathFromUtf8(home) / req);
         candidates.push_back(platform::pathFromUtf8(home) / "std" / req);

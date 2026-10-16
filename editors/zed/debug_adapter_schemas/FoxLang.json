@@ -5,7 +5,7 @@
     "request": {
       "type": "string",
       "enum": ["launch"],
-      "description": "FoxLang запускает программу сам."
+      "description": "Skrumi запускает программу сам."
     },
     "program": {
       "type": "string",

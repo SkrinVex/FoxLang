@@ -18,7 +18,7 @@ namespace foxlang::runtime {
 namespace {
 namespace fs = std::filesystem;
 
-// Paths are UTF-8 text in FoxLang; Windows needs them widened, not reinterpreted.
+// Paths are UTF-8 text in Skrumi; Windows needs them widened, not reinterpreted.
 fs::path pathOf(const std::string& text) { return platform::pathFromUtf8(text); }
 
 Value writeText(Call& c, std::ios::openmode mode) {
@@ -167,7 +167,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
 
     // Process
     add({"os_args", "array", {}, 0, false, "os",
-         "Пользовательские аргументы после имени программы: `foxlang app.fox a b` и `./app a b` дают `[a, b]`. Системные `--foxlang-*` исключаются; после `--` аргументы передаются буквально."},
+         "Пользовательские аргументы после имени программы: `skrumi app.skm a b` и `./app a b` дают `[a, b]`. Системные `--skrumi-*` (и прежние `--foxlang-*`) исключаются; после `--` аргументы передаются буквально."},
         [](Call& c) {
             ValueList items;
             if (c.ctx.interpreter)

@@ -1,0 +1,6 @@
+// Первая программа: skrumi examples/hello.skm
+void main() {
+    print("Привет из Skrumi! 🦊");
+}
+
+main();

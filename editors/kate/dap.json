@@ -3,7 +3,7 @@
         "foxlang": {
             "url": "https://github.com/SkrinVex/FoxLang",
             "run": {
-                "command": ["foxlang", "debug-adapter"],
+                "command": ["skrumi", "debug-adapter"],
                 "redirectStderr": true,
                 "supportsSourceRequest": true
             },

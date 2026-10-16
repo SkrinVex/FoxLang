@@ -22,22 +22,20 @@ concurrency:
 jobs:
   released-package:
     runs-on: windows-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Apply installer fixes to the latest published Windows package
+      - name: Build current Skrumi package
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download --repo '${{ github.repository }}' --pattern '*-windows-x86_64.zip' --dir downloaded
-          if ($LASTEXITCODE -ne 0) { throw 'Could not download the released Windows package.' }
-          $Archives = @(Get-ChildItem downloaded -Filter '*.zip')
-          if ($Archives.Count -ne 1) { throw 'Expected one released Windows archive.' }
-          Expand-Archive -LiteralPath $Archives[0].FullName -DestinationPath dist
-          foreach ($Name in @('install.cmd', 'install.ps1', 'uninstall.cmd', 'uninstall.ps1')) {
-            Copy-Item -LiteralPath (Join-Path packaging/windows $Name) -Destination dist -Force
-          }
+          cmake -S . -B build -DBUILD_TESTING=OFF
+          cmake --build build --config Release
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item build/Release/skrumi.exe,build/Release/skrumi-lsp.exe,VERSION dist/
+          Copy-Item std,editors dist/ -Recurse
+          Copy-Item packaging/windows/install.*,packaging/windows/uninstall.* dist/
+          $Version = (Get-Content VERSION -Raw).Trim()
+          python packaging/package_vsix.py editors/vscode $Version "dist/skrumi-$Version.vsix"
       - name: Test repaired package with Windows PowerShell 5.1 and CMD
         shell: powershell
         run: ./packaging/windows/test_install.ps1 -PackageDir ./dist

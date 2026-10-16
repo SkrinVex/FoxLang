@@ -16,7 +16,8 @@ public:
 
     std::string resolve(const ModuleImport& request, const std::string& from) const override {
         std::string name = request.name;
-        if (request.usingModule && (name.size() < 4 || name.substr(name.size() - 4) != ".fox")) {
+        const bool implicit = request.usingModule && !isSourceFile(name);
+        if (implicit) {
             name += ".fox";
         }
         auto onDisk = [&](const std::string& candidate, std::string& found) {
@@ -34,9 +35,11 @@ public:
             // `using arrays;` beside a script called arrays.fox must still mean std/arrays.
             std::string standard = "std/" + name;
             if (onDisk(standard, found)) return found;
+            if (implicit && onDisk("std/" + request.name + ".skm", found)) return found;
             if (embeddedStdlib().count(standard)) return "@" + standard;
         }
         if (onDisk(name, found)) return found;
+        if (implicit && onDisk(request.name + ".skm", found)) return found;
         throw std::runtime_error("Module Error: '" + request.name + "' not found (imported by '" + from + "')");
     }
 

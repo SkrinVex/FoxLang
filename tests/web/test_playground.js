@@ -1,15 +1,15 @@
 // The WebAssembly FoxLang of the playground page: runs its examples and the limits
-// the page relies on. Usage: node test_playground.js <directory with foxlang.js>
+// the page relies on. Usage: node test_playground.js <directory with skrumi.js>
 const path = require("path");
 const fs = require("fs");
 
 const directory = path.resolve(process.argv[2] || ".");
-const createFoxLang = require(path.join(directory, "foxlang.js"));
+const createFoxLang = require(path.join(directory, "skrumi.js"));
 
-// Runs main.fox among the given files, as the page's worker does: all of them in
+// Runs main.skm among the given files, as the page's worker does: all of them in
 // one directory that is also the working directory.
-async function run(files, input = "") {
-  if (typeof files === "string") files = { "main.fox": files };
+async function run(files, input = "", entry = "main.skm") {
+  if (typeof files === "string") files = { "main.skm": files };
   let out = "", err = "", echoed = "";
   const module = await createFoxLang({
     preRun: [(m) => m.FS.init(() => null, (c) => { if (c !== null) out += String.fromCharCode(c); },
@@ -22,7 +22,7 @@ async function run(files, input = "") {
     module.FS.writeFile("/project/" + name, text);
   }
   module.FS.chdir("/project");
-  const code = module.ccall("foxlang_run", "number", ["string", "string"], ["main.fox", input]);
+  const code = module.ccall("foxlang_run", "number", ["string", "string"], [entry, input]);
   const decode = (text) => Buffer.from(text, "latin1").toString("utf8");
   return { code, out: decode(out), err: decode(err), echoed, module };
 }
@@ -36,20 +36,26 @@ function expect(condition, message, result) {
 }
 
 (async () => {
+  for (const entry of ["main.fox", "main.skm"]) {
+    const mixed = await run({[entry]: 'include("old.fox"); using modern; print(old() + modern());',
+      "old.fox": 'int old() { return 20; }', "modern.skm": 'int modern() { return 22; }'}, "", entry);
+    expect(mixed.code === 0 && mixed.out === "42\n", "mixed source extensions", mixed);
+  }
+
   const examples = path.join(directory, "examples");
   const expected = {
-    "hello.fox": "FizzBuzz",
-    "functions.fox": "fib(25) = 75025",
-    "structs.fox": "через год ей будет 6",
-    "maps.fox": "Лис в городе: 3",
-    "errors.fox": "Поймали ошибку: делить на ноль нельзя",
-    "input.fox": "Чисел: 2, сумма: 42",
+    "hello.skm": "FizzBuzz",
+    "functions.skm": "fib(25) = 75025",
+    "structs.skm": "через год ей будет 6",
+    "maps.skm": "Лис в городе: 3",
+    "errors.skm": "Поймали ошибку: делить на ноль нельзя",
+    "input.skm": "Чисел: 2, сумма: 42",
   };
   const modules = path.join(examples, "modules");
   const multi = await run({
-    "main.fox": fs.readFileSync(path.join(modules, "main.fox"), "utf8"),
-    "shapes.fox": fs.readFileSync(path.join(modules, "shapes.fox"), "utf8"),
-    "tools/report.fox": fs.readFileSync(path.join(modules, "tools/report.fox"), "utf8"),
+    "main.skm": fs.readFileSync(path.join(modules, "main.skm"), "utf8"),
+    "shapes.skm": fs.readFileSync(path.join(modules, "shapes.skm"), "utf8"),
+    "tools/report.skm": fs.readFileSync(path.join(modules, "tools/report.skm"), "utf8"),
   });
   expect(multi.code === 0 && multi.out.includes("Общая площадь: 49"), "files find each other through using and include", multi);
 
@@ -62,7 +68,7 @@ function expect(condition, message, result) {
   expect(echo.out === "? fox\ngot fox\n", "input is echoed where it is read", echo);
 
   const broken = await run("int x = 1;\nprint(missing);");
-  expect(broken.code === 1 && broken.err.includes("main.fox:2"), "errors name their line", broken);
+  expect(broken.code === 1 && broken.err.includes("main.skm:2"), "errors name their line", broken);
 
   const deep = await run("int f(int n) { return f(n + 1); }\nf(1);");
   expect(deep.code === 1 && deep.err.includes("call depth limit"), "endless recursion stops before the browser's stack does", deep);
@@ -70,12 +76,12 @@ function expect(condition, message, result) {
   const window = await run('using graphics;\nopen_window(200, 200, "x");');
   expect(window.code === 1 && window.err.includes("windows are not available here"), "graphics explain themselves", window);
 
-  const problems = JSON.parse(broken.module.ccall("foxlang_check", "string", ["string"], ["main.fox"]));
+  const problems = JSON.parse(broken.module.ccall("foxlang_check", "string", ["string"], ["main.skm"]));
   expect(problems.length === 1 && problems[0].line === 2 && problems[0].severity === "error", "the checker reports problems");
 
   // The build for programs with a window: frames reach the page's canvas, keys reach
   // the program while it polls, and errors are still caught.
-  const createGraphics = require(path.join(directory, "foxlang-graphics.js"));
+  const createGraphics = require(path.join(directory, "skrumi-graphics.js"));
   let frames = 0, polls = 0, opened = "", printed = "";
   const graphics = await createGraphics({
     print: (text) => { printed += text + "\n"; },
@@ -92,7 +98,7 @@ function expect(condition, message, result) {
   });
   graphics.FS.mkdirTree("/project");
   graphics.FS.chdir("/project");
-  graphics.FS.writeFile("main.fox", `using graphics;
+  graphics.FS.writeFile("main.skm", `using graphics;
 open_window(160, 100, "Тест");
 int x = 0;
 int n = 0;
@@ -106,13 +112,13 @@ try { throw "ой"; } catch (string e) { print("caught " + e); }
 wait(5);
 print("x=" + x);
 `);
-  const windowCode = await graphics.ccall("foxlang_run", "number", ["string", "string"], ["main.fox", ""], { async: true });
+  const windowCode = await graphics.ccall("foxlang_run", "number", ["string", "string"], ["main.skm", ""], { async: true });
   expect(windowCode === 0 && opened === "160x100 Тест", "a window opens on the page's canvas", { code: windowCode, out: printed, err: "" });
   expect(printed.includes("pixel 255,128,0,255"), "frames arrive as RGBA", { code: windowCode, out: printed, err: "" });
   expect(printed.includes("x=2") && printed.includes("caught ой"), "keys arrive while the program polls", { code: windowCode, out: printed, err: "" });
 
   // Every window example opens, draws and ends when the window is closed.
-  for (const file of ["game.fox", "todo.fox", "paint.fox", "raycaster.fox"]) {
+  for (const file of ["game.skm", "todo.skm", "paint.skm", "raycaster.skm"]) {
     let shownFrames = 0, closePolls = 0, log = "";
     const program = await createGraphics({
       print: (text) => { log += text + "\n"; },
@@ -127,8 +133,8 @@ print("x=" + x);
     });
     program.FS.mkdirTree("/project");
     program.FS.chdir("/project");
-    program.FS.writeFile("main.fox", fs.readFileSync(path.join(examples, file), "utf8"));
-    const exit = await program.ccall("foxlang_run", "number", ["string", "string"], ["main.fox", ""], { async: true });
+    program.FS.writeFile("main.skm", fs.readFileSync(path.join(examples, file), "utf8"));
+    const exit = await program.ccall("foxlang_run", "number", ["string", "string"], ["main.skm", ""], { async: true });
     expect(exit === 0 && shownFrames >= 3, file + " runs in a window", { code: exit, out: log, err: "" });
   }
 

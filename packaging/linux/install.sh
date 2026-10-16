@@ -1,47 +1,66 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PREFIX="${FOXLANG_PREFIX:-$HOME/.local}"
-LIBDIR="$PREFIX/share/foxlang"
+PREFIX="${SKRUMI_PREFIX:-${FOXLANG_PREFIX:-$HOME/.local}}"
+LIBDIR="$PREFIX/share/skrumi"
 BINDIR="$PREFIX/bin"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION="$(tr -d '[:space:]' < "$HERE/VERSION")"
 
+# Refuse unrelated destinations before writing any payload.
+if [ -e "$LIBDIR" ] && [ ! -f "$LIBDIR/.skrumi-install" ]; then
+  echo "Refusing unmanaged installation directory: $LIBDIR" >&2; exit 1
+fi
+if [ -d "$LIBDIR" ]; then
+  if [ ! -f "$LIBDIR/.skrumi-files.sha256" ] ||
+     [ -n "$(find "$LIBDIR" -type l -print -quit)" ] ||
+     ! (cd "$LIBDIR" && sha256sum -c .skrumi-files.sha256 > /dev/null) ||
+     [ "$(find "$LIBDIR" -type f ! -name .skrumi-files.sha256 | wc -l)" -ne "$(wc -l < "$LIBDIR/.skrumi-files.sha256")" ]; then
+    echo "Installation contains modified or additional files; preserve it and choose a new SKRUMI_PREFIX." >&2; exit 1
+  fi
+fi
+for command in skrumi skrumi-lsp foxlang foxlang-lsp; do
+  target="$BINDIR/$command"
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    # Only replace launchers owned by this installer or the previous FoxLang installer.
+    if ! cmp -s "$target" "$LIBDIR/launchers/$command" &&
+       ! grep -Fq "$PREFIX/share/skrumi/" "$target" 2>/dev/null &&
+       ! grep -Fq "$PREFIX/share/foxlang/" "$target" 2>/dev/null; then
+      echo "Refusing to overwrite another command: $target" >&2; exit 1
+    fi
+  fi
+done
 mkdir -p "$LIBDIR" "$BINDIR"
-install -m755 "$HERE/foxlang.bin" "$LIBDIR/foxlang"
-if [ -f "$HERE/foxlang-lsp.bin" ]; then
-  install -m755 "$HERE/foxlang-lsp.bin" "$LIBDIR/foxlang-lsp"
+printf '%s\n' "$VERSION" > "$LIBDIR/.skrumi-install"
+install -m755 "$HERE/skrumi.bin" "$LIBDIR/skrumi"
+if [ -f "$HERE/skrumi-lsp.bin" ]; then
+  install -m755 "$HERE/skrumi-lsp.bin" "$LIBDIR/skrumi-lsp"
 fi
 rm -rf "$LIBDIR/std"
 cp -R "$HERE/std" "$LIBDIR/std"
 cp "$HERE/VERSION" "$LIBDIR/VERSION"
 
-# Сохраняем каталог editors и пакет vsix в share/foxlang
+# Сохраняем каталог editors и пакет vsix в share/skrumi
 if [ -d "$HERE/editors" ]; then
   rm -rf "$LIBDIR/editors"
   cp -R "$HERE/editors" "$LIBDIR/editors"
 fi
-for vsix in "$HERE"/foxlang-*.vsix; do
+for vsix in "$HERE"/skrumi-*.vsix; do
   if [ -f "$vsix" ]; then
     cp "$vsix" "$LIBDIR/"
   fi
 done
 
-# Создаем исполняемые обёртки в BINDIR
-cat > "$BINDIR/foxlang" <<EOF
-#!/usr/bin/env bash
-export FOXLANG_HOME="$LIBDIR"
-exec "$LIBDIR/foxlang" "\$@"
-EOF
-chmod +x "$BINDIR/foxlang"
-
-if [ -f "$LIBDIR/foxlang-lsp" ]; then
-  cat > "$BINDIR/foxlang-lsp" <<EOF
-#!/usr/bin/env bash
-export FOXLANG_HOME="$LIBDIR"
-exec "$LIBDIR/foxlang-lsp" "\$@"
-EOF
-  chmod +x "$BINDIR/foxlang-lsp"
+# Quote paths as shell data, including spaces, quotes and dollar signs.
+write_launcher() {
+  printf '#!/usr/bin/env bash\nexport SKRUMI_HOME=%q\nexec %q "$@"\n' "$LIBDIR" "$LIBDIR/$2" > "$BINDIR/$1"
+  chmod +x "$BINDIR/$1"
+}
+write_launcher skrumi skrumi
+write_launcher foxlang skrumi
+if [ -f "$LIBDIR/skrumi-lsp" ]; then
+  write_launcher skrumi-lsp skrumi-lsp
+  write_launcher foxlang-lsp skrumi-lsp
 fi
 
 # 1. Автоматическая настройка редактора Kate (KDE)
@@ -49,7 +68,10 @@ KATE_SYNTAX_DIR="$HOME/.local/share/org.kde.syntax-highlighting/syntax"
 KATE_LSP_DIR="$HOME/.config/kate/lspclient"
 mkdir -p "$KATE_SYNTAX_DIR" "$KATE_LSP_DIR"
 
-if [ -f "$HERE/editors/kate/foxlang.xml" ]; then
+if [ -f "$HERE/editors/kate/foxlang.xml" ] && {
+  [ ! -e "$KATE_SYNTAX_DIR/foxlang.xml" ] ||
+  grep -q 'author="SkrinVex"' "$KATE_SYNTAX_DIR/foxlang.xml";
+}; then
   cp "$HERE/editors/kate/foxlang.xml" "$KATE_SYNTAX_DIR/foxlang.xml"
   echo "✔ Подсветка синтаксиса для Kate установлена в $KATE_SYNTAX_DIR/foxlang.xml"
 fi
@@ -61,10 +83,10 @@ if [ -d "$HERE/editors/kate/externaltools" ]; then
   for tool in "$HERE"/editors/kate/externaltools/*.ini; do
     target="$KATE_TOOLS_DIR/$(basename "$tool")"
     if [ ! -f "$target" ]; then
-      sed "s|^executable=foxlang$|executable=$BINDIR/foxlang|" "$tool" > "$target"
+      sed "s|^executable=skrumi$|executable=$BINDIR/skrumi|" "$tool" > "$target"
     fi
   done
-  echo "✔ Инструменты Kate (Сервис → Внешние инструменты → FoxLang) установлены в $KATE_TOOLS_DIR"
+  echo "✔ Инструменты Kate (Сервис → Внешние инструменты → Skrumi) установлены в $KATE_TOOLS_DIR"
 fi
 
 # Отладчик Kate (плагин «Отладчик»): адаптер foxlang debug-adapter.
@@ -73,12 +95,12 @@ if [ -f "$HERE/editors/kate/dap.json" ]; then
   mkdir -p "$KATE_DAP_DIR"
   if [ ! -f "$KATE_DAP_DIR/dap.json" ]; then
     cp "$HERE/editors/kate/dap.json" "$KATE_DAP_DIR/dap.json"
-    echo "✔ Отладчик FoxLang для Kate настроен в $KATE_DAP_DIR/dap.json"
+    echo "✔ Отладчик Skrumi для Kate настроен в $KATE_DAP_DIR/dap.json"
   elif ! grep -q '"foxlang"' "$KATE_DAP_DIR/dap.json" 2>/dev/null; then
     cp "$HERE/editors/kate/dap.json" "$LIBDIR/kate-dap.json"
     echo "ℹ Настройки отладчика Kate сохранены в $LIBDIR/kate-dap.json (добавьте секцию 'foxlang' в $KATE_DAP_DIR/dap.json)"
   else
-    echo "✔ Отладчик FoxLang для Kate уже настроен в $KATE_DAP_DIR/dap.json"
+    echo "✔ Отладчик Skrumi для Kate уже настроен в $KATE_DAP_DIR/dap.json"
   fi
 fi
 
@@ -98,7 +120,7 @@ fi
 
 # 2. Автоматическая интеграция с Visual Studio Code / VSCodium / Flatpak
 VSIX_FILE=""
-for f in "$HERE"/foxlang-*.vsix; do
+for f in "$HERE"/skrumi-*.vsix; do
   if [ -f "$f" ]; then
     VSIX_FILE="$f"
     break
@@ -111,10 +133,9 @@ done
 VSCODE_BY_CLI=0
 if command -v code >/dev/null 2>&1 && [ -n "$VSIX_FILE" ]; then
   # Копия каталога от прежних установок мешала бы пакету из .vsix.
-  rm -rf "$HOME/.vscode/extensions/SkrinVex.foxlang-language"* "$HOME/.vscode/extensions/foxlang"* 2>/dev/null || true
   if code --install-extension "$VSIX_FILE" --force >/dev/null 2>&1; then
     VSCODE_BY_CLI=1
-    echo "✔ Расширение FoxLang для VS Code установлено через команду 'code'"
+    echo "✔ Расширение Skrumi для VS Code установлено через команду 'code'"
   fi
 fi
 
@@ -136,15 +157,10 @@ for ext_base in "${EXTENSION_TARGET_BASES[@]}"; do
     TARGET_EXT_DIR="$ext_base/SkrinVex.foxlang-language-$VERSION"
 
     # Удаляем старые или некорректно названные версии
-    rm -rf "$ext_base/foxlang"* "$ext_base/SkrinVex.foxlang"* "$ext_base/skrinvex.foxlang"* 2>/dev/null || true
-
-    # Снимаем пометку obsolete, если она была установлена VS Code
-    if [ -f "$ext_base/.obsolete" ]; then
-      sed -i -E '/(foxlang|SkrinVex)/d' "$ext_base/.obsolete" 2>/dev/null || true
-    fi
 
     if [ -d "$HERE/editors/vscode" ]; then
-      cp -R "$HERE/editors/vscode" "$TARGET_EXT_DIR"
+      mkdir -p "$TARGET_EXT_DIR"
+      cp -R "$HERE/editors/vscode/." "$TARGET_EXT_DIR/"
       echo "✔ Каталог расширения VS Code установлен в $TARGET_EXT_DIR"
     fi
   fi
@@ -165,7 +181,7 @@ if [ -d "$HOME/.config/zed" ]; then
   "lsp": {
     "foxlang-lsp": {
       "binary": {
-        "path": "foxlang-lsp",
+        "path": "skrumi-lsp",
         "arguments": ["--stdio"]
       }
     }
@@ -176,40 +192,46 @@ if [ -d "$HOME/.config/zed" ]; then
     }
   },
   "file_types": {
-    "C": ["fox"]
+    "C": ["skm", "fox"]
   }
 }
 ZED_EOF
-    echo "✔ Настройки FoxLang для Zed IDE записаны в $ZED_SETTINGS"
+    echo "✔ Настройки Skrumi для Zed IDE записаны в $ZED_SETTINGS"
   fi
 fi
 
 # Скрипт полного удаления
-cat > "$LIBDIR/uninstall.sh" <<EOF
-#!/usr/bin/env bash
-set -e
-if command -v code >/dev/null 2>&1; then
-  code --uninstall-extension SkrinVex.foxlang-language 2>/dev/null || true
-  code --uninstall-extension SkrinVex.foxlang 2>/dev/null || true
-  code --uninstall-extension foxlang.foxlang 2>/dev/null || true
+{
+  printf '#!/usr/bin/env bash\nset -e\nLIBDIR=%q\nBINDIR=%q\n' "$LIBDIR" "$BINDIR"
+  cat <<'EOF'
+test -f "$LIBDIR/.skrumi-install" || exit 1
+if [ ! -f "$LIBDIR/.skrumi-files.sha256" ] ||
+   [ -n "$(find "$LIBDIR" -type l -print -quit)" ] ||
+   ! (cd "$LIBDIR" && sha256sum -c .skrumi-files.sha256 > /dev/null) ||
+   [ "$(find "$LIBDIR" -type f ! -name .skrumi-files.sha256 | wc -l)" -ne "$(wc -l < "$LIBDIR/.skrumi-files.sha256")" ]; then
+  echo "Installation contains modified or additional files; nothing was removed." >&2; exit 1
 fi
-rm -f "$BINDIR/foxlang" "$BINDIR/foxlang-lsp"
-rm -f "$HOME/.local/share/org.kde.syntax-highlighting/syntax/foxlang.xml"
-rm -f "$HOME/.config/kate/externaltools/foxlang-run.ini" "$HOME/.config/kate/externaltools/foxlang-check.ini" "$HOME/.config/kate/externaltools/foxlang-build.ini"
-rm -rf "$HOME/.vscode/extensions/foxlang"* "$HOME/.vscode/extensions/SkrinVex.foxlang"* 2>/dev/null || true
-rm -rf "$HOME/.vscode-oss/extensions/foxlang"* "$HOME/.vscode-oss/extensions/SkrinVex.foxlang"* 2>/dev/null || true
-rm -rf "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions/foxlang"* "$HOME/.var/app/com.visualstudio.code/data/vscode/extensions/SkrinVex.foxlang"* 2>/dev/null || true
-rm -rf "$HOME/.var/app/com.vscodium.codium/data/vscode/extensions/foxlang"* "$HOME/.var/app/com.vscodium.codium/data/vscode/extensions/SkrinVex.foxlang"* 2>/dev/null || true
+for command in skrumi skrumi-lsp foxlang foxlang-lsp; do
+  if grep -Fq "SKRUMI_HOME=" "$BINDIR/$command" 2>/dev/null &&
+     cmp -s "$BINDIR/$command" "$LIBDIR/launchers/$command"; then
+    rm -f "$BINDIR/$command"
+  fi
+done
 rm -rf "$LIBDIR"
-echo "FoxLang и связанные расширения редакторов успешно удалены."
+echo "Skrumi removed. Editor settings and extensions were preserved."
 EOF
+} > "$LIBDIR/uninstall.sh"
+mkdir -p "$LIBDIR/launchers"
+for command in skrumi skrumi-lsp foxlang foxlang-lsp; do
+  if [ -f "$BINDIR/$command" ]; then cp "$BINDIR/$command" "$LIBDIR/launchers/$command"; fi
+done
 chmod +x "$LIBDIR/uninstall.sh"
 
 echo ""
-echo "FoxLang $VERSION успешно установлен."
-echo "Команда CLI:  $BINDIR/foxlang"
-if [ -f "$BINDIR/foxlang-lsp" ]; then
-  echo "Сервер LSP:   $BINDIR/foxlang-lsp"
+echo "Skrumi $VERSION успешно установлен."
+echo "Команда CLI:  $BINDIR/skrumi"
+if [ -f "$BINDIR/skrumi-lsp" ]; then
+  echo "Сервер LSP:   $BINDIR/skrumi-lsp"
 fi
 echo "Удаление:     $LIBDIR/uninstall.sh"
 echo ""
@@ -221,3 +243,6 @@ case ":$PATH:" in
   *":$BINDIR:"*) ;;
   *) echo "" && echo "Внимание: добавьте $BINDIR в переменную PATH, если команды foxlang и foxlang-lsp пока не находятся." ;;
 esac
+
+# Refuse future upgrades/uninstalls if a user adds or modifies installation files.
+(cd "$LIBDIR" && find . -type f ! -name .skrumi-files.sha256 -print0 | sort -z | xargs -0 sha256sum > .skrumi-files.sha256)

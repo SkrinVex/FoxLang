@@ -1,20 +1,20 @@
 [
   {
-    "label": "FoxLang: запустить $ZED_FILENAME",
-    "command": "foxlang",
+    "label": "Skrumi: запустить $ZED_FILENAME",
+    "command": "skrumi",
     "args": ["$ZED_FILE"],
     "cwd": "$ZED_DIRNAME",
     "tags": ["foxlang-run"]
   },
   {
-    "label": "FoxLang: проверить $ZED_FILENAME",
-    "command": "foxlang",
+    "label": "Skrumi: проверить $ZED_FILENAME",
+    "command": "skrumi",
     "args": ["check", "$ZED_FILE"],
     "cwd": "$ZED_DIRNAME"
   },
   {
-    "label": "FoxLang: собрать $ZED_STEM",
-    "command": "foxlang",
+    "label": "Skrumi: собрать $ZED_STEM",
+    "command": "skrumi",
     "args": ["build", "$ZED_FILE", "-o", "$ZED_STEM"],
     "cwd": "$ZED_DIRNAME"
   }

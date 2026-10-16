@@ -1,0 +1,20 @@
+// Функции, рекурсия и замер времени.
+int fib(int n) {
+    if (n < 2) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+int started = clock_ms();
+for (int n = 0; n <= 25; n += 5) {
+    print("fib(${n}) = ${fib(n)}");
+}
+print("Посчитано за ${clock_ms() - started} мс");
+
+// Функции можно передавать как значения: лямбды.
+array numbers = [5, 3, 8, 1, 9, 2];
+array squares = array_map(numbers, (int x) => x * x);
+array big = array_filter(numbers, (int x) => x > 4);
+print("Квадраты: ${squares}");
+print("Больше четырёх: ${big}");

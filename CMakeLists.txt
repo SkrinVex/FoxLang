@@ -2,7 +2,13 @@ cmake_minimum_required(VERSION 3.18)
 cmake_policy(SET CMP0091 NEW)
 set(FOXLANG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 include(cmake/Version.cmake)
-project(FoxLang VERSION ${FOXLANG_VERSION} LANGUAGES C CXX)
+# New cache options take precedence; existing -DFOXLANG_* scripts remain valid.
+foreach(option STATIC_LINUX LTO BUILD_ANDROID_JNI)
+    if(DEFINED SKRUMI_${option})
+        set(FOXLANG_${option} "${SKRUMI_${option}}" CACHE BOOL "Skrumi option" FORCE)
+    endif()
+endforeach()
+project(Skrumi VERSION ${FOXLANG_VERSION} LANGUAGES C CXX)
 option(FOXLANG_STATIC_LINUX "Link Linux executables statically (use a musl toolchain for portability)" OFF)
 if(FOXLANG_STATIC_LINUX)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -22,7 +28,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(ANDROID)
     if(ANDROID_PLATFORM_LEVEL LESS 28)
-        message(FATAL_ERROR "FoxLang Android requires API 28 or newer (Android 9)")
+        message(FATAL_ERROR "Skrumi Android requires API 28 or newer (Android 9)")
     endif()
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
@@ -44,7 +50,7 @@ if(WIN32)
     endif()
 endif()
 
-# Reusable FoxLang core library
+# Reusable Skrumi core library
 set(foxlang_core_sources
     src/core/Context.cpp
     src/core/Platform.cpp
@@ -90,6 +96,12 @@ if(ANDROID)
     list(APPEND foxlang_core_sources src/android/Host.cpp)
 endif()
 add_library(foxlang_core STATIC ${foxlang_core_sources})
+add_library(skrumi_core ALIAS foxlang_core)
+set_target_properties(foxlang_core PROPERTIES OUTPUT_NAME skrumi_core)
+# Keep the static library filename used by existing native consumers.
+add_custom_command(TARGET foxlang_core POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:foxlang_core>
+            $<TARGET_FILE_DIR:foxlang_core>/${CMAKE_STATIC_LIBRARY_PREFIX}foxlang_core${CMAKE_STATIC_LIBRARY_SUFFIX})
 
 target_include_directories(foxlang_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -107,7 +119,7 @@ if(EMSCRIPTEN)
         -sEXPORTED_RUNTIME_METHODS=ccall,FS -sEXIT_RUNTIME=0 -sINVOKE_RUN=0)
     add_executable(foxlang_web src/web/Playground.cpp)
     target_link_libraries(foxlang_web PRIVATE foxlang_core)
-    set_target_properties(foxlang_web PROPERTIES OUTPUT_NAME foxlang SUFFIX .js)
+    set_target_properties(foxlang_web PROPERTIES OUTPUT_NAME skrumi SUFFIX .js)
     target_link_options(foxlang_web PRIVATE ${foxlang_web_options})
     # Programs with a window: every window_poll() and wait() hands the time back to
     # the browser, which delivers the keys and the mouse. Asyncify makes that
@@ -121,16 +133,32 @@ if(EMSCRIPTEN)
     target_compile_options(foxlang_core_graphics PUBLIC -fexceptions)
     add_executable(foxlang_web_graphics src/web/Playground.cpp)
     target_link_libraries(foxlang_web_graphics PRIVATE foxlang_core_graphics)
-    set_target_properties(foxlang_web_graphics PROPERTIES OUTPUT_NAME foxlang-graphics SUFFIX .js)
+    set_target_properties(foxlang_web_graphics PROPERTIES OUTPUT_NAME skrumi-graphics SUFFIX .js)
     target_link_options(foxlang_web_graphics PRIVATE -fexceptions
         -sMODULARIZE=1 -sEXPORT_NAME=createFoxLang -sENVIRONMENT=worker,node
         -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=512MB -sSTACK_SIZE=4MB
         -sEXPORTED_RUNTIME_METHODS=ccall,FS -sEXIT_RUNTIME=0 -sINVOKE_RUN=0
         -sASYNCIFY=1 "-sASYNCIFY_IMPORTS=['fox_canvas_poll','fox_pause']" -sASYNCIFY_STACK_SIZE=1048576)
+    # Cached old pages/workers can still fetch the previous bundle URLs.
+    foreach(flavor "" "-graphics")
+        if(flavor STREQUAL "")
+            set(web_target foxlang_web)
+        else()
+            set(web_target foxlang_web_graphics)
+        endif()
+        add_custom_command(TARGET ${web_target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${web_target}>
+                    ${CMAKE_CURRENT_BINARY_DIR}/foxlang${flavor}.js
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/skrumi${flavor}.wasm
+                    ${CMAKE_CURRENT_BINARY_DIR}/foxlang${flavor}.wasm)
+    endforeach()
     return()
 endif()
 include(cmake/Networking.cmake)
 include(cmake/Graphics.cmake)
+include(GNUInstallDirs)
+install(FILES $<TARGET_FILE_DIR:foxlang_core>/${CMAKE_STATIC_LIBRARY_PREFIX}foxlang_core${CMAKE_STATIC_LIBRARY_SUFFIX}
+        DESTINATION ${CMAKE_INSTALL_LIBDIR})
 if(ANDROID)
     option(FOXLANG_BUILD_ANDROID_JNI "Build the Java/Kotlin Android bridge" ON)
     if(FOXLANG_BUILD_ANDROID_JNI)
@@ -141,7 +169,7 @@ if(ANDROID)
         install(TARGETS foxlang_android LIBRARY DESTINATION lib)
     endif()
     install(TARGETS foxlang_core ARCHIVE DESTINATION lib)
-    install(DIRECTORY include/foxlang DESTINATION include)
+    install(DIRECTORY include/skrumi include/foxlang DESTINATION include)
     return()
 endif()
 
@@ -150,7 +178,7 @@ if(WIN32)
     target_link_libraries(foxlang_core PRIVATE shell32 winmm)
 endif()
 
-# FoxLang CLI executable
+# Skrumi CLI executable
 add_library(foxlang_bundle STATIC
     src/standalone/Bundle.cpp
     src/standalone/Image.cpp
@@ -187,7 +215,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID STREQUAL "GN
     target_link_options(foxlang PRIVATE -static-libgcc -static-libstdc++)
 endif()
 
-# FoxLang Language Server executable (LSP)
+# Skrumi Language Server executable (LSP)
 add_executable(foxlang-lsp
     src/lsp/main.cpp
     src/lsp/Transport.cpp
@@ -196,6 +224,22 @@ add_executable(foxlang-lsp
 )
 target_include_directories(foxlang-lsp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/lsp)
 target_link_libraries(foxlang-lsp PRIVATE foxlang_core foxlang_json)
+
+# The old targets remain buildable by downstream projects. Both executable names
+# contain exactly the same engine (including the standalone bundle descriptor).
+include(GNUInstallDirs)
+foreach(pair "foxlang|skrumi" "foxlang-lsp|skrumi-lsp")
+    string(REPLACE "|" ";" names "${pair}")
+    list(GET names 0 legacy)
+    list(GET names 1 modern)
+    set_target_properties(${legacy} PROPERTIES OUTPUT_NAME ${modern})
+    add_custom_command(TARGET ${legacy} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${legacy}>
+                $<TARGET_FILE_DIR:${legacy}>/${legacy}${CMAKE_EXECUTABLE_SUFFIX})
+    add_executable(${modern} ALIAS ${legacy})
+    install(PROGRAMS $<TARGET_FILE_DIR:${legacy}>/${legacy}${CMAKE_EXECUTABLE_SUFFIX}
+            DESTINATION ${CMAKE_INSTALL_BINDIR})
+endforeach()
 
 # CTest integration
 # Release builds optimize across source files when linking: calls between the VM,
@@ -232,5 +276,5 @@ install(TARGETS foxlang foxlang-lsp foxlang_core
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
-install(DIRECTORY include/foxlang DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(DIRECTORY std DESTINATION ${CMAKE_INSTALL_DATADIR}/foxlang)
+install(DIRECTORY include/skrumi include/foxlang DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY std DESTINATION ${CMAKE_INSTALL_DATADIR}/skrumi)

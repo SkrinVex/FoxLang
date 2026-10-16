@@ -1,42 +1,42 @@
 {
  "after_return_line": {
   "exit": 1,
-  "stderr": "FoxLang: after_return_line.fox:3: Runtime Error: Division by zero\n",
+  "stderr": "Skrumi: after_return_line.fox:3: Runtime Error: Division by zero\n",
   "stdout": ""
  },
  "arguments": {
   "exit": 1,
-  "stderr": "FoxLang: arguments.fox:2: Runtime Error: function 'f' expects 1 arguments, got 2\n",
+  "stderr": "Skrumi: arguments.fox:2: Runtime Error: function 'f' expects 1 arguments, got 2\n",
   "stdout": ""
  },
  "array_size": {
   "exit": 1,
-  "stderr": "FoxLang: array_size.fox:1: Runtime Error: Array size cannot be negative\n",
+  "stderr": "Skrumi: array_size.fox:1: Runtime Error: Array size cannot be negative\n",
   "stdout": ""
  },
  "bad_key": {
   "exit": 1,
-  "stderr": "FoxLang: bad_key.fox:2: Type Error: a map key must be string or int, got 'float'\n",
+  "stderr": "Skrumi: bad_key.fox:2: Type Error: a map key must be string or int, got 'float'\n",
   "stdout": ""
  },
  "bad_literal_key": {
   "exit": 1,
-  "stderr": "FoxLang: bad_literal_key.fox:1: Type Error: a map key must be string or int, got 'array'\n",
+  "stderr": "Skrumi: bad_literal_key.fox:1: Type Error: a map key must be string or int, got 'array'\n",
   "stdout": ""
  },
  "block_scope": {
   "exit": 1,
-  "stderr": "FoxLang: block_scope.fox:3: Runtime Error: Variable 'inner' not found!\n",
+  "stderr": "Skrumi: block_scope.fox:3: Runtime Error: Variable 'inner' not found!\n",
   "stdout": ""
  },
  "builtin_count": {
   "exit": 1,
-  "stderr": "FoxLang: builtin_count.fox:1: Runtime Error: size() expects 1 arguments, got 0\n",
+  "stderr": "Skrumi: builtin_count.fox:1: Runtime Error: size() expects 1 arguments, got 0\n",
   "stdout": ""
  },
  "builtin_errors": {
   "exit": 1,
-  "stderr": "FoxLang: builtin_errors.fox:1: Type Error: argument 'text' of str_upper() must be string, got 'int'\n",
+  "stderr": "Skrumi: builtin_errors.fox:1: Type Error: argument 'text' of str_upper() must be string, got 'int'\n",
   "stdout": ""
  },
  "builtin_overlap": {
@@ -51,7 +51,7 @@
  },
  "catch_scope": {
   "exit": 1,
-  "stderr": "FoxLang: catch_scope.fox:2: Runtime Error: Variable 'e' not found!\n",
+  "stderr": "Skrumi: catch_scope.fox:2: Runtime Error: Variable 'e' not found!\n",
   "stdout": "Runtime Error: x\n"
  },
  "compare_mixed": {
@@ -61,22 +61,22 @@
  },
  "compound_assign": {
   "exit": 1,
-  "stderr": "FoxLang: compound_assign.fox:12: Runtime Error: int overflow in '+=': result 2147483648 is outside -2147483648..2147483647\n",
+  "stderr": "Skrumi: compound_assign.fox:12: Runtime Error: int overflow in '+=': result 2147483648 is outside -2147483648..2147483647\n",
   "stdout": "4\nx1\n"
  },
  "compound_types": {
   "exit": 1,
-  "stderr": "FoxLang: compound_types.fox:8: Runtime Error: Division by zero\n",
+  "stderr": "Skrumi: compound_types.fox:8: Runtime Error: Division by zero\n",
   "stdout": "6\n0.25\n"
  },
  "condition_after_body": {
   "exit": 1,
-  "stderr": "FoxLang: condition_after_body.fox:2: Runtime Error: Division by zero\n",
+  "stderr": "Skrumi: condition_after_body.fox:2: Runtime Error: Division by zero\n",
   "stdout": ""
  },
  "condition_type": {
   "exit": 1,
-  "stderr": "FoxLang: condition_type.fox:2: Type Error: while condition must be bool, got 'int'\n",
+  "stderr": "Skrumi: condition_type.fox:2: Type Error: while condition must be bool, got 'int'\n",
   "stdout": ""
  },
  "conditions_bool": {
@@ -86,7 +86,7 @@
  },
  "container_ops": {
   "exit": 1,
-  "stderr": "FoxLang: container_ops.fox:1: Type Error: operator '+' cannot be applied to an array\n",
+  "stderr": "Skrumi: container_ops.fox:1: Type Error: operator '+' cannot be applied to an array\n",
   "stdout": ""
  },
  "containers": {
@@ -96,12 +96,12 @@
  },
  "declared_types": {
   "exit": 1,
-  "stderr": "FoxLang: declared_types.fox:7: Type Error: variable 'b' has type 'bool' and cannot hold a value of type 'int'\n",
+  "stderr": "Skrumi: declared_types.fox:7: Type Error: variable 'b' has type 'bool' and cannot hold a value of type 'int'\n",
   "stdout": "3 3 5\n2\n"
  },
  "deep_recursion": {
   "exit": 1,
-  "stderr": "FoxLang: deep_recursion.fox:1: Runtime Error: call depth limit reached in 'down' after N nested calls (recursion without a base case?)\n",
+  "stderr": "Skrumi: deep_recursion.fox:1: Runtime Error: call depth limit reached in 'down' after N nested calls (recursion without a base case?)\n",
   "stdout": ""
  },
  "deferred_include": {
@@ -111,7 +111,7 @@
  },
  "error_in_catch": {
   "exit": 1,
-  "stderr": "FoxLang: error_in_catch.fox:4: Runtime Error: Variable 'missing' not found!\n",
+  "stderr": "Skrumi: error_in_catch.fox:4: Runtime Error: Variable 'missing' not found!\n",
   "stdout": ""
  },
  "error_in_finally_after_return": {
@@ -131,12 +131,12 @@
  },
  "field_type": {
   "exit": 1,
-  "stderr": "FoxLang: field_type.fox:3: Type Error: field 'x' has type 'int' and cannot hold a value of type 'string'\n",
+  "stderr": "Skrumi: field_type.fox:3: Type Error: field 'x' has type 'int' and cannot hold a value of type 'string'\n",
   "stdout": ""
  },
  "finally_error_line": {
   "exit": 1,
-  "stderr": "FoxLang: finally_error_line.fox:5: Runtime Error: Division by zero\n",
+  "stderr": "Skrumi: finally_error_line.fox:5: Runtime Error: Division by zero\n",
   "stdout": "x\n"
  },
  "float_math": {
@@ -146,17 +146,17 @@
  },
  "for_condition": {
   "exit": 1,
-  "stderr": "FoxLang: for_condition.fox:1: Type Error: for condition must be bool, got 'int'\n",
+  "stderr": "Skrumi: for_condition.fox:1: Type Error: for condition must be bool, got 'int'\n",
   "stdout": ""
  },
  "function_break": {
   "exit": 1,
-  "stderr": "FoxLang: function_break.fox:1: Runtime Error: 'break' outside of loop in function 'f'\n",
+  "stderr": "Skrumi: function_break.fox:1: Runtime Error: 'break' outside of loop in function 'f'\n",
   "stdout": "in\n"
  },
  "function_continue": {
   "exit": 1,
-  "stderr": "FoxLang: function_continue.fox:1: Runtime Error: 'continue' outside of loop in function 'f'\n",
+  "stderr": "Skrumi: function_continue.fox:1: Runtime Error: 'continue' outside of loop in function 'f'\n",
   "stdout": "fin\n"
  },
  "functions_late": {
@@ -176,42 +176,42 @@
  },
  "globals_and_locals": {
   "exit": 1,
-  "stderr": "FoxLang: globals_and_locals.fox:6: Runtime Error: Variable 'hidden' not found!\n",
+  "stderr": "Skrumi: globals_and_locals.fox:6: Runtime Error: Variable 'hidden' not found!\n",
   "stdout": "5\n"
  },
  "if_chain": {
   "exit": 1,
-  "stderr": "FoxLang: if_chain.fox:5: Type Error: if condition must be bool, got 'string'\n",
+  "stderr": "Skrumi: if_chain.fox:5: Type Error: if condition must be bool, got 'string'\n",
   "stdout": "A\nB\nC\n"
  },
  "in_function": {
   "exit": 1,
-  "stderr": "FoxLang: in_function.fox:3: Runtime Error: Division by zero\n",
+  "stderr": "Skrumi: in_function.fox:3: Runtime Error: Division by zero\n",
   "stdout": "1\n"
  },
  "increment_errors": {
   "exit": 1,
-  "stderr": "FoxLang: increment_errors.fox:2: Type Error: '++' needs an int or float variable, 'a' is array\n",
+  "stderr": "Skrumi: increment_errors.fox:2: Type Error: '++' needs an int or float variable, 'a' is array\n",
   "stdout": ""
  },
  "index_errors": {
   "exit": 1,
-  "stderr": "FoxLang: index_errors.fox:2: Runtime Error: Array index out of bounds: 5 (size 1)\n",
+  "stderr": "Skrumi: index_errors.fox:2: Runtime Error: Array index out of bounds: 5 (size 1)\n",
   "stdout": ""
  },
  "literal_big": {
   "exit": 1,
-  "stderr": "FoxLang: literal_big.fox:2: Runtime Error: variable 'y' does not fit in int: '3000000000' (int holds -2147483648..2147483647)\n",
+  "stderr": "Skrumi: literal_big.fox:2: Runtime Error: variable 'y' does not fit in int: '3000000000' (int holds -2147483648..2147483647)\n",
   "stdout": "3000000000\n"
  },
  "literal_huge": {
   "exit": 1,
-  "stderr": "FoxLang: literal_huge.fox:2: Runtime Error: int literal '99999999999999999999' does not fit in int (int holds -2147483648..2147483647)\n",
+  "stderr": "Skrumi: literal_huge.fox:2: Runtime Error: int literal '99999999999999999999' does not fit in int (int holds -2147483648..2147483647)\n",
   "stdout": "1\n"
  },
  "loop_condition_later": {
   "exit": 1,
-  "stderr": "FoxLang: loop_condition_later.fox:2: Runtime Error: limit\n",
+  "stderr": "Skrumi: loop_condition_later.fox:2: Runtime Error: limit\n",
   "stdout": "0\n1\n"
  },
  "loops": {
@@ -221,12 +221,12 @@
  },
  "map_iteration": {
   "exit": 1,
-  "stderr": "FoxLang: map_iteration.fox:4: Syntax Error: expected ';' but found '++'\n",
+  "stderr": "Skrumi: map_iteration.fox:4: Syntax Error: expected ';' but found '++'\n",
   "stdout": ""
  },
  "map_missing": {
   "exit": 1,
-  "stderr": "FoxLang: map_missing.fox:2: Runtime Error: map has no key 'nothing' (has(map, key) checks, get_or(map, key, default) reads safely)\n",
+  "stderr": "Skrumi: map_missing.fox:2: Runtime Error: map has no key 'nothing' (has(map, key) checks, get_or(map, key, default) reads safely)\n",
   "stdout": ""
  },
  "module_using": {
@@ -236,7 +236,7 @@
  },
  "nested_call_line": {
   "exit": 1,
-  "stderr": "FoxLang: nested_call_line.fox:2: Runtime Error: deep\n",
+  "stderr": "Skrumi: nested_call_line.fox:2: Runtime Error: deep\n",
   "stdout": ""
  },
  "nested_try_return": {
@@ -246,32 +246,32 @@
  },
  "not_bool": {
   "exit": 1,
-  "stderr": "FoxLang: not_bool.fox:2: Type Error: operand of '!' must be bool, got 'int'\n",
+  "stderr": "Skrumi: not_bool.fox:2: Type Error: operand of '!' must be bool, got 'int'\n",
   "stdout": "false\n"
  },
  "not_found": {
   "exit": 1,
-  "stderr": "FoxLang: not_found.fox:2: Runtime Error: Function 'non_existent_func' not found!\n",
+  "stderr": "Skrumi: not_found.fox:2: Runtime Error: Function 'non_existent_func' not found!\n",
   "stdout": "1\n"
  },
  "overflow": {
   "exit": 1,
-  "stderr": "FoxLang: overflow.fox:2: Runtime Error: int overflow in '++': result 2147483648 is outside -2147483648..2147483647\n",
+  "stderr": "Skrumi: overflow.fox:2: Runtime Error: int overflow in '++': result 2147483648 is outside -2147483648..2147483647\n",
   "stdout": ""
  },
  "overflow_mul": {
   "exit": 1,
-  "stderr": "FoxLang: overflow_mul.fox:2: Runtime Error: int overflow in '*': result 10000000000 is outside -2147483648..2147483647\n",
+  "stderr": "Skrumi: overflow_mul.fox:2: Runtime Error: int overflow in '*': result 10000000000 is outside -2147483648..2147483647\n",
   "stdout": ""
  },
  "param_types": {
   "exit": 1,
-  "stderr": "FoxLang: param_types.fox:4: Type Error: parameter 'x' of 'g' has type 'int' and cannot hold a value of type 'string'\n",
+  "stderr": "Skrumi: param_types.fox:4: Type Error: parameter 'x' of 'g' has type 'int' and cannot hold a value of type 'string'\n",
   "stdout": "2 2\n"
  },
  "postinc_expr": {
   "exit": 1,
-  "stderr": "FoxLang: postinc_expr.fox:10: Type Error: '++' needs an int or float variable, 's' is string\n",
+  "stderr": "Skrumi: postinc_expr.fox:10: Type Error: '++' needs an int or float variable, 's' is string\n",
   "stdout": "6 11\n7 12\n2.5\n"
  },
  "recursion": {
@@ -286,17 +286,17 @@
  },
  "redeclare": {
   "exit": 1,
-  "stderr": "FoxLang: redeclare.fox:2: Runtime Error: Variable 'a' is already declared in this scope\n",
+  "stderr": "Skrumi: redeclare.fox:2: Runtime Error: Variable 'a' is already declared in this scope\n",
   "stdout": ""
  },
  "redeclare_first": {
   "exit": 1,
-  "stderr": "FoxLang: redeclare_first.fox:2: Runtime Error: Variable 'a' is already declared in this scope\n",
+  "stderr": "Skrumi: redeclare_first.fox:2: Runtime Error: Variable 'a' is already declared in this scope\n",
   "stdout": ""
  },
  "redeclare_local": {
   "exit": 1,
-  "stderr": "FoxLang: redeclare_local.fox:3: Runtime Error: Variable 'a' is already declared in this scope\n",
+  "stderr": "Skrumi: redeclare_local.fox:3: Runtime Error: Variable 'a' is already declared in this scope\n",
   "stdout": ""
  },
  "redefine": {
@@ -311,7 +311,7 @@
  },
  "return_types": {
   "exit": 1,
-  "stderr": "FoxLang: return_types.fox:2: Runtime Error: function 'f' must return int but ended without a value\n",
+  "stderr": "Skrumi: return_types.fox:2: Runtime Error: function 'f' must return int but ended without a value\n",
   "stdout": ""
  },
  "shadowing": {
@@ -321,7 +321,7 @@
  },
  "short_circuit": {
   "exit": 1,
-  "stderr": "FoxLang: short_circuit.fox:3: Type Error: right operand of '&&' must be bool, got 'int'\n",
+  "stderr": "Skrumi: short_circuit.fox:3: Type Error: right operand of '&&' must be bool, got 'int'\n",
   "stdout": "false true\n"
  },
  "strings": {
@@ -331,7 +331,7 @@
  },
  "strings_in_loops": {
   "exit": 1,
-  "stderr": "FoxLang: strings_in_loops.fox:4: Runtime Error: Function 'split' not found!\n",
+  "stderr": "Skrumi: strings_in_loops.fox:4: Runtime Error: Function 'split' not found!\n",
   "stdout": "0,1,2,3,4,\n"
  },
  "struct_as_function": {
@@ -351,12 +351,12 @@
  },
  "struct_default_error": {
   "exit": 1,
-  "stderr": "FoxLang: struct_default_error.fox:5: Runtime Error: Division by zero\n",
+  "stderr": "Skrumi: struct_default_error.fox:5: Runtime Error: Division by zero\n",
   "stdout": "before\n"
  },
  "struct_errors": {
   "exit": 1,
-  "stderr": "FoxLang: struct_errors.fox:2: Runtime Error: struct 'P' has 1 fields, got 2 values\n",
+  "stderr": "Skrumi: struct_errors.fox:2: Runtime Error: struct 'P' has 1 fields, got 2 values\n",
   "stdout": ""
  },
  "switch": {
@@ -366,17 +366,17 @@
  },
  "throw_values": {
   "exit": 1,
-  "stderr": "FoxLang: throw_values.fox:1: 42\n",
+  "stderr": "Skrumi: throw_values.fox:1: 42\n",
   "stdout": ""
  },
  "top_break": {
   "exit": 1,
-  "stderr": "FoxLang: top_break.fox:2: Runtime Error: 'break' outside of loop in global scope\n",
+  "stderr": "Skrumi: top_break.fox:2: Runtime Error: 'break' outside of loop in global scope\n",
   "stdout": "a\n"
  },
  "top_return": {
   "exit": 1,
-  "stderr": "FoxLang: top_return.fox:2: Runtime Error: 'return' outside of a function\n",
+  "stderr": "Skrumi: top_return.fox:2: Runtime Error: 'return' outside of a function\n",
   "stdout": "before\n"
  },
  "try_catch": {
@@ -386,32 +386,32 @@
  },
  "unary": {
   "exit": 1,
-  "stderr": "FoxLang: unary.fox:3: Type Error: operand of unary '-' must be a number, got 'string'\n",
+  "stderr": "Skrumi: unary.fox:3: Type Error: operand of unary '-' must be a number, got 'string'\n",
   "stdout": "-5 5 -2147483648\n"
  },
  "uncaught_after_finally": {
   "exit": 1,
-  "stderr": "FoxLang: uncaught_after_finally.fox:2: Runtime Error: escapes\n",
+  "stderr": "Skrumi: uncaught_after_finally.fox:2: Runtime Error: escapes\n",
   "stdout": "ran\n"
  },
  "undefined": {
   "exit": 1,
-  "stderr": "FoxLang: undefined.fox:2: Runtime Error: Variable 'missing' not found!\n",
+  "stderr": "Skrumi: undefined.fox:2: Runtime Error: Variable 'missing' not found!\n",
   "stdout": ""
  },
  "void_return": {
   "exit": 1,
-  "stderr": "FoxLang: void_return.fox:5: Type Error: return value of 'g' has type 'int' and cannot hold a value of type 'string'\n",
+  "stderr": "Skrumi: void_return.fox:5: Type Error: return value of 'g' has type 'int' and cannot hold a value of type 'string'\n",
   "stdout": "ok\n"
  },
  "while_condition_later": {
   "exit": 1,
-  "stderr": "FoxLang: while_condition_later.fox:9: Type Error: while condition must be bool, got 'int'\n",
+  "stderr": "Skrumi: while_condition_later.fox:9: Type Error: while condition must be bool, got 'int'\n",
   "stdout": "1\n2\n"
  },
  "zero_values": {
   "exit": 1,
-  "stderr": "FoxLang: zero_values.fox:1: Syntax Error: expected '=' but found ';'\n",
+  "stderr": "Skrumi: zero_values.fox:1: Syntax Error: expected '=' but found ';'\n",
   "stdout": ""
  },
  "zero_values_ok": {

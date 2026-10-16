@@ -49,7 +49,7 @@ TlsServer::TlsServer(const std::string& certificate, const std::string& privateK
         privateKey.find('\0') != std::string::npos) throw std::runtime_error("HTTPS Server Error: certificate and private key paths are required");
     // PSA initialization is idempotent; shared TLS clients may also use it.
     if (psa_crypto_init() != PSA_SUCCESS) throw std::runtime_error("HTTPS Server Error: crypto initialization failed");
-    const unsigned char personalization[] = "FoxLang HTTPS server";
+    const unsigned char personalization[] = "Skrumi HTTPS server";
     checked(mbedtls_ctr_drbg_seed(&state->random, mbedtls_entropy_func, &state->entropy,
                                 personalization, sizeof(personalization) - 1), "initialize random generator");
     const auto certificatePath = pathToUtf8(pathFromUtf8(certificate));

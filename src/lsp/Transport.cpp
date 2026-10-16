@@ -46,7 +46,7 @@ void Transport::sendMessage(std::ostream& out, const std::string& message) {
 }
 
 void Transport::log(const std::string& msg) {
-    std::cerr << "[foxlang-lsp] " << msg << std::endl;
+    std::cerr << "[skrumi-lsp] " << msg << std::endl;
 }
 
 } // namespace lsp

@@ -1,5 +1,5 @@
 #pragma once
-// FoxLang runs as bytecode: the parser's tree is compiled, one function at a time, into
+// Skrumi runs as bytecode: the parser's tree is compiled, one function at a time, into
 // instructions for a register machine (Compiler.cpp) that the VM executes (Vm.cpp).
 // A function's registers are its numbered variables (the resolver's slots, parameters
 // first), then the constants its arithmetic uses, then temporaries.
@@ -133,7 +133,7 @@ struct GlobalSite {
     Value function; // the name of a function read as a value: func f = add;
 };
 
-// A call by name: a builtin, a FoxLang function or a struct's constructor.
+// A call by name: a builtin, a Skrumi function or a struct's constructor.
 struct CallSite {
     std::string name;
     bool resolved = false;
@@ -238,7 +238,7 @@ void disassemble(const Proto& proto, std::ostream& out);
 } // namespace bytecode
 
 namespace vm {
-// Calls a FoxLang function with its arguments (moved from), as a call in the program would.
+// Calls a Skrumi function with its arguments (moved from), as a call in the program would.
 Value call(const FuncDefNode& function, Value* args, size_t count, Context& caller);
 // Runs a program's top level (or a module's) in the root scope.
 void run(BlockNode& program, Context& root, bytecode::Unit unit);

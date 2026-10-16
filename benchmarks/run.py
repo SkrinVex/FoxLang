@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runs the FoxLang benchmarks and the same programs in other languages.
+"""Runs the Skrumi benchmarks and the same programs in other languages.
 
 Every program prints a checksum; all languages must print the same one, so a faster
 result can never come from doing less work. Each program runs several times, in turns
@@ -50,7 +50,7 @@ def version_of(command):
 
 
 def describe(program):
-    """The first comment line of the FoxLang program says what the benchmark measures."""
+    """The first comment line of the Skrumi program says what the benchmark measures."""
     first = program.read_text(encoding="utf-8").splitlines()[0]
     return first.lstrip("/ ").strip()
 
@@ -86,7 +86,7 @@ def run_once(command, cwd, timeout, env):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--foxlang", default=str(ROOT / "build" / "foxlang"), help="the build being measured")
+    parser.add_argument("--skrumi", "--foxlang", dest="foxlang", default=str(ROOT / "build" / "skrumi"), help="the build being measured")
     parser.add_argument("--baseline", help="an older foxlang binary to compare with")
     parser.add_argument("--runs", type=int, default=5, help="runs of each program; the best one counts")
     parser.add_argument("--max-slowdown", type=float, default=0.10, help="allowed slowdown against the baseline, 0.10 = 10%%")
@@ -103,9 +103,9 @@ def main():
     names = sorted(p.stem for p in (HERE / "foxlang").glob("*.fox"))
     foxlang = str(Path(args.foxlang).resolve())
     # (key, shown name, command prefix, folder, extension)
-    implementations = [("foxlang", "FoxLang", [foxlang], "foxlang", ".fox")]
+    implementations = [("foxlang", "Skrumi", [foxlang], "foxlang", ".fox")]
     if args.baseline:
-        implementations.append(("foxlang_baseline", "FoxLang (previous)", [str(Path(args.baseline).resolve())], "foxlang", ".fox"))
+        implementations.append(("foxlang_baseline", "Skrumi (previous)", [str(Path(args.baseline).resolve())], "foxlang", ".fox"))
     missing = []
     if not args.only_foxlang:
         for key, shown, folder, extension, candidates in LANGUAGES:
@@ -151,7 +151,7 @@ def main():
         expected = answers[name].get("foxlang")
         for key, printed in answers[name].items():
             if printed != expected:
-                failures.append(f"{name}: {key} printed {printed!r}, FoxLang printed {expected!r}")
+                failures.append(f"{name}: {key} printed {printed!r}, Skrumi printed {expected!r}")
 
     columns = [(key, shown) for key, shown, _, _, _ in implementations]
     width = max(len(n) for n in names) + 2
