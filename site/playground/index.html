@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Песочница Skrumi</title>
+<link rel="icon" href="../assets/skrumi-mark.svg" type="image/svg+xml">
 <meta name="description" content="Попробуйте язык Skrumi прямо в браузере: без установки, программа выполняется на вашем компьютере.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -129,13 +130,14 @@ button, select { font: inherit; color: inherit; }
 }
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   margin-right: auto;
   text-decoration: none;
   color: var(--ink);
   min-width: 0;
 }
+.brand img { width: 28px; height: 28px; flex-shrink: 0; }
 .brand b { font: 700 17px var(--display); color: var(--fox); }
 .brand span { color: var(--muted); font-size: 14px; }
 .btn {
@@ -527,7 +529,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
 </head>
 <body>
 <header class="bar">
-  <a class="brand" href="../"><b>Skrumi</b><span>песочница</span></a>
+  <a class="brand" href="../"><img src="../assets/skrumi-mark.svg" width="28" height="28" alt=""><b>Skrumi</b><span>песочница</span></a>
   <select id="examples" aria-label="Пример программы">
     <option value="">Примеры…</option>
     <option value="hello">Привет и циклы</option>
@@ -589,7 +591,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
 
 <footer>
   Программа выполняется в вашем браузере, на сервер ничего не отправляется. Запускается
-  <code>main.skm</code>, остальные файлы подключаются через <code>using</code> и <code>include</code>.
+  <code>main.skm</code> (старые <code>.fox</code> тоже поддерживаются), остальные файлы подключаются через <code>using</code> и <code>include</code>.
   Окно (<code>using graphics</code>) рисуется прямо на странице; сети, звука и запуска
   программ здесь нет, файлы живут в памяти до конца запуска.
   <a href="../builder/">Собрать интерфейс в конструкторе</a>. Ограничения:
@@ -1376,7 +1378,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     var paths = EXAMPLES[name];
     return Promise.all(paths.map(function (p) { return fetchText("examples/" + p); })).then(function (texts) {
       return paths.map(function (p, i) {
-        return { name: i === 0 ? ENTRY : p.slice(p.indexOf("/") + 1), text: texts[i] };
+        return { name: i === 0 ? "main.skm" : p.slice(p.indexOf("/") + 1), text: texts[i] };
       });
     });
   }

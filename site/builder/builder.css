@@ -81,6 +81,7 @@ summary:focus-visible {
   padding: 18px 30px;
   border-bottom: 1px solid var(--line);
 }
+.brand img { width: 28px; height: 28px; vertical-align: middle; }
 .brand {
   font-size: 25px;
   font-weight: 850;

@@ -8,6 +8,7 @@
 <meta property="og:description" content="Объяснение с нуля: лексер, парсер, интерпретатор, графика точка за точкой, веб-сервер и инструменты языка Skrumi.">
 <meta name="color-scheme" content="light dark">
 <title>Как устроен Skrumi</title>
+<link rel="icon" href="assets/skrumi-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -141,7 +142,7 @@ h1 {
 @media (max-width: 700px) {
   .hero { grid-template-columns: minmax(0, 1fr); padding-block: 36px 28px; }
 }
-.pixel-fox { image-rendering: pixelated; width: 84px; height: 84px; margin-bottom: 18px; }
+.language-mark { width: 84px; height: 84px; margin-bottom: 18px; }
 
 /* Table of contents */
 .toc {
@@ -429,7 +430,7 @@ img { max-width: 100%; }
 <body>
 <header class="hero">
   <div>
-    <canvas class="pixel-fox" id="fox" width="12" height="12" aria-hidden="true"></canvas>
+    <img class="language-mark" src="assets/skrumi-mark.svg" width="84" height="84" alt="Логотип Skrumi">
     <p class="eyebrow">Skrumi 8.17.2 · объяснение с нуля</p>
     <h1>Как устроен язык Skrumi</h1>
     <p class="lede">Что происходит между строчкой <code>print("Привет!");</code> и словом на экране: как язык читает текст, хранит числа и списки, вызывает функции, ловит ошибки, рисует окно точка за точкой, отвечает браузеру и почему для него есть отладчик.</p>
@@ -1014,32 +1015,6 @@ print(square(4));</pre>
 </script>
 <script>
 (function () {
-  // A fox face drawn cell by cell, like Skrumi's own 5x7 pixel font.
-  var art = [
-    "o..........o",
-    "oo........oo",
-    "ooo......ooo",
-    "oooooooooooo",
-    "oowoooooowoo",
-    "oobwooooobwo",
-    "ooooooooooo.",
-    ".ooowwwwooo.",
-    "..oowwwwoo..",
-    "...owbbwo...",
-    "....wwww....",
-    "............"
-  ];
-  var canvas = document.getElementById("fox");
-  var ctx = canvas.getContext("2d");
-  var fox = getComputedStyle(document.documentElement).getPropertyValue("--fox").trim() || "#d9620f";
-  var colors = { o: fox, w: "#ffffff", b: "#1d222a" };
-  art.forEach(function (row, y) {
-    for (var x = 0; x < row.length; x++) {
-      var c = colors[row[x]];
-      if (c) { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); }
-    }
-  });
-
   // Table of contents from the section headings.
   var toc = document.getElementById("toc");
   var sections = Array.prototype.slice.call(document.querySelectorAll("article section"));

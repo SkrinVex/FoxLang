@@ -1,6 +1,6 @@
 // Привет! Это Skrumi. Нажми «Запустить» или Ctrl+Enter.
 string name = "мир";
-print("Привет, ${name}! 🦊");
+print("Привет, ${name}! ✦");
 
 // Переменные с типами: int, float, string, bool.
 int year = 2026;
