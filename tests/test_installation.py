@@ -40,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-install-') as temp:
         refused = subprocess.run(['bash', str(prefix / 'share/skrumi/uninstall.sh')], capture_output=True)
         assert refused.returncode != 0 and personal.read_text() == 'print("keep me");'
         personal.unlink()
-        foreign = prefix / 'bin/foxlang' 
+        foreign = prefix / 'bin/foxlang'
         foreign.write_text('#!/bin/sh\necho unrelated\n')
         install(False)
         subprocess.run(['bash', str(prefix / 'share/skrumi/uninstall.sh')], check=True, capture_output=True)
