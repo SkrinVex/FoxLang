@@ -1,42 +1,17 @@
+/* Shared guide palette and typography are defined in ../assets/theme.css. */
 :root {
-  color-scheme: light;
-  --paper: #f7f5f0;
-  --ink: #242b30;
-  --muted: #6c7276;
-  --line: #deded7;
-  --fox: #c34e20;
-  --pale: #fcebdd;
-  --surface: #fff;
-  --work: #ebece7;
-  --grid: #c6c9c1;
+  --paper: var(--bg);
+  --pale: var(--fox-soft);
+  --work: var(--surface-2);
+  --grid: var(--line);
   --danger: #af2525;
-  --on-accent: #fff;
-  --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  --on-accent: var(--fox-ink);
   color: var(--ink);
-  background: var(--paper);
+  background: var(--bg);
+  font-family: var(--body);
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --paper: #12161c;
-  --ink: #e6eaf0;
-  --muted: #a2adb9;
-  --line: #35404d;
-  --fox: #ff9a5c;
-  --pale: #36291f;
-  --surface: #1a2029;
-  --work: #10141a;
-  --grid: #37414f;
-  --danger: #ff9696;
-  --on-accent: #211309;
-}
-.theme-control { margin-left: auto; flex-shrink: 0; }
-.theme-control select { width: auto; }
+:root[data-theme="dark"] { --danger: #ff9696; }
+.top .theme-toggle { margin-left: 0; }
 * {
   box-sizing: border-box;
 }
@@ -59,7 +34,7 @@ summary {
 button {
   cursor: pointer;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 10px;
   background: var(--surface);
   color: var(--ink);
   padding: 9px 12px;
@@ -107,9 +82,8 @@ summary:focus-visible {
   align-items: center;
   gap: 7px;
   flex-shrink: 0;
-  font-size: 25px;
-  font-weight: 850;
-  letter-spacing: -1px;
+  font: 700 17px var(--display);
+  letter-spacing: 0;
   text-decoration: none;
 }
 .brand span {
@@ -146,14 +120,16 @@ nav a {
   margin: 0 0 12px;
 }
 h1 {
-  font-size: clamp(30px, 3vw, 46px);
-  letter-spacing: -1.8px;
-  line-height: 1.06;
+  font-family: var(--display);
+  font-size: clamp(28px, 3vw, 46px);
+  letter-spacing: -.02em;
+  line-height: 1.2;
   margin: 0 0 14px;
-  font-weight: 650;
+  font-weight: 700;
 }
 h1 em {
-  font-family: Georgia, serif;
+  font-family: inherit;
+  font-style: normal;
   color: var(--fox);
   font-weight: 400;
 }
@@ -224,7 +200,7 @@ details + details {
 }
 summary {
   cursor: pointer;
-  font-weight: 650;
+  font-weight: 700;
   font-size: 13px;
   margin-bottom: 14px;
 }
@@ -485,8 +461,8 @@ iframe {
   white-space: pre;
   overflow: auto;
   font: 12px/1.7 var(--mono);
-  color: #eee;
-  background: #202a30;
+  color: var(--ink);
+  background: var(--surface);
   outline-offset: -3px;
 }
 #notice {
@@ -557,6 +533,8 @@ footer p {
   }
 }
 @media (max-width: 600px) {
+  .top .theme-toggle { margin-left: auto; }
+  .top nav { order: 2; }
   .top {
     flex-wrap: wrap;
     gap: 10px;

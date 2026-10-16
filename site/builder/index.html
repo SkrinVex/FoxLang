@@ -7,24 +7,22 @@
       name="description"
       content="Визуальный конструктор интерфейсов Skrumi: макеты для телефона и ПК, живой запуск и готовый код."
     />
-    <title>Skrumi UI — конструктор интерфейсов</title>
+    <script src="../assets/theme.js?v=2"></script>
+<title>Skrumi UI — конструктор интерфейсов</title>
     <link rel="icon" href="../assets/skrumi-mark.svg" type="image/svg+xml" />
-    <script src="theme.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
     <link rel="stylesheet" href="builder.css" />
     <script src="model.js" defer></script>
     <script src="builder.js" defer></script>
-  </head>
+  <link rel="stylesheet" href="../assets/theme.css?v=2">
+</head>
   <body>
     <header class="top">
       <a class="brand" href="../"><img src="../assets/skrumi-mark.svg" width="28" height="28" alt="" /> Skrumi <span>UI</span></a
       ><span class="tag">КОНСТРУКТОР ИНТЕРФЕЙСОВ</span>
-      <label class="theme-control">Тема
-        <select id="editor-theme" aria-label="Тема конструктора">
-          <option value="auto">Системная</option>
-          <option value="light">Светлая</option>
-          <option value="dark">Тёмная</option>
-        </select>
-      </label>
+
       <nav aria-label="Ссылки">
         <a href="../playground/">Песочница</a><a href="../#graphics">О языке</a
         ><a
@@ -32,6 +30,7 @@
           >Руководство</a
         ><a href="https://github.com/SkrinVex/Skrumi">GitHub ↗</a>
       </nav>
+      <button class="theme-toggle" id="theme" type="button" aria-label="Тема оформления"><svg viewBox="0 0 24 24" aria-hidden="true"><path d=""/></svg></button>
     </header>
     <section class="intro">
       <div>
