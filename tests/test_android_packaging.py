@@ -22,6 +22,10 @@ with tempfile.TemporaryDirectory() as temp:
     assert (staged / "foxlang-entry.txt").read_text() == "nested/app.fox"
     assert not (staged / "program/.env").exists()
     assert not (staged / "program/private.key").exists()
+    (project / "nested/new.skm").write_text('include("helper.fox"); print(name);')
+    mixed = m.stage_project(project / "nested/new.skm", project, [], d / "mixed")
+    assert Path("nested/helper.fox") in mixed and Path("nested/new.skm") in mixed
+    assert (d / "mixed/foxlang-entry.txt").read_text() == "nested/new.skm"
     for invalid in ["../outside", ".env", str((project / "logo.png").resolve())]:
         try: m.stage_project(project / "nested/app.fox", project, [invalid], d / "invalid")
         except ValueError: pass

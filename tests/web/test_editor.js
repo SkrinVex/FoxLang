@@ -31,11 +31,13 @@ const { chromium } = require('playwright');
       const page = await context.newPage();
       await page.addInitScript(() => {
         window.inputs = [];
+        window.runs = [];
         window.Worker = class {
           constructor() { setTimeout(() => this.emit({ type: 'ready', version: 'test' }), 0); }
           emit(data) { this.onmessage?.({ data }); }
           postMessage(message) {
             if (message.type === 'check') setTimeout(() => this.emit({ type: 'problems', id: message.id, problems: {} }), 0);
+            if (message.type === 'run') window.runs.push(message);
             if (message.type === 'input') window.inputs.push(message);
             if (message.type === 'run' && message.canvas) setTimeout(() => this.emit({ type: 'window', width: 640, height: 500, title: 'Test' }), 0);
           }
@@ -43,6 +45,36 @@ const { chromium } = require('playwright');
         };
       });
       await page.goto(`http://127.0.0.1:${server.address().port}/playground/`);
+      const compatibility = await context.newPage();
+      await compatibility.addInitScript(() => {
+        window.inputs = [];
+        window.runs = [];
+        window.Worker = class {
+          constructor() { setTimeout(() => this.emit({ type: 'ready', version: 'test' }), 0); }
+          emit(data) { this.onmessage?.({ data }); }
+          postMessage(message) {
+            if (message.type === 'check') setTimeout(() => this.emit({ type: 'problems', id: message.id, problems: {} }), 0);
+            if (message.type === 'run') window.runs.push(message);
+            if (message.type === 'input') window.inputs.push(message);
+            if (message.type === 'run' && message.canvas) setTimeout(() => this.emit({ type: 'window', width: 640, height: 500, title: 'Test' }), 0);
+          }
+          terminate() {}
+        };
+      });
+      await compatibility.addInitScript(() => {
+        localStorage.setItem('foxlang-playground-files', JSON.stringify([
+          {name: 'main.fox', text: 'include("helper.skm");'},
+          {name: 'helper.skm', text: 'print(42);'}
+        ]));
+      });
+      await compatibility.goto(`http://127.0.0.1:${server.address().port}/playground/`);
+      await compatibility.waitForFunction(() => document.querySelector('#source').value.includes('helper.skm'));
+      await compatibility.locator('#run').click();
+      await compatibility.waitForFunction(() => window.runs.length > 0);
+      const legacyRun = await compatibility.evaluate(() => window.runs[0]);
+      assert.equal(legacyRun.entry, 'main.fox');
+      assert(legacyRun.files.some(file => file.name === 'helper.skm'));
+      await compatibility.close();
       const source = page.locator('#source');
       await source.fill('print("' + 'long code '.repeat(60) + 'TAIL");\nprint("short");');
       await page.waitForTimeout(450); // Also exercise a checker-triggered render.

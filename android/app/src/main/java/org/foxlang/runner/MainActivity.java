@@ -8,16 +8,16 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import org.foxlang.android.FoxLang;
-import org.foxlang.android.FoxView;
-import org.foxlang.android.FoxControls;
+import org.skrumi.android.Skrumi;
+import org.skrumi.android.SkrumiView;
+import org.skrumi.android.SkrumiControls;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 
 /** APK entry point used by the example and packaging/build_android.py. */
 public class MainActivity extends Activity {
-    private FoxLang engine;
+    private Skrumi engine;
     private TextView output;
     private EditText stdin;
     private Button run;
@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
         Button keyboard=new Button(this);keyboard.setText("Клавиатура");controls.addView(keyboard);
         root.addView(controls);
         stdin=new EditText(this);stdin.setHint("Ввод для input() — перед запуском");root.addView(stdin);
-        FoxView view=new FoxView(this);root.addView(view,new LinearLayout.LayoutParams(-1,0,1));
+        SkrumiView view=new SkrumiView(this);root.addView(view,new LinearLayout.LayoutParams(-1,0,1));
         output=new TextView(this);output.setTextIsSelectable(true);
         ScrollView console=new ScrollView(this);console.addView(output);root.addView(console,new LinearLayout.LayoutParams(-1,(int)(120*getResources().getDisplayMetrics().density)));
         setContentView(root);
@@ -46,9 +46,9 @@ public class MainActivity extends Activity {
             if(getPreferences(MODE_PRIVATE).getLong("installed",0)!=installed || !new File(project,entry).isFile()) {
                 copyAssets("program",project);getPreferences(MODE_PRIVATE).edit().putLong("installed",installed).apply();
             }
-            engine=new FoxLang(project,view,getIntent().getStringArrayExtra("foxlang.arguments")==null ? new String[0] : getIntent().getStringArrayExtra("foxlang.arguments"));
+            engine=new Skrumi(project,view,getIntent().getStringArrayExtra("foxlang.arguments")==null ? new String[0] : getIntent().getStringArrayExtra("foxlang.arguments"));
             view.setEngine(engine);
-            FoxControls gamepad = new FoxControls(this,engine,view);
+            SkrumiControls gamepad = new SkrumiControls(this,engine,view);
             root.addView(gamepad,root.indexOfChild(console));
             view.setFullscreenListener(enabled -> {
                 controls.setVisibility(enabled ? View.GONE : View.VISIBLE);

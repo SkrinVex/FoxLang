@@ -82,7 +82,7 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
         capabilities["documentFormattingProvider"] = true;
 
         std::map<std::string, JsonValue> serverInfo;
-        serverInfo["name"] = "foxlang-lsp";
+        serverInfo["name"] = "skrumi-lsp";
         serverInfo["version"] = foxlang::Interpreter::getVersion();
 
         std::map<std::string, JsonValue> res;

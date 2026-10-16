@@ -1,0 +1,39 @@
+// Записи гостевой книги: массив в памяти и файл entries.txt рядом с сайтом.
+using fs;
+using string;
+
+array names;
+array messages;
+string storage_file = "entries.txt";
+
+void load_entries() {
+    array lines = read_lines(storage_file);
+    for (int i = 0; i < size(lines); i++) {
+        array fields = split(lines[i], "\t");
+        if (size(fields) == 2) {
+            push(names, fields[0]);
+            push(messages, fields[1]);
+        }
+    }
+}
+
+void add_entry(string name, string message) {
+    // Табуляция и перевод строки разделяют поля и записи в файле.
+    string clean_name = replace(replace(trim(name), "\t", " "), "\n", " ");
+    string clean_message = replace(replace(trim(message), "\t", " "), "\n", " ");
+    push(names, clean_name);
+    push(messages, clean_message);
+    append_file(storage_file, clean_name + "\t" + clean_message + "\n");
+}
+
+// Все записи как JSON-массив объектов {id, name, message}.
+string entries_json() {
+    string list = "[]";
+    for (int i = 0; i < size(names); i++) {
+        string entry = json_set("", "id", i);
+        entry = json_set(entry, "name", names[i]);
+        entry = json_set(entry, "message", messages[i]);
+        list = json_set_raw(list, to_string(i), entry);
+    }
+    return list;
+}

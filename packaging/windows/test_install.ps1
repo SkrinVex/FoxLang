@@ -10,14 +10,14 @@ $PackageDir = (Resolve-Path -LiteralPath $PackageDir).Path
 $BaseTemp = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }
 $TempRoot = Join-Path $BaseTemp "foxlang-installer-test-$PID"
 $ReleaseDir = Join-Path $TempRoot 'Распакованный архив'
-$InstallDir = Join-Path $TempRoot 'FoxLang Лиса & !'
+$InstallDir = Join-Path $TempRoot 'Skrumi Лиса & !'
 $ProfileDir = Join-Path $TempRoot 'user profile'
 $SavedEnvironment = @{}
-foreach ($Name in @('USERPROFILE', 'LOCALAPPDATA', 'ProgramFiles', 'PATH', 'FOXLANG_HOME')) {
+foreach ($Name in @('USERPROFILE', 'LOCALAPPDATA', 'ProgramFiles', 'PATH', 'SKRUMI_HOME')) {
     $SavedEnvironment[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
 }
 $SavedUserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-$SavedUserHome = [Environment]::GetEnvironmentVariable('FOXLANG_HOME', 'User')
+$SavedUserHome = [Environment]::GetEnvironmentVariable('SKRUMI_HOME', 'User')
 
 function Invoke-Cmd([string]$Launcher, [string]$Arguments) {
     # Exercise the same powershell.exe -File path as double-clicking the launcher.
@@ -72,23 +72,26 @@ try {
         } else {
             Invoke-Cmd (Join-Path $ReleaseDir 'install.cmd') ('-InstallDir "{0}" -SkipEnvironment' -f $InstallDir)
         }
-        $Manifest = Get-Content -LiteralPath (Join-Path $ExtensionDir 'package.json') -Raw | ConvertFrom-Json
+        foreach ($Alias in @('foxlang.exe', 'foxlang-lsp.exe')) {
+        if (-not (Test-Path (Join-Path $InstallDir $Alias))) { throw "Missing compatibility command: $Alias" }
+    }
+    $Manifest = Get-Content -LiteralPath (Join-Path $ExtensionDir 'package.json') -Raw | ConvertFrom-Json
         if ($Manifest.version -ne $Version) { throw 'VSIX fallback installed the wrong extension version.' }
     }
     Remove-Item -LiteralPath $ReleaseDir -Recurse -Force
     foreach ($Name in @('uninstall.cmd', 'uninstall.ps1')) {
         if (-not (Test-Path -LiteralPath (Join-Path $InstallDir $Name) -PathType Leaf)) { throw "Installed $Name is missing." }
     }
-    $env:FOXLANG_HOME = $InstallDir
+    $env:SKRUMI_HOME = $InstallDir
     $env:PATH = "$InstallDir;$env:PATH"
-    $CliVersion = (& (Join-Path $InstallDir 'foxlang.exe') --version | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $CliVersion -ne "FoxLang $Version") { throw "CLI reports '$CliVersion'." }
-    $LspVersion = (& (Join-Path $InstallDir 'foxlang-lsp.exe') --version | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $LspVersion -ne "foxlang-lsp $Version") { throw "LSP reports '$LspVersion'." }
+    $CliVersion = (& (Join-Path $InstallDir 'skrumi.exe') --version | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $CliVersion -ne "Skrumi $Version") { throw "CLI reports '$CliVersion'." }
+    $LspVersion = (& (Join-Path $InstallDir 'skrumi-lsp.exe') --version | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $LspVersion -ne "skrumi-lsp $Version") { throw "LSP reports '$LspVersion'." }
     if (-not (Test-Path -LiteralPath (Join-Path $InstallDir 'std') -PathType Container)) { throw 'Installed standard library is missing.' }
     $Program = Join-Path $TempRoot 'smoke.fox'
     [System.IO.File]::WriteAllText($Program, 'print("FOX_INSTALL_OK");')
-    $Output = (& (Join-Path $InstallDir 'foxlang.exe') $Program 2>&1 | Out-String)
+    $Output = (& (Join-Path $InstallDir 'skrumi.exe') $Program 2>&1 | Out-String)
     if ($LASTEXITCODE -ne 0 -or $Output -notmatch 'FOX_INSTALL_OK') { throw "Installed runtime smoke test failed: $Output" }
     if ($Direct) {
         & (Join-Path $InstallDir 'uninstall.ps1') -SkipEnvironment
@@ -96,7 +99,7 @@ try {
         Invoke-Cmd (Join-Path $InstallDir 'uninstall.cmd') '-SkipEnvironment'
     }
     if (Test-Path -LiteralPath $InstallDir) { throw 'Uninstaller left the installation directory behind.' }
-    if (Test-Path -LiteralPath $ExtensionDir) { throw 'Uninstaller left the VS Code extension behind.' }
+    if (-not (Test-Path -LiteralPath $ExtensionDir)) { throw 'Uninstaller removed shared editor settings.' }
 } finally {
     foreach ($Name in $SavedEnvironment.Keys) {
         [Environment]::SetEnvironmentVariable($Name, $SavedEnvironment[$Name], 'Process')
@@ -107,7 +110,7 @@ try {
 # User PATH can contain %USERPROFILE% and %LOCALAPPDATA%; compare it only after
 # restoring those process variables so expansion uses the same values as before.
 if ([Environment]::GetEnvironmentVariable('Path', 'User') -cne $SavedUserPath -or
-    [Environment]::GetEnvironmentVariable('FOXLANG_HOME', 'User') -cne $SavedUserHome) {
+    [Environment]::GetEnvironmentVariable('SKRUMI_HOME', 'User') -cne $SavedUserHome) {
     throw 'SkipEnvironment changed user environment variables.'
 }
 Write-Host "WINDOWS_INSTALLER_OK PowerShell=$($PSVersionTable.PSVersion) Direct=$Direct"

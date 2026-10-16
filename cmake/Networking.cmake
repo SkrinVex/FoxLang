@@ -34,7 +34,7 @@ function(foxlang_networking)
     set(CURL_CA_PATH none CACHE STRING "Select the recipient CA store at runtime" FORCE)
     # The HTTPS server shares this static TLS implementation on both platforms.
     set(ENABLE_PROGRAMS OFF CACHE BOOL "Do not build Mbed TLS utilities" FORCE)
-    set(ENABLE_TESTING OFF CACHE BOOL "Run FoxLang integration tests, not vendor test suites" FORCE)
+    set(ENABLE_TESTING OFF CACHE BOOL "Run Skrumi integration tests, not vendor test suites" FORCE)
     set(MBEDTLS_FATAL_WARNINGS OFF)
     set(DISABLE_PACKAGE_CONFIG_AND_INSTALL ON)
     FetchContent_Declare(mbedtls

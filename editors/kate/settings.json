@@ -1,10 +1,10 @@
 {
     "servers": {
         "foxlang": {
-            "command": ["foxlang-lsp"],
+            "command": ["skrumi-lsp"],
             "root": "",
             "url": "https://github.com/SkrinVex/FoxLang",
-            "highlightingModeRegex": "^FoxLang$"
+            "highlightingModeRegex": "^Skrumi$"
         }
     }
 }

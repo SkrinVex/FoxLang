@@ -178,13 +178,13 @@ set_tests_properties(regression_test_os PROPERTIES ENVIRONMENT "${FOXLANG_TEST_E
 # CLI flags tests
 add_test(NAME cli_version COMMAND foxlang --version)
 string(REPLACE "." "[.]" FOXLANG_VERSION_PATTERN "${PROJECT_VERSION}")
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "FoxLang ${FOXLANG_VERSION_PATTERN}")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "Skrumi ${FOXLANG_VERSION_PATTERN}")
 
 add_test(NAME cli_help COMMAND foxlang --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "https://github.com/SkrinVex/FoxLang")
 
 add_test(NAME lsp_cli_version COMMAND foxlang-lsp --version)
-set_tests_properties(lsp_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "foxlang-lsp ${FOXLANG_VERSION_PATTERN}")
+set_tests_properties(lsp_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "skrumi-lsp ${FOXLANG_VERSION_PATTERN}")
 
 add_test(NAME lsp_cli_help COMMAND foxlang-lsp --help)
 set_tests_properties(lsp_cli_help PROPERTIES PASS_REGULAR_EXPRESSION "Language Server")
@@ -217,10 +217,10 @@ if(NOT WIN32)
     endif()
 endif()
 
-# Examples and the standard library must stay valid FoxLang: checked without running.
+# Examples and the standard library must stay valid Skrumi: checked without running.
 file(GLOB FOXLANG_CHECKED_SOURCES CONFIGURE_DEPENDS
-    ${CMAKE_SOURCE_DIR}/examples/*.fox
-    ${CMAKE_SOURCE_DIR}/examples/*/*.fox
+    ${CMAKE_SOURCE_DIR}/examples/*.skm
+    ${CMAKE_SOURCE_DIR}/examples/*/*.skm
     ${CMAKE_SOURCE_DIR}/std/*.fox)
 foreach(SOURCE ${FOXLANG_CHECKED_SOURCES})
     get_filename_component(SOURCE_NAME ${SOURCE} NAME_WE)
@@ -239,3 +239,9 @@ add_test(NAME web_server_example COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_S
 set_tests_properties(web_server_example PROPERTIES TIMEOUT 60)
 add_test(NAME lsp_project COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_lsp_project.py $<TARGET_FILE:foxlang-lsp>)
 set_tests_properties(lsp_project PROPERTIES TIMEOUT 60)
+
+add_test(NAME rebranding COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_rebranding.py $<TARGET_FILE:foxlang>)
+add_test(NAME lsp_mixed_extensions COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_lsp_project.py $<TARGET_FILE:foxlang-lsp> mixed)
+if(NOT WIN32)
+    add_test(NAME rebranding_installation COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_installation.py $<TARGET_FILE:foxlang>)
+endif()

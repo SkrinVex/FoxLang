@@ -1,3 +1,12 @@
+## Unreleased — Skrumi identity and FoxLang compatibility
+
+- Rename the public language, CLI and LSP to Skrumi, `skrumi` and `skrumi-lsp`.
+- Support `.skm` alongside `.fox` through the same runtime and tooling.
+- Keep legacy CLI names, runtime flags/environment, C++/JNI/Java/editor identifiers,
+  module precedence, repository URLs and project history.
+- Update packaging, editor integrations, browser defaults and migration guidance.
+- Add cross-name, mixed-extension and migration regression coverage.
+
 # Изменения FoxLang
 
 ## FoxLang 8.17.2

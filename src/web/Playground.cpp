@@ -1,4 +1,4 @@
-// The FoxLang of the browser playground: WebAssembly in a web worker. The page runs
+// The Skrumi of the browser playground: WebAssembly in a web worker. The page runs
 // every program in a fresh worker and ends it when time runs out, so nothing here
 // needs to stop a program; output goes to the worker's stdout and stderr.
 #include "foxlang/FoxLang.h"

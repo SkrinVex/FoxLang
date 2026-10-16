@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE language SYSTEM "language.dtd">
-<language name="FoxLang" version="5" kateversion="5.0" section="Sources"
-          extensions="*.fox" mimetype="text/x-foxlang" author="SkrinVex" license="MIT">
+<language name="Skrumi" version="5" kateversion="5.0" section="Sources"
+          extensions="*.skm;*.fox" mimetype="text/x-foxlang" author="SkrinVex" license="MIT">
   <highlighting>
     <list name="controlflow">
       <item>if</item>

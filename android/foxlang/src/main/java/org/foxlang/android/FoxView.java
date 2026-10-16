@@ -180,7 +180,7 @@ public class FoxView extends View implements FoxLang.Host {
         ClipboardManager c=(ClipboardManager)getContext().getSystemService(Context.CLIPBOARD_SERVICE);
         ClipData data=c.getPrimaryClip();return data==null || data.getItemCount()==0 ? "" : String.valueOf(data.getItemAt(0).coerceToText(getContext()));
     }
-    @Override public void setClipboard(String text) { ((ClipboardManager)getContext().getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("FoxLang",text)); }
+    @Override public void setClipboard(String text) { ((ClipboardManager)getContext().getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Skrumi",text)); }
     @Override public synchronized boolean playWav(byte[] bytes) {
         File temporary=null;MediaPlayer player=new MediaPlayer();
         try {

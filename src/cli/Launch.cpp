@@ -15,7 +15,8 @@ LaunchOptions parseLaunch(const std::vector<std::string>& arguments) {
     LaunchOptions result;
     bool literal = false;
     for (size_t i = 0; i < arguments.size(); ++i) {
-        const auto& arg = arguments[i];
+        auto arg = arguments[i];
+        if (!literal && arg.rfind("--skrumi-", 0) == 0) arg = "--foxlang-" + arg.substr(9);
         if (!literal && arg == "--") { literal = true; continue; }
         if (literal || arg.rfind("--foxlang-", 0) != 0) {
             result.interpreter.arguments.push_back(arg);
@@ -73,10 +74,10 @@ void reportError(const std::string& message) {
         int size = MultiByteToWideChar(CP_UTF8, 0, message.data(), static_cast<int>(message.size()), nullptr, 0);
         std::wstring text(static_cast<size_t>(size), L'\0');
         MultiByteToWideChar(CP_UTF8, 0, message.data(), static_cast<int>(message.size()), text.data(), size);
-        MessageBoxW(nullptr, text.c_str(), L"FoxLang", MB_OK | MB_ICONERROR);
+        MessageBoxW(nullptr, text.c_str(), L"Skrumi", MB_OK | MB_ICONERROR);
         return;
     }
 #endif
-    std::cerr << "FoxLang: " << message << std::endl;
+    std::cerr << "Skrumi: " << message << std::endl;
 }
 } // namespace foxlang::cli

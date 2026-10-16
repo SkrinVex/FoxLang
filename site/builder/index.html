@@ -5,16 +5,16 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta
       name="description"
-      content="Визуальный конструктор интерфейсов FoxLang: макеты для телефона и ПК, живой запуск и готовый код."
+      content="Визуальный конструктор интерфейсов Skrumi: макеты для телефона и ПК, живой запуск и готовый код."
     />
-    <title>FoxLang UI — конструктор интерфейсов</title>
+    <title>Skrumi UI — конструктор интерфейсов</title>
     <link rel="stylesheet" href="builder.css" />
     <script src="model.js" defer></script>
     <script src="builder.js" defer></script>
   </head>
   <body>
     <header class="top">
-      <a class="brand" href="../">FoxLang <span>UI</span></a
+      <a class="brand" href="../">Skrumi <span>UI</span></a
       ><span class="tag">КОНСТРУКТОР ИНТЕРФЕЙСОВ</span>
       <nav aria-label="Ссылки">
         <a href="../playground/">Песочница</a><a href="../#graphics">О языке</a
@@ -27,7 +27,7 @@
     <section class="intro">
       <div>
         <p class="eyebrow">ОТ МАКЕТА К ПРОГРАММЕ</p>
-        <h1>Ваш интерфейс.<br /><em>На FoxLang.</em></h1>
+        <h1>Ваш интерфейс.<br /><em>На Skrumi.</em></h1>
         <p>
           Соберите окно из элементов, проверьте на телефоне и ПК, заберите
           готовый код.
@@ -122,11 +122,11 @@
           </div>
           <iframe
             id="preview"
-            title="Предпросмотр FoxLang"
+            title="Предпросмотр Skrumi"
             data-src="../playground/?embed=builder"
           ></iframe>
           <p class="work-note">
-            Настоящий FoxLang в браузере. После изменения макета нажмите
+            Настоящий Skrumi в браузере. После изменения макета нажмите
             «Запустить» снова. На телефоне кнопка клавиатуры расположена под
             окном.
           </p>
@@ -136,13 +136,13 @@
             <label
               >Файл
               <select id="code-file">
-                <option value="main.fox">main.fox — моя логика</option>
-                <option value="layout.fox">layout.fox — макет</option>
+                <option value="main.skm">main.skm — моя логика</option>
+                <option value="layout.skm">layout.skm — макет</option>
               </select></label
             >
             <button id="copy">Копировать</button
-            ><button id="download" class="primary">Скачать main.fox</button
-            ><button id="download-layout">Скачать layout.fox</button
+            ><button id="download" class="primary">Скачать main.skm</button
+            ><button id="download-layout">Скачать layout.skm</button
             ><a id="playground" target="_blank" rel="noopener"
               >В песочницу ↗</a
             >
@@ -151,13 +151,13 @@
             id="code"
             maxlength="100000"
             spellcheck="false"
-            aria-label="Код выбранного файла FoxLang"
+            aria-label="Код выбранного файла Skrumi"
           ></textarea>
           <p class="work-note">
-            Редактируйте main.fox: изменения сохраняются в проекте и не
-            стираются при правках макета. layout.fox создаётся автоматически и
+            Редактируйте main.skm: изменения сохраняются в проекте и не
+            стираются при правках макета. layout.skm создаётся автоматически и
             доступен только для чтения. Скачайте оба файла в одну папку и
-            запускайте main.fox. После удаления элемента его ID больше не
+            запускайте main.skm. После удаления элемента его ID больше не
             используется; связанные с ним обработчики и обращения к переменным
             проверьте самостоятельно.
           </p>
@@ -270,7 +270,7 @@
       <strong>Макет — начало. Логика — ваша.</strong>
       <p>
         Конструктор создаёт обычную программу с модулями <code>graphics</code> и
-        <code>ui</code>. Экспортированные файлы работают в FoxLang на Windows,
+        <code>ui</code>. Экспортированные файлы работают в Skrumi на Windows,
         Linux и в песочнице.
       </p>
       <a href="https://github.com/SkrinVex/FoxLang/blob/master/docs/GRAPHICS.md"
@@ -280,7 +280,7 @@
       <a href="https://github.com/SkrinVex/FoxLang/blob/master/DOCUMENTATION.md"
         >Документация языка</a
       >
-      · <a href="../">Как работает FoxLang</a>
+      · <a href="../">Как работает Skrumi</a>
       <p>
         Проект автоматически сохраняется локально. Скачайте JSON для переноса
         между устройствами. Редактор макета схематичен; точный вид и поведение

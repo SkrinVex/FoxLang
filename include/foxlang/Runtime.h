@@ -18,7 +18,7 @@ bool acceptsArguments(const Builtin& builtin, Arguments args);
 Value invoke(const Builtin& builtin, Arguments args, Context& ctx);
 
 bool isBuiltin(const std::string& name);
-// Calls a function value (a func): a FoxLang function, a builtin or a lambda. Builtins
+// Calls a function value (a func): a Skrumi function, a builtin or a lambda. Builtins
 // that take a function, such as array_map, call it through this.
 Value callValue(const Value& function, Arguments args, Context& ctx);
 // The same with arguments that the call may move from.
@@ -118,7 +118,7 @@ Value jsonGet(const std::string& json, const std::string& path);
 Value jsonEscape(const std::string& text);
 // The same escaping appended to out, without a string of its own.
 void appendJsonEscaped(std::string& out, const std::string& text);
-// A whole JSON document as FoxLang values in one pass: objects become maps, arrays
+// A whole JSON document as Skrumi values in one pass: objects become maps, arrays
 // arrays, whole numbers int (float beyond int's range), other numbers float, null null.
 // `what` names the builtin in errors.
 Value parseJson(const std::string& text, const char* what);

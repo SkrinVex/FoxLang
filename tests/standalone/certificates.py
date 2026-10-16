@@ -22,7 +22,7 @@ def create_certificates(directory):
         assert result.returncode == 0, result.stderr.decode(errors="replace")
 
     generate("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
-             "-subj", "/CN=FoxLang temporary test CA", "-keyout", "ca.key", "-out", "ca.pem",
+             "-subj", "/CN=Skrumi temporary test CA", "-keyout", "ca.key", "-out", "ca.pem",
              "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign")
     generate("req", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=localhost",
              "-keyout", "server.key", "-out", "server.csr")

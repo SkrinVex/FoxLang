@@ -15,6 +15,21 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 public class EngineTest {
+    @Test public void skrumiFacadeAndMixedExtensions() throws Exception {
+        File dir = directory();
+        Files.write(new File(dir, "legacy.fox").toPath(), "int legacy() { return 20; }".getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(dir, "modern.skm").toPath(), "int modern() { return 22; }".getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(dir, "main.skm").toPath(), "include(\"legacy.fox\"); using modern; print(legacy() + modern());".getBytes(StandardCharsets.UTF_8));
+        try (org.skrumi.android.Skrumi engine = new org.skrumi.android.Skrumi(dir, new FoxLang.Host() {})) {
+            FoxLang.RunResult result = engine.runFile("main.skm").get(20, TimeUnit.SECONDS);
+            assertTrue(result.error, result.success);
+            assertEquals("42\n", result.output);
+        }
+        try (FoxLang engine = new FoxLang(dir, new FoxLang.Host() {})) {
+            assertTrue(engine.runFile("main.skm").get(20, TimeUnit.SECONDS).success);
+        }
+    }
+
     private File directory() throws Exception { return Files.createTempDirectory(InstrumentationRegistry.getInstrumentation().getTargetContext().getCacheDir().toPath(), "fox-test-").toFile(); }
     private FoxLang.RunResult run(FoxLang engine, String code) throws Exception { return engine.runSource(code).get(20,TimeUnit.SECONDS); }
     @Test public void coreUnicodeImportsFilesAndArguments() throws Exception {

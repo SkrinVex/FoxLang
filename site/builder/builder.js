@@ -124,9 +124,10 @@
         project.elements.indexOf(e) === project.elements.length - 1;
     }
     draw();
-    const files = M.files(project, mode);
+    const generated = M.files(project, mode);
+    const files = {"main.skm": project.main, "layout.skm": generated["layout.skm"] || generated["layout.fox"]};
     const code = files[$("code-file").value];
-    $("code").readOnly = $("code-file").value !== "main.fox";
+    $("code").readOnly = $("code-file").value !== "main.skm";
     if ($("code").value !== code) $("code").value = code;
     const bytes = new TextEncoder().encode(JSON.stringify(files));
     let binary = "";
@@ -431,21 +432,21 @@
   }
   $("save").onclick = () =>
     download(
-      "interface.foxui.json",
+      "interface.skmui.json",
       JSON.stringify(project, null, 2),
       "application/json",
     );
   $("download").onclick = () =>
-    download("main.fox", project.main, "text/plain;charset=utf-8");
+    download(Object.keys(M.files(project, mode))[0], project.main, "text/plain;charset=utf-8");
   $("download-layout").onclick = () =>
     download(
-      "layout.fox",
+      Object.keys(M.files(project, mode))[1],
       M.generate(project, mode),
       "text/plain;charset=utf-8",
     );
   $("code-file").onchange = render;
   $("code").oninput = () => {
-    if ($("code-file").value === "main.fox")
+    if ($("code-file").value === "main.skm")
       change(() => {
         project.main = $("code").value;
       });
@@ -453,7 +454,7 @@
   $("copy").onclick = async () => {
     try {
       await navigator.clipboard.writeText(
-        M.files(project, mode)[$("code-file").value],
+        ($("code-file").value === "main.skm" ? project.main : M.generate(project, mode)),
       );
       notice("Код скопирован");
     } catch {
@@ -465,7 +466,7 @@
   $("new").onclick = () => {
     if (
       !confirm(
-        "Заменить весь проект, включая main.fox, шаблоном? Можно отменить через ↶.",
+        "Заменить весь проект, включая main.skm, шаблоном? Можно отменить через ↶.",
       )
     )
       return;
@@ -495,7 +496,7 @@
     if (!$("preview").getAttribute("src")) {
       $("preview").src = $("preview").dataset.src;
       $("run").disabled = true;
-      $("preview-note").textContent = "Загрузка FoxLang…";
+      $("preview-note").textContent = "Загрузка Skrumi…";
     }
   }
   window.addEventListener("message", (event) => {
@@ -507,7 +508,7 @@
     if (event.data?.type === "foxlang-builder-ready") {
       frameReady = true;
       $("run").disabled = false;
-      $("preview-note").textContent = "FoxLang готов к запуску.";
+      $("preview-note").textContent = "Skrumi готов к запуску.";
     }
     if (
       event.data?.type === "foxlang-builder-height" &&
@@ -518,7 +519,7 @@
   });
   $("run").onclick = () => {
     if (!frameReady) {
-      notice("Дождитесь загрузки FoxLang");
+      notice("Дождитесь загрузки Skrumi");
       return;
     }
     $("preview").contentWindow.postMessage(

@@ -1,7 +1,7 @@
 # Бенчмарки
 
 Небольшие программы, каждая делает одну типичную работу много раз. Каждая задача
-написана на FoxLang (`foxlang/`), Python (`python/`), Lua (`lua/`), Ruby (`ruby/`) и
+написана на Skrumi (`foxlang/`), Python (`python/`), Lua (`lua/`), Ruby (`ruby/`) и
 JavaScript (`javascript/`).
 
 | Бенчмарк         | Что делает                                                   |
@@ -16,7 +16,7 @@ JavaScript (`javascript/`).
 | `json_roundtrip` | превращает 50 000 записей в JSON и разбирает обратно          |
 
 Каждая программа печатает контрольное число. У всех языков оно обязано совпасть с
-FoxLang, иначе запуск падает: быстрее за счёт меньшей работы не получится. Первый
+Skrumi, иначе запуск падает: быстрее за счёт меньшей работы не получится. Первый
 аргумент программы меняет размер задачи.
 
 ## Запуск
@@ -25,7 +25,7 @@ FoxLang, иначе запуск падает: быстрее за счёт ме
 python3 benchmarks/run.py                               # build/foxlang и другие языки
 python3 benchmarks/run.py --foxlang путь/к/foxlang      # другая сборка
 python3 benchmarks/run.py --baseline путь/к/старому     # сравнить две версии
-python3 benchmarks/run.py --only-foxlang --runs 3       # только FoxLang, 3 запуска
+python3 benchmarks/run.py --only-foxlang --runs 3       # только Skrumi, 3 запуска
 python3 benchmarks/run.py --smoke                       # один раз на маленьких входах
 python3 benchmarks/run.py --json результат.json         # сохранить результаты
 ```

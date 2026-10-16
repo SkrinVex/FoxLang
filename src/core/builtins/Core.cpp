@@ -233,7 +233,7 @@ void addCoreBuiltins(std::vector<Builtin>& out) {
     // Tests
     add({"assert", "void", {{"bool", "condition"}, {"string", "message"}}, 1, false, "",
          "Ошибка `Assertion failed`, если условие ложно; сообщение поясняет, что проверялось. "
-         "Для тестов `foxlang test` и проверок посреди программы.\n\n"
+         "Для тестов `skrumi test` и проверок посреди программы.\n\n"
          "```foxlang\nassert(size(items) > 0, \"список не пуст\");\n```"},
         [](Call& c) -> Value {
             if (c.flag(0)) return nothing();

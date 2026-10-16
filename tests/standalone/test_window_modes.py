@@ -124,6 +124,7 @@ print(json_value(os_args()));
         # The supplied programs must actually redraw a larger viewport too.
         repository = Path(__file__).resolve().parents[2]
         for example, title in [('examples/raycaster.fox', 'FoxLang: лабиринт в псевдо-3D'),
+                               ('examples/raycaster.skm', 'Skrumi: лабиринт в псевдо-3D'),
                                ('site/playground/examples/paint.fox', 'Рисовалка')]:
             process = subprocess.Popen([binary, str(repository / example)], cwd=root,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)

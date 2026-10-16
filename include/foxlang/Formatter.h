@@ -3,7 +3,7 @@
 
 namespace foxlang {
 
-// The canonical layout of FoxLang source: four spaces per level of {}, [] and (),
+// The canonical layout of Skrumi source: four spaces per level of {}, [] and (),
 // `case` and `default` one level above the statements they select, no trailing
 // whitespace, no tabs in indentation, at most one blank line in a row, none at the
 // start of a block or of the file, LF line ends and a final newline. The code

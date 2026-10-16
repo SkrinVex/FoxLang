@@ -18,7 +18,7 @@ on:
       - 'CMakeLists.txt'
   # A new release brings new benchmark results for the page.
   workflow_run:
-    workflows: ["Build and Auto Release FoxLang"]
+    workflows: ["Build and Auto Release Skrumi"]
     types: [completed]
   workflow_dispatch:
 
@@ -55,16 +55,16 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libxcb1-dev libxau-dev libxdmcp-dev
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
           python3 packaging/site_facts.py --build build --write
-      # The playground runs FoxLang in the visitor's browser: the interpreter built
+      # The playground runs Skrumi in the visitor's browser: the interpreter built
       # for WebAssembly, checked on its examples before it is published.
       - uses: mymindstorm/setup-emsdk@v14
         with:
           version: 6.0.10
-      - name: Build FoxLang for the playground
+      - name: Build Skrumi for the playground
         run: |
           emcmake cmake -S . -B web -DCMAKE_BUILD_TYPE=Release
           cmake --build web -j4
-          cp web/foxlang.js web/foxlang.wasm web/foxlang-graphics.js web/foxlang-graphics.wasm site/playground/
+          cp web/skrumi*.js web/skrumi*.wasm web/foxlang*.js web/foxlang*.wasm site/playground/
           node tests/web/test_playground.js site/playground
           node tests/web/test_builder_model.js
           node tests/web/test_builder_runtime.js site/playground

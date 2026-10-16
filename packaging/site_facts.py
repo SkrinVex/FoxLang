@@ -43,10 +43,10 @@ def facts(build, ctest):
 
 # What each fact looks like on the page; group 2 is the value.
 PATTERNS = {
-    "version": [r'(<p class="eyebrow">FoxLang )([\d.]+)( ·)', r'(id="frame-input" type="text" value="Fox )([\d.]+)(")'],
+    "version": [r'(<p class="eyebrow">Skrumi )([\d.]+)( ·)', r'(id="frame-input" type="text" value="Skrumi )([\d.]+)(")'],
     "builtins": [r'(<div><b>)(\d+)(</b><span>встроенных функций)'],
     "modules": [r'(<div><b>)(\d+)(</b><span>модулей библиотеки)', r'(<strong>Стандартная библиотека</strong> — )(\d+)( модулей)'],
-    "release": [r'(<footer>FoxLang )([\d.]+)( ·)'],
+    "release": [r'(<footer>Skrumi )([\d.]+)( ·)'],
     "tests": [r'(<div><b>)(\d+)(</b><span>автотестов)', r'(├── tests/\s+<i>)(\d+)( автотестов)',
               r'(<strong>Тесты\.</strong> )(\d+)( проверок)'],
 }

@@ -10,10 +10,10 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Android engine. Interpreter operations run on one shared worker, never the UI thread.
  * Instances have independent globals/modules; execution is serialized because the
  * native object allocator is process-wide. cancel() and input events remain immediate. */
-public final class FoxLang implements AutoCloseable {
+public class FoxLang implements AutoCloseable {
     static { System.loadLibrary("foxlang_android"); }
     private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(
-        r -> new Thread(null, r, "FoxLang", 8 * 1024 * 1024));
+        r -> new Thread(null, r, "Skrumi", 8 * 1024 * 1024));
     public interface Host {
         default void onOutput(String text, boolean error) {}
         default void onOpen(int width, int height, String title) { throw new IllegalStateException("Attach a FoxView to run graphics"); }
@@ -59,9 +59,9 @@ public final class FoxLang implements AutoCloseable {
     private interface Task<T> { T call() throws Exception; }
     private <T> CompletableFuture<T> submit(Task<T> task) {
         CompletableFuture<T> future = new CompletableFuture<>();
-        synchronized (this) { if (closed) { future.completeExceptionally(new IllegalStateException("FoxLang engine is closed")); return future; } }
+        synchronized (this) { if (closed) { future.completeExceptionally(new IllegalStateException("Skrumi engine is closed")); return future; } }
         WORKER.execute(() -> {
-            try { ready.join(); synchronized (this) { if (closed) throw new IllegalStateException("FoxLang engine is closed"); } future.complete(task.call()); }
+            try { ready.join(); synchronized (this) { if (closed) throw new IllegalStateException("Skrumi engine is closed"); } future.complete(task.call()); }
             catch (Throwable error) { future.completeExceptionally(error); }
         });
         return future;

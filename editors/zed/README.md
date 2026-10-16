@@ -1,13 +1,13 @@
-# FoxLang Extension for Zed IDE
+# Skrumi Extension for Zed IDE
 
-Официальное расширение поддержки языка FoxLang для [Zed IDE](https://zed.dev).
+Официальное расширение поддержки языка Skrumi для [Zed IDE](https://zed.dev).
 
 ## Возможности
 
-* **Распознавание файлов `.fox`**: автоматическое определение типа файла `FoxLang`.
+* **Распознавание файлов `.skm`**: автоматическое определение типа файла `Skrumi`.
 * **Подсветка синтаксиса на базе Tree-sitter**: ключевые слова, типы, встроенные функции стандартной библиотеки, операторы, строки, комментарии.
 * **Автозакрытие и подсветка парных скобок**: `{}`, `[]`, `()`, кавычки.
-* **Полная интеграция с FoxLang LSP (`foxlang-lsp`)**:
+* **Полная интеграция с Skrumi LSP (`skrumi-lsp`)**:
   * Подсветка синтаксических и семантических ошибок на лету (diagnostics);
   * Контекстное автодополнение ключевых слов, функций и переменных;
   * Информация о типах и сигнатурах при наведении курсора (hover);
@@ -18,22 +18,22 @@
 ## Запуск программ
 
 Расширение добавляет задачи ([`languages/foxlang/tasks.json`](languages/foxlang/tasks.json)):
-«FoxLang: запустить», «FoxLang: проверить» и «FoxLang: собрать» для открытого файла.
+«Skrumi: запустить», «Skrumi: проверить» и «Skrumi: собрать» для открытого файла.
 Откройте палитру команд и выполните `task: spawn`.
 
 ## Отладка
 
-Расширение регистрирует отладчик **FoxLang** на основе `foxlang debug-adapter`
-(нужен FoxLang 6.4 или новее в `PATH`). Запуск — `debugger: start`, либо сценарий в
+Расширение регистрирует отладчик **Skrumi** на основе `skrumi debug-adapter`
+(нужен Skrumi 6.4 или новее в `PATH`). Запуск — `debugger: start`, либо сценарий в
 `.zed/debug.json`:
 
 ```json
 [
   {
-    "label": "FoxLang: main.fox",
-    "adapter": "FoxLang",
+    "label": "Skrumi: main.skm",
+    "adapter": "Skrumi",
     "request": "launch",
-    "program": "$ZED_WORKTREE_ROOT/main.fox",
+    "program": "$ZED_WORKTREE_ROOT/main.skm",
     "cwd": "$ZED_WORKTREE_ROOT"
   }
 ]
@@ -45,7 +45,7 @@
 
 Для того чтобы протестировать или использовать расширение прямо сейчас без публикации:
 
-1. Убедитесь, что `foxlang` и `foxlang-lsp` установлены в вашей системе (например, в `/usr/local/bin`):
+1. Убедитесь, что `skrumi` и `skrumi-lsp` установлены в вашей системе (например, в `/usr/local/bin`):
    ```bash
    foxlang-lsp --version
    ```
@@ -57,16 +57,16 @@
    ```
 5. В открывшемся диалоге выбора папки выберите каталог расширения:
    ```text
-   /home/skrinvex/projects/FoxLang/editors/zed
+   /home/skrinvex/projects/Skrumi/editors/zed
    ```
 6. Zed автоматически скомпилирует расширение WebAssembly и активирует его!
-   Теперь при открытии любого `.fox` файла будет работать подсветка и языковой сервер `foxlang-lsp`.
+   Теперь при открытии любого `.skm` файла будет работать подсветка и языковой сервер `skrumi-lsp`.
 
 ---
 
 ## Вариант 2. Быстрое подключение через `settings.json` (без расширения)
 
-Если вы хотите подключить FoxLang в Zed прямо сейчас через конфигурационный файл пользователя (`~/.config/zed/settings.json`):
+Если вы хотите подключить Skrumi в Zed прямо сейчас через конфигурационный файл пользователя (`~/.config/zed/settings.json`):
 
 ```json
 {
@@ -84,7 +84,7 @@
     }
   },
   "file_types": {
-    "C": ["fox"]
+    "C": ["skm", "fox"]
   }
 }
 ```
@@ -97,15 +97,15 @@
 
 ### Пошаговая инструкция:
 
-1. **Создайте отдельный публичный Git-репозиторий для расширения** (или используйте репозиторий FoxLang):
+1. **Создайте отдельный публичный Git-репозиторий для расширения** (или используйте репозиторий Skrumi):
    * Рекомендуется создать репозиторий на GitHub: `https://github.com/SkrinVex/zed-foxlang`.
    * Скопируйте туда содержимое папки `editors/zed`:
      ```bash
      git clone git@github.com:SkrinVex/zed-foxlang.git
-     cp -R /home/skrinvex/projects/FoxLang/editors/zed/* zed-foxlang/
+     cp -R /home/skrinvex/projects/Skrumi/editors/zed/* zed-foxlang/
      cd zed-foxlang
      git add .
-     git commit -m "feat: initial FoxLang extension for Zed"
+     git commit -m "feat: initial Skrumi extension for Zed"
      git push origin main
      ```
 
@@ -127,7 +127,7 @@
 4. **Закоммитьте и отправьте изменения**:
    ```bash
    git add .gitmodules extensions/foxlang
-   git commit -m "Add FoxLang extension"
+   git commit -m "Add Skrumi extension"
    git push origin add-foxlang
    ```
 

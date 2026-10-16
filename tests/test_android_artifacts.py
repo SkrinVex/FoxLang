@@ -33,7 +33,7 @@ for path, prefix in [(args.aar, "jni"), (args.apk, "lib")]:
         if prefix == "lib":
             entry = archive.read("assets/foxlang-entry.txt").decode().strip()
             assert entry
-            assert any(n.startswith("assets/program/") and n.endswith(".fox") for n in archive.namelist())
+            assert any(n.startswith("assets/program/") and n.endswith((".skm", ".fox")) for n in archive.namelist())
             assert not any("/.env" in n for n in archive.namelist())
             if args.source:
                 assert entry == args.source.name
@@ -41,6 +41,7 @@ for path, prefix in [(args.aar, "jni"), (args.apk, "lib")]:
                 assert [n for n in archive.namelist() if n.startswith("assets/program/")] == ["assets/program/" + entry]
         else:
             with zipfile.ZipFile(__import__("io").BytesIO(archive.read("classes.jar"))) as classes:
+                assert "org/skrumi/android/Skrumi.class" in classes.namelist()
                 assert "org/foxlang/android/FoxLang.class" in classes.namelist()
                 assert "org/foxlang/android/FoxView.class" in classes.namelist()
 print("ANDROID_ARTIFACTS_OK")

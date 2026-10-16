@@ -3,8 +3,8 @@
 ## Сборка для Windows
 
 ```bash
-foxlang build game.fox --no-console -o game
-foxlang build tool.fox --console -o tool
+skrumi build game.skm --no-console -o game
+skrumi build tool.skm --console -o tool
 ```
 
 По умолчанию создаётся консольный EXE. `--no-console` создаёт GUI EXE: Windows
@@ -17,25 +17,25 @@ EXE. Это одна и та же программа и runtime, различа�
 ## Переопределение при запуске
 
 ```bash
-foxlang --foxlang-width 960 --foxlang-height 540 game.fox --level 2
-./game --foxlang-fullscreen --level 2
+skrumi --skrumi-width 960 --skrumi-height 540 game.skm --level 2
+./game --skrumi-fullscreen --level 2
 ```
 
 В Windows:
 
 ```powershell
-.\game.exe --foxlang-console --foxlang-windowed
-.\tool.exe --foxlang-no-console --foxlang-width 800 --foxlang-height 600
+.\game.exe --skrumi-console --skrumi-windowed
+.\tool.exe --skrumi-no-console --skrumi-width 800 --skrumi-height 600
 ```
 
 | Флаг запуска | Действие |
 |---|---|
-| `--foxlang-console` | В Windows подключиться к консоли родителя или создать свою, если у родителя её нет |
-| `--foxlang-no-console` | В Windows отсоединить процесс от консоли; терминал родителя не скрывается и не закрывается |
-| `--foxlang-width N` | Начальная ширина области рисования вместо ширины из `open_window` |
-| `--foxlang-height N` | Начальная высота области рисования вместо высоты из `open_window` |
-| `--foxlang-fullscreen` | Открыть окно в полноэкранном режиме |
-| `--foxlang-windowed` | Открыть обычное окно; это режим по умолчанию |
+| `--skrumi-console` | В Windows подключиться к консоли родителя или создать свою, если у родителя её нет |
+| `--skrumi-no-console` | В Windows отсоединить процесс от консоли; терминал родителя не скрывается и не закрывается |
+| `--skrumi-width N` | Начальная ширина области рисования вместо ширины из `open_window` |
+| `--skrumi-height N` | Начальная высота области рисования вместо высоты из `open_window` |
+| `--skrumi-fullscreen` | Открыть окно в полноэкранном режиме |
+| `--skrumi-windowed` | Открыть обычное окно; это режим по умолчанию |
 | `--` | Завершить разбор системных флагов; оставшиеся аргументы передать буквально |
 
 Флаги работают у исходных и собранных программ. У исходной программы они могут
@@ -43,7 +43,7 @@ foxlang --foxlang-width 960 --foxlang-height 540 game.fox --level 2
 для пар `console/no-console` и `fullscreen/windowed` действует последний.
 Незаданный размер берётся из `open_window`. Размер задаётся целым числом от 64 до
 4096, площадь — не более 8388608 пикселей. Неверные значения и неизвестные
-`--foxlang-*` дают ошибку до запуска программы. Параметры окна применяются к каждому
+`--skrumi-*` дают ошибку до запуска программы. Параметры окна применяются к каждому
 `open_window`; дальнейшими изменениями управляет программа через `graphics`.
 В полноэкранном режиме фактический размер выбирается по монитору, а заданные ширина
 и высота сохраняются для обычного окна. В Linux переход подтверждается оконным
@@ -51,19 +51,19 @@ foxlang --foxlang-width 960 --foxlang-height 540 game.fox --level 2
 
 Консольные флаги на Linux не меняют stdin/stdout/stderr и не запускают эмулятор
 терминала. В Windows перенаправление в файлы и каналы сохраняется. У консольного
-EXE с `--foxlang-no-console` терминал может кратко появиться до выполнения кода;
+EXE с `--skrumi-no-console` терминал может кратко появиться до выполнения кода;
 для запуска без такого появления собирайте с `--no-console`. Ошибка GUI-программы
 без доступного stderr показывается диалогом Windows; при перенаправлении — в stderr.
 
-`app --foxlang-help` и `app --foxlang-licenses`, когда это единственный аргумент,
+`app --skrumi-help` и `app --skrumi-licenses`, когда это единственный аргумент,
 показывают справку runtime и лицензии вместо запуска встроенной программы.
-`foxlang help run`, `foxlang help build` описывают запуск и сборку.
+`skrumi help run`, `skrumi help build` описывают запуск и сборку.
 
 ## Пользовательские флаги
 
 `os_args()` (или `args()` из `using os;`) уже поддерживает собственные аргументы:
-они возвращаются массивом строк без имени программы. FoxLang не интерпретирует
-пользовательские `--help`, `--width`, `--level` и прочие имена вне `--foxlang-*`.
+они возвращаются массивом строк без имени программы. Skrumi не интерпретирует
+пользовательские `--help`, `--width`, `--level` и прочие имена вне `--skrumi-*`.
 Кавычки и пробелы обрабатывает вызывающая оболочка; в массиве сохраняются полученные
 строки, в том числе Unicode. Системные флаги и их значения в массив не попадают.
 
@@ -83,10 +83,10 @@ print("Уровень: " + level);
 Если самой программе нужен аргумент с зарезервированным именем:
 
 ```bash
-./game --foxlang-console -- --foxlang-width custom --help
+./game --skrumi-console -- --skrumi-width custom --help
 ```
 
-Программа получит `["--foxlang-width", "custom", "--help"]`. Первый `--` убирается,
+Программа получит `["--skrumi-width", "custom", "--help"]`. Первый `--` убирается,
 последующие `--` передаются как обычные аргументы.
 
 Подробности графического API: [GRAPHICS.md](GRAPHICS.md).

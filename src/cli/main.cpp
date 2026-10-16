@@ -43,7 +43,7 @@ static int check(const std::string& path) {
 
     // Other files of the same program declare what this one may use: the project is
     // searched below the working directory when the file is inside it.
-    std::string home = foxlang::platform::getEnvVar("FOXLANG_HOME");
+    std::string home = foxlang::platform::configEnv("FOXLANG_HOME");
     auto sources = std::make_shared<foxlang::OverlaySources>(foxlang::filesystemSources(home));
     foxlang::ProjectIndex project(sources);
     std::string canonical = foxlang::canonicalPath(path);
@@ -111,12 +111,12 @@ static std::vector<std::string> argumentsFrom(int argc, char* argv[], int first)
 int main(int argc, char* argv[]) {
     try {
     const std::vector<std::string> args = argumentsFrom(argc, argv, 0);
-    if (argc == 2 && args[1] == "--foxlang-help") {
+    if (argc == 2 && (args[1] == "--foxlang-help" || args[1] == "--skrumi-help")) {
         foxlang::cli::configureConsole(foxlang::cli::ConsoleMode::Console);
         foxlang::cli::printCommandHelp(std::cout, "run");
         return 0;
     }
-    if (argc == 2 && std::string(argv[1]) == "--foxlang-licenses") {
+    if (argc == 2 && (args[1] == "--foxlang-licenses" || args[1] == "--skrumi-licenses")) {
         foxlang::cli::configureConsole(foxlang::cli::ConsoleMode::Console);
         std::cout << foxlang::platform::thirdPartyLicenses();
         return 0;
@@ -142,7 +142,7 @@ int main(int argc, char* argv[]) {
     const std::string version = foxlang::Interpreter::getVersion();
 
     if (argc == 2 && (std::string(argv[1]) == "--version" || std::string(argv[1]) == "-v")) {
-        std::cout << "FoxLang " << version << std::endl;
+        std::cout << "Skrumi " << version << std::endl;
         return 0;
     }
 
@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
         return 0;
 
     if (std::string(argv[1]) == "check") {
-        if (argc != 3) throw std::runtime_error("Usage: foxlang check <script.fox>");
+        if (argc != 3) throw std::runtime_error("Usage: skrumi check <script.skm>");
         return check(args[2]);
     }
 
@@ -175,7 +175,7 @@ int main(int argc, char* argv[]) {
 
     if (std::string(argv[1]) == "build") {
         if (argc < 3 || args[2].empty() || args[2][0] == '-')
-            throw std::runtime_error("Usage: foxlang build <file.fox> [-o app] [--console|--no-console]");
+            throw std::runtime_error("Usage: skrumi build <file.skm> [-o app] [--console|--no-console]");
         std::string output;
         bool noConsole = false;
         for (size_t i = 3; i < args.size(); ++i) {

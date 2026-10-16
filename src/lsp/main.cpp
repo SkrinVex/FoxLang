@@ -15,15 +15,15 @@ int main(int argc, char* argv[]) {
     if (argc >= 2) {
         std::string arg = argv[1];
         if (arg == "--version" || arg == "-v") {
-            std::cout << "foxlang-lsp " << version << std::endl;
+            std::cout << "skrumi-lsp " << version << std::endl;
             return 0;
         }
         if (arg == "--help" || arg == "-h") {
-            std::cout << "foxlang-lsp " << version << "\n\n"
+            std::cout << "skrumi-lsp " << version << "\n\n"
                       << "Usage:\n"
-                      << "  foxlang-lsp            Run Language Server over standard I/O (JSON-RPC)\n"
-                      << "  foxlang-lsp --version  Show version\n"
-                      << "  foxlang-lsp --help     Show this help\n\n"
+                      << "  skrumi-lsp            Run Language Server over standard I/O (JSON-RPC)\n"
+                      << "  skrumi-lsp --version  Show version\n"
+                      << "  skrumi-lsp --help     Show this help\n\n"
                       << "Editor integration:\n"
                       << "  Communicates via JSON-RPC over stdin/stdout with Content-Length framing.\n"
                       << "  All diagnostic logging is sent to stderr.\n";
@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
     // translation would turn CRLF into CRCRLF and corrupt Content-Length frames.
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1 || _setmode(_fileno(stdout), _O_BINARY) == -1) {
-        std::cerr << "foxlang-lsp: cannot configure binary standard streams\n";
+        std::cerr << "skrumi-lsp: cannot configure binary standard streams\n";
         return 1;
     }
 #endif

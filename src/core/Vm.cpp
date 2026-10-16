@@ -4,7 +4,7 @@
 #else
 #define FOXLANG_CHECK_CANCEL() ((void)0)
 #endif
-// Runs bytecode (Compiler.cpp). A FoxLang call is a native call of execute(), so the
+// Runs bytecode (Compiler.cpp). A Skrumi call is a native call of execute(), so the
 // native stack is what the call depth limit measures, as it always has. Registers live
 // on a stack of fixed chunks: a frame's registers never move while it runs, so the
 // debugger may point at them.
@@ -432,7 +432,7 @@ FOXLANG_COLD void convertArguments(const Proto& callee, Value* args, const Value
     }
 }
 
-// Opens the frame of a FoxLang function that execute() runs itself: the arguments are
+// Opens the frame of a Skrumi function that execute() runs itself: the arguments are
 // checked and converted in the caller, then go into the new registers.
 // A CallDirect's arguments are the caller's registers listed in `direct` (copied: they
 // may be variables); a Call's sit in a row from R[in.a] (moved: they are temporaries).
@@ -632,10 +632,10 @@ FOXLANG_APART void refresh(CallSite& site, Context& root) {
     site.generation = root.functionGeneration;
 }
 
-// A call of a builtin or of a struct's constructor, or of a FoxLang function that shares
+// A call of a builtin or of a struct's constructor, or of a Skrumi function that shares
 // its name with a builtin.
 FOXLANG_APART void callOther(const CallSite& site, Value* args, size_t count, Context& root) {
-    // A builtin and a FoxLang function may share a name, like get(items, i) and the
+    // A builtin and a Skrumi function may share a name, like get(items, i) and the
     // server's get(path, handler). The builtin wins whenever the arguments fit it.
     if (site.builtin && (!site.function || runtime::acceptsArguments(*site.builtin, Arguments(args, count)))) {
         Value result = runtime::invoke(*site.builtin, Arguments(args, count), root);
@@ -733,7 +733,7 @@ FOXLANG_COLD Value sizedArray(const Value& size, const std::string& name) {
 }
 
 // The slow paths of instructions, apart from the loop: each would otherwise keep its
-// own temporaries in the loop's native frame, which every FoxLang call pays for.
+// own temporaries in the loop's native frame, which every Skrumi call pays for.
 FOXLANG_APART void binarySlow(runtime::Operator op, const std::string& text, Value& out, const Value& l, const Value& r) {
     out = runtime::binary(op, text, l, r);
 }
@@ -910,7 +910,7 @@ FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key))
 #endif
 
 Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugFrame* debug, Object* closure) {
-    // The function running now. A call to a FoxLang function continues in this loop
+    // The function running now. A call to a Skrumi function continues in this loop
     // with the callee's code and registers (see OP(Call)); `calls` keeps what to go back to.
 #ifdef __ANDROID__
     unsigned androidTicks = 0;
@@ -1248,7 +1248,7 @@ Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugF
                             call(*P, *in, R, root);
                             NEXT;
                         }
-                        // A FoxLang function: its frame opens here, without a native call.
+                        // A Skrumi function: its frame opens here, without a native call.
                         R = enterCall(calls, callee, *in, P, ip, R, closure, S, pending, guard);
                         P = &callee;
                         closure = nullptr;
@@ -1620,7 +1620,7 @@ Value callValue(const Value& function, Arguments args, Context& ctx) {
 }
 
 Value callValue(const Value& function, Value* args, size_t count, Context& ctx) {
-    // A call from outside any FoxLang code (an HTTP handler) starts with no error placed.
+    // A call from outside any Skrumi code (an HTTP handler) starts with no error placed.
     if (stackGuard().depth == 0) stackGuard().placed = false;
     return vm::callFunctionValue(function, args, count, *ctx.getRoot(), "function");
 }

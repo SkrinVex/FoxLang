@@ -1,9 +1,9 @@
 id = "foxlang"
-name = "FoxLang"
+name = "Skrumi"
 version = "8.17.2"
 schema_version = 1
 authors = ["SkrinVex <skrinvex@gmail.com>"]
-description = "Official FoxLang language support for Zed: syntax highlighting, brackets, LSP integration (diagnostics, completions, hover, goto definition) and a debugger."
+description = "Official Skrumi language support for Zed: syntax highlighting, brackets, LSP integration (diagnostics, completions, hover, goto definition) and a debugger."
 repository = "https://github.com/SkrinVex/FoxLang"
 
 [lib]
@@ -16,7 +16,7 @@ commit = "b780e47fc780ddc8da13afa35a3f4ed5c157823d"
 
 
 [language_servers.foxlang-lsp]
-name = "foxlang-lsp"
+name = "skrumi-lsp"
 languages = ["FoxLang"]
 
 [debug_adapters.FoxLang]

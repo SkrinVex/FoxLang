@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix='fox-launch-') as directory:
                       ['--foxlang-typo']]:
             result = subprocess.run([*map(str, prefix), *flags], cwd=root, capture_output=True, timeout=30)
             assert result.returncode != 0 and result.stderr, flags
-    assert '--foxlang-fullscreen' in run([apps[0], '--foxlang-help']).stdout
+    assert '--skrumi-fullscreen' in run([apps[0], '--foxlang-help']).stdout
     assert json.loads(run([binary, '--foxlang-width', '640', source, '--custom']).stdout) == ['--custom']
     # Console switching must keep redirected stdin and stdout usable.
     echo_source = root / 'echo.fox'

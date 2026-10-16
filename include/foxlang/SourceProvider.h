@@ -4,6 +4,13 @@
 
 namespace foxlang {
 
+// Both suffixes share the same parser, runtime and module loader.
+inline bool isSourceFile(const std::string& name) {
+    if (name.size() < 4) return false;
+    const auto suffix = name.substr(name.size() - 4);
+    return suffix == ".skm" || suffix == ".fox";
+}
+
 struct ModuleImport {
     std::string name;
     bool usingModule = false;

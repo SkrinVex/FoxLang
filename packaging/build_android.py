@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Package a FoxLang project as an Android APK using the checked-in runner.
+"""Package a Skrumi project as an Android APK using the checked-in runner.
 
-The project keeps its relative .fox paths. Resources are opt-in (--asset); hidden
+The project keeps its relative .skm and .fox paths. Resources are opt-in (--asset); hidden
 files, symlinks, .env and build output are never copied. Release APKs are unsigned.
 """
 import argparse
@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+SOURCE_EXTENSIONS = (".skm", ".fox")
 IGNORED = {"build", "dist", "node_modules", "__pycache__"}
 
 
@@ -32,8 +33,8 @@ def stage_project(entry, project, assets, target):
             break
     entry = entry.resolve()
     relative = entry.relative_to(project)
-    if entry.suffix != ".fox" or not entry.is_file() or not allowed(relative):
-        raise ValueError("Entry must be a .fox file inside the project directory")
+    if entry.suffix not in SOURCE_EXTENSIONS or not entry.is_file() or not allowed(relative):
+        raise ValueError("Entry must be a .skm or .fox file inside the project directory")
     target = Path(target)
     copied = set()
 
@@ -50,7 +51,7 @@ def stage_project(entry, project, assets, target):
             shutil.copyfile(path, dest)
             copied.add(rel)
 
-    for path in sorted(project.rglob("*.fox")):
+    for path in sorted(p for p in project.rglob("*") if p.suffix in SOURCE_EXTENSIONS):
         if allowed(path.relative_to(project)):
             copy(path)
     for name in assets:
@@ -79,7 +80,7 @@ def main():
     parser.add_argument("--project", type=Path, help="project root (default: entry parent)")
     parser.add_argument("--asset", action="append", default=[], help="resource file/directory relative to project; repeatable")
     parser.add_argument("--application-id", default="org.foxlang.generated")
-    parser.add_argument("--name", default="FoxLang App")
+    parser.add_argument("--name", default="Skrumi App")
     parser.add_argument("--abis", default="arm64-v8a,x86_64")
     parser.add_argument("--release", action="store_true", help="build an unsigned release APK for signing with your key")
     parser.add_argument("-o", "--output", type=Path, default=Path("app.apk"))
@@ -88,7 +89,7 @@ def main():
         parser.error("Invalid Android application ID")
     if not set(args.abis.split(",")) <= {"arm64-v8a", "armeabi-v7a", "x86", "x86_64"}:
         parser.error("Unknown Android ABI")
-    with tempfile.TemporaryDirectory(prefix="foxlang-apk-") as folder:
+    with tempfile.TemporaryDirectory(prefix="skrumi-apk-") as folder:
         try:
             stage_project(args.entry, args.project or args.entry.absolute().parent, args.asset, folder)
         except (OSError, ValueError) as error:

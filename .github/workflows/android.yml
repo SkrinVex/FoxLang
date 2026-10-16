@@ -45,14 +45,19 @@ jobs:
           python3 tests/test_android_artifacts.py --aar android/foxlang/build/outputs/aar/foxlang-release.aar --apk android/app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
           mkdir -p dist-android
-          cp android/foxlang/build/outputs/aar/foxlang-release.aar dist-android/foxlang-android.aar
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist-android/foxlang-android-demo.apk
+          cp android/foxlang/build/outputs/aar/foxlang-release.aar dist-android/skrumi-android.aar
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist-android/skrumi-android-demo.apk
       - name: Build and verify the raycaster APK from the shared example
         run: |
           android/gradlew -p android --no-daemon :app:assembleDebug -PfoxlangDemo=raycaster -PfoxlangAbis=arm64-v8a,armeabi-v7a,x86_64,x86
-          python3 tests/test_android_artifacts.py --aar dist-android/foxlang-android.aar --apk android/app/build/outputs/apk/debug/app-debug.apk --source examples/raycaster.fox
+          python3 tests/test_android_artifacts.py --aar dist-android/skrumi-android.aar --apk android/app/build/outputs/apk/debug/app-debug.apk --source examples/raycaster.skm
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist-android/foxlang-android-raycaster.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist-android/skrumi-android-raycaster.apk
+      - name: Preserve fixed download aliases
+        run: |
+          cp dist-android/skrumi-android.aar dist-android/foxlang-android.aar
+          cp dist-android/skrumi-android-demo.apk dist-android/foxlang-android-demo.apk
+          cp dist-android/skrumi-android-raycaster.apk dist-android/foxlang-android-raycaster.apk
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact-name || 'android-ci' }}

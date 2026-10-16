@@ -916,7 +916,7 @@ private:
 
     void setPath(SetNode& node) {
         // The value first: it may change the containers the target lives in. Then the
-        // indexes, from the outermost in, as FoxLang always has.
+        // indexes, from the outermost in, as Skrumi always has.
         int value = temp();
         into(*node.value, value);
         SetPath path;

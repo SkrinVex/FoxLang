@@ -50,7 +50,7 @@ std::vector<std::string> ProjectIndex::scan(const std::string& file) const {
             }
             continue;
         }
-        if (path.extension() == ".fox" && it->is_regular_file(ec)) files.push_back(canonicalPath(platform::pathToUtf8(path)));
+        if (isSourceFile(platform::pathToUtf8(path)) && it->is_regular_file(ec)) files.push_back(canonicalPath(platform::pathToUtf8(path)));
     }
     return files;
 }

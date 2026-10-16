@@ -37,3 +37,11 @@ android/local.properties
 *.apk
 *.aar
 *.aab
+
+# Skrumi distributables and generated browser runtime
+/skrumi
+/skrumi.exe
+/skrumi.bin
+/site/playground/*.wasm
+/site/playground/skrumi*.js
+/site/playground/foxlang*.js

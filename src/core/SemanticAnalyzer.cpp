@@ -78,7 +78,7 @@ std::string signatureOf(const std::string& name, const std::vector<FuncParam>& p
     return out + ") -> " + result;
 }
 
-// A builtin shows its optional [parameters] and repeating ones...; a FoxLang function has neither.
+// A builtin shows its optional [parameters] and repeating ones...; a Skrumi function has neither.
 std::string signatureOf(const Symbol& symbol) {
     if (symbol.kind == SymbolKind::Builtin) {
         if (const BuiltinSpec* spec = findBuiltinSpec(symbol.name)) return spec->signature();
@@ -1191,9 +1191,9 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         {"break", "(keyword) break;", "Прерывание выполнения текущего цикла или оператора `switch`."},
         {"continue", "(keyword) continue;", "Переход к следующей итерации цикла."},
         {"return", "(keyword) return [value];", "Возврат значения из функции или выход из `void` функции."},
-        {"using", "(keyword) using <module>;", "Директива подключения стандартной библиотеки FoxLang.\n\n```foxlang\nusing server;\nusing http;\nusing env;\nusing log;\nusing json;\nusing string;\n```"},
-        {"include", "(keyword) include(\"path.fox\");", "Директива подключения пользовательского файла с кодом.\n\n```foxlang\ninclude(\"helper.fox\");\n```"},
-        {"global", "(keyword) global type name = val;", "Объявление глобальной переменной в FoxLang.\n\n```foxlang\nglobal string token = secret(\"API_KEY\");\n```"},
+        {"using", "(keyword) using <module>;", "Директива подключения стандартной библиотеки Skrumi.\n\n```foxlang\nusing server;\nusing http;\nusing env;\nusing log;\nusing json;\nusing string;\n```"},
+        {"include", "(keyword) include(\"path.skm\");", "Директива подключения пользовательского файла с кодом.\n\n```foxlang\ninclude(\"helper.skm\");\n```"},
+        {"global", "(keyword) global type name = val;", "Объявление глобальной переменной в Skrumi.\n\n```foxlang\nglobal string token = secret(\"API_KEY\");\n```"},
         {"int", "(type) int", "32-битное целое число со знаком."},
         {"float", "(type) float", "Дробное число с плавающей точкой."},
         {"string", "(type) string", "Текстовая строка с поддержкой UTF-8 и Unicode эмодзи."},

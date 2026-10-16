@@ -195,7 +195,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     process, dap = stdio_session(workdir)
     placed = start(dap, program, [{'line': 4, 'condition': 'n == 3'}, {'line': 7}, {'line': 13}])
     assert [b['line'] for b in placed] == [4, 8, 13] and all(b['verified'] for b in placed), placed
-    assert dap.request('threads')['threads'] == [{'id': 1, 'name': 'FoxLang'}]
+    assert dap.request('threads')['threads'] == [{'id': 1, 'name': 'Skrumi'}]
     dap.stopped('breakpoint', 8)
 
     dap.request('continue', {'threadId': 1})
@@ -251,7 +251,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     dap.request('continue', {'threadId': 1})
     finish(process, dap, 1)
     output = dap.output()
-    for expected in ('лог 0\n', 'лог 1\n', 'лог 2\n', 'i=2\n', 'FoxLang: '):
+    for expected in ('лог 0\n', 'лог 1\n', 'лог 2\n', 'i=2\n', 'Skrumi: '):
         assert expected in output, (expected, output)
 
     # A call from a loop condition: the loop body's scope is gone, the caller's frame

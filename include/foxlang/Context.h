@@ -28,7 +28,7 @@ namespace platform { struct ServerState; }
 struct FuncParam {
     std::string type;
     std::string name;
-    SourceRange range; // where a parameter of a FoxLang function is named; empty for builtins
+    SourceRange range; // where a parameter of a Skrumi function is named; empty for builtins
 
     FuncParam() = default;
     FuncParam(std::string t, std::string n, SourceRange r = {}) : type(std::move(t)), name(std::move(n)), range(r) {}
@@ -52,7 +52,7 @@ struct StringData {
 // the value counts references to. Copying a value never copies text or elements.
 class Value {
 public:
-    // Function: a FoxLang function, a builtin or a lambda as a value. Box: the cell of a
+    // Function: a Skrumi function, a builtin or a lambda as a value. Box: the cell of a
     // local variable that a lambda captured; code reads through it, a program never
     // sees one.
     enum class Kind : unsigned char { Void, Int, Float, Bool, String, Array, Map, Struct, Function, Box };
@@ -386,7 +386,7 @@ struct StructType {
     std::vector<FuncParam> fields;
     std::vector<std::shared_ptr<Node>> defaults; // an initial value per field, or null
     bool isEnum = false; // an enum: fields name and value; its values are fixed objects
-    // Methods by name: FoxLang functions (FuncDefNode) whose first parameter is `this`.
+    // Methods by name: Skrumi functions (FuncDefNode) whose first parameter is `this`.
     std::unordered_map<std::string, std::shared_ptr<const Node>> methods;
     // What each field's type holds, worked out when the first value is built, and the
     // defaults' compiled code.
@@ -394,11 +394,11 @@ struct StructType {
     mutable std::vector<std::shared_ptr<bytecode::Proto>> defaultCode;
 };
 
-// What a function value calls: a FoxLang function, a builtin, or a lambda's code, whose
+// What a function value calls: a Skrumi function, a builtin, or a lambda's code, whose
 // captured variables are the boxes in Object::items.
 struct Callee {
     std::string name;                     // for messages and print(): "add", "lambda"
-    std::shared_ptr<const Node> function; // a FoxLang function (a FuncDefNode)
+    std::shared_ptr<const Node> function; // a Skrumi function (a FuncDefNode)
     const runtime::Builtin* builtin = nullptr;
     std::shared_ptr<bytecode::Proto> lambda;
 };

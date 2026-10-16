@@ -1,4 +1,4 @@
-/* Project format and FoxLang generator, shared by the browser and runtime tests. */
+/* Project format and Skrumi generator, shared by the browser and runtime tests. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
@@ -48,7 +48,7 @@
   function defaultMain() {
     return [
       "// Пользовательская логика: конструктор не перезаписывает этот файл.",
-      'include("layout.fox");',
+      'include("layout.skm");',
       "",
       "void on_click(string id) {",
       '    // Пример: if (id == "e5") { print(value_e3); return; }',
@@ -68,7 +68,7 @@
   }
   function validate(input) {
     if (!input || input.format !== "foxlang-ui" || input.version !== 1)
-      fail("Нужен проект FoxLang UI формата 1");
+      fail("Нужен проект Skrumi UI формата 1");
     if (
       !input.sizes ||
       !Array.isArray(input.elements) ||
@@ -173,7 +173,7 @@
       main:
         input.main === undefined
           ? defaultMain()
-          : text(input.main, 100000, "main.fox"),
+          : text(input.main, 100000, "main.skm"),
       nextId,
       format: "foxlang-ui",
       version: 1,
@@ -259,7 +259,7 @@
     title.text = p.title;
     const subtitle = add(p, "label");
     subtitle.scale = 1;
-    subtitle.text = "Создано в FoxLang";
+    subtitle.text = "Создано в Skrumi";
     subtitle.color = "#78808a";
     const field = add(p, "field");
     field.text = name === "login" ? "Ваш логин" : "Как вас зовут?";
@@ -300,8 +300,8 @@
       initial = p.sizes[initialMode];
     if (!initial) fail("Неизвестный размер запуска");
     const lines = [
-      "// Создано в FoxLang UI — https://skrinvex.github.io/FoxLang/builder/",
-      "// Генерируемый layout.fox. Изменяйте обработчики в main.fox.",
+      "// Создано в Skrumi UI — https://skrinvex.github.io/FoxLang/builder/",
+      "// Генерируемый layout.skm. Изменяйте обработчики в main.skm.",
       "using graphics;",
       "using ui;",
       "",
@@ -388,7 +388,9 @@
   }
   function files(input, initialMode = "desktop") {
     const p = validate(input);
-    return { "main.fox": p.main, "layout.fox": generate(p, initialMode) };
+    const legacy = /include\s*\(\s*["']layout\.fox["']/.test(p.main);
+    return legacy ? { "main.fox": p.main, "layout.fox": generate(p, initialMode) } :
+      { "main.skm": p.main, "layout.skm": generate(p, initialMode) };
   }
   return {
     types,

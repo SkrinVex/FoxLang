@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const M = require("../../site/builder/model");
 const create = require(
-  path.resolve(process.argv[2] || "site/playground", "foxlang-graphics.js"),
+  path.resolve(process.argv[2] || "site/playground", "skrumi-graphics.js"),
 );
 (async () => {
   for (const template of ["welcome", "login", "blank"])
@@ -32,7 +32,7 @@ const create = require(
           "foxlang_run",
           "number",
           ["string", "string"],
-          ["main.fox", ""],
+          ["main.skm", ""],
           { async: true },
         ),
         0,
@@ -66,7 +66,7 @@ const create = require(
   // A layout edit must not regenerate or replace the user handler.
   const originalMain = p.main;
   button.layouts.desktop.x += 30;
-  assert.equal(M.files(p)["main.fox"], originalMain);
+  assert.equal(M.files(p)["main.skm"], originalMain);
   let polls = 0,
     log = "",
     sizes = new Set();
@@ -98,9 +98,9 @@ const create = require(
   });
   app.FS.mkdirTree("/project");
   app.FS.chdir("/project");
-  app.FS.writeFile("layout.fox", M.generate(p));
+  app.FS.writeFile("layout.skm", M.generate(p));
   app.FS.writeFile(
-    "main.fox",
+    "main.skm",
     p.main +
       `\nprint("FIELD=" + value_${field.id});\nprint("CHECK=" + checked_${check.id});\n`,
   );
@@ -109,7 +109,7 @@ const create = require(
       "foxlang_run",
       "number",
       ["string", "string"],
-      ["main.fox", ""],
+      ["main.skm", ""],
       { async: true },
     ),
     0,

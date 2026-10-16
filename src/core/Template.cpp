@@ -1,4 +1,4 @@
-// Mustache-style templates over a JSON document, for HTML pages served by FoxLang.
+// Mustache-style templates over a JSON document, for HTML pages served by Skrumi.
 //
 //   {{path}}          value at the path, HTML-escaped
 //   {{{path}}}        value at the path, as is

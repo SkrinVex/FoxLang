@@ -1,4 +1,4 @@
-; FoxLang Tree-sitter Highlighting Queries for Zed (based on C grammar)
+; Skrumi Tree-sitter Highlighting Queries for Zed (based on C grammar)
 
 ; Keywords
 "if" @keyword

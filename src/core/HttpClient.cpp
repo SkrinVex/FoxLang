@@ -53,7 +53,7 @@ HttpResponse httpRequest(const std::string& method, const std::string& url,
     option(CURLOPT_SSL_OPTIONS, static_cast<long>(CURLSSLOPT_REVOKE_BEST_EFFORT));
 #endif
     option(CURLOPT_CUSTOMREQUEST, method.c_str());
-    auto ca = getEnvVar("FOXLANG_CA_BUNDLE");
+    auto ca = configEnv("FOXLANG_CA_BUNDLE");
 #ifndef _WIN32
     if (ca.empty()) ca = getEnvVar("SSL_CERT_FILE");
 #endif

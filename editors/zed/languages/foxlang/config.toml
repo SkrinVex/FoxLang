@@ -1,6 +1,6 @@
-name = "FoxLang"
+name = "FoxLang" # Stable Zed language settings key; extension display name is Skrumi.
 grammar = "c"
-path_suffixes = ["fox"]
+path_suffixes = ["skm", "fox"]
 line_comments = ["// "]
 block_comment = ["/*", "*/"]
 autoclose_before = ";:.,=}])> \n\t"

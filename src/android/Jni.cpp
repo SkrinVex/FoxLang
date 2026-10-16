@@ -48,7 +48,7 @@ jstring string(JNIEnv* env, const std::string& value) {
 std::shared_ptr<Session> session(jlong handle) {
     std::lock_guard<std::mutex> lock(handlesMutex);
     auto found = sessions.find(handle);
-    if (found == sessions.end()) throw std::runtime_error("FoxLang engine is closed");
+    if (found == sessions.end()) throw std::runtime_error("Skrumi engine is closed");
     return found->second;
 }
 void failure(JNIEnv* env, const std::exception& error) {

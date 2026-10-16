@@ -8,7 +8,7 @@ import java.util.HashSet;
 
 /** Optional touch controls. Directions send arrow keys (or WASD); independent
  * buttons support holding several keys. Leaving the view releases every key. */
-public final class FoxControls extends LinearLayout {
+public class FoxControls extends LinearLayout {
     private final FoxLang engine;
     private final HashSet<Integer> held = new HashSet<>();
     public FoxControls(Context context, FoxLang engine, FoxView view) {

@@ -22,6 +22,9 @@ def frame(message):
     return f"Content-Length: {len(data)}\r\n\r\n".encode("ascii") + data
 
 
+main = "main.skm" if len(sys.argv) > 2 else "main.fox"
+render = "render.skm" if len(sys.argv) > 2 else "render.fox"
+
 with tempfile.TemporaryDirectory(prefix="fox-lsp-project-") as directory:
     root = Path(directory) / "Мой проект"
     (root / "lib").mkdir(parents=True)
@@ -31,13 +34,17 @@ with tempfile.TemporaryDirectory(prefix="fox-lsp-project-") as directory:
         "render.fox": 'void main_entry() {\n    print(shout("мир"), counter, later_helper());\n}\n',
         "other.fox": 'include("lib/utils.fox");\nvoid other() { print(main_entry()); }\n',
     }
+    mixed = len(sys.argv) > 2
+    if mixed:
+        files = {name.replace("main.fox", "main.skm").replace("render.fox", "render.skm"):
+                 text.replace("render.fox", "render.skm") for name, text in files.items()}
     for name, text in files.items():
         (root / name).write_text(text, encoding="utf-8")
     uri = {name: (root / name).as_uri() for name in files}
-    assert "%D0%9C" in uri["main.fox"], uri["main.fox"]
+    assert "%D0%9C" in uri[main], uri[main]
 
     messages = [dict(jsonrpc="2.0", id=1, method="initialize", params=dict(capabilities={}, rootUri=root.as_uri()))]
-    for name in ("main.fox", "lib/utils.fox", "render.fox", "other.fox"):
+    for name in (main, "lib/utils.fox", render, "other.fox"):
         messages.append(dict(jsonrpc="2.0", method="textDocument/didOpen", params=dict(
             textDocument=dict(uri=uri[name], languageId="fox", version=1, text=files[name]))))
     # Adding the helper to utils.fox must clear the error in render.fox.
@@ -45,7 +52,7 @@ with tempfile.TemporaryDirectory(prefix="fox-lsp-project-") as directory:
     messages.append(dict(jsonrpc="2.0", method="textDocument/didChange", params=dict(
         textDocument=dict(uri=uri["lib/utils.fox"], version=2), contentChanges=[dict(text=fixed)])))
     messages.append(dict(jsonrpc="2.0", id=2, method="textDocument/definition", params=dict(
-        textDocument=dict(uri=uri["render.fox"]), position=dict(line=1, character=11))))
+        textDocument=dict(uri=uri[render]), position=dict(line=1, character=11))))
     messages.append(dict(jsonrpc="2.0", id=3, method="shutdown"))
     messages.append(dict(jsonrpc="2.0", method="exit"))
 
@@ -76,10 +83,10 @@ with tempfile.TemporaryDirectory(prefix="fox-lsp-project-") as directory:
         return seen[-1] if seen else None
 
     # Before the fix render.fox knows shout and counter, but not the missing helper.
-    render_before = [d for file, d in published if file == "render.fox"][0]
+    render_before = [d for file, d in published if file == render][0]
     assert render_before == ["Undefined function 'later_helper'"], published
-    assert last("render.fox") == [], published
-    assert last("main.fox") == [] and last("lib/utils.fox") == [], published
+    assert last(render) == [], published
+    assert last(main) == [] and last("lib/utils.fox") == [], published
     # other.fox is a separate program: main_entry comes only from main.fox's program.
     assert last("other.fox") == ["Undefined function 'main_entry'"], published
 

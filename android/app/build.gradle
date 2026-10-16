@@ -1,32 +1,32 @@
 plugins { id 'com.android.application' }
 def parts = file('../../VERSION').text.trim().split('\\.').collect { it.toInteger() }
-def demo = project.findProperty('foxlangDemo')
+def demo = (project.findProperty('skrumiDemo') ?: project.findProperty('foxlangDemo'))
 if (demo != null && demo != 'raycaster') throw new GradleException('Unknown foxlangDemo: ' + demo)
-if (demo != null && project.hasProperty('foxlangAssets')) throw new GradleException('Use foxlangDemo or foxlangAssets, not both')
+if (demo != null && (project.hasProperty('skrumiAssets') || project.hasProperty('foxlangAssets'))) throw new GradleException('Use foxlangDemo or foxlangAssets, not both')
 android {
     namespace 'org.foxlang.runner'
     compileSdk 35
     ndkVersion '27.3.13750724'
-    if (System.getenv('FOXLANG_NDK_DIR')) ndkPath System.getenv('FOXLANG_NDK_DIR')
+    if ((System.getenv('SKRUMI_NDK_DIR') ?: System.getenv('FOXLANG_NDK_DIR'))) ndkPath (System.getenv('SKRUMI_NDK_DIR') ?: System.getenv('FOXLANG_NDK_DIR'))
     defaultConfig {
-        applicationId project.findProperty('foxlangApplicationId') ?: (demo == 'raycaster' ? 'org.foxlang.raycaster' : 'org.foxlang.runner')
+        applicationId (project.findProperty('skrumiApplicationId') ?: project.findProperty('foxlangApplicationId')) ?: (demo == 'raycaster' ? 'org.foxlang.raycaster' : 'org.foxlang.runner')
         minSdk 28
         targetSdk 35
         versionCode parts[0] * 1000000 + parts[1] * 1000 + parts[2]
         versionName file('../../VERSION').text.trim()
-        resValue 'string', 'app_name', project.findProperty('foxlangAppName') ?: (demo == 'raycaster' ? 'FoxLang Raycaster' : 'FoxLang')
+        resValue 'string', 'app_name', (project.findProperty('skrumiAppName') ?: project.findProperty('foxlangAppName')) ?: (demo == 'raycaster' ? 'Skrumi Raycaster' : 'Skrumi')
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
-    if (project.hasProperty('foxlangAssets')) sourceSets.main.assets.srcDirs = [file(project.property('foxlangAssets'))]
+    if ((project.hasProperty('skrumiAssets') || project.hasProperty('foxlangAssets'))) sourceSets.main.assets.srcDirs = [file((project.findProperty('skrumiAssets') ?: project.property('foxlangAssets')))]
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     buildTypes { release { minifyEnabled false } }
 }
 if (demo == 'raycaster') {
     def demoAssets = layout.buildDirectory.dir('generated/raycaster-assets')
     def stageDemo = tasks.register('stageRaycasterDemo', Sync) {
-        from('../../examples/raycaster.fox') { into 'program' }
+        from('../../examples/raycaster.skm') { into 'program' }
         into demoAssets
-        doLast { new File(demoAssets.get().asFile, 'foxlang-entry.txt').text = 'raycaster.fox' }
+        doLast { new File(demoAssets.get().asFile, 'foxlang-entry.txt').text = 'raycaster.skm' }
     }
     android.sourceSets.main.assets.srcDirs = [demoAssets]
     tasks.named('preBuild').configure { dependsOn stageDemo }
