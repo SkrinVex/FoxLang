@@ -1,4 +1,4 @@
-# 🦊 Skrumi
+# <img src="resources/branding/skrumi-mark.svg" width="40" height="40" alt=""> Skrumi
 
 > Previously known as FoxLang. Skrumi is the continuation of FoxLang under a new name.
 > The project retains its original development history and supports existing `.fox`
