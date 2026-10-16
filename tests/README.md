@@ -77,7 +77,7 @@ runtime credentials, отказ при отсутствующем/несовпа
 
 `portable-linux` собирает статический runtime в Alpine, выполняет там весь CTest,
 проверяет отсутствие ELF interpreter/shared libraries и запускает standalone-набор
-на Ubuntu. Локально: `python3 tests/standalone/test_portable_linux.py build-portable/foxlang`
+на Ubuntu. Локально: `python3 tests/standalone/test_portable_linux.py build-portable/skrumi`
 после экспорта Docker target `portable` (команда приведена в README).
 
 `packaging_versions` сверяет VERSION с манифестами редакторов, проверяет, что

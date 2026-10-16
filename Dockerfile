@@ -25,6 +25,8 @@ RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DSKRUMI_STATIC_LINUX=ON \
 FROM scratch AS portable
 COPY --from=builder /usr/src/skrumi/build/skrumi /skrumi
 COPY --from=builder /usr/src/skrumi/build/skrumi-lsp /skrumi-lsp
+COPY --from=builder /usr/src/skrumi/build/foxlang /foxlang
+COPY --from=builder /usr/src/skrumi/build/foxlang-lsp /foxlang-lsp
 
 # Final runtime image
 FROM alpine:3.24.2
