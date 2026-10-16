@@ -9,6 +9,7 @@
     />
     <title>Skrumi UI — конструктор интерфейсов</title>
     <link rel="icon" href="../assets/skrumi-mark.svg" type="image/svg+xml" />
+    <script src="theme.js"></script>
     <link rel="stylesheet" href="builder.css" />
     <script src="model.js" defer></script>
     <script src="builder.js" defer></script>
@@ -17,6 +18,13 @@
     <header class="top">
       <a class="brand" href="../"><img src="../assets/skrumi-mark.svg" width="28" height="28" alt="" /> Skrumi <span>UI</span></a
       ><span class="tag">КОНСТРУКТОР ИНТЕРФЕЙСОВ</span>
+      <label class="theme-control">Тема
+        <select id="editor-theme" aria-label="Тема конструктора">
+          <option value="auto">Системная</option>
+          <option value="light">Светлая</option>
+          <option value="dark">Тёмная</option>
+        </select>
+      </label>
       <nav aria-label="Ссылки">
         <a href="../playground/">Песочница</a><a href="../#graphics">О языке</a
         ><a

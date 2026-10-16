@@ -7,6 +7,10 @@
   --fox: #c34e20;
   --pale: #fcebdd;
   --surface: #fff;
+  --work: #ebece7;
+  --grid: #c6c9c1;
+  --danger: #af2525;
+  --on-accent: #fff;
   --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-family:
     system-ui,
@@ -17,6 +21,22 @@
   color: var(--ink);
   background: var(--paper);
 }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #12161c;
+  --ink: #e6eaf0;
+  --muted: #a2adb9;
+  --line: #35404d;
+  --fox: #ff9a5c;
+  --pale: #36291f;
+  --surface: #1a2029;
+  --work: #10141a;
+  --grid: #37414f;
+  --danger: #ff9696;
+  --on-accent: #211309;
+}
+.theme-control { margin-left: auto; flex-shrink: 0; }
+.theme-control select { width: auto; }
 * {
   box-sizing: border-box;
 }
@@ -57,7 +77,7 @@ button[aria-pressed="true"],
 button.primary {
   background: var(--fox);
   border-color: var(--fox);
-  color: #fff;
+  color: var(--on-accent);
 }
 a {
   color: var(--fox);
@@ -83,6 +103,10 @@ summary:focus-visible {
 }
 .brand img { width: 28px; height: 28px; vertical-align: middle; }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
   font-size: 25px;
   font-weight: 850;
   letter-spacing: -1px;
@@ -271,19 +295,19 @@ summary span {
   width: auto;
 }
 .work {
-  background: #ebece7;
+  background: var(--work);
 }
 .work-note {
   padding: 10px 16px;
   margin: 0;
-  background: #fff;
+  background: var(--surface);
 }
 .work #stage-scroll {
   overflow: auto;
   max-height: 850px;
   min-height: 320px;
   padding: 28px 22px;
-  background-image: radial-gradient(#c6c9c1 0.8px, transparent 0.8px);
+  background-image: radial-gradient(var(--grid) 0.8px, transparent 0.8px);
   background-size: 12px 12px;
 }
 #stage-space {
@@ -291,6 +315,8 @@ summary span {
   margin: auto;
 }
 #stage {
+  color: #242b30;
+  color-scheme: light;
   position: absolute;
   left: 0;
   top: 0;
@@ -387,7 +413,7 @@ select {
   border-radius: 5px;
   padding: 7px 9px;
   min-height: 36px;
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
 }
 input:disabled {
@@ -428,10 +454,10 @@ input[type="checkbox"] {
   font-size: 11px;
 }
 .danger {
-  color: #af2525;
+  color: var(--danger);
 }
 .preview-bar {
-  background: #fff;
+  background: var(--surface);
   padding: 12px;
   display: flex;
   align-items: center;
@@ -448,7 +474,7 @@ iframe {
   width: 100%;
   height: 760px;
   border: 0;
-  background: #fff;
+  background: var(--surface);
 }
 #code {
   width: 100%;
@@ -471,7 +497,7 @@ iframe {
   max-width: calc(100% - 24px);
   padding: 10px 18px;
   background: var(--ink);
-  color: white;
+  color: var(--paper);
   border-radius: 8px;
   font-size: 13px;
   z-index: 5;

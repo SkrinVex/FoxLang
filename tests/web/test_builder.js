@@ -22,6 +22,7 @@ const runtime = process.argv.includes("--runtime");
           ".html": "text/html; charset=utf-8",
           ".js": "application/javascript; charset=utf-8",
           ".css": "text/css",
+          ".svg": "image/svg+xml",
           ".wasm": "application/wasm",
         }[path.extname(file)] || "text/plain",
       );
@@ -90,6 +91,25 @@ const runtime = process.argv.includes("--runtime");
       await page.goto(`http://127.0.0.1:${server.address().port}/builder/`);
       await page.locator("#stage .widget").first().waitFor();
       assert.equal(await page.locator("#stage .widget").count(), 5);
+      const stageColor = await page.locator("#stage").evaluate(el => getComputedStyle(el).backgroundColor);
+      await page.emulateMedia({ colorScheme: "dark" });
+      await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+      assert.equal(await page.locator("#editor-theme").inputValue(), "auto");
+      await page.locator("#editor-theme").selectOption("light");
+      assert.equal(await page.locator("html").getAttribute("data-theme"), "light");
+      await page.reload();
+      await page.locator("#stage .widget").first().waitFor();
+      assert.equal(await page.locator("#editor-theme").inputValue(), "light");
+      assert.equal(await page.locator("html").getAttribute("data-theme"), "light");
+      await page.locator("#editor-theme").selectOption("dark");
+      assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
+      assert.equal(await page.locator("#stage").evaluate(el => getComputedStyle(el).backgroundColor), stageColor);
+      assert(await page.locator(".brand img").evaluate(img => img.complete && img.naturalWidth > 0));
+      await page.screenshot({path: `/tmp/skrumi-builder-dark-${mobile ? "mobile" : "desktop"}.png`});
+      await page.locator("#editor-theme").selectOption("auto");
+      await page.emulateMedia({ colorScheme: "light" });
+      await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
+
       await page.locator("[data-mode=desktop]").click();
       assert(
         await page
