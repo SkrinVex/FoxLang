@@ -9,7 +9,8 @@ $ErrorActionPreference = 'Stop'
 function Assert-ManagedInstallation([string]$Directory) {
     $ManifestPath = Join-Path $Directory '.skrumi-files.json'
     if (-not (Test-Path -LiteralPath $ManifestPath)) { throw 'Missing installation manifest; choose a clean installation directory.' }
-    $Entries = @(Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json)
+    $Entries = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+    $Entries = @($Entries)
     $Files = @(Get-ChildItem -LiteralPath $Directory -Recurse -Force -File | Where-Object { $_.FullName -ne $ManifestPath })
     if ($Files.Count -ne $Entries.Count -or @(Get-ChildItem -LiteralPath $Directory -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) {
         throw 'Installation contains additional files or links; nothing was removed. Choose a new installation directory.'
@@ -161,7 +162,7 @@ if (-not $SkipVSCode) {
 }
 
 Write-Info "установлена версия $Version в $InstallDir"
-Write-Info 'команды foxlang и foxlang-lsp добавлены в пользовательский PATH'
+Write-Info 'команды skrumi, skrumi-lsp и совместимые foxlang, foxlang-lsp добавлены в пользовательский PATH'
 if ($ExtensionInstalled) { Write-Info 'расширение VS Code установлено или обновлено' }
 Write-Info 'распакованную папку можно удалить; для следующего обновления запустите install.cmd из нового архива.'
 Write-Info "удаление: $InstallDir\uninstall.ps1"

@@ -14,7 +14,7 @@ fi
 if [ -d "$LIBDIR" ]; then
   if [ ! -f "$LIBDIR/.skrumi-files.sha256" ] ||
      [ -n "$(find "$LIBDIR" -type l -print -quit)" ] ||
-     ! (cd "$LIBDIR" && sha256sum --quiet -c .skrumi-files.sha256) ||
+     ! (cd "$LIBDIR" && sha256sum -c .skrumi-files.sha256 > /dev/null) ||
      [ "$(find "$LIBDIR" -type f ! -name .skrumi-files.sha256 | wc -l)" -ne "$(wc -l < "$LIBDIR/.skrumi-files.sha256")" ]; then
     echo "Installation contains modified or additional files; preserve it and choose a new SKRUMI_PREFIX." >&2; exit 1
   fi
@@ -207,7 +207,7 @@ fi
 test -f "$LIBDIR/.skrumi-install" || exit 1
 if [ ! -f "$LIBDIR/.skrumi-files.sha256" ] ||
    [ -n "$(find "$LIBDIR" -type l -print -quit)" ] ||
-   ! (cd "$LIBDIR" && sha256sum --quiet -c .skrumi-files.sha256) ||
+   ! (cd "$LIBDIR" && sha256sum -c .skrumi-files.sha256 > /dev/null) ||
    [ "$(find "$LIBDIR" -type f ! -name .skrumi-files.sha256 | wc -l)" -ne "$(wc -l < "$LIBDIR/.skrumi-files.sha256")" ]; then
   echo "Installation contains modified or additional files; nothing was removed." >&2; exit 1
 fi

@@ -9,7 +9,7 @@ android {
     ndkVersion '27.3.13750724'
     if ((System.getenv('SKRUMI_NDK_DIR') ?: System.getenv('FOXLANG_NDK_DIR'))) ndkPath (System.getenv('SKRUMI_NDK_DIR') ?: System.getenv('FOXLANG_NDK_DIR'))
     defaultConfig {
-        applicationId (project.findProperty('skrumiApplicationId') ?: project.findProperty('foxlangApplicationId')) ?: (demo == 'raycaster' ? 'org.foxlang.raycaster' : 'org.foxlang.runner')
+        applicationId(project.findProperty('skrumiApplicationId') ?: project.findProperty('foxlangApplicationId') ?: (demo == 'raycaster' ? 'org.foxlang.raycaster' : 'org.foxlang.runner'))
         minSdk 28
         targetSdk 35
         versionCode parts[0] * 1000000 + parts[1] * 1000 + parts[2]
