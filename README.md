@@ -5,11 +5,11 @@
 > source files alongside the new `.skm` format. See the [migration guide](docs/MIGRATION_FROM_FOXLANG.md).
 
 
-![Версия](https://img.shields.io/github/v/release/SkrinVex/FoxLang?label=version&color=orange)
+[![Версия исходников](resources/version.svg)](VERSION)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
 ![Платформы](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey)
 ![Лицензия](https://img.shields.io/badge/license-MIT-green)
-[![Песочница](https://img.shields.io/badge/%D0%BF%D0%B5%D1%81%D0%BE%D1%87%D0%BD%D0%B8%D1%86%D0%B0-%D0%BF%D0%BE%D0%BF%D1%80%D0%BE%D0%B1%D0%BE%D0%B2%D0%B0%D1%82%D1%8C%20%D0%B2%20%D0%B1%D1%80%D0%B0%D1%83%D0%B7%D0%B5%D1%80%D0%B5-d9620f)](https://skrinvex.github.io/FoxLang/playground/)
+[![Песочница](https://img.shields.io/badge/%D0%BF%D0%B5%D1%81%D0%BE%D1%87%D0%BD%D0%B8%D1%86%D0%B0-%D0%BF%D0%BE%D0%BF%D1%80%D0%BE%D0%B1%D0%BE%D0%B2%D0%B0%D1%82%D1%8C%20%D0%B2%20%D0%B1%D1%80%D0%B0%D1%83%D0%B7%D0%B5%D1%80%D0%B5-d9620f)](https://skrinvex.github.io/Skrumi/playground/)
 
 **Skrumi** — встраиваемый интерпретируемый язык общего назначения с понятным
 C-подобным синтаксисом, строгими типами, массивами, модулями и стандартной
@@ -18,14 +18,14 @@ C-подобным синтаксисом, строгими типами, мас
 установленный Skrumi.
 
 **Android:** [встроить язык в Kotlin/Java или собрать APK из `.skm`](docs/ANDROID.md).
-Демо игры: [raycaster APK](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-android-raycaster.apk) · [исходник](examples/raycaster.skm) · [замеры кадров на устройстве](docs/ANDROID_PERFORMANCE.md).
+Демо игры: [raycaster APK](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang-android-raycaster.apk) · [исходник](examples/raycaster.skm) · [замеры кадров на устройстве](docs/ANDROID_PERFORMANCE.md).
 
-**Визуально собрать интерфейс:** [конструктор Skrumi UI](https://skrinvex.github.io/FoxLang/builder/) —
+**Визуально собрать интерфейс:** [конструктор Skrumi UI](https://skrinvex.github.io/Skrumi/builder/) —
 макеты для ПК и телефона, живой запуск, отдельные `layout.skm` и `main.skm`: правки макета не стирают вашу логику. [Руководство](docs/BUILDER.md).
 
-**Попробовать без установки:** [песочница в браузере](https://skrinvex.github.io/FoxLang/playground/):
+**Попробовать без установки:** [песочница в браузере](https://skrinvex.github.io/Skrumi/playground/):
 пишешь код и сразу запускаешь, даже с телефона. Там же есть примеры, в том числе игры
-с окном. Как она устроена, рассказано на [сайте](https://skrinvex.github.io/FoxLang/#playground).
+с окном. Как она устроена, рассказано на [сайте](https://skrinvex.github.io/Skrumi/#playground).
 
 ```cpp
 using string;
@@ -80,11 +80,11 @@ for (int i = 0; i < size(words); i++) {
 - Библиотека `skrumi_core` для встраивания в программы на C++.
 
 Полный справочник языка: [DOCUMENTATION.md](DOCUMENTATION.md). Как язык устроен
-изнутри, простыми словами и с живыми примерами: [skrinvex.github.io/FoxLang](https://skrinvex.github.io/FoxLang/).
+изнутри, простыми словами и с живыми примерами: [skrinvex.github.io/Skrumi](https://skrinvex.github.io/Skrumi/).
 
 ## Установка
 
-Готовые пакеты для Linux и Windows — в [GitHub Releases](https://github.com/SkrinVex/FoxLang/releases).
+Готовые пакеты для Linux и Windows — в [GitHub Releases](https://github.com/SkrinVex/Skrumi/releases).
 Linux-пакет содержит установщик: `./install.sh` кладёт `skrumi` и `skrumi-lsp` в `~/.local/bin` и настраивает редакторы.
 В Windows распакуйте ZIP и запустите `install.cmd`: он установит Skrumi в `%LOCALAPPDATA%\Skrumi`, добавит команды в пользовательский `PATH` и установит расширение VS Code.
 Используется встроенный Windows PowerShell 5.1; отдельно устанавливать PowerShell 7 не требуется.
@@ -95,8 +95,8 @@ Linux-пакет содержит установщик: `./install.sh` клад�
 и `libxcb1-dev libxau-dev libxdmcp-dev`):
 
 ```bash
-git clone https://github.com/SkrinVex/FoxLang.git
-cd FoxLang
+git clone https://github.com/SkrinVex/Skrumi.git
+cd Skrumi
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 cmake --build build --config Release
 cmake --install build --prefix ./install
@@ -189,7 +189,7 @@ python3 packaging/build_android.py examples/raycaster.skm --name "Лабирин
 встроенных функций и модулей берутся из того же каталога, по которому работает
 рантайм, поэтому подсказки всегда совпадают с языком.
 
-* **VS Code** (подсветка, LSP, кнопка ▶ запуска, отладка по F5, проверка и сборка): установите `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.vsix)
+* **VS Code** (подсветка, LSP, кнопка ▶ запуска, отладка по F5, проверка и сборка): установите `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang.vsix)
   командой `code --install-extension foxlang.vsix`.
 * **Kate**: подсветка [`editors/kate/foxlang.xml`](editors/kate/foxlang.xml), настройки
   LSP [`editors/kate/settings.json`](editors/kate/settings.json) и внешние инструменты
@@ -203,8 +203,8 @@ python3 packaging/build_android.py examples/raycaster.skm --name "Лабирин
 ## Docker
 
 ```bash
-docker run --rm ghcr.io/skrinvex/foxlang:latest --version
-docker run --rm -v "$(pwd)":/app ghcr.io/skrinvex/foxlang:latest script.skm
+docker run --rm ghcr.io/skrinvex/skrumi:latest --version
+docker run --rm -v "$(pwd)":/app ghcr.io/skrinvex/skrumi:latest script.skm
 ```
 
 Образ на Alpine с `skrumi`, `skrumi-lsp` и стандартной библиотекой публикуется
@@ -248,7 +248,7 @@ ctest --test-dir build -C Release --output-on-failure
 Перед каждым выпуском новая сборка соревнуется с предыдущим выпуском на одной машине:
 если хоть один бенчмарк стал медленнее больше чем на 10%, выпуска нет. Те же задачи
 написаны на Python, Lua, Ruby и JavaScript для сравнения; результаты прикладываются к
-выпуску файлом `benchmarks.json` и показываются на [сайте](https://skrinvex.github.io/FoxLang/#speed).
+выпуску файлом `benchmarks.json` и показываются на [сайте](https://skrinvex.github.io/Skrumi/#speed).
 
 ```bash
 python3 benchmarks/run.py                            # Skrumi и другие языки

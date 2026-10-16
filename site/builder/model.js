@@ -300,7 +300,7 @@
       initial = p.sizes[initialMode];
     if (!initial) fail("Неизвестный размер запуска");
     const lines = [
-      "// Создано в Skrumi UI — https://skrinvex.github.io/FoxLang/builder/",
+      "// Создано в Skrumi UI — https://skrinvex.github.io/Skrumi/builder/",
       "// Генерируемый layout.skm. Изменяйте обработчики в main.skm.",
       "using graphics;",
       "using ui;",

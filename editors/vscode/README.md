@@ -57,7 +57,7 @@
 Отдельно нужен исполняемый файл `skrumi-lsp` — из пакета выпуска или из сборки проекта.
 
 ### Способ 1. Пакет VSIX из выпуска
-Скачайте [`foxlang.vsix`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.vsix) и установите:
+Скачайте [`foxlang.vsix`](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang.vsix) и установите:
 ```bash
 code --install-extension foxlang.vsix
 ```

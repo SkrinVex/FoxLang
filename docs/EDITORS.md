@@ -122,7 +122,7 @@ python3 packaging/sync_editor_builtins.py --check
 
 ### Установка из выпуска
 
-Скачайте `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.vsix) и выполните
+Скачайте `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang.vsix) и выполните
 `code --install-extension foxlang.vsix` (или в VS Code: Расширения → `...` → **Install from VSIX...**).
 Сервер `skrumi-lsp` ставится отдельно — из пакета выпуска или сборкой из исходников.
 
@@ -212,7 +212,7 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
         "foxlang": {
             "command": ["skrumi-lsp"],
             "root": "",
-            "url": "https://github.com/SkrinVex/FoxLang",
+            "url": "https://github.com/SkrinVex/Skrumi",
             "highlightingModeRegex": "^Skrumi$"
         }
     }
@@ -226,7 +226,7 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
         "foxlang": {
             "command": ["/home/user/Skrumi/build/skrumi-lsp"],
             "root": "",
-            "url": "https://github.com/SkrinVex/FoxLang",
+            "url": "https://github.com/SkrinVex/Skrumi",
             "highlightingModeRegex": "^Skrumi$"
         }
     }

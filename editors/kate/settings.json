@@ -3,7 +3,7 @@
         "foxlang": {
             "command": ["skrumi-lsp"],
             "root": "",
-            "url": "https://github.com/SkrinVex/FoxLang",
+            "url": "https://github.com/SkrinVex/Skrumi",
             "highlightingModeRegex": "^Skrumi$"
         }
     }

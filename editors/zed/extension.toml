@@ -4,7 +4,7 @@ version = "8.17.2"
 schema_version = 1
 authors = ["SkrinVex <skrinvex@gmail.com>"]
 description = "Official Skrumi language support for Zed: syntax highlighting, brackets, LSP integration (diagnostics, completions, hover, goto definition) and a debugger."
-repository = "https://github.com/SkrinVex/FoxLang"
+repository = "https://github.com/SkrinVex/Skrumi"
 
 [lib]
 kind = "Rust"

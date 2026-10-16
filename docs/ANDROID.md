@@ -45,7 +45,7 @@ Gradle также принимает `sdk.dir` в локальном `android/lo
 
 ## Демо: лабиринт в псевдо-3D
 
-[Скачать APK raycaster](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang-android-raycaster.apk)
+[Скачать APK raycaster](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang-android-raycaster.apk)
 или собрать из корня репозитория:
 
 ```bash

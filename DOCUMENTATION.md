@@ -1751,7 +1751,7 @@ using http;
 using json;
 using log;
 
-string answer = http_get("https://api.github.com/repos/SkrinVex/FoxLang");
+string answer = http_get("https://api.github.com/repos/SkrinVex/Skrumi");
 if (http_ok()) {
     print(json_path(answer, "full_name"));
 } else {
@@ -2314,7 +2314,7 @@ VS Code и Zed. Без сборки то же делает `cmake -P cmake/Versi
 `site_facts`) и выкладка сайта, а одноимённый тест сообщает, если закоммичена
 страница со старыми цифрами. Число модулей в README и руководстве по тестированию сверяется тем же `packaging/site_facts.py`. Число тестов на сайте относится к Linux CTest; браузерные проверки и Android instrumentation выполняются отдельно.
 
-**Конструктор интерфейсов:** [Skrumi UI](https://skrinvex.github.io/FoxLang/builder/)
+**Конструктор интерфейсов:** [Skrumi UI](https://skrinvex.github.io/Skrumi/builder/)
 позволяет визуально собрать окно, настроить макеты телефона и ПК и экспортировать
 обычную программу с `graphics` / `ui`. Во вкладке «Запуск» выполняется настоящий
 WebAssembly-runtime. Проект сохраняется в браузере и переносится через JSON.
@@ -2322,7 +2322,7 @@ WebAssembly-runtime. Проект сохраняется в браузере и 
 Шаги работы, привязки и ограничения — [docs/BUILDER.md](docs/BUILDER.md).
 
 **Песочница в браузере** (`site/playground/`, на сайте —
-https://skrinvex.github.io/FoxLang/playground/) выполняет программу в браузере
+https://skrinvex.github.io/Skrumi/playground/) выполняет программу в браузере
 посетителя: тот же интерпретатор, собранный Emscripten в WebAssembly, работает в
 web worker. Страница останавливает программу через 10 секунд, ограничивает вывод
 миллионом символов, память — 512 МБ. Функции уходят в рекурсию так же глубоко, как

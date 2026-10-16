@@ -53,7 +53,7 @@ mkdir -p ~/.local/share/org.kde.syntax-highlighting/syntax/
 cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 ```
 
-Файл также доступен для прямой загрузки со страницы релизов: [`foxlang.xml`](https://github.com/SkrinVex/FoxLang/releases/latest/download/foxlang.xml).
+Файл также доступен для прямой загрузки со страницы релизов: [`foxlang.xml`](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang.xml).
 
 После этого файлы с расширением `.skm` будут автоматически распознаваться с подсветкой синтаксиса Skrumi (ключевые слова, типы, строки, числа, встроенные функции stdlib).
 
@@ -81,7 +81,7 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
            "foxlang": {
                "command": ["foxlang-lsp"],
                "root": "",
-               "url": "https://github.com/SkrinVex/FoxLang",
+               "url": "https://github.com/SkrinVex/Skrumi",
                "highlightingModeRegex": "^Skrumi$"
            }
        }

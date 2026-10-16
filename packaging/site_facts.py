@@ -53,6 +53,11 @@ PATTERNS = {
 
 
 DOCUMENT_PATTERNS = {
+    "resources/version.svg": {"version": [
+        r'(aria-label="version: )([\d.]+)(")',
+        r'(<title>version: )([\d.]+)(</title>)',
+        r'(<text x="86" y="14">)([\d.]+)(</text>)',
+    ]},
     "README.md": {"modules": [r'(Стандартная библиотека из )(\d+)( модулей)']},
     "tests/README.md": {"modules": [r'(всех функций )(\d+)( модулей)',
                                       r'(signatureHelp всех )(\d+)(\nstd-модулей)']},

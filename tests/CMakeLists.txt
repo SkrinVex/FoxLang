@@ -181,7 +181,7 @@ string(REPLACE "." "[.]" FOXLANG_VERSION_PATTERN "${PROJECT_VERSION}")
 set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "Skrumi ${FOXLANG_VERSION_PATTERN}")
 
 add_test(NAME cli_help COMMAND foxlang --help)
-set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "https://github.com/SkrinVex/FoxLang")
+set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "https://github.com/SkrinVex/Skrumi")
 
 add_test(NAME lsp_cli_version COMMAND foxlang-lsp --version)
 set_tests_properties(lsp_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "skrumi-lsp ${FOXLANG_VERSION_PATTERN}")

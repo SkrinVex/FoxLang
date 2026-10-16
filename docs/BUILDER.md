@@ -1,8 +1,8 @@
 # Визуальный конструктор интерфейсов
 
-Открыть [Skrumi UI](https://skrinvex.github.io/FoxLang/builder/).
-Рядом доступны [песочница](https://skrinvex.github.io/FoxLang/playground/),
-[сайт о языке](https://skrinvex.github.io/FoxLang/) и [репозиторий](https://github.com/SkrinVex/FoxLang).
+Открыть [Skrumi UI](https://skrinvex.github.io/Skrumi/builder/).
+Рядом доступны [песочница](https://skrinvex.github.io/Skrumi/playground/),
+[сайт о языке](https://skrinvex.github.io/Skrumi/) и [репозиторий](https://github.com/SkrinVex/Skrumi).
 
 Конструктор создаёт два обычных файла `.skm` с модулями `graphics` и `ui`: генерируемый `layout.skm` и пользовательский `main.skm`.
 Код можно запускать на Windows, Linux, Android или в песочнице, а затем дописывать в своём редакторе.

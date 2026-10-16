@@ -1,6 +1,6 @@
 name: Site (GitHub Pages)
 
-# The site/ folder is the project's web page: https://skrinvex.github.io/FoxLang/
+# The site/ folder is the project's web page: https://skrinvex.github.io/Skrumi/
 on:
   push:
     branches: [master]
@@ -30,7 +30,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:

@@ -1,6 +1,6 @@
 # Нативная графика Skrumi
 
-[Визуальный конструктор Skrumi UI](https://skrinvex.github.io/FoxLang/builder/) создаёт
+[Визуальный конструктор Skrumi UI](https://skrinvex.github.io/Skrumi/builder/) создаёт
 интерфейсы на этом API с макетами ПК/телефона и живым запуском. [Руководство](BUILDER.md).
 
 Модуль `graphics` открывает обычное окно операционной системы. Рисование и игровая
@@ -32,7 +32,7 @@ skrumi build game.skm -o game
 
 Получателю достаточно готового executable и графического сеанса ОС. На Linux
 это X11 или XWayland с корректным `DISPLAY`; Wayland без XWayland пока не поддержан.
-В [песочнице на сайте](https://skrinvex.github.io/FoxLang/playground/) окно рисуется
+В [песочнице на сайте](https://skrinvex.github.io/Skrumi/playground/) окно рисуется
 прямо на странице, так что игру можно показать без установки (пример «Игра в окне»).
 
 Готовый кадр передаётся X-серверу через разделяемую память (MIT-SHM), если сервер

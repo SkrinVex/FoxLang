@@ -128,7 +128,7 @@ jobs:
             fi
           fi
           test "$($BIN --version)" = "Skrumi $(tr -d '[:space:]' < VERSION)"
-          $BIN --help | grep -q "github.com/SkrinVex/FoxLang"
+          $BIN --help | grep -q "github.com/SkrinVex/Skrumi"
           $BIN --help | grep -q "DOCUMENTATION.md"
           test "$($LSP_BIN --version)" = "skrumi-lsp $(tr -d '[:space:]' < VERSION)"
           $LSP_BIN --help | grep -q "Language Server"

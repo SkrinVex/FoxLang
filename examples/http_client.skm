@@ -6,7 +6,7 @@ using log;
 using os;
 
 void main() {
-    string url = arg_or(0, "https://api.github.com/repos/SkrinVex/FoxLang/releases");
+    string url = arg_or(0, "https://api.github.com/repos/SkrinVex/Skrumi/releases");
     string answer = http_get(url);
     if (!http_ok()) {
         error("Запрос не удался, статус " + http_status());

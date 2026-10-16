@@ -159,8 +159,8 @@ void printHelp(std::ostream& out, const std::string& version) {
         << "  SKRUMI_X11_SHM     0 turns off shared-memory frames on X11\n"
         << "\n"
         << "Documentation:\n"
-        << "  https://github.com/SkrinVex/FoxLang/blob/master/DOCUMENTATION.md\n"
-        << "  Android SDK / APK: https://github.com/SkrinVex/FoxLang/blob/master/docs/ANDROID.md\n";
+        << "  https://github.com/SkrinVex/Skrumi/blob/master/DOCUMENTATION.md\n"
+        << "  Android SDK / APK: https://github.com/SkrinVex/Skrumi/blob/master/docs/ANDROID.md\n";
 }
 
 bool printCommandHelp(std::ostream& out, const std::string& command) {

@@ -1,7 +1,7 @@
 {
     "dap": {
         "foxlang": {
-            "url": "https://github.com/SkrinVex/FoxLang",
+            "url": "https://github.com/SkrinVex/Skrumi",
             "run": {
                 "command": ["skrumi", "debug-adapter"],
                 "redirectStderr": true,

@@ -9,7 +9,7 @@ implementation. Their reasons are:
 
 | Area | Retained names and reason |
 | --- | --- |
-| GitHub, Pages, badges, download URLs | `SkrinVex/FoxLang`, `skrinvex.github.io/FoxLang`, existing release asset URLs and GHCR repository coordinate. No remote repository or domain rename. New releases also emit old fixed VSIX/APK/AAR names. |
+| GitHub, Pages, badges, download URLs | After the owner renamed the repository to `SkrinVex/Skrumi`, active links use that repository and `skrinvex.github.io/Skrumi`. Historical links and `.fox` examples retain the old repository URL, which GitHub redirects. Old fixed VSIX/APK/AAR download names remain compatible. The README version badge is local and synchronized from VERSION. No new domain is assumed. |
 | History and legal notices | Previous changelog entries, LICENSE, bundled license heading, historical benchmark data and old release versions remain factual. |
 | C++ API / ABI | `include/foxlang`, `foxlang::`, `FoxLang.h`, existing fields such as `foxHome`, build target names and implementation macros. New `include/skrumi` headers and namespace aliases use the same classes. Both library filenames are installed. |
 | Native binary and bundle format | `foxlang`, `foxlang-lsp` aliases; bundle descriptor symbols/magic, internal synthetic `.fox` identities and Windows `FoxLangGraphicsWindow` class remain stable for existing tools. |
