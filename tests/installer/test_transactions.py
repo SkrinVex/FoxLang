@@ -19,13 +19,20 @@ with tempfile.TemporaryDirectory(prefix='skrumi транзакции ') as tempo
     resources = root/'resources'; (resources/'payload/data').mkdir(parents=True)
     (resources/('payload/skrumi'+suffix)).write_bytes(binary.read_bytes())
     data = resources/'payload/data/tool.txt'; data.write_text('first', encoding='utf-8')
+    isolated_env = dict(os.environ)
+    if os.name != 'nt':
+        isolated_env.update(HOME=str(root), SHELL='/bin/sh')
     source = root/'driver.skm'
     source.write_text(f'''include({q(repo/'installer/transaction.skm')});
 array a = os_args();
 try {{
     if (a[0] == "recover") {{ tx_recover(a[1]); }}
     else {{
-        tx_begin(a[1], a[0] == "uninstall", false);
+        tx_begin(a[1], a[0] == "uninstall", a[0] == "path-stop" || a[0] == "path-install");
+        if (a[0] == "path-stop") {{
+            while (tx_phase != "integrated") {{ tx_step(); wait(1); }}
+            tx_release(); exit(0);
+        }}
         if (a[0] == "stop" || a[0] == "cancel") {{
             for (int i = 0; i < to_int(a[2]); i++) {{ tx_step(); }}
             if (a[0] == "cancel") {{ tx_cancel(); }}
@@ -38,7 +45,7 @@ try {{
 }}
 ''', encoding='utf-8')
     def run(*args, ok=True):
-        p = subprocess.run([str(x) for x in args], cwd=root, capture_output=True, text=True, encoding='utf-8', timeout=30)
+        p = subprocess.run([str(x) for x in args], cwd=root, env=isolated_env, capture_output=True, text=True, encoding='utf-8', timeout=30)
         assert (p.returncode == 0) == ok, (args, p.returncode, p.stdout, p.stderr)
         return p
     def build(name, corrupt=False):
@@ -73,6 +80,23 @@ try {{
             actual = {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()}
             assert actual == expected, (operation, steps, actual.keys())
             assert not Path(str(target)+'.skrumi-transaction').exists()
+    if os.name != 'nt':
+        profile = root/'.profile'
+        original_profile = '# Личный профиль\nexport KEEP=yes\n'
+        profile.write_text(original_profile, encoding='utf-8')
+        # Exit after the actual PATH mutation, before the commit record. A separate
+        # process must restore both files and the user's previous profile bytes.
+        run(first, 'path-stop', target)
+        assert '# Skrumi PATH ' in profile.read_text(encoding='utf-8')
+        run(second, 'recover', target)
+        assert profile.read_text(encoding='utf-8') == original_profile
+        assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == expected
+        path_target = root/'PATH installation'
+        run(first, 'path-install', path_target)
+        assert '# Skrumi PATH ' in profile.read_text(encoding='utf-8')
+        profile.write_text(profile.read_text(encoding='utf-8')+'# Keep later edits\n', encoding='utf-8')
+        run(first, 'uninstall', path_target)
+        assert profile.read_text(encoding='utf-8') == original_profile+'# Keep later edits\n'
     # A damaged payload is rejected, with the old installation unchanged.
     corrupt = build('corrupt', corrupt=True)
     run(corrupt, 'install', target, ok=False)

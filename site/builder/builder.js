@@ -60,6 +60,23 @@
     selected = id;
     render();
   }
+  const styleLabels = {text:"Текст", muted:"Вторичный текст", border:"Граница", field:"Поле", button:"Кнопка", buttonHover:"Кнопка при наведении", panel:"Панель", track:"Полоса прогресса"};
+  function palette() {
+    const dark = project.theme === "dark";
+    return {text:dark?"#eef1f6":"#1e232a", muted:dark?"#a6aebc":"#78808a", border:dark?"#4b5362":"#c8ced8",
+      field:dark?"#1e232c":"#ffffff", button:dark?"#303744":"#eef1f6", buttonHover:dark?"#404958":"#dee5ef",
+      panel:dark?"#181d25":"#ffffff", track:dark?"#303744":"#eceff3", ...project.styles};
+  }
+  for (const [name, title] of Object.entries(styleLabels)) {
+    const row = document.createElement("label");
+    row.className = "check";
+    const enable = document.createElement("input"), value = document.createElement("input");
+    enable.type = "checkbox"; enable.id = "style-enabled-" + name;
+    value.type = "color"; value.id = "style-" + name; value.setAttribute("aria-label", title);
+    row.append(enable, document.createTextNode(title), value); $("styles-host").append(row);
+    enable.onchange = () => change(() => { if (enable.checked) project.styles[name] = value.value; else delete project.styles[name]; });
+    value.onchange = () => change(() => { project.styles[name] = value.value; });
+  }
   function render() {
     const s = project.sizes[mode],
       e = element();
@@ -85,6 +102,13 @@
     for (const id of ["title", "breakpoint", "background", "accent"])
       $(id).value = project[id];
     $("application-theme").value = project.theme;
+    $("closeAction").value = project.closeAction;
+    const colors = palette();
+    for (const name of Object.keys(styleLabels)) {
+      $("style-enabled-" + name).checked = Object.hasOwn(project.styles, name);
+      $("style-" + name).value = colors[name];
+      $("style-" + name).disabled = !Object.hasOwn(project.styles, name);
+    }
     $("width").value = s.width;
     $("height").value = s.height;
     $("count").textContent = project.elements.length;
@@ -107,14 +131,16 @@
       for (const id of ["text", "value", "message", "color", "scale"])
         $(id).value = e[id];
       $("checked").checked = e.checked;
+      $("kind").value = e.kind;
+      $("kind-label").hidden = e.type !== "dialog";
       for (const id of ["minimum", "maximum", "progress"]) $(id).value = e[id];
       $("percent").checked = e.percent;
       $("progress-properties").hidden = e.type !== "progress";
       for (const id of ["x", "y", "w", "h", "horizontal", "vertical"])
         $(id).value = e.layouts[mode][id];
       $("value-label").hidden = e.type !== "field";
-      $("checked-label").hidden = e.type !== "checkbox";
-      $("message-label").hidden = !["button", "primary"].includes(e.type);
+      $("checked-label").hidden = !["checkbox", "dialog"].includes(e.type);
+      $("message-label").hidden = !["button", "primary", "dialog"].includes(e.type);
       $("color-label").hidden = !["label", "panel"].includes(e.type);
       $("scale-label").hidden = e.type !== "label";
       $("h").disabled = ["field", "checkbox", "label"].includes(e.type);
@@ -162,7 +188,7 @@
       background: project.background,
     });
     $("stage").replaceChildren();
-    for (const e of project.elements) {
+    for (const e of [...project.elements.filter(e => e.type !== "dialog"), ...project.elements.filter(e => e.type === "dialog")]) {
       const r = M.rect(project, e, mode),
         node = document.createElement("div");
       node.className = `widget ${e.type}${e.id === selected ? " selected" : ""}${e.checked ? " on" : ""}`;
@@ -204,6 +230,27 @@
         node.style.background = `linear-gradient(to right, ${project.accent} ${fraction * 100}%, ${dark ? "#303744" : "#eceff3"} ${fraction * 100}%)`;
         node.style.display = "grid";
         node.style.placeItems = "center";
+      }
+      const colors = palette();
+      node.style.setProperty("--widget-field", colors.field);
+      node.style.setProperty("--widget-border", colors.border);
+      if (["button", "field", "progress", "dialog"].includes(e.type)) node.style.borderColor = colors.border;
+      if (["button", "checkbox", "progress", "dialog"].includes(e.type)) node.style.color = colors.text;
+      if (e.type === "button") node.style.background = colors.button;
+      if (e.type === "field") { node.style.background = colors.field; node.style.color = e.value ? colors.text : colors.muted; }
+      if (e.type === "progress") {
+        const percent = Math.max(0, Math.min(100, 100 * (e.progress - e.minimum) / (e.maximum - e.minimum)));
+        node.style.background = `linear-gradient(to right, ${project.accent} ${percent}%, ${colors.track} ${percent}%)`;
+      }
+      if (e.type === "dialog") {
+        node.textContent = ""; node.style.background = colors.panel; node.style.border = `1px solid ${colors.border}`;
+        const heading = document.createElement("div"), body = document.createElement("div"), buttons = document.createElement("div");
+        heading.textContent = e.text; heading.style.cssText = `height:32px;background:${project.accent};color:white;padding:10px 12px;box-sizing:border-box`;
+        body.textContent = e.message; body.style.cssText = `padding:12px;white-space:pre-wrap;color:${e.kind === "error" ? "#dc4141" : colors.text}`;
+        buttons.textContent = e.kind === "confirm" ? "Да          Нет          Отмена" : "OK";
+        buttons.style.cssText = `position:absolute;bottom:14px;left:12px;right:12px;padding:8px;background:${colors.button};text-align:center`;
+        node.append(heading, body, buttons);
+        node.dataset.open = String(e.checked);
       }
       if (selected === e.id && !["label", "checkbox"].includes(e.type)) {
         const handle = document.createElement("span");
@@ -271,6 +318,7 @@
     "background",
     "accent",
     "application-theme",
+    "closeAction",
   ])
     $(id).onchange = () =>
       change(() => {
@@ -284,6 +332,7 @@
     "value",
     "message",
     "checked",
+    "kind",
     "minimum", "maximum", "progress", "percent",
     "color",
     "scale",

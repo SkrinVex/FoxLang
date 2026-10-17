@@ -57,3 +57,9 @@ void draw_tiles(int image, int tile_width, int tile_height, array tiles, int col
 
 /// PNG/BMP из памяти; удобно для встроенных ресурсов.
 int decode_image(string bytes) { return gfx_image_decode(bytes); }
+
+/// Масштабируемый шрифт из байтов TTF/OTF. Размеры текста — в пикселях, 8..96.
+int load_font(string bytes) { return gfx_font_load(bytes); }
+void free_font(int font) { gfx_font_free(font); }
+int font_text_width(int font, string text, int pixels) { return gfx_font_width(font, text, pixels); }
+void draw_font_text(int font, int x, int y, string text, int pixels, int color) { gfx_font_text(font, x, y, text, pixels, color); }

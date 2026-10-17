@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
     try:
         wait_until(window.find)
         time.sleep(.3) # Wait for the window manager to map the client before XGetImage.
-        wait_until(lambda: window.pixel(700,545) == 0xef7b35)
+        wait_until(lambda: window.pixel(630,540) == 0xef7b35)
         # OS close request, No, repeated OS request, Cancel: the setup remains usable.
         window.close_window(); time.sleep(.15); click(400,370)
         assert process.poll() is None

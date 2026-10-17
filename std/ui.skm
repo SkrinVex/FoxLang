@@ -4,6 +4,23 @@
 //! У каждого элемента свой строковый `id`, одинаковый от кадра к кадру.
 using graphics;
 
+/// Необязательный масштабируемый шрифт; 0 сохраняет прежний пиксельный рендерер.
+int UI_FONT = 0;
+int UI_FONT_SIZE = 14;
+void ui_set_font(int font, int pixels) {
+    if (font != 0) { gfx_font_width(font, "", pixels); }
+    UI_FONT = font; UI_FONT_SIZE = pixels;
+}
+int ui_text_width(string text) {
+    if (UI_FONT != 0) { return gfx_font_width(UI_FONT, text, UI_FONT_SIZE); }
+    return gfx_text_width(text, 1);
+}
+int ui_text_height() { if (UI_FONT != 0) { return UI_FONT_SIZE + 3; } return 7; }
+void ui_draw_text(int x, int y, string text, int color) {
+    if (UI_FONT != 0) { gfx_font_text(UI_FONT, x, y, text, UI_FONT_SIZE, color); }
+    else { gfx_text(x, y, text, 1, color); }
+}
+
 /// Цвет акцента: рамка поля в фокусе, основная кнопка, флажок.
 int UI_ACCENT = rgb(45, 105, 175);
 int UI_TEXT = rgb(30, 35, 42);
@@ -34,7 +51,7 @@ bool ui_button(string id, int x, int y, int width, int height, string label) {
     }
     gfx_rect(x, y, width, height, UI_BORDER);
     gfx_rect(x + 1, y + 1, width - 2, height - 2, fill);
-    gfx_text(x + (width - gfx_text_width(label, 1)) / 2, y + (height - 7) / 2, label, 1, UI_TEXT);
+    ui_draw_text(x + (width - ui_text_width(label)) / 2, y + (height - ui_text_height()) / 2, label, UI_TEXT);
     return clicked;
 }
 
@@ -45,7 +62,7 @@ bool ui_primary_button(string id, int x, int y, int width, int height, string la
     if (gfx_ui_hover(id, x, y, width, height)) {
         gfx_rect_alpha(x, y, width, height, rgb(0, 0, 0), 40);
     }
-    gfx_text(x + (width - gfx_text_width(label, 1)) / 2, y + (height - 7) / 2, label, 1, rgb(255, 255, 255));
+    ui_draw_text(x + (width - ui_text_width(label)) / 2, y + (height - ui_text_height()) / 2, label, rgb(255, 255, 255));
     return clicked;
 }
 
@@ -64,14 +81,15 @@ string ui_text_field(string id, int x, int y, int width, string text, string pla
     gfx_rect(x, y, width, 28, border);
     gfx_rect(x + 1, y + 1, width - 2, 26, UI_FIELD);
     if (text == "") {
-        gfx_text(x + 4, y + 10, placeholder, 1, UI_MUTED);
+        ui_draw_text(x + 4, y + (28 - ui_text_height()) / 2, placeholder, UI_MUTED);
     }
+    if (UI_FONT != 0) { return gfx_ui_text_font(id, x, y, width, 28, text, UI_FONT, UI_FONT_SIZE, UI_TEXT); }
     return gfx_ui_text(id, x, y, width, 28, text, 1, UI_TEXT);
 }
 
 /// Флажок с подписью. Возвращает новое состояние: щелчок по флажку или подписи переключает его.
 bool ui_checkbox(string id, int x, int y, string label, bool checked) {
-    int width = 20 + gfx_text_width(label, 1);
+    int width = 20 + ui_text_width(label);
     bool clicked = gfx_ui_click(id, x, y, width, 14);
     bool value = checked;
     if (clicked) {
@@ -82,7 +100,7 @@ bool ui_checkbox(string id, int x, int y, string label, bool checked) {
     if (value) {
         gfx_rect(x + 3, y + 3, 8, 8, UI_ACCENT);
     }
-    gfx_text(x + 20, y + 4, label, 1, UI_TEXT);
+    ui_draw_text(x + 20, y + (14 - ui_text_height()) / 2, label, UI_TEXT);
     return value;
 }
 
@@ -104,7 +122,7 @@ void ui_modal_begin(int x, int y, int width, int height, string title) {
     gfx_rect(x - 1, y - 1, width + 2, height + 2, UI_BORDER);
     gfx_rect(x, y, width, height, UI_PANEL);
     gfx_rect(x, y, width, 32, UI_ACCENT);
-    gfx_text(x + 12, y + 12, title, 1, rgb(255, 255, 255));
+    ui_draw_text(x + 12, y + (32 - ui_text_height()) / 2, title, rgb(255, 255, 255));
 }
 
 void ui_modal_end() { gfx_ui_layer_end(); }
@@ -254,7 +272,7 @@ void ui_progress_bar(int x, int y, int width, int height, float value, float min
     gfx_rect(x + 1, y + 1, to_int((width - 2) * fraction), height - 2, UI_ACCENT);
     if (percent && height >= 11) {
         string label = to_string(to_int(fraction * 100)) + "%";
-        gfx_text(x + (width - gfx_text_width(label, 1)) / 2, y + (height - 7) / 2, label, 1, UI_TEXT);
+        ui_draw_text(x + (width - ui_text_width(label)) / 2, y + (height - ui_text_height()) / 2, label, UI_TEXT);
     }
 }
 
@@ -268,21 +286,50 @@ void ui_progress_busy(int x, int y, int width, int height, float phase) {
     gfx_rect(x + 1 + to_int((width - 2 - block) * position), y + 1, block, height - 2, UI_ACCENT);
 }
 
+/// Перенос Unicode-текста по ширине текущего UI-шрифта; сохраняет явные переводы строк.
+array ui_wrap_text(string text, int width) {
+    if (width < 1) { fail("Text: width must be positive"); }
+    array lines;
+    string line = "";
+    for (int i = 0; i < str_length(text); i++) {
+        string character = str_substring(text, i, 1);
+        if (character == "\n") { push(lines, line); line = ""; }
+        else {
+            if (line != "" && ui_text_width(line + character) > width) { push(lines, line); line = ""; }
+            line += character;
+        }
+    }
+    push(lines, line); return lines;
+}
+string UI_DIALOG_CONTENT = "";
+int UI_DIALOG_OFFSET = 0;
+
 /// Неблокирующий диалог; вызывайте последним в каждом кадре, пока ответ равен "pending".
 /// kind: "info", "error", "confirm". Ответ: "ok", "yes", "no", "cancel".
 /// Escape всегда возвращает "cancel". Закрытие ОС обрабатывает вызывающее приложение.
 string ui_dialog(string id, string title, string message, string kind) {
-    if (kind != "info" && kind != "error" && kind != "confirm") { fail("Dialog: unknown kind"); }
     int width = min(520, gfx_width() - 16);
     int height = min(220, gfx_height() - 16);
-    int x = (gfx_width() - width) / 2;
-    int y = (gfx_height() - height) / 2;
+    return ui_dialog_box(id, (gfx_width() - width) / 2, (gfx_height() - height) / 2, width, height, title, message, kind);
+}
+
+/// Диалог с явным прямоугольником; семантика ответа и модальности как у ui_dialog.
+string ui_dialog_box(string id, int x, int y, int width, int height, string title, string message, string kind) {
+    if (kind != "info" && kind != "error" && kind != "confirm") { fail("Dialog: unknown kind"); }
+    if (width < 3 || height < 3) { fail("Dialog: invalid dimensions"); }
     ui_modal_begin(x, y, width, height, title);
-    gfx_clip_begin(x + 12, y + 40, max(1, width - 24), max(1, height - 92));
+    string content_key = id + "\n" + message;
+    if (content_key != UI_DIALOG_CONTENT) { UI_DIALOG_CONTENT = content_key; UI_DIALOG_OFFSET = 0; }
+    array lines = ui_wrap_text(message, max(1, width - 40));
+    int line_height = ui_text_height() + 4;
+    UI_DIALOG_OFFSET = ui_scroll_begin(id + "#message", x + 12, y + 40, max(13, width - 24), max(1, height - 92), UI_DIALOG_OFFSET, size(lines) * line_height);
     int message_color = UI_TEXT;
     if (kind == "error") { message_color = rgb(220, 65, 65); }
-    gfx_text(x + 12, y + 44, message, 1, message_color);
-    gfx_clip_end();
+    for (int i = 0; i < size(lines); i++) {
+        int line_y = y + 40 + i * line_height - UI_DIALOG_OFFSET;
+        if (line_y + line_height > y + 40 && line_y < y + height - 52) { ui_draw_text(x + 12, line_y, lines[i], message_color); }
+    }
+    ui_scroll_end();
     string answer = "pending";
     if (gfx_pressed("ESCAPE")) { answer = "cancel"; }
     if (kind == "confirm") {

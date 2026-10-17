@@ -13,6 +13,7 @@
     checkbox: "Флажок",
     panel: "Панель",
     progress: "Прогресс",
+    dialog: "Диалог",
   };
   const clone = (value) => JSON.parse(JSON.stringify(value));
   function fail(message) {
@@ -127,6 +128,8 @@
         if (e.type === "field") layouts[mode].h = 28;
         if (e.type === "checkbox") layouts[mode].h = 14;
       }
+      if (e.kind !== undefined && !["info", "error", "confirm"].includes(e.kind)) fail("Неизвестный вид диалога");
+      if (e.type === "dialog" && Object.values(layouts).some(r => r.w < 144 || r.h < 100)) fail("Диалог: минимум 144×100");
       const label = text(e.text, 200, "Подпись");
       const minimum = integer(e.minimum ?? 0, -1000000, 1000000, "Минимум");
       const maximum = integer(e.maximum ?? 100, -1000000, 1000000, "Максимум");
@@ -163,6 +166,7 @@
         value: text(e.value, 500, "Текст поля"),
         message: text(e.message, 500, "Сообщение"),
         checked: e.checked,
+        kind: e.kind ?? "info",
         minimum, maximum,
         progress: integer(e.progress ?? 0, -1000000, 1000000, "Прогресс"),
         percent: e.percent ?? true,
@@ -178,6 +182,13 @@
         ? minimumId
         : integer(input.nextId, minimumId, 1000000, "Следующий ID");
     if (input.theme !== undefined && !["legacy", "light", "dark"].includes(input.theme)) fail("Неизвестная тема");
+    if (input.closeAction !== undefined && !["default", "confirm", "event"].includes(input.closeAction)) fail("Неизвестное событие закрытия");
+    const styles = {};
+    const styleNames = ["text", "muted", "border", "field", "button", "buttonHover", "panel", "track"];
+    for (const [key, value] of Object.entries(input.styles ?? {})) {
+      if (!styleNames.includes(key)) fail("Неизвестное свойство стиля");
+      styles[key] = color(value);
+    }
     return {
       main:
         input.main === undefined
@@ -192,6 +203,8 @@
       background: color(input.background),
       accent: color(input.accent),
       theme: input.theme ?? "legacy",
+      closeAction: input.closeAction ?? "default",
+      styles,
       elements,
     };
   }
@@ -210,6 +223,8 @@
       background: "#f3f5f8",
       accent: "#2d69af",
       theme: "legacy",
+      closeAction: "default",
+      styles: {},
       elements: [],
     };
   }
@@ -224,9 +239,9 @@
     project.nextId = next + 1;
     const id = "e" + next;
     const height =
-      { label: 24, field: 28, checkbox: 14, panel: 160 }[type] || 36;
+      { label: 24, field: 28, checkbox: 14, panel: 160, dialog: 220 }[type] || 36;
     const width =
-      { label: 240, field: 280, checkbox: 200, panel: 320 }[type] || 160;
+      { label: 240, field: 280, checkbox: 200, panel: 320, dialog: 520 }[type] || 160;
     const e = {
       id,
       type,
@@ -240,6 +255,7 @@
       value: "",
       message: "Кнопка нажата",
       checked: false,
+      kind: "info",
       minimum: 0, maximum: 100, progress: 0, percent: true,
       color: type === "panel" ? "#ffffff" : "#1e232a",
       scale: type === "label" ? 2 : 1,
@@ -317,15 +333,22 @@
       "using graphics;",
       "using ui;",
       "",
+      "bool layout_close_pending = false;",
+      "bool layout_close_notified = false;",
+      "void layout_accept_close() { intercept_window_close(false); }",
+      "void layout_reject_close() { cancel_window_close(); layout_close_notified = false; }",
       "void layout_open() {",
       `    open_window(${initial.width}, ${initial.height}, ${quote(p.title)});`,
       "    set_window_resizable(true);",
       ...(p.theme === "legacy" ? [] : [`    ui_theme(${p.theme === "dark"});`]),
       `    UI_ACCENT = ${rgb(p.accent)};`,
+      ...(p.closeAction === "default" ? [] : ["    intercept_window_close(true);"]),
+      ...Object.entries(p.styles).map(([key, value]) => `    UI_${key === "buttonHover" ? "BUTTON_HOVER" : key.toUpperCase()} = ${rgb(value)};`),
       "}",
       "",
     ];
     for (const e of p.elements) {
+      if (e.type === "dialog") lines.push(`bool open_${e.id} = ${e.checked};`, `string result_${e.id} = "pending";`);
       if (e.type === "field")
         lines.push(`string value_${e.id} = ${quote(e.value)};`);
       if (e.type === "checkbox")
@@ -342,7 +365,7 @@
     );
     for (const mode of ["mobile", "desktop"]) {
       if (mode === "desktop") lines.push("    } else {");
-      for (const e of p.elements) {
+      for (const e of [...p.elements.filter(e => e.type !== "dialog"), ...p.elements.filter(e => e.type === "dialog")]) {
         const r = e.layouts[mode],
           base = p.sizes[mode],
           right = Math.max(0, base.width - r.x - r.w),
@@ -364,6 +387,12 @@
         const args = `${x}, ${y}, ${w}`,
           id = quote(e.id);
         lines.push(`        // ${e.id}: ${types[e.type]}`);
+        if (e.type === "dialog") lines.push(
+          `        if (open_${e.id}) {`,
+          `            result_${e.id} = ui_dialog_box(${id}, ${args}, ${r.h}, ${quote(e.text)}, ${quote(e.message)}, ${quote(e.kind)});`,
+          `            if (result_${e.id} != "pending") { open_${e.id} = false; clicked = ${quote(e.id + "#")} + result_${e.id}; }`,
+          "        }",
+        );
         if (e.type === "label")
           lines.push(
             `        draw_text(${x}, ${y}, ${quote(e.text)}, ${e.scale}, ${rgb(e.color)});`,
@@ -390,6 +419,17 @@
     }
     lines.push(
       "    }",
+      "    layout_close_pending = window_close_requested();",
+      "    if (!layout_close_pending) { layout_close_notified = false; }",
+      ...(p.closeAction === "confirm" ? [
+        '    if (layout_close_pending) {',
+        `        string answer = ui_dialog("#layout-close", ${quote(p.title)}, "Закрыть приложение?", "confirm");`,
+        '        if (answer == "yes") { layout_accept_close(); }',
+        '        else if (answer == "no" || answer == "cancel") { layout_reject_close(); }',
+        '    }',
+      ] : p.closeAction === "event" ? [
+        '    if (layout_close_pending && !layout_close_notified) { clicked = "#close"; layout_close_notified = true; }',
+      ] : []),
       "    return clicked;",
       "}",
       "",

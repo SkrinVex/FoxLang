@@ -65,6 +65,8 @@ def build(binary, lsp, output):
         records = [[file.name, hashlib.sha256(file.read_bytes()).hexdigest(), '755'] for file in sorted(payload.iterdir())]
         (resources/'manifest.json').write_text(json.dumps([version,platform,arch,records]), encoding='utf-8')
         (resources/'branding').mkdir()
+        shutil.copyfile(ROOT/'installer/assets/DejaVuSans.ttf', resources/'branding/font.ttf')
+        shutil.copyfile(ROOT/'installer/assets/FONT-LICENSE.txt', resources/'branding/FONT-LICENSE.txt')
         (resources/'branding/logo.png').write_bytes(brand_png((ROOT/'resources/branding/skrumi-mark.svg').read_text()))
         subprocess.run([str(binary), 'build', str(ROOT/'installer/main.skm'), '--resources', str(resources),
                         '--no-console', '-o', str(output)], check=True)

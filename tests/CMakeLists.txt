@@ -1,3 +1,7 @@
+add_executable(test_font unit/test_font.cpp)
+target_link_libraries(test_font PRIVATE foxlang_core)
+add_test(NAME unit_font COMMAND test_font ${PROJECT_SOURCE_DIR}/installer/assets/DejaVuSans.ttf)
+
 # Native unit tests
 add_executable(test_graphics unit/test_graphics.cpp)
 target_link_libraries(test_graphics PRIVATE foxlang_core)

@@ -247,6 +247,10 @@ bool tx_step() {
     }
     if (tx_phase == "verified") {
         if (size(tx_environment) > 0) { user_path_apply(tx_environment, false); }
+        tx_phase = "integrated"; tx_journal();
+        tx_note("Environment configured"); return false;
+    }
+    if (tx_phase == "integrated") {
         tx_phase = "committed"; tx_journal();
         tx_cleanup(); tx_release(); tx_note("Completed successfully"); return true;
     }

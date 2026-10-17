@@ -8,6 +8,7 @@
 #include <vector>
 
 namespace foxlang::graphics {
+class Font;
 
 // Shared software renderer: identical pixels on Win32 and X11, no GPU/asset files.
 class Surface {
@@ -70,7 +71,7 @@ public:
     bool click(const std::string& id, int x, int y, int width, int height, Window& window);
     // Edits and draws a single-line text field's content; returns the new text.
     std::string text(const std::string& id, int x, int y, int width, int height, const std::string& value,
-                     int scale, uint32_t color, Window& window);
+                     int scale, uint32_t color, Window& window, Font* font = nullptr, int pixels = 14);
     bool focused(const std::string& id) const { return focus_ == id; }
     // A field focused before it is first drawn keeps the focus for one more frame.
     void setFocus(const std::string& id) {

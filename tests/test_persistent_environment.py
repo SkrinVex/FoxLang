@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi environment ') as temp:
             }} finally {{ env_user_compare_exchange({q(variable)}, env_user_snapshot({q(variable)}), before); }}''')
     else:
         profile = root/'.profile'
-        original = '# original user profile\nexport USER_SETTING="keep"\n'
+        original = '# Профиль пользователя — original\nexport USER_SETTING="keep"\n'
         profile.write_text(original, encoding='utf-8'); profile.chmod(0o640)
         target = root/"путь ' literal $(touch INJECTED) [x]"
         target.mkdir()

@@ -34,6 +34,14 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
       if (UI_ACCENT != 123 || legacy_ui.ui_progress_fraction(50, 0, 100) != 0.5) { fail("stdlib alias"); }`);
     assert.equal(await app.ccall('foxlang_run', 'number', ['string', 'string'], [filename, ''], {async: true}), 0, log);
   }
+  for (const operation of ['process_start("program", [], 1000)', 'os_user_dir("home")',
+    'env_user_snapshot("Path")', 'archive_extract("archive", "/out")']) {
+    app.FS.writeFile('/unavailable.skm', `bool refused = false;
+      try { ${operation}; } catch (string e) { refused = str_contains(e, "unavailable"); }
+      if (!refused) { fail("browser operation must explicitly fail"); }`);
+    assert.equal(await app.ccall('foxlang_run', 'number', ['string', 'string'],
+      ['/unavailable.skm', ''], {async: true}), 0, operation + log);
+  }
   app.FS.writeFile('/main.skm', `using ui;
     bool refused = false;
     try { fs_write_atomic("/state", "data"); } catch (e) { refused = str_contains(e, "unavailable"); }

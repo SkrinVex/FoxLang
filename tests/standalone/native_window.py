@@ -104,7 +104,7 @@ class NativeWindow:
             if os.name == 'nt':
                 self.api.PostMessageW(self.handle, 0x102, ord(ch), 0)
             else:
-                shift = ch.isupper()
+                shift = ch.isupper() or ch in '~!@#$%^&*()_+{}|:"<>?'
                 self.send_key(ch, True, shift)
                 self.send_key(ch, False, shift)
 

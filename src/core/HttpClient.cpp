@@ -1,3 +1,4 @@
+#include "../graphics/Font.h"
 #include "foxlang/Platform.h"
 #include <curl/curl.h>
 #include <filesystem>
@@ -93,5 +94,5 @@ HttpResponse httpRequest(const std::string& method, const std::string& url,
     return {static_cast<int>(status), std::move(response)};
 }
 
-const char* thirdPartyLicenses() { return networkLicenses(); }
+const char* thirdPartyLicenses() { static const std::string value = std::string(networkLicenses()) + "\n" + graphics::fontLicense(); return value.c_str(); }
 } // namespace foxlang::platform

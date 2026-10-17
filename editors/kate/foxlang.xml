@@ -109,6 +109,7 @@
       <item>double_clicked</item>
       <item>download</item>
       <item>draw_circle</item>
+      <item>draw_font_text</item>
       <item>draw_frame</item>
       <item>draw_image</item>
       <item>draw_image_alpha</item>
@@ -143,10 +144,12 @@
       <item>find</item>
       <item>find_first</item>
       <item>floor</item>
+      <item>font_text_width</item>
       <item>form</item>
       <item>format_bytes</item>
       <item>format_time</item>
       <item>frame_delta</item>
+      <item>free_font</item>
       <item>free_image</item>
       <item>free_space</item>
       <item>fs_copy</item>
@@ -195,6 +198,10 @@
       <item>gfx_double_click</item>
       <item>gfx_down</item>
       <item>gfx_focused</item>
+      <item>gfx_font_free</item>
+      <item>gfx_font_load</item>
+      <item>gfx_font_text</item>
+      <item>gfx_font_width</item>
       <item>gfx_frame</item>
       <item>gfx_fullscreen</item>
       <item>gfx_height</item>
@@ -241,6 +248,7 @@
       <item>gfx_ui_layer_begin</item>
       <item>gfx_ui_layer_end</item>
       <item>gfx_ui_text</item>
+      <item>gfx_ui_text_font</item>
       <item>gfx_ui_typing</item>
       <item>gfx_ui_wheel</item>
       <item>gfx_wheel</item>
@@ -306,6 +314,7 @@
       <item>list_dir</item>
       <item>listen</item>
       <item>listen_tls</item>
+      <item>load_font</item>
       <item>load_image</item>
       <item>log</item>
       <item>log10</item>
@@ -502,10 +511,12 @@
       <item>ui_checkbox</item>
       <item>ui_click</item>
       <item>ui_dialog</item>
+      <item>ui_dialog_box</item>
       <item>ui_double_click</item>
       <item>ui_drag</item>
       <item>ui_drag_x</item>
       <item>ui_drag_y</item>
+      <item>ui_draw_text</item>
       <item>ui_focus</item>
       <item>ui_focused</item>
       <item>ui_hover</item>
@@ -521,7 +532,10 @@
       <item>ui_scroll_end</item>
       <item>ui_scroll_to</item>
       <item>ui_scrollbar</item>
+      <item>ui_set_font</item>
       <item>ui_text_field</item>
+      <item>ui_text_height</item>
+      <item>ui_text_width</item>
       <item>ui_theme</item>
       <item>ui_typing</item>
       <item>ui_unfocus</item>

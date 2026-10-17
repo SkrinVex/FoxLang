@@ -164,3 +164,24 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./packaging/windows/test_install.ps1 -PackageDir ./dist -Direct
+
+      - name: Build and verify the offline GUI distribution
+        shell: bash
+        run: |
+          BIN_DIR=build
+          SUFFIX=
+          ASSET=Skrumi-linux-x86_64.run
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            BIN_DIR=build/Release
+            SUFFIX=.exe
+            ASSET=Skrumi-windows-x86_64.exe
+          fi
+          mkdir -p installer-dist
+          python packaging/build_gui_installer.py --runtime "$BIN_DIR/skrumi$SUFFIX" --lsp "$BIN_DIR/skrumi-lsp$SUFFIX" --output "installer-dist/$ASSET"
+          python tests/installer/test_distribution.py "installer-dist/$ASSET" "$(tr -d '[:space:]' < VERSION)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gui-installer-candidate-${{ matrix.name }}
+          path: installer-dist/*
+          if-no-files-found: error

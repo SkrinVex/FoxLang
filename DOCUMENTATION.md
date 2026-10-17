@@ -2639,3 +2639,43 @@ manifest: checksum TAR не является криптографической 
 `Archive Error`. Каталог назначения создаётся с правами 0700 на POSIX; ссылки в
 его родителях не допускаются. Как и файловые API, распаковка не является sandbox
 против конкурентной подмены каталогов. Browser сообщает о недоступности API.
+
+`string ui_dialog_box(string id, int x, int y, int width, int height, string title,
+string message, string kind)` — тот же неблокирующий модальный диалог с заданным
+прямоугольником. Ответ и допустимые `kind` совпадают с `ui_dialog`; width/height
+меньше 3 вызывают ошибку. Для читаемого содержимого используйте хотя бы 144×100.
+UI Builder экспортирует этот API для диалогов и сохраняет обработчики в main.skm.
+
+### Масштабируемые шрифты
+
+`using graphics;` предоставляет `int load_font(string bytes)` (`gfx_font_load(bytes)`),
+`void free_font(int font)` (`gfx_font_free(font)`),
+`int font_text_width(int font, string text, int pixels)` (`gfx_font_width(font, text, pixels)`),
+`void draw_font_text(int font, int x, int y, string text, int pixels, int color)`
+(`gfx_font_text(font, x, y, text, pixels, color)`). TTF/OTF загружается из памяти, максимум 8 МиБ и 32 handle на
+runtime; размер 8..96 пикселей, x/y обозначают верх строки. Ошибки формата,
+размера и handle — `Graphics Error`. Метрики и сглаживание одинаковы в
+Windows/Linux/Android/Web благодаря статически связанному FreeType 2.14.1.
+Нет зависимости от установленных в ОС шрифтов. Поддерживаются Unicode glyphs
+и переводы строк; shaping, kerning и bidi в этом API не реализованы.
+
+`using ui;`: `void ui_set_font(int font, int pixels)` задаёт шрифт кнопок, полей,
+флажков и диалогов. Handle 0 возвращает прежний пиксельный рендерер.
+`int ui_text_width(string text)`, `int ui_text_height()` и
+`void ui_draw_text(int x, int y, string text, int color)` используют выбранный шрифт.
+Низкоуровневое поле:
+`string gfx_ui_text_font(string id, int x, int y, int width, int height, string text,
+int font, int pixels, int color)` возвращает отредактированный текст. Ширина курсора
+и прокрутка вычисляются по метрикам шрифта. Ctrl+A выделяет всё, ввод заменяет
+выделение, Ctrl+X вырезает. Старый `gfx_ui_text` сохраняет пиксельный формат.
+
+FreeType добавлен ради переносимого сглаженного текста; необязательные библиотеки
+compression/image/shaping отключены. Шрифт DejaVu Sans поставляется только как
+ресурс установщика, а не в каждом runtime. Лицензия FreeType включена в `--licenses`,
+лицензия шрифта — в `installer/assets/FONT-LICENSE.txt` и ресурсы установщика.
+
+`array ui_wrap_text(string text, int width)` переносит текст по ширине текущего
+UI-шрифта, сохраняя Unicode-символы и явные переводы строк. Ширина должна быть
+положительной, иначе функция выбрасывает ошибку. Например,
+`array lines = ui_wrap_text("Длинное сообщение", 240);`. Диалоги используют этот
+перенос и вертикальную прокрутку, чтобы длинная ошибка оставалась доступна целиком.

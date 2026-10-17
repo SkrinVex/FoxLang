@@ -89,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi checked ') as directory:
     arg_source = ', '.join(q(arg) for arg in [str(echo), *arguments])
     result = run(f'print(os_run_output({q(binary)}, [{arg_source}])); if (os_last_exit() != 0) {{ exit(3); }}')
     assert json.loads(result.stdout.strip()) == arguments
-    (root / 'nul').write_bytes(b'bad\x00argument')
-    run(f'os_run({q(binary)}, [read_file("nul")]);', False)
+    (root / 'nul-argument.bin').write_bytes(b'bad\x00argument')
+    run(f'os_run({q(binary)}, [read_file("nul-argument.bin")]);', False)
 
 print('CHECKED_FILES_OK')

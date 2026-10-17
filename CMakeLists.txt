@@ -85,6 +85,7 @@ set(foxlang_core_sources
     src/core/builtins/UserEnvironment.cpp
     src/core/builtins/NetworkBuiltins.cpp
     src/core/builtins/Sound.cpp
+    src/graphics/Font.cpp
     src/graphics/Surface.cpp
     src/graphics/Window.cpp
     src/graphics/Ui.cpp
@@ -113,6 +114,7 @@ target_include_directories(foxlang_core PUBLIC
 )
 target_include_directories(foxlang_core PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_compile_definitions(foxlang_core PRIVATE FOXLANG_VERSION="${PROJECT_VERSION}")
+include(cmake/Fonts.cmake)
 if(EMSCRIPTEN)
     # WebAssembly for the playground page (site/playground): the page loads
     # foxlang.js/foxlang.wasm into a web worker. Nothing else is built.
@@ -131,6 +133,7 @@ if(EMSCRIPTEN)
     # Asyncify cannot unwind through WebAssembly exceptions, so this build's core
     # uses Emscripten's JavaScript ones.
     add_library(foxlang_core_graphics STATIC ${foxlang_core_sources})
+    target_link_libraries(foxlang_core_graphics PRIVATE freetype)
     target_include_directories(foxlang_core_graphics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
                                PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
     target_compile_definitions(foxlang_core_graphics PRIVATE FOXLANG_VERSION="${PROJECT_VERSION}")

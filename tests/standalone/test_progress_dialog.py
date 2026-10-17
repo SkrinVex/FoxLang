@@ -17,6 +17,8 @@ PROGRAM = '''using ui;
 open_window(640, 360, "Skrumi Progress Test");
 intercept_window_close(true);
 ui_theme(false);
+array wrapped = ui_wrap_text("АБВГ\\nД", 12);
+if (size(wrapped) != 3 || wrapped[0] != "АБ" || wrapped[1] != "ВГ" || wrapped[2] != "Д") { fail("Unicode wrap"); }
 if (ui_progress_fraction(-1, 0, 100) != 0 || ui_progress_fraction(200, 0, 100) != 1) { exit(1); }
 if (ui_progress_fraction(40, -10, 90) != 0.5) { exit(2); }
 bool refused = false;
