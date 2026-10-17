@@ -3,6 +3,8 @@ using fs;
 using os;
 using resources;
 using env;
+include("integration.skm");
+include("legacy.skm");
 
 string TX_MARKER = ".skrumi-install.json";
 string tx_root = "";
@@ -11,6 +13,8 @@ string tx_phase = "idle";
 string tx_message = "";
 array tx_entries;
 array tx_environment;
+array tx_registration;
+array tx_installed_registration;
 array tx_installed_environment;
 array tx_incoming;
 string tx_manifest_content = "";
@@ -20,20 +24,30 @@ int tx_lock = 0;
 int tx_probe = 0;
 string tx_version = "";
 string tx_mode = "install";
+bool tx_include_lsp = true;
 
 void tx_note(string message) { tx_message = message; push(tx_log, message); }
-string tx_path(string relative) { return safe_join(tx_root, relative); }
+string tx_path(string relative) {
+    if (relative == "@maintenance.exe" || relative == "@maintenance.json") {
+        if (os_platform() != "windows") { fail("Maintenance payload is Windows-only"); }
+        return safe_join(path_parent(tx_root), path_name(tx_root) + "." + str_substring(relative, 1));
+    }
+    return safe_join(tx_root, relative);
+}
 string tx_slot(string kind, int index) { return safe_join(tx_area, kind + "/" + to_string(index)); }
 bool tx_hash_matches(string path, string hash) {
     return fs_exists_checked(path) && file_sha256(path) == hash;
 }
 void tx_journal() {
-    fs_write_atomic(safe_join(tx_area, "journal.json"), json_value([2, tx_root, tx_phase, tx_entries, tx_version, tx_mode, tx_environment]));
+    fs_write_atomic(safe_join(tx_area, "journal.json"), json_value([3, tx_root, tx_phase, tx_entries, tx_version, tx_mode, tx_environment, tx_registration]));
 }
 void tx_acquire(string target) {
     tx_root = path_absolute(target);
-    string home = path_absolute(os_user_dir("home"));
-    if (tx_root == home || path_parent(tx_root) == tx_root || str_starts_with(home, tx_root + "/")) {
+    while (path_name(tx_root) == "" && path_parent(tx_root) != tx_root) { tx_root = path_parent(tx_root); }
+    string home = str_replace(path_absolute(os_user_dir("home")), "\\", "/");
+    string root_compare = str_replace(tx_root, "\\", "/");
+    if (os_platform() == "windows") { home = str_lower(home); root_compare = str_lower(root_compare); }
+    if (root_compare == home || path_parent(tx_root) == tx_root || str_starts_with(home, root_compare + "/")) {
         fail("Choose a dedicated Skrumi installation directory.");
     }
     make_dirs_checked(path_parent(tx_root));
@@ -70,6 +84,8 @@ void tx_rollback() {
         try { user_path_apply(tx_environment, true); }
         catch (string error) { environment_error = error; }
     }
+    try { registration_apply(tx_registration, true); }
+    catch (string error) { environment_error += "\n" + error; }
     for (int i = size(tx_entries) - 1; i >= 0; i--) {
         array entry = tx_entries[i];
         string target = tx_path(entry[0]);
@@ -110,7 +126,9 @@ void tx_recover(string target) {
         tx_note("Removed empty interrupted transaction"); return;
     }
     array journal = json_decode(read_checked(journal_path));
-    if (size(journal) != 7 || journal[0] != 2 || journal[1] != tx_root) { fail("Invalid recovery journal; no files changed."); }
+    if ((size(journal) != 7 || journal[0] != 2) && (size(journal) != 8 || journal[0] != 3) || journal[1] != tx_root) { fail("Invalid recovery journal; no files changed."); }
+    tx_registration = [];
+    if (size(journal) == 8) { tx_registration = journal[7]; }
     tx_phase = journal[2]; tx_entries = journal[3]; tx_version = journal[4]; tx_mode = journal[5]; tx_environment = journal[6];
     for (int i = 0; i < size(tx_entries); i++) {
         array entry = tx_entries[i];
@@ -138,20 +156,33 @@ void tx_add(string name, string old_hash, string new_hash) {
 void tx_begin(string target, bool uninstall, bool add_path) {
     tx_acquire(target);
     if (fs_exists_checked(tx_area)) { fail("Unfinished transaction found. Recover it before continuing."); }
-    tx_entries = []; tx_environment = []; tx_installed_environment = []; tx_cursor = 0; tx_mode = "install"; tx_phase = "idle";
+    tx_entries = []; tx_environment = []; tx_installed_environment = []; tx_registration = []; tx_installed_registration = []; tx_cursor = 0; tx_mode = "install"; tx_phase = "idle";
     if (uninstall) { tx_mode = "uninstall"; }
     array previous;
     string marker = tx_path(TX_MARKER);
     if (fs_exists_checked(marker)) {
         array owned = json_decode(read_checked(marker));
-        if ((size(owned) != 3 || owned[0] != "Skrumi installation v1") && (size(owned) != 4 || owned[0] != "Skrumi installation v2")) { fail("Unrecognized installation manifest"); }
+        if ((size(owned) != 3 || owned[0] != "Skrumi installation v1") && (size(owned) != 4 || owned[0] != "Skrumi installation v2") && (size(owned) != 5 || owned[0] != "Skrumi installation v3")) { fail("Unrecognized installation manifest"); }
         previous = owned[2];
-        if (size(owned) == 4) { tx_installed_environment = owned[3]; }
+        if (size(owned) >= 4) { tx_installed_environment = owned[3]; }
+        if (size(owned) == 5) { tx_installed_registration = owned[4]; }
+    } else if (os_platform() == "windows" && fs_exists_checked(tx_path("@maintenance.json"))) {
+        array maintenance = json_decode(read_checked(tx_path("@maintenance.json")));
+        if (size(maintenance) != 3 || maintenance[0] != "Skrumi maintenance v1") { fail("Unrecognized maintenance ownership record"); }
+        previous = [["@maintenance.exe", maintenance[2], "755"], ["@maintenance.json", file_sha256(tx_path("@maintenance.json")), "600"]];
     }
-    if (uninstall && !fs_exists_checked(marker)) { fail("No managed installation found"); }
+    bool legacy = false;
+    if (!fs_exists_checked(marker) && fs_exists_checked(tx_path(".skrumi-install"))) {
+        previous = legacy_owned(tx_root); legacy = true;
+        tx_note("Migrating verified legacy ownership; external editor/PATH settings are preserved");
+    }
+    if (uninstall && !fs_exists_checked(marker) && !legacy) { fail("No managed installation found"); }
     for (int i = 0; i < size(previous); i++) {
         array entry = previous[i];
         if (size(entry) != 3) { fail("Invalid installed file record"); }
+        if (uninstall && (entry[0] == "@maintenance.exe" || entry[0] == "@maintenance.json")) {
+            tx_note("Retaining maintenance tool for recovery: " + tx_path(entry[0])); continue;
+        }
         if (!tx_hash_matches(tx_path(entry[0]), entry[1])) {
             if (!uninstall) { fail("Installed file changed; update refused: " + entry[0]); }
             tx_note("Preserving changed or missing file: " + entry[0]);
@@ -161,7 +192,13 @@ void tx_begin(string target, bool uninstall, bool add_path) {
     if (!uninstall) {
         array payload = json_decode(resource_read("manifest.json"));
         if (size(payload) != 4 || payload[1] != os_platform() || payload[2] != os_arch()) { fail("Payload is incompatible with this runtime"); }
-        tx_version = payload[0]; incoming = payload[3];
+        tx_version = payload[0];
+        array candidates = payload[3];
+        for (int i = 0; i < size(candidates); i++) {
+            array candidate = candidates[i];
+            bool lsp = candidate[0] == "skrumi-lsp" || candidate[0] == "foxlang-lsp" || candidate[0] == "skrumi-lsp.exe" || candidate[0] == "foxlang-lsp.exe";
+            if (!lsp || tx_include_lsp) { push(incoming, candidate); }
+        }
         // Replace deletion records with desired new hashes after validating all ownership.
         for (int i = 0; i < size(incoming); i++) {
             array item = incoming[i];
@@ -184,6 +221,13 @@ void tx_begin(string target, bool uninstall, bool add_path) {
             tx_environment = planned; tx_installed_environment = planned;
         }
     }
+    bool has_maintenance = false;
+    for (int i = 0; i < size(incoming); i++) {
+        array item = incoming[i];
+        if (item[0] == "@maintenance.exe") { has_maintenance = true; }
+    }
+    array registration = registration_plan(tx_root, tx_version, tx_installed_registration, uninstall, has_maintenance);
+    tx_registration = registration[0]; tx_installed_registration = registration[1];
     float required_space = 1048576;
     for (int i = 0; i < size(incoming); i++) {
         array item = incoming[i];
@@ -196,7 +240,7 @@ void tx_begin(string target, bool uninstall, bool add_path) {
     string old_marker = "";
     if (fs_exists_checked(marker)) { old_marker = file_sha256(marker); }
     if (!uninstall) {
-        tx_manifest_content = json_value(["Skrumi installation v2", tx_version, incoming, tx_installed_environment]);
+        tx_manifest_content = json_value(["Skrumi installation v3", tx_version, incoming, tx_installed_environment, tx_installed_registration]);
         tx_add(TX_MARKER, old_marker, sha256_bytes(tx_manifest_content));
     } else { tx_add(TX_MARKER, old_marker, ""); }
     // Journal every intended change before staging or publication.
@@ -263,6 +307,7 @@ bool tx_step() {
     }
     if (tx_phase == "verified") {
         if (size(tx_environment) > 0) { user_path_apply(tx_environment, false); }
+        registration_apply(tx_registration, false);
         tx_phase = "integrated"; tx_journal();
         tx_note("Environment configured"); return false;
     }

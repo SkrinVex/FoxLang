@@ -1,0 +1,81 @@
+// Windows registration policy belongs to the Skrumi application, not native builtins.
+using os;
+
+string registration_quote(string argument) {
+    string result = "\"";
+    int slashes = 0;
+    for (int i = 0; i < str_length(argument); i++) {
+        string character = str_substring(argument, i, 1);
+        if (character == "\\") { slashes++; }
+        else {
+            int count = slashes;
+            if (character == "\"") { count = slashes * 2 + 1; }
+            for (int j = 0; j < count; j++) { result += "\\"; }
+            result += character; slashes = 0;
+        }
+    }
+    for (int i = 0; i < slashes * 2; i++) { result += "\\"; }
+    return result + "\"";
+}
+
+// [changes for this transaction, ownership baseline for the installed manifest].
+array registration_plan(string root, string version, array owned, bool uninstall, bool enabled) {
+    if (os_platform() != "windows" || !enabled && !uninstall) { return [[], []]; }
+    array changes; array installed;
+    if (uninstall) {
+        for (int i = 0; i < size(owned); i++) {
+            array record = owned[i];
+            array current = registry_user_snapshot(record[0], record[1]);
+            if (json_value(current) != json_value(record[3]) && json_value(current) != json_value(record[2])) {
+                fail("Registration changed; preserved: " + record[1]);
+            }
+            push(changes, [record[0], record[1], current, record[2]]);
+        }
+        return [changes, []];
+    }
+    string key = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Skrumi-" + sha256_bytes(str_lower(str_replace(root, "/", "\\")));
+    string command = registration_quote(root + ".maintenance.exe");
+    array values = [
+        ["DisplayName", "Skrumi"], ["DisplayVersion", version], ["InstallLocation", root],
+        ["Publisher", "SkrinVex"], ["URLInfoAbout", "https://github.com/SkrinVex/Skrumi"],
+        ["UninstallString", command + " --uninstall-gui " + registration_quote(root)],
+        ["QuietUninstallString", command + " --headless uninstall " + registration_quote(root)]
+    ];
+    for (int i = 0; i < size(values); i++) {
+        array item = values[i];
+        array current = registry_user_snapshot(key, item[0]);
+        array original = current;
+        bool managed = false;
+        for (int j = 0; j < size(owned); j++) {
+            array previous = owned[j];
+            if (previous[0] == key && previous[1] == item[0]) {
+                if (json_value(current) != json_value(previous[3])) { fail("Registration changed; update refused: " + item[0]); }
+                original = previous[2]; managed = true;
+            }
+        }
+        if (!managed && current[0]) { fail("Unmanaged registration value; preserved: " + item[0]); }
+        array after = [true, false, item[1]];
+        push(changes, [key, item[0], current, after]);
+        push(installed, [key, item[0], original, after]);
+    }
+    return [changes, installed];
+}
+
+void registration_apply(array plans, bool reverse) {
+    string failure = "";
+    for (int step = 0; step < size(plans); step++) {
+        int i = step;
+        if (reverse) { i = size(plans) - step - 1; }
+        array record = plans[i];
+        array before = record[2]; array after = record[3];
+        if (reverse) { before = record[3]; after = record[2]; }
+        try {
+            array current = registry_user_snapshot(record[0], record[1]);
+            if (json_value(current) != json_value(after)) { registry_user_compare_exchange(record[0], record[1], before, after); }
+        } catch (string error) {
+            if (!reverse) { fail(error); }
+            failure += error + "\n";
+        }
+    }
+    if (failure != "") { fail(failure); }
+}

@@ -29,9 +29,14 @@ try {{
     if (a[0] == "recover") {{ tx_recover(a[1]); }}
     else {{
         tx_begin(a[1], a[0] == "uninstall", a[0] == "path-stop" || a[0] == "path-install");
-        if (a[0] == "path-stop") {{
+        if (a[0] == "path-stop" || a[0] == "integration-stop") {{
             while (tx_phase != "integrated") {{ tx_step(); wait(1); }}
             tx_release(); exit(0);
+        }}
+        if (a[0] == "registry-conflict") {{
+            while (tx_phase != "verifying") {{ tx_step(); }}
+            array record = tx_registration[1];
+            registry_user_compare_exchange(record[0], record[1], record[2], [true, false, "User edit"]);
         }}
         if (a[0] == "stop" || a[0] == "cancel") {{
             for (int i = 0; i < to_int(a[2]); i++) {{ tx_step(); }}
@@ -48,6 +53,16 @@ try {{
         p = subprocess.run([str(x) for x in args], cwd=root, env=isolated_env, capture_output=True, text=True, encoding='utf-8', timeout=30)
         assert (p.returncode == 0) == ok, (args, p.returncode, p.stdout, p.stderr)
         return p
+    if os.name == 'nt':
+        # Real headless maintenance source; the full distribution test also checks
+        # its GUI/resources and executes the exact registered command line.
+        maintenance_resources = root/'maintenance resources'; maintenance_resources.mkdir()
+        (maintenance_resources/'manifest.json').write_text(json.dumps([version,platform,'x86_64',[]]), encoding='utf-8')
+        (maintenance_resources/'installer-mode').write_text('maintenance', encoding='utf-8')
+        maintenance_binary = resources/'payload/@maintenance.exe'
+        run(binary, 'build', repo/'installer/main.skm', '--resources', maintenance_resources, '-o', maintenance_binary)
+        (resources/'payload/@maintenance.json').write_text(json.dumps(['Skrumi maintenance v1', version,
+            hashlib.sha256(maintenance_binary.read_bytes()).hexdigest()]), encoding='utf-8')
     def build(name, corrupt=False):
         records = [[p.relative_to(resources/'payload').as_posix(), hashlib.sha256(p.read_bytes()).hexdigest(), '755' if p.name.startswith('skrumi') else '644']
                    for p in sorted((resources/'payload').rglob('*')) if p.is_file()]
@@ -72,7 +87,7 @@ try {{
     # Cancel and process-exit recovery at every staging/publication boundary.
     expected = {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()}
     for operation in ('stop', 'cancel'):
-        for steps in range(7):
+        for steps in range(2*len(json.loads((resources/'manifest.json').read_text())[3])+3):
             run(first, operation, target, steps)
             if operation == 'stop':
                 assert Path(str(target)+'.skrumi-transaction/journal.json').is_file()
@@ -107,6 +122,30 @@ try {{
         profile.write_text(profile.read_text(encoding='utf-8')+'# Keep later edits\n', encoding='utf-8')
         run(first, 'uninstall', path_target)
         assert profile.read_text(encoding='utf-8') == original_profile+'# Keep later edits\n'
+    if os.name == 'nt':
+        import winreg
+        def key_for(path):
+            return 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Skrumi-'+hashlib.sha256(str(path).replace('/', '\\').lower().encode('utf-8')).hexdigest()
+        registration_target = root/'registration rollback'
+        registration_key = key_for(registration_target)
+        run(first, 'integration-stop', registration_target)
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, registration_key) as handle:
+            assert winreg.QueryValueEx(handle, 'DisplayVersion')[0] == version
+        run(first, 'recover', registration_target)
+        assert not (registration_target/('skrumi'+suffix)).exists()
+        assert not Path(str(registration_target)+'.maintenance.exe').exists()
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, registration_key) as handle:
+            assert winreg.QueryInfoKey(handle)[1] == 0
+        # A real competing registry write interrupts integration. Earlier values
+        # and files roll back, and the competing value survives for resolution.
+        run(first, 'registry-conflict', registration_target, ok=False)
+        assert not (registration_target/('skrumi'+suffix)).exists()
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, registration_key, 0, winreg.KEY_READ | winreg.KEY_SET_VALUE) as handle:
+            assert winreg.QueryValueEx(handle, 'DisplayVersion')[0] == 'User edit'
+            assert winreg.QueryInfoKey(handle)[1] == 1
+            winreg.DeleteValue(handle, 'DisplayVersion')
+        run(first, 'recover', registration_target)
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, registration_key)
     # Crash before the first journal write: only an empty area may be removed.
     area = Path(str(target)+'.skrumi-transaction')
     area.mkdir(mode=0o700)
@@ -127,6 +166,30 @@ try {{
     broken = build('broken')
     run(broken, 'install', target, ok=False)
     assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == expected
+    # Upgrade actual historical ownership formats, preserving unowned projects.
+    legacy = root/'legacy Установка'
+    (legacy/'data').mkdir(parents=True)
+    (legacy/('skrumi'+suffix)).write_bytes(binary.read_bytes())
+    (legacy/('skrumi'+suffix)).chmod(0o755)
+    (legacy/'data/old.fox').write_text('legacy owned source', encoding='utf-8')
+    (legacy/'.skrumi-install').write_text(version+'\n', encoding='utf-8')
+    entries = [(p.relative_to(legacy).as_posix(), hashlib.sha256(p.read_bytes()).hexdigest())
+               for p in sorted(legacy.rglob('*')) if p.is_file()]
+    if os.name == 'nt':
+        (legacy/'.skrumi-files.json').write_text(json.dumps([{'path': name.replace('/', '\\'), 'hash': digest.upper()}
+            for name, digest in entries]), encoding='utf-8-sig')
+    else:
+        (legacy/'.skrumi-files.sha256').write_text(''.join(digest+'  ./'+name+'\n' for name,digest in entries), encoding='utf-8')
+    (legacy/'user-project.fox').write_text('preserve old project', encoding='utf-8')
+    before_legacy = {p.relative_to(legacy): p.read_bytes() for p in legacy.rglob('*') if p.is_file()}
+    run(broken, 'install', legacy, ok=False)
+    assert {p.relative_to(legacy): p.read_bytes() for p in legacy.rglob('*') if p.is_file()} == before_legacy
+    run(first, 'install', legacy)
+    assert (legacy/'data/tool.txt').read_text() == 'first'
+    assert not (legacy/'data/old.fox').exists() and not (legacy/'.skrumi-install').exists()
+    assert (legacy/'user-project.fox').read_text() == 'preserve old project'
+    run(first, 'uninstall', legacy)
+    assert (legacy/'user-project.fox').exists()
     # Changed managed files block update but survive uninstall as user data.
     (target/'data/tool.txt').write_text('user edit')
     run(first, 'install', target, ok=False)
@@ -138,4 +201,7 @@ try {{
     (target/('skrumi'+suffix)).write_bytes(b'other program')
     run(first, 'install', target, ok=False)
     assert (target/('skrumi'+suffix)).read_bytes() == b'other program'
+    if os.name == 'nt':
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_for(target))
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_for(legacy))
 print('INSTALLER_TRANSACTIONS_OK')

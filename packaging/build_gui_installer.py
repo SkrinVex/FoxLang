@@ -49,7 +49,8 @@ def build(binary, lsp, output):
     if result.stdout.strip() != 'Skrumi ' + version:
         raise ValueError('Build runtime VERSION mismatch')
     with tempfile.TemporaryDirectory(prefix='skrumi-setup-build-') as temporary:
-        resources = Path(temporary)
+        resources = Path(temporary)/'full'
+        resources.mkdir()
         probe = resources/'probe.skm'
         probe.write_text('print(os_arch());', encoding='utf-8')
         arch = subprocess.check_output([str(binary), str(probe)], text=True).strip()
@@ -62,12 +63,26 @@ def build(binary, lsp, output):
         payload = resources/'payload'; payload.mkdir()
         for name, source in [('skrumi',binary), ('foxlang',binary), ('skrumi-lsp',lsp), ('foxlang-lsp',lsp)]:
             shutil.copyfile(source, payload/(name+suffix))
-        records = [[file.name, hashlib.sha256(file.read_bytes()).hexdigest(), '755'] for file in sorted(payload.iterdir())]
-        (resources/'manifest.json').write_text(json.dumps([version,platform,arch,records]), encoding='utf-8')
-        (resources/'branding').mkdir()
-        shutil.copyfile(ROOT/'installer/assets/DejaVuSans.ttf', resources/'branding/font.ttf')
-        shutil.copyfile(ROOT/'installer/assets/FONT-LICENSE.txt', resources/'branding/FONT-LICENSE.txt')
-        (resources/'branding/logo.png').write_bytes(brand_png((ROOT/'resources/branding/skrumi-mark.svg').read_text()))
+        shutil.copytree(ROOT/'std', payload/'std')
+        def describe(folder, records, mode):
+            (folder/'manifest.json').write_text(json.dumps([version,platform,arch,records]), encoding='utf-8')
+            (folder/'installer-mode').write_text(mode, encoding='utf-8')
+            (folder/'branding').mkdir()
+            shutil.copyfile(ROOT/'installer/assets/DejaVuSans.ttf', folder/'branding/font.ttf')
+            shutil.copyfile(ROOT/'installer/assets/FONT-LICENSE.txt', folder/'branding/FONT-LICENSE.txt')
+            (folder/'branding/logo.png').write_bytes(brand_png((ROOT/'resources/branding/skrumi-mark.svg').read_text()))
+        if platform == 'windows':
+            maintenance = Path(temporary)/'maintenance'
+            maintenance.mkdir()
+            describe(maintenance, [], 'maintenance')
+            subprocess.run([str(binary), 'build', str(ROOT/'installer/main.skm'), '--resources', str(maintenance),
+                            '--no-console', '-o', str(payload/'@maintenance.exe')], check=True)
+            digest = hashlib.sha256((payload/'@maintenance.exe').read_bytes()).hexdigest()
+            (payload/'@maintenance.json').write_text(json.dumps(['Skrumi maintenance v1', version, digest]), encoding='utf-8')
+        records = [[file.relative_to(payload).as_posix(), hashlib.sha256(file.read_bytes()).hexdigest(),
+                    '600' if file.name == '@maintenance.json' else '644' if file.parent.name == 'std' else '755']
+                   for file in sorted(payload.rglob('*')) if file.is_file()]
+        describe(resources, records, 'full')
         subprocess.run([str(binary), 'build', str(ROOT/'installer/main.skm'), '--resources', str(resources),
                         '--no-console', '-o', str(output)], check=True)
 

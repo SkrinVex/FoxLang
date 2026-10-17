@@ -3,18 +3,32 @@ using ui;
 
 array setup_payload = json_decode(resource_read("manifest.json"));
 string setup_version = setup_payload[0];
+bool setup_maintenance = resource_read("installer-mode") == "maintenance";
+bool setup_remove_requested = false;
 string setup_target = path_join(os_user_dir("data"), "Skrumi");
 array setup_args = os_args();
-if (size(setup_args) > 0) {
-    if ((size(setup_args) != 3 && size(setup_args) != 4) || setup_args[0] != "--headless") {
-        print("Usage: installer --headless install|uninstall|recover DIRECTORY [--path]"); exit(2);
+if (size(setup_args) == 2 && setup_args[0] == "--uninstall-gui") {
+    setup_target = setup_args[1]; setup_remove_requested = true;
+} else if (size(setup_args) > 0) {
+    if ((size(setup_args) < 3 || size(setup_args) > 5) || setup_args[0] != "--headless") {
+        print("Usage: installer --headless install|uninstall|recover DIRECTORY [--path] [--no-lsp]"); exit(2);
     }
     try {
-        if (setup_args[1] == "recover") { tx_recover(setup_args[2]); }
+        if (setup_args[1] == "recover") {
+            if (size(setup_args) != 3) { fail("Recovery takes only a directory"); }
+            tx_recover(setup_args[2]);
+        }
         else {
             if (setup_args[1] != "install" && setup_args[1] != "uninstall") { fail("Unknown operation"); }
-            bool with_path = size(setup_args) == 4;
-            if (with_path && setup_args[3] != "--path") { fail("Unknown option"); }
+            if (setup_maintenance && setup_args[1] == "install") { fail("Download the full installer to install or update Skrumi"); }
+            bool with_path = false;
+            bool with_lsp = true;
+            for (int i = 3; i < size(setup_args); i++) {
+                if (setup_args[i] == "--path" && !with_path) { with_path = true; }
+                else if (setup_args[i] == "--no-lsp" && with_lsp) { with_lsp = false; }
+                else { fail("Unknown or duplicate option"); }
+            }
+            tx_include_lsp = with_lsp;
             tx_begin(setup_args[2], setup_args[1] == "uninstall", with_path);
             while (!tx_step()) { wait(1); }
         }
@@ -32,11 +46,13 @@ ui_set_font(setup_font, 14);
 UI_DIALOG_YES = "Yes"; UI_DIALOG_NO = "No"; UI_DIALOG_CANCEL = "Cancel";
 int setup_logo = decode_image(resource_read("branding/logo.png"));
 int setup_screen = 0;
+if (setup_maintenance || setup_remove_requested) { setup_screen = 1; }
 bool setup_running = false;
 bool setup_confirm = false;
 bool setup_recovery_confirm = false;
-bool setup_uninstall = false;
+bool setup_uninstall = setup_maintenance || setup_remove_requested;
 bool setup_path = true;
+bool setup_lsp = true;
 string setup_error = "";
 int setup_scroll = 0;
 void setup_failure(string error) {
@@ -68,23 +84,30 @@ while (window_poll()) {
         draw_font_text(setup_font, 48, 144, "Installation options", 26, UI_TEXT);
         draw_font_text(setup_font, 48, 202, "Install directory (current user)", 14, UI_MUTED);
         setup_target = ui_text_field("directory", 48, 224, 704, setup_target, "Directory");
-        draw_font_text(setup_font, 48, 284, "Included: CLI/runtime, LSP, foxlang compatibility commands", 14, UI_TEXT);
-        setup_uninstall = ui_checkbox("uninstall", 48, 326, "Remove this managed installation", setup_uninstall);
-        setup_path = ui_checkbox("path", 48, 358, "Add to user PATH (new terminal/login)", setup_path);
+        if (!setup_maintenance) {
+            setup_lsp = ui_checkbox("lsp", 48, 284, "Language server (LSP); CLI/runtime is always included", setup_lsp);
+        } else { draw_font_text(setup_font, 48, 284, "Skrumi maintenance and recovery", 14, UI_TEXT); }
+        if (!setup_maintenance) {
+            setup_uninstall = ui_checkbox("uninstall", 48, 326, "Remove this managed installation", setup_uninstall);
+            setup_path = ui_checkbox("path", 48, 358, "Add to user PATH (new terminal/login)", setup_path);
+        } else {
+            draw_font_text(setup_font, 48, 330, "Remove the managed runtime and its PATH/OS registration.", 14, UI_TEXT);
+            draw_font_text(setup_font, 48, 358, "This maintenance tool remains available for recovery.", 14, UI_MUTED);
+        }
         draw_font_text(setup_font, 48, 390, "User projects and modified files are preserved.", 14, UI_MUTED);
         if (ui_button("recover", 48, 426, 204, 32, "Recover interrupted setup")) {
             try { tx_recover(setup_target); setup_error = ""; }
             catch (string error) { setup_error = error; tx_release(); }
         }
         if (setup_error != "") { draw_font_text(setup_font, 48, 476, setup_error, 14, rgb(190, 40, 40)); }
-        if (ui_button("back", 462, 536, 144, 30, "Back")) { setup_screen = 0; }
+        if (!setup_maintenance && ui_button("back", 462, 536, 144, 30, "Back")) { setup_screen = 0; }
         string action = "Install";
         if (setup_uninstall) { action = "Uninstall"; }
         if (ui_primary_button("install", 620, 536, 148, 30, action)) {
             setup_error = "";
             try {
                 if (fs_exists_checked(path_absolute(setup_target) + ".skrumi-transaction")) { setup_recovery_confirm = true; }
-                else { tx_begin(setup_target, setup_uninstall, setup_path); setup_running = true; setup_screen = 2; }
+                else { tx_include_lsp = setup_lsp; tx_begin(setup_target, setup_uninstall, setup_path); setup_running = true; setup_screen = 2; }
             }
             catch (string error) { setup_failure(error); }
         }

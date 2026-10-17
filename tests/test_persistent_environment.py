@@ -30,6 +30,18 @@ with tempfile.TemporaryDirectory(prefix='skrumi environment ') as temp:
                 try {{ env_user_compare_exchange({q(variable)}, before, before); }} catch (string e) {{ conflict = true; }}
                 if (!conflict) {{ fail("snapshot conflict ignored"); }}
             }} finally {{ env_user_compare_exchange({q(variable)}, env_user_snapshot({q(variable)}), before); }}''')
+        if os.environ.get('CI') == 'true':
+            target = root/'PATH Кириллица'
+            target.mkdir()
+            run(f'''array plan = user_path_plan({q(target)}, true);
+                try {{
+                    user_path_apply(plan, false);
+                    array actual = env_user_snapshot("Path");
+                    array expected = plan[3];
+                    if (json_value(actual) != json_value(expected) || !str_starts_with(actual[2], {q(target)})) {{ fail("PATH write mismatch"); }}
+                    array again = user_path_plan({q(target)}, true);
+                    if (json_value(again[2]) != json_value(again[3])) {{ fail("duplicate PATH plan"); }}
+                }} finally {{ user_path_apply(plan, true); }}''')
     else:
         profile = root/'.profile'
         original = '# Профиль пользователя — original\nexport USER_SETTING="keep"\n'
