@@ -89,6 +89,9 @@ try {{
         return app
     first = build('first')
     target = root/'Установка с пробелами'
+    preexisting = target/'data/личные данные.bin'
+    preexisting.parent.mkdir(parents=True)
+    preexisting.write_bytes(b'preexisting\x00user data')
     run(first, 'install', target)
     assert (target/'data/tool.txt').read_text() == 'first'
     assert run(target/('skrumi'+suffix), '--version').stdout.strip() == 'Skrumi '+version
@@ -279,6 +282,7 @@ try {{
     assert (target/'data/tool.txt').read_text() == 'user edit'
     run(second, 'uninstall', target)
     assert user.exists() and (target/'data/tool.txt').read_text() == 'user edit'
+    assert preexisting.read_bytes() == b'preexisting\x00user data'
     assert not (target/('skrumi'+suffix)).exists() and not (target/'.skrumi-install.json').exists()
     # Never overwrite an unrelated existing destination.
     (target/('skrumi'+suffix)).write_bytes(b'other program')

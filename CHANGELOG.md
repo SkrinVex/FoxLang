@@ -1,5 +1,9 @@
 ## Skrumi 8.18.0 — GUI installer and public system/UI APIs
 
+- Highlight the selected directory preset, enable recovery only for a detected
+  transaction, clarify platform-specific PATH activation, and verify preservation
+  of preexisting unrelated files (including files inside `std`) and collision refusal.
+
 - Compact directory presets into inline rows; separate removal from update options
   with a dedicated page and explicit confirmation before any filesystem changes.
 

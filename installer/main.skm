@@ -173,7 +173,11 @@ while (window_poll()) {
                 int row_color = UI_FIELD;
                 if (gfx_ui_hover("location-" + to_string(i), setup_x(49), setup_y(row_y), setup_px(542), setup_px(28))) { row_color = UI_BUTTON_HOVER; }
                 setup_rect(49, row_y, 542, 28, row_color);
-                setup_text(60, row_y + 5, setup_locations[i][0], 14, UI_TEXT);
+                if (setup_target != "" && location_key(setup_target) == location_key(setup_locations[i][1])) {
+                    setup_rect(49, row_y, 542, 28, rgb(255, 237, 225));
+                    setup_rect(49, row_y, 4, 28, UI_ACCENT);
+                }
+                setup_text(64, row_y + 5, setup_locations[i][0], 14, UI_TEXT);
                 if (ui_click("location-" + to_string(i), setup_x(49), setup_y(row_y), setup_px(542), setup_px(28))) {
                     setup_target = setup_locations[i][1]; setup_locations_open = false;
                 }
@@ -181,14 +185,26 @@ while (window_poll()) {
             options_y = 370;
         }
         setup_lsp = setup_checkbox("lsp", 48, options_y, setup_tr("Language server (LSP); CLI/runtime is always included"), setup_lsp);
-        setup_path = setup_checkbox("path", 48, options_y + 36, setup_tr("Add to user PATH (new terminal/login)"), setup_path);
-        if (!setup_locations_open) { setup_text(48, 370, setup_tr("User projects and modified files are preserved."), 14, UI_MUTED); }
-        int recovery_y = 426; if (setup_locations_open) { recovery_y = 440; }
-        if (setup_button("recover", 48, recovery_y, 204, 32, setup_tr("Recover interrupted setup"))) {
+        setup_path = setup_checkbox("path", 48, options_y + 36, setup_tr("Add to user PATH"), setup_path);
+        string path_hint = setup_tr("Applies when your shell reads its profile; a new terminal may not be enough.");
+        if (os_platform() == "windows") { path_hint = setup_tr("Restart the terminal app; running programs keep their environment."); }
+        setup_text(48, options_y + 60, path_hint, 12, UI_MUTED);
+        if (!setup_locations_open) { setup_text(48, 378, setup_tr("User projects and modified files are preserved."), 14, UI_MUTED); }
+        int recovery_y = 426; if (setup_locations_open) { recovery_y = 466; }
+        // Recheck the selected directory, including changes made by another process.
+        bool recovery_available = false;
+        try {
+            if (setup_target != "") { recovery_available = fs_exists_checked(path_absolute(setup_target) + ".skrumi-transaction"); }
+        } catch (string error) { recovery_available = false; }
+        if (!recovery_available) {
+            setup_rect(48, recovery_y, 204, 32, UI_BORDER);
+            setup_text(58, recovery_y + 8, setup_tr("Recover interrupted setup"), 14, UI_MUTED);
+        }
+        if (recovery_available && setup_button("recover", 48, recovery_y, 204, 32, setup_tr("Recover interrupted setup"))) {
             try { location_recover(setup_target); setup_error = ""; }
             catch (string error) { setup_error = error; setup_error_dialog = true; location_release(); }
         }
-        if (setup_error != "") { setup_text(48, 476, setup_error, 14, rgb(190, 40, 40)); }
+        if (setup_error != "" && !setup_locations_open) { setup_text(48, 476, setup_error, 14, rgb(190, 40, 40)); }
         if (setup_existing != "" && setup_button("remove-mode", 48, 536, 204, 30, setup_tr("Uninstall..."))) {
             setup_uninstall = true; setup_locations_open = false; setup_screen = 3;
         }

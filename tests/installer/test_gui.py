@@ -23,6 +23,9 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
     app = root/('setup.exe' if os.name == 'nt' else 'setup')
     subprocess.run([sys.executable, str(repo/'packaging/build_gui_installer.py'), '--runtime', str(binary), '--lsp', str(lsp), '--output', str(app)], check=True)
     target = root/('Установка Skrumi' if os.name == 'nt' else 'installed with spaces')
+    target.mkdir()
+    preexisting = target/'existing-project.skm'
+    preexisting.write_bytes(b'// project created before installation')
     process = subprocess.Popen([str(app)], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     window = NativeWindow('Skrumi '+version)
     def wait_until(predicate, seconds=15):
@@ -74,18 +77,42 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         click(700,550)
         click(680,236)
         screenshot('location-presets')
+        assert window.pixel(50,270) == 0xef7b35
         click(200,300)  # Home / Skrumi preset, then retain explicit-path coverage.
+        click(680,236)
+        assert window.pixel(50,298) == 0xef7b35
+        assert window.pixel(50,270) != 0xef7b35
+        screenshot('selected-location')
+        click(680,236)
         click(200,236)
         window.send_key('CTRL',True); time.sleep(.05); window.send_key('a',True); time.sleep(.05); window.send_key('a',False); window.send_key('CTRL',False); time.sleep(.05)
         window.type_text(str(target))
         time.sleep(.15)
         screenshot('options')
+        click(680,236)
+        for row in range(3):
+            assert window.pixel(50,270+row*28) != 0xef7b35
+        click(680,236)
+        # No transaction: the disabled button must not open a dialog or change files.
+        disabled_color = window.pixel(49,430)
+        click(130,442)
+        assert window.pixel(145,185) != 0xef7b35 and not (target/'.skrumi-install.json').exists()
+        transaction_area = Path(str(target)+'.skrumi-transaction')
+        transaction_area.mkdir(mode=0o700)
+        foreign = transaction_area/'unknown.txt'
+        foreign.write_bytes(b'keep unknown recovery data')
+        wait_until(lambda: window.pixel(49,430) != disabled_color)
         # Recovery errors from the options page must be readable in a full dialog,
         # rather than only a long clipped status line.
         click(130,442)
         wait_until(lambda: window.pixel(145,185) == 0xef7b35)
         screenshot('recovery-error')
         click(608,372)
+        assert foreign.read_bytes() == b'keep unknown recovery data'
+        foreign.unlink()
+        click(130,442)
+        wait_until(lambda: not transaction_area.exists())
+        wait_until(lambda: window.pixel(49,430) == disabled_color)
         # Isolate the GUI test from the runner's actual PATH. Dedicated API tests cover PATH.
         click(54,326)
         # A pre-journal crash must be offered for recovery, not silently ignored.
@@ -93,7 +120,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         transaction_area.mkdir(mode=0o700)
         click(700,550)
         click(400,370)  # No: preserve the interrupted transaction.
-        assert transaction_area.exists() and not target.exists()
+        assert transaction_area.exists() and not (target/'.skrumi-install.json').exists()
         click(700,550)
         click(220,370)  # Yes: recover the empty transaction, return to options.
         wait_until(lambda: not transaction_area.exists())
@@ -176,6 +203,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         wait_until(lambda: not (target/('skrumi'+suffix)).exists(), 30)
         wait_until(lambda: not transaction_area.exists(), 30)
         assert (target/'user-project.skm').read_text(encoding='utf-8') == 'print("keep");'
+        assert preexisting.read_bytes() == b'// project created before installation'
         screenshot('removed')
         window.mouse(700,550); time.sleep(.05); window.mouse(700,550,True)
         output, errors = process.communicate(timeout=10)
@@ -195,6 +223,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         wait_until(lambda: window.pixel(630,540) == 0xbe2828)
         screenshot('maintenance-mode')
         assert (target/'user-project.skm').read_text(encoding='utf-8') == 'print("keep");'
+        assert preexisting.read_bytes() == b'// project created before installation'
         window.close_window()
         wait_until(lambda: window.pixel(145,185) == 0xef7b35)
         window.mouse(220,370); time.sleep(.05); window.mouse(220,370,True)
