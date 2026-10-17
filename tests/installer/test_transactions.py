@@ -180,6 +180,24 @@ try {{
         if interrupted.poll() is None:
             interrupted.kill(); interrupted.communicate(timeout=10)
         marker.unlink(missing_ok=True)
+    # An edited ownership manifest cannot redirect PATH cleanup to another file
+    # or an unrelated environment variable outside the public PATH policy.
+    marker_path = target/'.skrumi-install.json'
+    original_marker = marker_path.read_bytes()
+    altered = json.loads(original_marker)
+    if os.name == 'nt':
+        altered[3] = ['registry', 'SKRUMI_UNRELATED_TEST', [False, False, ''], [True, False, 'value']]
+    else:
+        unrelated = root/'unrelated user data'
+        unrelated.write_text('keep user data', encoding='utf-8')
+        altered[3] = ['file', str(unrelated), [True, '', '644'], [True, 'keep user data', '644']]
+    try:
+        marker_path.write_text(json.dumps(altered), encoding='utf-8')
+        run(first, 'uninstall', target, ok=False)
+        assert (target/('skrumi'+suffix)).read_bytes() == expected[Path('skrumi'+suffix)]
+        if os.name != 'nt': assert unrelated.read_text() == 'keep user data'
+    finally:
+        marker_path.write_bytes(original_marker)
     # Crash before the first journal write: only an empty area may be removed.
     area = Path(str(target)+'.skrumi-transaction')
     area.mkdir(mode=0o700)

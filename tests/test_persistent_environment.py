@@ -41,6 +41,8 @@ with tempfile.TemporaryDirectory(prefix='skrumi environment ') as temp:
                     if (json_value(actual) != json_value(expected) || !str_starts_with(actual[2], {q(target)})) {{ fail("PATH write mismatch"); }}
                     array again = user_path_plan({q(target)}, true);
                     if (json_value(again[2]) != json_value(again[3])) {{ fail("duplicate PATH plan"); }}
+                    user_path_apply(user_path_removal(again, {q(target)}), false);
+                    if (json_value(env_user_snapshot("Path")) != json_value(actual)) {{ fail("pre-existing PATH entry removed"); }}
                 }} finally {{ user_path_apply(plan, true); }}''')
     else:
         profile = root/'.profile'
@@ -57,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi environment ') as temp:
         out = subprocess.check_output(['/bin/sh', '-c', '. "$1"; printf "%s" "$PATH"', 'sh', str(profile)], env=env, text=True)
         assert out.split(':').count(str(target)) == 1 and not (root/'INJECTED').exists()
         # Existing marker causes an exact no-op plan; no duplicate shell block.
-        run(code + 'user_path_apply(plan, false);')
+        run(code + f'user_path_apply(plan, false); user_path_apply(user_path_removal(plan, {q(target)}), false);')
         assert profile.read_text() == installed
         run('array p = json_decode(read_file("plan.json")); user_path_apply(p, true); user_path_apply(p, true);')
         assert profile.read_text() == original
@@ -67,5 +69,9 @@ with tempfile.TemporaryDirectory(prefix='skrumi environment ') as temp:
         run('array p = json_decode(read_file("plan.json")); user_path_apply(p, true);', False)
         run(f'array p = json_decode(read_file("plan.json")); user_path_apply(user_path_removal(p, {q(target)}), false);')
         assert profile.read_text() == original+'# later user edit\n'
+        unrelated = root/'user-file'
+        unrelated.write_text('preserve', encoding='utf-8')
+        run(f'user_path_apply(["file", {q(unrelated)}, [true, "preserve", "644"], [true, "destroy", "644"]], false);', False)
+        assert unrelated.read_text() == 'preserve'
         run('env_user_snapshot("Path");', False)
 print('PERSISTENT_ENVIRONMENT_OK')

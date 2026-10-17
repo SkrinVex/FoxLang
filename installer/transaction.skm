@@ -147,16 +147,7 @@ void tx_recover(string target) {
     if (size(journal) == 8) { recovered_registration = journal[7]; }
     registration_validate(recovered_registration, tx_root);
     array recovered_environment = journal[6];
-    if (size(recovered_environment) != 0) {
-        if (size(recovered_environment) != 4) { fail("Invalid environment journal"); }
-        bool expected = recovered_environment[0] == "registry" && os_platform() == "windows" && recovered_environment[1] == "Path";
-        if (recovered_environment[0] == "file" && os_platform() == "linux") {
-            string home = os_user_dir("home");
-            string profile = path_absolute(recovered_environment[1]);
-            expected = profile == path_join(home, ".profile") || profile == path_join(home, ".bash_profile") || profile == path_join(home, ".zprofile");
-        }
-        if (!expected || size(recovered_environment[2]) != 3 || size(recovered_environment[3]) != 3) { fail("Environment journal is outside this installation's supported profiles"); }
-    }
+    if (size(recovered_environment) != 0) { user_path_validate(recovered_environment); }
     tx_phase = recovered_phase; tx_entries = recovered_entries; tx_version = journal[4]; tx_mode = journal[5];
     tx_environment = recovered_environment; tx_registration = recovered_registration;
     if (tx_phase == "committed") {
@@ -246,6 +237,7 @@ void tx_begin(string target, bool uninstall, bool add_path) {
             if (!found) { tx_add(item[0], old, item[1]); }
         }
     }
+    if (size(tx_installed_environment) > 0) { user_path_validate(tx_installed_environment); }
     if (uninstall && size(tx_installed_environment) > 0) {
         tx_environment = user_path_removal(tx_installed_environment, tx_root);
     } else if (!uninstall && add_path && size(tx_installed_environment) == 0) {

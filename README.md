@@ -56,7 +56,7 @@ for (int i = 0; i < size(words); i++) {
 - Строки с полной поддержкой UTF-8: длина, подстроки и поиск считают символы,
   `upper`/`lower` понимают кириллицу.
 - Стандартная библиотека из 17 модулей: `string`, `arrays`, `math`, `json`, `fs`,
-  `os`, `time`, `env`, `log`, `http`, `server`, `net`, `terminal`, `graphics`, `ui`, `sound`.
+  `os`, `time`, `env`, `log`, `http`, `server`, `net`, `terminal`, `graphics`, `ui`, `sound`, `resources`.
 - Веб-сервер для сайтов и API: маршруты с параметрами (`/users/:id`), статические
   файлы, HTML-шаблоны, формы и загрузка файлов, cookies, редиректы, скачивание, CORS,
   HTTPS без reverse proxy. HTTP(S)-клиент со статусом ответа, TCP и DNS — на Linux и
