@@ -30,7 +30,7 @@ def facts(build, ctest):
         "version": version,
         "release": version,
         "builtins": len(catalog.builtin_names(ROOT)),
-        "modules": len(list((ROOT / "std").glob("*.fox"))),
+        "modules": len(catalog.standard_modules(ROOT)),
         "tests": None,
     }
     if build and sys.platform.startswith("linux"):

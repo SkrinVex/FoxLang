@@ -129,6 +129,14 @@ const runtime = process.argv.includes("--runtime");
         ),
         "page must fit viewport",
       );
+      await page.locator("[data-add=progress]").click();
+      await page.locator("#progress").fill("65");
+      await page.locator("#progress").press("Tab");
+      assert.equal(await page.locator("#stage .progress").textContent(), "65%");
+      await page.locator("#application-theme").selectOption("dark");
+      assert((await page.locator("#stage .progress").getAttribute("style")).includes("linear-gradient"));
+      await page.locator("#application-theme").selectOption("legacy");
+      await page.locator("#delete").click();
       await page.locator("[data-add=button]").click();
       await page.locator("#text").fill('Нажать " 🦊');
       await page.locator("#text").press("Tab");

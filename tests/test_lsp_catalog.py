@@ -55,7 +55,7 @@ catalog = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(catalog)
 builtins = catalog.builtin_names(root)
 assert len(builtins) > 100, "builtin catalog was not found in src/core/builtins"
-modules = sorted((root / "std").glob("*.fox"))
+modules = catalog.standard_modules(root)
 keywords = set("if else while for switch case default break continue return using include global int float string bool void true false array".split())
 base = document("builtins", "", valid=True)
 completion(base, builtins | keywords | {module.stem for module in modules}, {

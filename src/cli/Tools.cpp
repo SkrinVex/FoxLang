@@ -191,7 +191,7 @@ void collectFunctions(Node* node, std::vector<FuncDefNode*>& out) {
 } // namespace
 
 int disassemble(const std::vector<std::string>& arguments) {
-    if (arguments.size() != 1) throw std::runtime_error("Usage: skrumi disasm <file.fox>");
+    if (arguments.size() != 1) throw std::runtime_error("Usage: skrumi disasm <file.skm>");
     fs::path path = platform::pathFromUtf8(arguments[0]);
     Lexer lexer(readText(path));
     Parser parser(lexer.tokenize(), arguments[0]);

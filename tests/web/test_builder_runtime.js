@@ -42,6 +42,10 @@ const create = require(
       assert(frames >= 3);
     }
   const p = M.template();
+  p.theme = "dark";
+  const progress = M.add(p, "progress");
+  progress.progress = 65;
+  progress.layouts.desktop.y = 550;
   const field = p.elements.find((e) => e.type === "field"),
     check = p.elements.find((e) => e.type === "checkbox"),
     button = p.elements.find((e) => e.type === "primary");

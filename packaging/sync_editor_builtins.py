@@ -23,9 +23,24 @@ def module_exports(module):
     return re.findall(r"^(void|bool|int|float|string|array)\s+(\w+)\(([^)]*)\)", module.read_text(encoding="utf-8"), re.M)
 
 
+def standard_modules(root):
+    """Canonical modules; reject duplicate implementations rather than hide them."""
+    modules = {}
+    for module in sorted((root / "std").iterdir()):
+        if module.suffix not in (".fox", ".skm"):
+            continue
+        if module.suffix == ".fox" and module.with_suffix(".skm").exists():
+            expected = f'// Skrumi compatibility alias; implementation: {module.stem}.skm.\ninclude("{module.stem}.skm");\n'
+            if module.read_text(encoding="utf-8") != expected:
+                raise ValueError(f"Ambiguous standard module: {module.stem}")
+            continue
+        modules[module.stem] = module
+    return [modules[name] for name in sorted(modules)]
+
+
 def function_names(root):
     names = builtin_names(root)
-    for module in (root / "std").glob("*.fox"):
+    for module in standard_modules(root):
         names.update(name for _, name, _ in module_exports(module))
     return sorted(names)
 

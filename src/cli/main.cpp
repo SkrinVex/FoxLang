@@ -176,18 +176,24 @@ int main(int argc, char* argv[]) {
     if (std::string(argv[1]) == "build") {
         if (argc < 3 || args[2].empty() || args[2][0] == '-')
             throw std::runtime_error("Usage: skrumi build <file.skm> [-o app] [--console|--no-console]");
-        std::string output;
+        std::string output, resources;
         bool noConsole = false;
         for (size_t i = 3; i < args.size(); ++i) {
             if (args[i] == "--console") noConsole = false;
             else if (args[i] == "--no-console") noConsole = true;
+            else if (args[i] == "--resources") {
+                if (++i == args.size() || args[i].empty() || args[i][0] == '-' || !resources.empty())
+                    throw std::runtime_error("Build Error: --resources requires one directory");
+                resources = args[i];
+            }
             else if (args[i] == "-o" || args[i] == "--output") {
                 if (++i == args.size() || args[i].empty() || args[i][0] == '-')
                     throw std::runtime_error("Build Error: expected output filename");
                 output = args[i];
             } else throw std::runtime_error("Build Error: unknown option '" + args[i] + "'");
         }
-        foxlang::bundle::build(foxlang::platform::pathFromUtf8(args[2]), foxlang::platform::pathFromUtf8(output), noConsole);
+        foxlang::bundle::build(foxlang::platform::pathFromUtf8(args[2]), foxlang::platform::pathFromUtf8(output), noConsole,
+                              foxlang::platform::pathFromUtf8(resources));
         return 0;
     }
 

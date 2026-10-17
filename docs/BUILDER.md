@@ -99,7 +99,7 @@ skrumi build main.skm --no-console -o interface
 
 Последняя команда на Windows создаёт EXE без терминала. Параметры запуска,
 fullscreen и размеры описаны в [LAUNCH.md](LAUNCH.md).
-Полный API элементов — [GRAPHICS.md](GRAPHICS.md) и [../std/ui.fox](../std/ui.fox).
+Полный API элементов — [GRAPHICS.md](GRAPHICS.md) и [../std/ui.skm](../std/ui.skm).
 
 ## Сохранение и перенос
 

@@ -46,6 +46,9 @@ add_test(NAME unit_lsp_protocol COMMAND test_lsp_protocol)
 # Packaging is tested from a copied CLI with no stdlib, then with only the result
 # in a clean recipient directory. Python is a test dependency, never a runtime one.
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME module_resolution COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_module_resolution.py $<TARGET_FILE:foxlang> ${CMAKE_SOURCE_DIR})
+set_tests_properties(module_resolution PROPERTIES TIMEOUT 90)
+add_test(NAME system_checked COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_system_checked.py $<TARGET_FILE:foxlang>)
 add_test(NAME android_packaging COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_android_packaging.py)
 add_test(NAME lsp_catalog COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_lsp_catalog.py $<TARGET_FILE:foxlang-lsp> ${CMAKE_SOURCE_DIR})
 set_tests_properties(lsp_catalog PROPERTIES TIMEOUT 30)
@@ -77,6 +80,8 @@ add_executable(test_bundle unit/test_bundle.cpp)
 target_link_libraries(test_bundle PRIVATE foxlang_bundle)
 add_test(NAME standalone_bundle_format COMMAND test_bundle $<TARGET_FILE:foxlang>)
 set_tests_properties(standalone_bundle_format PROPERTIES LABELS standalone)
+add_test(NAME standalone_resources COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_resources.py $<TARGET_FILE:foxlang>)
+set_tests_properties(standalone_resources PROPERTIES TIMEOUT 90 LABELS standalone)
 add_test(NAME standalone_graphics
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_graphics.py $<TARGET_FILE:foxlang>)
 set_tests_properties(standalone_graphics PROPERTIES TIMEOUT 90 LABELS standalone SKIP_RETURN_CODE 77)
@@ -221,11 +226,15 @@ endif()
 file(GLOB FOXLANG_CHECKED_SOURCES CONFIGURE_DEPENDS
     ${CMAKE_SOURCE_DIR}/examples/*.skm
     ${CMAKE_SOURCE_DIR}/examples/*/*.skm
-    ${CMAKE_SOURCE_DIR}/std/*.fox)
+    ${CMAKE_SOURCE_DIR}/std/*.fox
+    ${CMAKE_SOURCE_DIR}/std/*.skm)
 foreach(SOURCE ${FOXLANG_CHECKED_SOURCES})
     get_filename_component(SOURCE_NAME ${SOURCE} NAME_WE)
     get_filename_component(SOURCE_DIR ${SOURCE} DIRECTORY)
     get_filename_component(SOURCE_GROUP ${SOURCE_DIR} NAME)
+    if(SOURCE_GROUP STREQUAL "std" AND SOURCE MATCHES "\\.fox$" AND EXISTS "${SOURCE_DIR}/${SOURCE_NAME}.skm")
+        string(APPEND SOURCE_NAME "_compat")
+    endif()
     add_test(NAME check_${SOURCE_GROUP}_${SOURCE_NAME} COMMAND foxlang check ${SOURCE})
     set_tests_properties(check_${SOURCE_GROUP}_${SOURCE_NAME} PROPERTIES PASS_REGULAR_EXPRESSION "no problems found")
 endforeach()
@@ -245,3 +254,7 @@ add_test(NAME lsp_mixed_extensions COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT
 if(NOT WIN32)
     add_test(NAME rebranding_installation COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_installation.py $<TARGET_FILE:foxlang>)
 endif()
+
+add_test(NAME ui_progress_dialog_close
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/test_progress_dialog.py $<TARGET_FILE:foxlang>)
+set_tests_properties(ui_progress_dialog_close PROPERTIES TIMEOUT 60 LABELS standalone SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)

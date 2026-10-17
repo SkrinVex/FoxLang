@@ -4,6 +4,10 @@
 > The project retains its original development history and supports existing `.fox`
 > source files alongside the new `.skm` format. See the [migration guide](docs/MIGRATION_FROM_FOXLANG.md).
 
+Новые компоненты UI: [ProgressBar, диалоги, темы и отмена закрытия](examples/progress.skm).
+Публичные файловые операции и их гарантии описаны в [документации](DOCUMENTATION.md#проверяемые-файловые-операции).
+Работа над GUI-установщиком пока не завершена: [состояние реализации](docs/INSTALLER_IMPLEMENTATION_STATUS.md).
+
 
 [![Версия исходников](resources/version.svg)](VERSION)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
@@ -51,7 +55,7 @@ for (int i = 0; i < size(words); i++) {
 - Обработка ошибок: `try` / `catch` / `finally` и `throw`.
 - Строки с полной поддержкой UTF-8: длина, подстроки и поиск считают символы,
   `upper`/`lower` понимают кириллицу.
-- Стандартная библиотека из 16 модулей: `string`, `arrays`, `math`, `json`, `fs`,
+- Стандартная библиотека из 17 модулей: `string`, `arrays`, `math`, `json`, `fs`,
   `os`, `time`, `env`, `log`, `http`, `server`, `net`, `terminal`, `graphics`, `ui`, `sound`.
 - Веб-сервер для сайтов и API: маршруты с параметрами (`/users/:id`), статические
   файлы, HTML-шаблоны, формы и загрузка файлов, cookies, редиректы, скачивание, CORS,

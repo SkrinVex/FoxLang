@@ -112,3 +112,20 @@ assert.equal(M.files(oldProject)["main.fox"], oldProject.main);
 assert(M.files(oldProject)["layout.fox"]);
 
 assert(Object.keys(M.files(M.template())).every(name => name.endsWith('.skm')));
+
+const progressProject = M.blank();
+progressProject.theme = 'dark';
+const progress = M.add(progressProject, 'progress');
+progress.minimum = -10;
+progress.maximum = 90;
+progress.progress = 40;
+progress.percent = true;
+const progressRoundtrip = M.validate(JSON.parse(JSON.stringify(progressProject)));
+assert.equal(progressRoundtrip.elements[0].progress, 40);
+assert.equal(progressRoundtrip.theme, 'dark');
+const progressCode = M.files(progressRoundtrip)['layout.skm'];
+assert(progressCode.includes('ui_theme(true)'));
+assert(progressCode.includes('float progress_e1 = 40;'));
+assert(progressCode.includes('progress_e1, -10, 90, true)'));
+progress.maximum = -10;
+assert.throws(() => M.validate(progressProject));

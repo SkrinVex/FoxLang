@@ -359,11 +359,11 @@ summary span {
   flex: none;
   width: 14px;
   height: 14px;
-  border: 1px solid #c8ced8;
-  background: white;
+  border: 1px solid var(--widget-border, #c8ced8);
+  background: var(--widget-field, white);
 }
 .widget.checkbox.on:before {
-  box-shadow: inset 0 0 0 2px #fff;
+  box-shadow: inset 0 0 0 2px var(--widget-field, #fff);
   background: var(--accent);
 }
 .widget.panel {

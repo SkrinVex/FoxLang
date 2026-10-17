@@ -149,7 +149,15 @@ public:
     void wheelEvent(int steps) { wheel_ += steps; }
     void focusEvent(bool focused);
     void mouseEvent(int x, int y) { mouseX_ = x; mouseY_ = y; }
-    void closeEvent() { open_ = false; }
+    // Requests may be deferred by an application; destruction cannot be cancelled.
+    void closeEvent() { if (interceptClose_) closeRequested_ = true; else open_ = false; }
+    void destroyedEvent() { open_ = false; closeRequested_ = false; }
+    void interceptClose(bool enabled) {
+        interceptClose_ = enabled;
+        if (!enabled && closeRequested_) { closeRequested_ = false; open_ = false; }
+    }
+    bool closeRequested() const { return closeRequested_; }
+    void cancelClose() { closeRequested_ = false; }
     // The drawing area follows the window when the user may resize it.
     void setResizable(bool resizable);
     void setFullscreen(bool fullscreen);
@@ -173,6 +181,7 @@ private:
     std::chrono::steady_clock::time_point lastClick_{};
     int lastClickX_ = -1000, lastClickY_ = -1000;
     bool open_ = true, focused_ = false, resized_ = false;
+    bool interceptClose_ = false, closeRequested_ = false;
     int pendingWidth_ = 0, pendingHeight_ = 0;
     void applySize(int width, int height);
     int mouseX_ = 0, mouseY_ = 0;

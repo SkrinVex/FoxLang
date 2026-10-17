@@ -279,7 +279,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     dap.request('stepIn', {'threadId': 1})
     dap.event('stopped')
     frames = dap.request('stackTrace', {'threadId': 1})['stackFrames']
-    assert frames[0]['name'] == 'format_bytes' and frames[0]['source']['name'].endswith('fs.fox'), frames
+    assert frames[0]['name'] == 'format_bytes' and frames[0]['source']['name'].endswith('fs.skm'), frames
     where = frames[0]['source']
     text = dap.request('source', {'sourceReference': where['sourceReference']})['content'] if where.get('sourceReference') \
         else Path(where['path']).read_text(encoding='utf-8')

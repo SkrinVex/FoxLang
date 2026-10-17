@@ -1,5 +1,25 @@
 ## Unreleased — Skrumi identity and FoxLang compatibility
 
+- Make updated stdlib implementations canonical `.skm` sources with checked `.fox`
+  compatibility adapters and one module identity. Prefer `.skm` in modern importers;
+  preserve `.fox` precedence inside legacy importing files.
+- Add explicit standalone resource packaging (`--resources`) and public resource
+  reads without cwd fallback; retain v1 bundle support and add v2 resource records.
+- Add native streaming SHA-256 through the existing Mbed TLS dependency.
+
+- Add checked file reads, durable atomic writes, unique temporary directories and
+  validated portable child paths to the public `fs` library. Browser durable writes
+  explicitly fail; existing filesystem return conventions remain unchanged.
+- Add opt-in deferred window close requests, Skrumi ProgressBar and nonblocking
+  dialogs, and light/dark UI palettes shared by existing components.
+- Add ProgressBar and application palettes to UI Builder, preserve format-1 projects,
+  and add a Playground example and native/browser runtime tests.
+- Reject NUL in process arguments, enforce the documented stdout capture limit,
+  and report waitpid failures instead of an apparent successful exit.
+- These are installer prerequisites, not a completed graphical installer. The
+  transactional installer and release-asset migration remain outstanding; see
+  `docs/INSTALLER_IMPLEMENTATION_STATUS.md`.
+
 - Rename the public language, CLI and LSP to Skrumi, `skrumi` and `skrumi-lsp`.
 - Support `.skm` alongside `.fox` through the same runtime and tooling.
 - Keep legacy CLI names, runtime flags/environment, C++/JNI/Java/editor identifiers,

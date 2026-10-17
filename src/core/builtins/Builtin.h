@@ -75,6 +75,7 @@ void addTextBuiltins(std::vector<Builtin>& out);
 void addCollectionBuiltins(std::vector<Builtin>& out);
 void addSystemBuiltins(std::vector<Builtin>& out);
 void addFileBuiltins(std::vector<Builtin>& out);
+void addStrictFileBuiltins(std::vector<Builtin>& out);
 void addNetworkBuiltins(std::vector<Builtin>& out);
 void addGraphicsBuiltins(std::vector<Builtin>& out);
 void addSoundBuiltins(std::vector<Builtin>& out);

@@ -84,6 +84,7 @@
       `${mode === "desktop" ? "ПК" : "Телефон"} / ${s.width} × ${s.height}`;
     for (const id of ["title", "breakpoint", "background", "accent"])
       $(id).value = project[id];
+    $("application-theme").value = project.theme;
     $("width").value = s.width;
     $("height").value = s.height;
     $("count").textContent = project.elements.length;
@@ -106,6 +107,9 @@
       for (const id of ["text", "value", "message", "color", "scale"])
         $(id).value = e[id];
       $("checked").checked = e.checked;
+      for (const id of ["minimum", "maximum", "progress"]) $(id).value = e[id];
+      $("percent").checked = e.percent;
+      $("progress-properties").hidden = e.type !== "progress";
       for (const id of ["x", "y", "w", "h", "horizontal", "vertical"])
         $(id).value = e.layouts[mode][id];
       $("value-label").hidden = e.type !== "field";
@@ -182,6 +186,25 @@
       }
       if (e.type === "primary") node.style.background = project.accent;
       if (e.type === "button") node.style.background = "#eef1f6";
+      const dark = project.theme === "dark";
+      node.style.setProperty("--widget-field", dark ? "#1e232c" : "#ffffff");
+      node.style.setProperty("--widget-border", dark ? "#4b5362" : "#c8ced8");
+      if (e.type === "field") {
+        node.style.background = dark ? "#1e232c" : "#ffffff";
+        node.style.borderColor = dark ? "#4b5362" : "#c8ced8";
+        node.style.color = e.value ? (dark ? "#eef1f6" : "#1e232a") : (dark ? "#a6aebc" : "#78808a");
+      }
+      if (e.type === "checkbox") node.style.color = dark ? "#eef1f6" : "#1e232a";
+      if (e.type === "button") { node.style.background = dark ? "#303744" : "#eef1f6"; node.style.color = dark ? "#eef1f6" : "#1e232a"; }
+      if (e.type === "progress") {
+        const fraction = Math.max(0, Math.min(1, (e.progress - e.minimum) / (e.maximum - e.minimum)));
+        node.textContent = e.percent ? Math.floor(fraction * 100) + "%" : "";
+        node.style.color = dark ? "#eef1f6" : "#1e232a";
+        node.style.border = `1px solid ${dark ? "#4b5362" : "#c8ced8"}`;
+        node.style.background = `linear-gradient(to right, ${project.accent} ${fraction * 100}%, ${dark ? "#303744" : "#eceff3"} ${fraction * 100}%)`;
+        node.style.display = "grid";
+        node.style.placeItems = "center";
+      }
       if (selected === e.id && !["label", "checkbox"].includes(e.type)) {
         const handle = document.createElement("span");
         handle.className = "handle";
@@ -207,6 +230,7 @@
       field: "I",
       checkbox: "☑",
       panel: "▧",
+      progress: "▰",
     }[type];
     icon.setAttribute("aria-hidden", "true");
     b.append(icon, document.createTextNode(name));
@@ -246,19 +270,21 @@
     "breakpoint",
     "background",
     "accent",
+    "application-theme",
   ])
     $(id).onchange = () =>
       change(() => {
         if (["width", "height"].includes(id))
           project.sizes[mode][id] = Number($(id).value);
         else
-          project[id] = id === "breakpoint" ? Number($(id).value) : $(id).value;
+          project[id === "application-theme" ? "theme" : id] = id === "breakpoint" ? Number($(id).value) : $(id).value;
       });
   for (const id of [
     "text",
     "value",
     "message",
     "checked",
+    "minimum", "maximum", "progress", "percent",
     "color",
     "scale",
     "x",
@@ -278,9 +304,9 @@
             : Number($(id).value);
         else
           e[id] =
-            id === "checked"
+            ["checked", "percent"].includes(id)
               ? $(id).checked
-              : id === "scale"
+              : ["scale", "minimum", "maximum", "progress"].includes(id)
                 ? Number($(id).value)
                 : $(id).value;
       });

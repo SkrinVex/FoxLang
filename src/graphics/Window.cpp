@@ -144,7 +144,7 @@ struct Window::Native {
         if (!self) return DefWindowProcW(handle, message, wparam, lparam);
         switch (message) {
             case WM_CLOSE: self->owner.closeEvent(); return 0;
-            case WM_DESTROY: self->owner.closeEvent(); return 0;
+            case WM_DESTROY: self->owner.destroyedEvent(); return 0;
             case WM_SETFOCUS: self->owner.focusEvent(true); return 0;
             case WM_KILLFOCUS: self->owner.focusEvent(false); return 0;
             case WM_KEYDOWN: case WM_SYSKEYDOWN: self->owner.keyEvent(static_cast<int>(wparam), true); break;
@@ -767,7 +767,7 @@ struct Window::Native {
             else if (type == XCB_CLIENT_MESSAGE) {
                 auto* e = reinterpret_cast<xcb_client_message_event_t*>(event);
                 if (e->type == protocols && e->format == 32 && e->data.data32[0] == deleteWindow) owner.closeEvent();
-            } else if (type == XCB_DESTROY_NOTIFY) { window = XCB_NONE; owner.closeEvent(); }
+            } else if (type == XCB_DESTROY_NOTIFY) { window = XCB_NONE; owner.destroyedEvent(); }
             else if (type == XCB_SELECTION_REQUEST) answerSelection(reinterpret_cast<xcb_selection_request_event_t*>(event));
             else if (type == XCB_SELECTION_CLEAR) ownedClipboard.clear();
             else if (type == XCB_EXPOSE) copy();

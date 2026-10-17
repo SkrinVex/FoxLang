@@ -1,0 +1,8 @@
+//! Неизменяемые ресурсы standalone: упаковываются через skrumi build --resources dir.
+//! Источники, ресурсы и файловая система — отдельные пространства имён.
+
+/// Полное содержимое встроенного ресурса; отсутствующий ресурс вызывает Resource Error.
+string read_resource(string name) { return resource_read(name); }
+
+/// Отсортированные имена ресурсов в текущем standalone-приложении.
+array resource_names() { return resource_list(); }

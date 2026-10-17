@@ -68,6 +68,7 @@ jobs:
           node tests/web/test_playground.js site/playground
           node tests/web/test_builder_model.js
           node tests/web/test_builder_runtime.js site/playground
+          node tests/web/test_system_ui_runtime.js site/playground
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

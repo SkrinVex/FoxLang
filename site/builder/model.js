@@ -12,6 +12,7 @@
     field: "Поле ввода",
     checkbox: "Флажок",
     panel: "Панель",
+    progress: "Прогресс",
   };
   const clone = (value) => JSON.parse(JSON.stringify(value));
   function fail(message) {
@@ -127,6 +128,10 @@
         if (e.type === "checkbox") layouts[mode].h = 14;
       }
       const label = text(e.text, 200, "Подпись");
+      const minimum = integer(e.minimum ?? 0, -1000000, 1000000, "Минимум");
+      const maximum = integer(e.maximum ?? 100, -1000000, 1000000, "Максимум");
+      if (maximum <= minimum) fail("Максимум должен быть больше минимума");
+      if (e.percent !== undefined && typeof e.percent !== "boolean") fail("Проценты: true или false");
       const labelScale = integer(e.scale, 1, 4, "Масштаб текста");
       if (["label", "checkbox"].includes(e.type)) {
         const factor = e.type === "label" ? labelScale : 1;
@@ -158,6 +163,9 @@
         value: text(e.value, 500, "Текст поля"),
         message: text(e.message, 500, "Сообщение"),
         checked: e.checked,
+        minimum, maximum,
+        progress: integer(e.progress ?? 0, -1000000, 1000000, "Прогресс"),
+        percent: e.percent ?? true,
         color: color(e.color),
         scale: integer(e.scale, 1, 4, "Масштаб текста"),
         layouts,
@@ -169,6 +177,7 @@
       input.nextId === undefined
         ? minimumId
         : integer(input.nextId, minimumId, 1000000, "Следующий ID");
+    if (input.theme !== undefined && !["legacy", "light", "dark"].includes(input.theme)) fail("Неизвестная тема");
     return {
       main:
         input.main === undefined
@@ -182,6 +191,7 @@
       breakpoint,
       background: color(input.background),
       accent: color(input.accent),
+      theme: input.theme ?? "legacy",
       elements,
     };
   }
@@ -199,6 +209,7 @@
       breakpoint: 600,
       background: "#f3f5f8",
       accent: "#2d69af",
+      theme: "legacy",
       elements: [],
     };
   }
@@ -229,6 +240,7 @@
       value: "",
       message: "Кнопка нажата",
       checked: false,
+      minimum: 0, maximum: 100, progress: 0, percent: true,
       color: type === "panel" ? "#ffffff" : "#1e232a",
       scale: type === "label" ? 2 : 1,
       layouts: {},
@@ -308,6 +320,7 @@
       "void layout_open() {",
       `    open_window(${initial.width}, ${initial.height}, ${quote(p.title)});`,
       "    set_window_resizable(true);",
+      ...(p.theme === "legacy" ? [] : [`    ui_theme(${p.theme === "dark"});`]),
       `    UI_ACCENT = ${rgb(p.accent)};`,
       "}",
       "",
@@ -317,6 +330,8 @@
         lines.push(`string value_${e.id} = ${quote(e.value)};`);
       if (e.type === "checkbox")
         lines.push(`bool checked_${e.id} = ${e.checked};`);
+      if (e.type === "progress")
+        lines.push(`float progress_${e.id} = ${e.progress};`);
     }
     lines.push(
       "",
@@ -355,6 +370,8 @@
           );
         if (e.type === "panel")
           lines.push(`        draw_rect(${args}, ${r.h}, ${rgb(e.color)});`);
+        if (e.type === "progress")
+          lines.push(`        ui_progress_bar(${args}, ${r.h}, progress_${e.id}, ${e.minimum}, ${e.maximum}, ${e.percent});`);
         if (e.type === "field")
           lines.push(
             `        value_${e.id} = ui_text_field(${id}, ${args}, value_${e.id}, ${quote(e.text)});`,

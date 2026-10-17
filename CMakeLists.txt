@@ -79,6 +79,7 @@ set(foxlang_core_sources
     src/core/builtins/Collections.cpp
     src/core/builtins/System.cpp
     src/core/builtins/Files.cpp
+    src/core/builtins/StrictFiles.cpp
     src/core/builtins/NetworkBuiltins.cpp
     src/core/builtins/Sound.cpp
     src/graphics/Surface.cpp

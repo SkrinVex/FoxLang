@@ -15,6 +15,8 @@ public:
     explicit OverlaySources(std::shared_ptr<const SourceProvider> base) : base(std::move(base)) {}
     std::string resolve(const ModuleImport& request, const std::string& from) const override;
     std::string read(const std::string& identity) const override;
+    std::string readResource(const std::string& name) const override { return base->readResource(name); }
+    std::vector<std::string> listResources() const override { return base->listResources(); }
     void set(const std::string& path, std::string text);
     void erase(const std::string& path);
     const std::string* find(const std::string& identity) const;
