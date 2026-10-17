@@ -26,6 +26,24 @@ const {chromium} = require('playwright');
         assert(href.startsWith('https://github.com/SkrinVex/Skrumi/releases/download/vNEXT/'));
       await page.unroute('https://api.github.com/**');
     }
+    // A previous release may still serve an older benchmark schema while a new
+    // release is being built. Keep the reviewed carried data until current data arrives.
+    const html = fs.readFileSync(path.join(__dirname, '../../site/index.html'), 'utf8');
+    const carried = JSON.parse(html.match(/<script type="application\/json" id="bench-data">([\s\S]*?)<\/script>/)[1]);
+    const benchmarkScript = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1];
+    const stale = structuredClone(carried);
+    stale.languages.historical = stale.languages.skrumi;
+    delete stale.languages.skrumi;
+    for (const data of [stale, {...carried, date: '2030-01-02'}]) {
+      await page.setContent('<div id="bench-list"></div><div id="bench-langs"></div><div id="bench-versions"></div><div id="bench-legend"></div><div id="bench-meta"></div><div id="bench-versions-intro"></div><script type="application/json" id="bench-data">' + JSON.stringify(carried) + '</script>');
+      await page.evaluate(data => {window.fetch = async () => ({ok: true, json: async () => data});}, data);
+      await page.addScriptTag({content: benchmarkScript});
+      await page.waitForFunction(() => document.querySelector('#bench-meta').textContent.length > 0);
+      assert.equal(await page.locator('#bench-langs .is-skrumi').count(), carried.benchmarks.length);
+      const shownDate = (data === stale ? carried.date : data.date).split('-').reverse().join('.');
+      assert((await page.locator('#bench-meta').textContent()).includes(shownDate));
+    }
+    console.log('BENCHMARK_SCHEMA_TRANSITION_OK');
     console.log('DOWNLOAD_AVAILABILITY_OK');
   } finally {await browser.close();}
 })().catch(error => {console.error(error); process.exit(1);});

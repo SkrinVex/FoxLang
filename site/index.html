@@ -1569,7 +1569,7 @@ print(square(4));</pre>
   if (location.protocol !== "file:" && window.fetch) {
     fetch("benchmarks.json", { cache: "no-cache" })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) { if (data && data.benchmarks && data.languages) renderBenchmarks(data); })
+      .then(function (data) { if (data && data.benchmarks && data.languages && data.languages.skrumi) renderBenchmarks(data); })
       .catch(function () {});
   }
 })();
