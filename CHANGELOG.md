@@ -1,5 +1,8 @@
 ## Skrumi 8.18.0 — GUI installer and public system/UI APIs
 
+- Compact directory presets into inline rows; separate removal from update options
+  with a dedicated page and explicit confirmation before any filesystem changes.
+
 - Start GUI setup and maintenance with a Russian/English language selector;
   localize controls, dialogs, operation logs and installer-owned diagnostics.
 

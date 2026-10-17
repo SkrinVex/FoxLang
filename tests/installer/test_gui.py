@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         click(700,550)
         click(680,236)
         screenshot('location-presets')
-        click(200,380)  # Home / Skrumi preset, then retain explicit-path coverage.
+        click(200,300)  # Home / Skrumi preset, then retain explicit-path coverage.
         click(200,236)
         window.send_key('CTRL',True); time.sleep(.05); window.send_key('a',True); time.sleep(.05); window.send_key('a',False); window.send_key('CTRL',False); time.sleep(.05)
         window.type_text(str(target))
@@ -87,7 +87,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         screenshot('recovery-error')
         click(608,372)
         # Isolate the GUI test from the runner's actual PATH. Dedicated API tests cover PATH.
-        click(54,364)
+        click(54,326)
         # A pre-journal crash must be offered for recovery, not silently ignored.
         transaction_area = Path(str(target)+'.skrumi-transaction')
         transaction_area.mkdir(mode=0o700)
@@ -119,7 +119,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         click(700,550)
         # Existing custom path is discovered without typing it again.
         screenshot('detected-update')
-        click(54,364)
+        click(54,326)
         # Start the update without the normal post-click wait, then interrupt an
         # actual staged transaction. No artificial delays exist in installer code.
         window.mouse(700,550); time.sleep(.02); window.mouse(700,550,True)
@@ -142,8 +142,64 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         assert process.returncode == 0, (output, errors)
         assert not transaction_area.exists()
         assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == baseline
-        subprocess.run([str(app), '--headless', 'uninstall', str(target)], check=True, timeout=30)
+        # Removal is a separate page; neither entering it nor rejecting its
+        # confirmation may mutate the installation or create a transaction.
+        window.dispose()
+        process = subprocess.Popen([str(app)], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        window = NativeWindow('Skrumi '+version)
+        wait_until(window.find); time.sleep(.3)
+        wait_until(lambda: window.pixel(60,290) == 0xef7b35)
+        click(220 if language == 'ru' else 580,306)
+        click(700,550)
+        click(140,550)  # Separate Uninstall... action, never a component checkbox.
+        wait_until(lambda: window.pixel(630,540) == 0xbe2828)
+        screenshot('remove-mode')
+        assert not transaction_area.exists()
+        click(530,550)  # Back returns to ordinary update mode.
+        wait_until(lambda: window.pixel(630,540) == 0xef7b35)
+        assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == baseline
+        click(140,550)
+        for answer in ('no', 'cancel', 'escape'):
+            click(700,550)
+            wait_until(lambda: window.pixel(145,185) == 0xef7b35)
+            screenshot('remove-confirm')
+            if answer == 'escape':
+                window.send_key('ESCAPE', True); time.sleep(.05); window.send_key('ESCAPE', False); time.sleep(.15)
+            else:
+                click(400 if answer == 'no' else 570,370)
+            assert not transaction_area.exists()
+            assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == baseline
+        (target/'user-project.skm').write_text('print("keep");', encoding='utf-8')
+        click(700,550)
+        wait_until(lambda: window.pixel(145,185) == 0xef7b35)
+        click(220,370)
+        wait_until(lambda: not (target/('skrumi'+suffix)).exists(), 30)
+        wait_until(lambda: not transaction_area.exists(), 30)
+        assert (target/'user-project.skm').read_text(encoding='utf-8') == 'print("keep");'
+        screenshot('removed')
+        window.mouse(700,550); time.sleep(.05); window.mouse(700,550,True)
+        output, errors = process.communicate(timeout=10)
+        assert process.returncode == 0, (output, errors)
+
         assert not (target/('skrumi'+suffix)).exists()
+        # The registered removal entry point also opens the dedicated page,
+        # including the retained Windows maintenance executable.
+        window.dispose()
+        maintenance = Path(str(target)+'.maintenance.exe') if os.name == 'nt' else app
+        process = subprocess.Popen([str(maintenance), '--uninstall-gui', str(target)], cwd=root,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        window = NativeWindow('Skrumi '+version)
+        wait_until(window.find); time.sleep(.3)
+        wait_until(lambda: window.pixel(60,290) == 0xef7b35)
+        click(220 if language == 'ru' else 580,306)
+        wait_until(lambda: window.pixel(630,540) == 0xbe2828)
+        screenshot('maintenance-mode')
+        assert (target/'user-project.skm').read_text(encoding='utf-8') == 'print("keep");'
+        window.close_window()
+        wait_until(lambda: window.pixel(145,185) == 0xef7b35)
+        window.mouse(220,370); time.sleep(.05); window.mouse(220,370,True)
+        output, errors = process.communicate(timeout=10)
+        assert process.returncode == 0, (output, errors)
         print('INSTALLER_GUI_SCENARIOS_OK', flush=True)
     finally:
         if process.poll() is None: process.kill(); process.communicate()

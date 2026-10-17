@@ -1,6 +1,13 @@
 // Installer presentation only; persisted formats and paths are never translated.
 string setup_language = "en";
 array setup_translations = [
+    ["Uninstall...", "Удалить..."],
+    ["Uninstall Skrumi", "Удаление Skrumi"],
+    ["Installation to remove", "Каталог удаляемой установки"],
+    ["You will be asked to confirm before any files are removed.", "Перед удалением файлов потребуется ваше подтверждение."],
+    ["Keep installed", "Не удалять"],
+    ["Confirm removal", "Подтверждение удаления"],
+    ["Remove Skrumi from this directory? ", "Удалить Skrumi из этого каталога? "],
     ["The operation could not be completed. Details: ", "Не удалось выполнить операцию. Подробности: "],
     ["Welcome to Skrumi", "Добро пожаловать в Skrumi"],
     ["Native tools, scripting and graphical applications.", "Нативные инструменты, скрипты и графические приложения."],
