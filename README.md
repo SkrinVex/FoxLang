@@ -6,7 +6,7 @@
 
 Новые компоненты UI: [ProgressBar, диалоги, темы и отмена закрытия](examples/progress.skm).
 Публичные файловые операции и их гарантии описаны в [документации](DOCUMENTATION.md#проверяемые-файловые-операции).
-Работа над GUI-установщиком пока не завершена: [состояние реализации](docs/INSTALLER_IMPLEMENTATION_STATUS.md).
+GUI-установщик: [проверки и границы гарантий](docs/INSTALLER_IMPLEMENTATION_STATUS.md).
 
 
 [![Версия исходников](resources/version.svg)](VERSION)

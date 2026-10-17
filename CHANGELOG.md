@@ -30,8 +30,8 @@
   Android SDK/APKs and editor assets, and stop publishing language ZIP/TAR packages.
   A manual candidate build validates the release without creating tags or publishing.
 - Resolve website downloads against actual latest-release assets, with no dead GUI
-  links before the first release. The release candidate remains under validation;
-  see `docs/INSTALLER_IMPLEMENTATION_STATUS.md` for outstanding work.
+  links before the first release. See `docs/INSTALLER_IMPLEMENTATION_STATUS.md`
+  for platform validation requirements and transaction guarantees.
 
 - Rename the public language, CLI and LSP to Skrumi, `skrumi` and `skrumi-lsp`.
 - Support `.skm` alongside `.fox` through the same runtime and tooling.
