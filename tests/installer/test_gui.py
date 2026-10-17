@@ -47,6 +47,15 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         time.sleep(.15)
         # Isolate the GUI test from the runner's actual PATH. Dedicated API tests cover PATH.
         click(54,364)
+        # A pre-journal crash must be offered for recovery, not silently ignored.
+        transaction_area = Path(str(target)+'.skrumi-transaction')
+        transaction_area.mkdir(mode=0o700)
+        click(700,550)
+        click(400,370)  # No: preserve the interrupted transaction.
+        assert transaction_area.exists() and not target.exists()
+        click(700,550)
+        click(220,370)  # Yes: recover the empty transaction, return to options.
+        wait_until(lambda: not transaction_area.exists())
         click(700,550)
         wait_until(lambda: (target/'.skrumi-install.json').is_file(), 30)
         wait_until(lambda: not Path(str(target)+'.skrumi-transaction').exists(), 30)
@@ -57,6 +66,28 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         window.mouse(700,550); time.sleep(.05); window.mouse(700,550,True)
         output, errors = process.communicate(timeout=10)
         assert process.returncode == 0, (output,errors)
+        baseline = {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()}
+        window.dispose()
+        process = subprocess.Popen([str(app)], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        window = NativeWindow('Skrumi Setup '+version)
+        wait_until(window.find); time.sleep(.3)
+        wait_until(lambda: window.pixel(630,540) == 0xef7b35)
+        click(700,550); click(200,236)
+        window.send_key('CTRL',True); time.sleep(.05); window.send_key('a',True); time.sleep(.05)
+        window.send_key('a',False); window.send_key('CTRL',False); time.sleep(.05)
+        window.type_text(str(target)); time.sleep(.15)
+        click(54,364)
+        # Start the update without the normal post-click wait, then interrupt an
+        # actual staged transaction. No artificial delays exist in installer code.
+        window.mouse(700,550); time.sleep(.02); window.mouse(700,550,True)
+        time.sleep(.02); window.mouse(700,550,False)
+        wait_until(lambda: transaction_area.exists())
+        window.close_window(); time.sleep(.15)
+        window.mouse(220,370); time.sleep(.05); window.mouse(220,370,True)
+        output, errors = process.communicate(timeout=15)
+        assert process.returncode == 0, (output, errors)
+        assert not transaction_area.exists()
+        assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == baseline
         subprocess.run([str(app), '--headless', 'uninstall', str(target)], check=True, timeout=30)
         assert not (target/('skrumi'+suffix)).exists()
     finally:

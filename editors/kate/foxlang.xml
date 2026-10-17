@@ -540,6 +540,7 @@
       <item>ui_typing</item>
       <item>ui_unfocus</item>
       <item>ui_wheel</item>
+      <item>ui_wrap_text</item>
       <item>unix_time_ms</item>
       <item>upload_name</item>
       <item>upper</item>

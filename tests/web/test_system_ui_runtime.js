@@ -1,6 +1,7 @@
 // Real WASM execution: desktop-only durability must fail, portable UI must work.
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrumi-graphics.js'));
 (async () => {
   let polls = 0, frames = 0, log = '';
@@ -13,6 +14,12 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
         const at = (x, y) => Array.from(pixels.slice((y * width + x) * 4, (y * width + x) * 4 + 4));
         assert.deepEqual(at(40, 25), [239, 123, 53, 255]);
         assert.deepEqual(at(180, 25), [236, 239, 243, 255]);
+        let smoothPixels = 0;
+        for (let y = 80; y < 110; y++) for (let x = 20; x < 180; x++) {
+          const pixel = at(x, y);
+          if (pixel[0] !== 255 && pixel[0] !== 0) smoothPixels++;
+        }
+        assert(smoothPixels > 50, 'actual antialiased font pixels');
       }
     },
     canvasPoll: async () => {
@@ -24,6 +31,7 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
       if (polls === 6) app._foxlang_key(27, 0);
     },
   });
+  app.FS.writeFile('/font.ttf', fs.readFileSync(path.join(__dirname, '../../installer/assets/DejaVuSans.ttf')));
   app.FS.writeFile('/choice.fox', 'string selected() { return "legacy"; }');
   app.FS.writeFile('/choice.skm', 'string selected() { return "modern"; }');
   for (const [suffix, expected] of [['.fox', 'legacy'], ['.skm', 'modern']]) {
@@ -52,6 +60,8 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
     refused = false;
     try { resource_read("missing"); } catch (e) { refused = true; }
     if (!refused || size(resource_list()) != 0) { fail("no fake resource success"); }
+    int font = load_font(read_file("/font.ttf"));
+    if (font_text_width(font, "WWW", 20) <= font_text_width(font, "iii", 20)) { fail("proportional font metrics"); }
     open_window(640, 360, "UI test");
     intercept_window_close(true);
     ui_theme(false);
@@ -63,6 +73,7 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
         frame++;
         clear_window(UI_PANEL);
         ui_progress_bar(20, 20, 202, 20, 50, 0, 100, false);
+        draw_font_text(font, 20, 80, "Skrumi Ж", 20, rgb(0, 0, 0));
         if (window_close_requested() && !asking) { requests++; asking = true; }
         if (asking && requests == 1) { cancel_window_close(); asking = false; }
         if (asking) {
@@ -72,7 +83,7 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
         present_window();
         if (frame == 6) { break; }
     }
-    close_window();
+    close_window(); free_font(font);
     if (requests != 2 || cancelled != 1) { fail("close state mismatch"); }
     print("SYSTEM_UI_WEB_OK");`);
   assert.equal(await app.ccall('foxlang_run', 'number', ['string', 'string'], ['/main.skm', ''], {async: true}), 0, log);

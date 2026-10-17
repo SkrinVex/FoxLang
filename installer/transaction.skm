@@ -65,7 +65,11 @@ void tx_cleanup() {
 }
 void tx_rollback() {
     tx_note("Restoring previous files");
-    if (size(tx_environment) > 0) { user_path_apply(tx_environment, true); }
+    string environment_error = "";
+    if (size(tx_environment) > 0) {
+        try { user_path_apply(tx_environment, true); }
+        catch (string error) { environment_error = error; }
+    }
     for (int i = size(tx_entries) - 1; i >= 0; i--) {
         array entry = tx_entries[i];
         string target = tx_path(entry[0]);
@@ -84,6 +88,9 @@ void tx_rollback() {
             fail("Original file unavailable; recovery stopped: " + target);
         }
     }
+    // A concurrently edited profile must not prevent restoration of the CLI.
+    // Keep the journal until the environment conflict is explicitly resolved.
+    if (environment_error != "") { fail("Files restored; environment recovery still required: " + environment_error); }
     tx_phase = "rolled_back";
     tx_journal();
     tx_cleanup();
@@ -93,7 +100,16 @@ void tx_rollback() {
 // Recovery is explicitly requested by the UI/CLI after acquiring the same OS lock.
 void tx_recover(string target) {
     tx_acquire(target);
-    array journal = json_decode(read_checked(safe_join(tx_area, "journal.json")));
+    string journal_path = safe_join(tx_area, "journal.json");
+    if (!fs_exists_checked(journal_path)) {
+        // A crash between exclusive mkdir and the first atomic journal write, or
+        // after deleting the final journal, can leave an empty transaction area.
+        // Any unknown contents are preserved, never guessed to be disposable.
+        if (size(fs_list_checked(tx_area)) != 0) { fail("Missing journal with unknown files; preserved for manual recovery: " + tx_area); }
+        fs_remove_checked(tx_area); tx_phase = "idle"; tx_release();
+        tx_note("Removed empty interrupted transaction"); return;
+    }
+    array journal = json_decode(read_checked(journal_path));
     if (size(journal) != 7 || journal[0] != 2 || journal[1] != tx_root) { fail("Invalid recovery journal; no files changed."); }
     tx_phase = journal[2]; tx_entries = journal[3]; tx_version = journal[4]; tx_mode = journal[5]; tx_environment = journal[6];
     for (int i = 0; i < size(tx_entries); i++) {

@@ -91,12 +91,33 @@ try {{
         run(second, 'recover', target)
         assert profile.read_text(encoding='utf-8') == original_profile
         assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == expected
+        # A profile conflict must preserve user edits AND restore previous binaries.
+        run(first, 'path-stop', target)
+        conflicting_profile = profile.read_text(encoding='utf-8')+'# Concurrent edit\n'
+        profile.write_text(conflicting_profile, encoding='utf-8')
+        run(second, 'recover', target, ok=False)
+        assert profile.read_text(encoding='utf-8') == conflicting_profile
+        assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == expected
+        assert Path(str(target)+'.skrumi-transaction/journal.json').exists()
+        profile.write_text(original_profile, encoding='utf-8')  # explicit conflict resolution
+        run(second, 'recover', target)
         path_target = root/'PATH installation'
         run(first, 'path-install', path_target)
         assert '# Skrumi PATH ' in profile.read_text(encoding='utf-8')
         profile.write_text(profile.read_text(encoding='utf-8')+'# Keep later edits\n', encoding='utf-8')
         run(first, 'uninstall', path_target)
         assert profile.read_text(encoding='utf-8') == original_profile+'# Keep later edits\n'
+    # Crash before the first journal write: only an empty area may be removed.
+    area = Path(str(target)+'.skrumi-transaction')
+    area.mkdir(mode=0o700)
+    run(first, 'recover', target)
+    assert not area.exists()
+    area.mkdir(mode=0o700)
+    (area/'unknown.txt').write_text('preserve')
+    run(first, 'recover', target, ok=False)
+    assert (area/'unknown.txt').read_text() == 'preserve'
+    (area/'unknown.txt').unlink(); area.rmdir()
+    assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == expected
     # A damaged payload is rejected, with the old installation unchanged.
     corrupt = build('corrupt', corrupt=True)
     run(corrupt, 'install', target, ok=False)

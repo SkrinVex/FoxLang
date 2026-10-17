@@ -180,6 +180,16 @@ jobs:
           python packaging/build_gui_installer.py --runtime "$BIN_DIR/skrumi$SUFFIX" --lsp "$BIN_DIR/skrumi-lsp$SUFFIX" --output "installer-dist/$ASSET"
           python tests/installer/test_distribution.py "installer-dist/$ASSET" "$(tr -d '[:space:]' < VERSION)"
 
+      - name: Verify real disk exhaustion and denied publication on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          TEST_VOLUME="$RUNNER_TEMP/skrumi-installer-test-volume"
+          mkdir -p "$TEST_VOLUME"
+          sudo mount -t tmpfs -o "size=96m,uid=$(id -u),gid=$(id -g),mode=0700" tmpfs "$TEST_VOLUME"
+          trap 'sudo umount "$TEST_VOLUME"' EXIT
+          python tests/installer/test_disk_full.py installer-dist/Skrumi-linux-x86_64.run "$TEST_VOLUME"
+
       - uses: actions/upload-artifact@v4
         with:
           name: gui-installer-candidate-${{ matrix.name }}
