@@ -77,19 +77,29 @@ struct Child {
     pid_t pid = -1;
     Descriptor outRead, errRead;
 #endif
-    void stop() noexcept {
+    bool stop(bool checked = false) {
+        int error = 0;
 #ifdef _WIN32
-        if (job.value) TerminateJobObject(job.value, 125);
+        if (job.value && !TerminateJobObject(job.value, 125)) error = static_cast<int>(GetLastError());
 #else
-        if (pid > 0) kill(-pid, SIGKILL);
+        if (pid > 0) {
+            if (kill(-pid, SIGKILL) < 0 && errno != ESRCH) error = errno;
+            // The owned leader may have moved out of its original process group.
+            // Signal only its still-reserved PID, never its new (possibly shared) group.
+            if (kill(pid, SIGKILL) < 0 && errno != ESRCH) error = errno;
+        }
 #endif
+        if (error && checked) processError("terminate process", error);
+        return error == 0;
     }
     ~Child() {
-        stop();
+        // Disposal cannot throw. If the OS refused termination, do not turn
+        // cleanup into an unbounded wait for a process we cannot control.
+        bool stopped = stop();
 #ifdef _WIN32
-        if (process.value) WaitForSingleObject(process.value, INFINITE);
+        if (stopped && process.value) WaitForSingleObject(process.value, INFINITE);
 #else
-        if (pid > 0 && !done) { int status; while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {} }
+        if (stopped && pid > 0 && !done) { int status; while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {} }
 #endif
     }
     void append(std::string& target, const char* data, size_t count) {
@@ -136,18 +146,32 @@ struct Child {
             code = static_cast<int>(exitCode); done = true;
         }
 #else
-        int status = 0;
-        pid_t result = waitpid(pid, &status, WNOHANG);
-        if (result < 0 && errno != EINTR) processError("wait", errno);
-        if (result == pid) { code = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status); done = true; }
+        siginfo_t information{};
+        if (waitid(P_PID, pid, &information, WEXITED | WNOHANG | WNOWAIT) < 0) {
+            int error = errno;
+            if (error == ECHILD) pid = -1; // Another reaper took ownership; never signal this ID again.
+            if (error != EINTR) processError("wait", error);
+        } else if (information.si_pid == pid) {
+            // Keep the exited leader waitable while stopping its descendants.
+            // Reaping first would permit its PID/PGID to be reused before kill().
+            stop(true);
+            int status = 0;
+            pid_t result;
+            do { result = waitpid(pid, &status, 0); } while (result < 0 && errno == EINTR);
+            int error = errno;
+            pid = -1;
+            if (result < 0) processError("reap", error);
+            code = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
+            done = true;
+        }
 #endif
         if (done) {
-            stop(); drain();
+            stop(true); drain();
 #ifndef _WIN32
             pid = -1; // Never signal a potentially reused PID after this group was reaped.
 #endif
         }
-        else if (std::chrono::steady_clock::now() >= deadline) { timedOut = !cancelled; stop(); }
+        else if (std::chrono::steady_clock::now() >= deadline) { timedOut = !cancelled; stop(true); }
         return done;
     }
 };
@@ -258,7 +282,7 @@ Value operation(Call& c) {
     }
     auto& value = child(c);
     if (c.spec.name == "process_poll") return boolean(value.poll());
-    if (c.spec.name == "process_cancel") { if (!value.poll()) { value.cancelled = true; value.stop(); } return nothing(); }
+    if (c.spec.name == "process_cancel") { if (!value.poll()) { value.stop(true); value.cancelled = true; } return nothing(); }
     if (c.spec.name == "process_release") {
         if (!value.poll()) throw std::runtime_error("Process Error: cancel and await completion before release");
         table(c).children.erase(static_cast<int>(c.integer(0))); return nothing();

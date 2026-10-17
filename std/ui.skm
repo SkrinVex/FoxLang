@@ -276,8 +276,8 @@ void ui_progress_bar(int x, int y, int width, int height, float value, float min
     gfx_rect(x, y, width, height, UI_BORDER);
     gfx_rect(x + 1, y + 1, width - 2, height - 2, UI_TRACK);
     gfx_rect(x + 1, y + 1, to_int((width - 2) * fraction), height - 2, UI_ACCENT);
-    if (percent && height >= 11) {
-        string label = to_string(to_int(fraction * 100)) + "%";
+    string label = to_string(to_int(fraction * 100)) + "%";
+    if (percent && height >= ui_text_height() + 4 && width >= ui_text_width(label) + 4) {
         ui_draw_text(x + (width - ui_text_width(label)) / 2, y + (height - ui_text_height()) / 2, label, UI_TEXT);
     }
 }

@@ -54,10 +54,12 @@ bool setup_uninstall = setup_maintenance || setup_remove_requested;
 bool setup_path = true;
 bool setup_lsp = true;
 string setup_error = "";
+bool setup_error_dialog = false;
 int setup_scroll = 0;
 void setup_failure(string error) {
-    setup_error = error;
-    try { tx_cancel(); } catch (string recovery_error) { setup_error += "\nRecovery required: " + recovery_error; }
+    setup_error = error; setup_error_dialog = true;
+    tx_note("Error: " + error);
+    try { tx_cancel(); } catch (string recovery_error) { setup_error += "\nRecovery required: " + recovery_error; tx_note("Recovery required: " + recovery_error); }
     tx_release(); setup_running = false; setup_screen = 2;
 }
 // Layout uses logical coordinates; all drawing and hit-testing share this transform.
@@ -91,7 +93,7 @@ set_window_size(round(800 * setup_initial_scale), round(580 * setup_initial_scal
 set_window_resizable(true);
 intercept_window_close(true);
 try { setup_recovery_confirm = fs_exists_checked(path_absolute(setup_target) + ".skrumi-transaction"); }
-catch (string error) { setup_error = error; }
+catch (string error) { setup_error = error; setup_error_dialog = true; }
 while (window_poll()) {
     if (window_width() < 480 || window_height() < 348) {
         set_window_size(max(480, window_width()), max(348, window_height()));
@@ -131,7 +133,7 @@ while (window_poll()) {
         setup_text(48, 390, "User projects and modified files are preserved.", 14, UI_MUTED);
         if (setup_button("recover", 48, 426, 204, 32, "Recover interrupted setup")) {
             try { tx_recover(setup_target); setup_error = ""; }
-            catch (string error) { setup_error = error; tx_release(); }
+            catch (string error) { setup_error = error; setup_error_dialog = true; tx_release(); }
         }
         if (setup_error != "") { setup_text(48, 476, setup_error, 14, rgb(190, 40, 40)); }
         if (!setup_maintenance && setup_button("back", 462, 536, 144, 30, "Back")) { setup_screen = 0; }
@@ -170,9 +172,9 @@ while (window_poll()) {
             catch (string error) { setup_failure(error); }
         }
     }
-    if (setup_error != "" && setup_screen == 2 && !setup_confirm) {
+    if (setup_error_dialog && !setup_confirm) {
         string error_answer = ui_dialog("error", "Setup error", setup_error, "error");
-        if (error_answer != "pending") { setup_screen = 1; }
+        if (error_answer != "pending") { setup_error_dialog = false; setup_screen = 1; }
     }
     if (tx_warning != "" && !setup_confirm && setup_error == "") {
         string warning_answer = ui_dialog("cleanup-warning", "Installation completed", tx_warning, "info");
@@ -182,7 +184,7 @@ while (window_poll()) {
         string recovery_answer = ui_dialog("recovery", "Interrupted installation", "An unfinished transaction was found. Restore the previous installation before continuing?", "confirm");
         if (recovery_answer == "yes") {
             try { tx_recover(setup_target); setup_error = ""; setup_screen = 1; }
-            catch (string error) { setup_error = error; tx_release(); setup_screen = 1; }
+            catch (string error) { setup_error = error; setup_error_dialog = true; tx_release(); setup_screen = 1; }
             setup_recovery_confirm = false;
         } else if (recovery_answer == "no" || recovery_answer == "cancel") { setup_recovery_confirm = false; }
     }

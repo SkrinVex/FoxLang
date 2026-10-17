@@ -1,5 +1,6 @@
 """Run the real offline GUI installer with no preinstalled Skrumi in its directory."""
 import os
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -19,7 +20,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
     root = Path(temporary)
     app = root/('setup.exe' if os.name == 'nt' else 'setup')
     subprocess.run([sys.executable, str(repo/'packaging/build_gui_installer.py'), '--runtime', str(binary), '--lsp', str(lsp), '--output', str(app)], check=True)
-    target = root/'installed'
+    target = root/('Установка Skrumi' if os.name == 'nt' else 'installed with spaces')
     process = subprocess.Popen([str(app)], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     window = NativeWindow('Skrumi Setup '+version)
     def wait_until(predicate, seconds=15):
@@ -55,9 +56,9 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         window.resize(800, 580); time.sleep(.2)
         wait_until(lambda: window.pixel(630,540) == 0xef7b35)
         # OS close request, No, repeated OS request, Cancel: the setup remains usable.
-        window.close_window(); time.sleep(.15); click(400,370)
+        window.close_window(); wait_until(lambda: window.pixel(145,185) == 0xef7b35); click(400,370)
         assert process.poll() is None
-        window.close_window(); time.sleep(.15); click(570,370)
+        window.close_window(); wait_until(lambda: window.pixel(145,185) == 0xef7b35); click(570,370)
         assert process.poll() is None
         click(700,550)
         click(200,236)
@@ -65,6 +66,12 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         window.type_text(str(target))
         time.sleep(.15)
         screenshot('options')
+        # Recovery errors from the options page must be readable in a full dialog,
+        # rather than only a long clipped status line.
+        click(130,442)
+        wait_until(lambda: window.pixel(145,185) == 0xef7b35)
+        screenshot('recovery-error')
+        click(608,372)
         # Isolate the GUI test from the runner's actual PATH. Dedicated API tests cover PATH.
         click(54,364)
         # A pre-journal crash must be offered for recovery, not silently ignored.
@@ -103,10 +110,20 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         window.mouse(700,550); time.sleep(.02); window.mouse(700,550,True)
         time.sleep(.02); window.mouse(700,550,False)
         wait_until(lambda: transaction_area.exists())
-        window.close_window(); time.sleep(.15)
+        window.close_window()
+        # A close request may arrive during an indivisible filesystem operation.
+        # Wait for the rendered confirmation and registered modal hit regions.
+        wait_until(lambda: window.pixel(145,185) == 0xef7b35)
         screenshot('cancel-update')
         window.mouse(220,370); time.sleep(.05); window.mouse(220,370,True)
-        output, errors = process.communicate(timeout=15)
+        try:
+            output, errors = process.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            screenshot('cancel-timeout')
+            journal = transaction_area/'journal.json'
+            phase = json.loads(journal.read_text(encoding='utf-8'))[2] if journal.exists() else 'no journal'
+            print('Cancellation did not exit; transaction phase:', phase, flush=True)
+            raise
         assert process.returncode == 0, (output, errors)
         assert not transaction_area.exists()
         assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == baseline

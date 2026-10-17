@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
+import signal
 
 binary = str(Path(sys.argv[1]).resolve())
 q = lambda x: json.dumps(str(x), ensure_ascii=False)
@@ -23,6 +25,14 @@ if sys.argv[1] == 'flood':
     for i in range(300):
         os.write(1, b'o'*65536)
         os.write(2, b'e'*65536)
+if sys.argv[1] == 'escape':
+    os.setpgid(0, os.getpgid(os.getppid()))
+    time.sleep(30)
+if sys.argv[1] == 'tree':
+    import subprocess
+    child = subprocess.Popen([sys.executable, __file__, 'wait'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print(child.pid, flush=True)
+    sys.exit(9)
 if sys.argv[1] == 'wait':
     print('started', flush=True)
     time.sleep(30)
@@ -55,6 +65,35 @@ if sys.argv[1] == 'wait':
     assert r[4] and not r[3]
     p = run(f'array r = run_capture({program}, {args("flood")}, 10000); print(size(r[1])); print(size(r[2])); print(r[5]);')
     assert p.stdout.splitlines() == [str(16*1024*1024), str(16*1024*1024), 'true'], p.stdout
+    if sys.platform.startswith('linux'):
+        escaped = run(f'array r = run_capture({program}, {args("escape")}, 200); print(json_value(r));')
+        assert json.loads(escaped.stdout)[3], 'timeout must stop the owned leader even after a group change'
+        # An exited leader must retain its actual exit status while its still-live
+        # descendants are stopped; releasing the handle must not signal a reused PID.
+        p = run(f'array r = run_capture({program}, {args("tree")}, 5000); print(json_value(r));')
+        result = json.loads(p.stdout)
+        assert result[0] == 9, result
+        descendant = int(result[1].strip())
+        status_path = Path(f'/proc/{descendant}/status')
+        deadline = time.monotonic() + 5
+        try:
+            while status_path.exists():
+                try:
+                    status = status_path.read_text()
+                except FileNotFoundError:
+                    break
+                if any(line.startswith('State:') and 'Z' in line for line in status.splitlines()):
+                    break  # Dead, awaiting the host's orphan reaper.
+                assert time.monotonic() < deadline, 'descendant survived its owned process group'
+                time.sleep(.02)
+        finally:
+            try:
+                command = Path(f'/proc/{descendant}/cmdline').read_bytes()
+                if os.fsencode(helper) in command: os.kill(descendant, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except FileNotFoundError:
+                pass
     run('process_start("/missing/skrumi-process", [], 1000);', False)
     invalid = root/('invalid.exe' if os.name == 'nt' else 'invalid')
     invalid.write_bytes(b'not an executable'); invalid.chmod(0o755)

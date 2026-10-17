@@ -674,12 +674,12 @@ print(double_it(21), upper("лиса"));   // 42 ЛИСА</pre>
         <table>
           <thead><tr><th>Область</th><th>Что можно</th><th>Как устроено</th></tr></thead>
           <tbody>
-            <tr><td>Файлы и система</td><td>читать, писать, права, копировать папки, запускать программы</td><td>стандартная библиотека C++ и системные вызовы</td></tr>
+            <tr><td>Файлы и система</td><td>проверяемые файловые операции, SHA-256, архивы, PATH, запуск программ без shell</td><td>стандартная библиотека C++ и системные вызовы</td></tr>
             <tr><td>Сеть</td><td>HTTP и HTTPS, TCP, DNS</td><td>встроенные библиотеки curl и mbedTLS</td></tr>
             <tr><td>Веб-сервер</td><td>маршруты <code>/users/:id</code>, файлы, шаблоны, формы, cookies, HTTPS</td><td>свой сервер внутри <code>skrumi</code></td></tr>
             <tr><td>JSON</td><td>текст в словари и массивы и обратно</td><td><code>json_decode</code>, <code>json_value</code></td></tr>
             <tr><td>Графика</td><td>окно, фигуры, текст, картинки PNG, мышь, клавиатура</td><td>X11 на Linux, Win32 на Windows, FoxView на Android</td></tr>
-            <tr><td>Интерфейс</td><td>кнопки, поля ввода, модальные окна, прокрутка</td><td>модуль <code>ui</code></td></tr>
+            <tr><td>Интерфейс</td><td>кнопки, поля, прогресс, диалоги, темы, прокрутка и управляемое закрытие</td><td>модуль <code>ui</code></td></tr>
             <tr><td>Звук</td><td>WAV-файлы и тоны</td><td>PlaySound на Windows, pw-play или aplay на Linux, MediaPlayer на Android</td></tr>
           </tbody>
         </table>
@@ -911,7 +911,7 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
       <ul class="plain">
         <li><strong>Сборка.</strong> CMake собирает исходники C++ в две программы: <code>skrumi</code> и <code>skrumi-lsp</code>.</li>
         <li><strong>Тесты.</strong> 136 проверок CTest на Linux: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши. Windows запускает свой набор CTest без Linux shell-интеграций. Android instrumentation и проверки WebAssembly, редактора и конструктора в браузере запускаются отдельно и в это число не входят.</li>
-        <li><strong>Релизы.</strong> Когда меняется <code>VERSION</code> и изменения попадают в ветку <code>master</code>, GitHub сам собирает версии для Linux, Windows и Android, запускает проверки платформ и публикует релиз с архивами и расширениями для редакторов.</li>
+        <li><strong>Релизы.</strong> Когда меняется <code>VERSION</code> и изменения попадают в ветку <code>master</code>, GitHub сам собирает версии для Linux, Windows и Android, запускает проверки платформ и публикует проверенные графические установщики, Android SDK/APK и расширения редакторов. Архивы с языком больше не входят в новые релизы.</li>
       </ul>
     </section>
 

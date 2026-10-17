@@ -35,7 +35,7 @@ detach vdisk
 exit
 "@ | Set-Content -Encoding ASCII -Path $script
     & diskpart /s $script
-    # Do not recursively delete the mount directory: detach failure must never
+    # Do not recursively delete the test volume: detach failure must never
     # turn cleanup into deletion of an attached filesystem.
     if (Test-Path $disk) { Remove-Item -LiteralPath $disk -Force }
     Remove-Item -LiteralPath $script -Force

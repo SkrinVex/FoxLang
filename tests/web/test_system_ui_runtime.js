@@ -16,6 +16,12 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
         assert.deepEqual(at(180, 25), [236, 239, 243, 255]);
         assert.deepEqual(at(200, 144), [239, 123, 53, 255]);
         assert.deepEqual(at(20, 160), [200, 206, 216, 255]);
+        // Large percentage text must not escape a short or narrow progress bar.
+        for (let y = 60; y < 123; y++) for (let x = 280; x < 400; x++) {
+          const inBar = (x >= 300 && x < 340 && y >= 80 && y < 92) ||
+                        (x >= 360 && x < 376 && y >= 80 && y < 120);
+          if (!inBar) assert.deepEqual(at(x, y), [255, 255, 255, 255]);
+        }
         let smoothPixels = 0;
         for (let y = 80; y < 110; y++) for (let x = 20; x < 180; x++) {
           const pixel = at(x, y);
@@ -79,6 +85,10 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
         frame++;
         clear_window(UI_PANEL);
         ui_progress_bar(20, 20, 202, 20, 50, 0, 100, false);
+        ui_set_font(font, 20);
+        ui_progress_bar(300, 80, 40, 12, 100, 0, 100, true);
+        ui_progress_bar(360, 80, 16, 40, 100, 0, 100, true);
+        ui_set_font(0, 14);
         ui_text_field_box("sized", 20, 125, 160, 40, "text", "placeholder");
         ui_checkbox_box("check", 190, 125, 28, "label", true);
         draw_font_text(font, 20, 80, "Skrumi Ж", 20, rgb(0, 0, 0));
