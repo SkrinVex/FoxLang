@@ -1,10 +1,12 @@
 name: Build and Auto Release Skrumi
 
 on:
-  # Retry a failed release manually or after a Windows installer fix without
-  # changing VERSION. The version job skips releases whose tag already exists.
   workflow_dispatch:
     inputs:
+      publish:
+        description: Publish a verified release (master only; false builds a candidate)
+        type: boolean
+        default: false
       allow_slower:
         description: Release even if the benchmarks got slower (a deliberate trade-off)
         type: boolean
@@ -13,13 +15,12 @@ on:
     branches: [master]
     paths:
       - VERSION
-      - 'packaging/windows/**'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: foxlang-release
+  group: skrumi-release
   cancel-in-progress: false
 
 jobs:
@@ -28,193 +29,134 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
-      exists: ${{ steps.version.outputs.exists }}
+      publish: ${{ steps.version.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - id: version
-        shell: bash
+        env:
+          REQUEST_PUBLISH: ${{ github.event_name == 'push' || inputs.publish }}
         run: |
           VERSION="$(tr -d '[:space:]' < VERSION)"
-          TAG="v$VERSION"
-          test -n "$VERSION"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          if git rev-parse "$TAG" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$REQUEST_PUBLISH" = true ]; then
+            test "$GITHUB_REF" = refs/heads/master
+            if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+              echo 'This version already has a tag; refusing to overwrite it.' >&2
+              exit 1
+            fi
           fi
+          echo "publish=$REQUEST_PUBLISH" >> "$GITHUB_OUTPUT"
 
-      - name: Install Linux graphics development packages
-        run: sudo apt-get update && sudo apt-get install -y libxcb1-dev libxau-dev libxdmcp-dev
-
-      - name: Verify source version
-        run: |
-          cmake -B build-check -S . -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-check --config Release
-          test "$(./build-check/skrumi --version)" = "Skrumi ${{ steps.version.outputs.version }}"
-          test "$(./build-check/skrumi-lsp --version)" = "skrumi-lsp ${{ steps.version.outputs.version }}"
-
-  build-linux:
+  # Release artifacts are exactly the candidates exercised by the ordinary CI.
+  validated-builds:
     needs: version
-    if: needs.version.outputs.exists == 'false'
+    uses: ./.github/workflows/ci.yml
+
+  build-android:
+    needs: version
+    uses: ./.github/workflows/android.yml
+    with:
+      artifact-name: android-release
+
+  editors:
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Install native-window test dependencies
-        run: sudo apt-get update && sudo apt-get install -y xvfb libx11-6
-      - name: Build Linux binary and run tests
-        run: |
-          docker buildx build --target portable --output type=local,dest=build-portable .
-          xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/skrumi
-          cp build-portable/skrumi skrumi.bin
-          cp build-portable/skrumi-lsp skrumi-lsp.bin
-      - name: Build installable Linux package and editor assets
-        shell: bash
-        run: |
-          PKG="Skrumi-${{ needs.version.outputs.version }}-linux-x86_64"
-          mkdir -p "$PKG" dist-editors
-          cp skrumi.bin "$PKG/skrumi.bin"
-          cp skrumi-lsp.bin "$PKG/skrumi-lsp.bin"
-          cp VERSION "$PKG/VERSION"
-          cp packaging/linux/install.sh "$PKG/install.sh"
-          chmod +x "$PKG/install.sh" "$PKG/skrumi.bin" "$PKG/skrumi-lsp.bin"
-          cp -R std "$PKG/std"
-          cp -R editors "$PKG/editors"
-
-          # The VS Code package goes into the Linux package for install.sh and, once, into
-          # the release under a fixed name so releases/latest/download/foxlang.vsix works.
+      - run: |
+          mkdir -p dist-editors
           python3 packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" dist-editors/skrumi.vsix
-          cp dist-editors/skrumi.vsix "$PKG/skrumi-${{ needs.version.outputs.version }}.vsix"
-
-          tar -czf "$PKG.tar.gz" "$PKG"
-
-          cp editors/kate/foxlang.xml dist-editors/foxlang.xml
-          cp editors/kate/foxlang.xml dist-editors/skrumi.xml
           cp dist-editors/skrumi.vsix dist-editors/foxlang.vsix
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-release
-          path: Skrumi-*-linux-x86_64.tar.gz
+          cp editors/kate/foxlang.xml dist-editors/skrumi.xml
+          cp editors/kate/foxlang.xml dist-editors/foxlang.xml
       - uses: actions/upload-artifact@v4
         with:
           name: editors-release
-          path: |
-            dist-editors/*
+          path: dist-editors/*
+          if-no-files-found: error
 
-  build-windows:
-    needs: version
-    if: needs.version.outputs.exists == 'false'
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build Windows binary and run tests
-        shell: bash
-        run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --config Release
-          ctest --test-dir build -C Release --output-on-failure
-          mkdir -p dist
-          if [ -f "./build/Release/skrumi.exe" ]; then
-            cp ./build/Release/skrumi.exe dist/skrumi.exe
-            cp ./build/Release/skrumi-lsp.exe dist/skrumi-lsp.exe
-          else
-            cp ./build/skrumi.exe dist/skrumi.exe
-            cp ./build/skrumi-lsp.exe dist/skrumi-lsp.exe
-          fi
-          cp dist/skrumi.exe dist/foxlang.exe
-          cp dist/skrumi-lsp.exe dist/foxlang-lsp.exe
-          cp -R std dist/std
-          cp -R editors dist/editors
-          cp VERSION dist/VERSION
-          cp packaging/windows/install.ps1 dist/install.ps1
-          cp packaging/windows/install.cmd dist/install.cmd
-          cp packaging/windows/uninstall.ps1 dist/uninstall.ps1
-          cp packaging/windows/uninstall.cmd dist/uninstall.cmd
-          # Vendored Windows dependencies are linked statically; include any DLLs emitted beside the binaries.
-          for dll_dir in build build/Release; do
-            if [ -d "$dll_dir" ]; then
-              find "$dll_dir" -maxdepth 1 -type f -iname '*.dll' -exec cp -t dist {} +
-            fi
-          done
-          python packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" "dist/skrumi-${{ needs.version.outputs.version }}.vsix"
-      - name: Test packaged CMD launchers with Windows PowerShell 5.1
-        shell: powershell
-        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist
-      - name: Test packaged scripts with PowerShell 7
-        shell: pwsh
-        run: ./packaging/windows/test_install.ps1 -PackageDir ./dist -Direct
-      - shell: pwsh
-        run: Compress-Archive -Path dist/* -DestinationPath "Skrumi-${{ needs.version.outputs.version }}-windows-x86_64.zip"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-release
-          path: Skrumi-*-windows-x86_64.zip
-
-  # The release waits for this: the new build against the last release on the same
-  # machine, and the same programs in other languages for the site's comparison.
   benchmarks:
-    needs: [version, build-linux]
-    if: needs.version.outputs.exists == 'false'
+    needs: [version, validated-builds]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: linux-release
+          name: linux-runtime
           path: new
       - name: Install the languages compared
         run: sudo apt-get update && sudo apt-get install -y lua5.4 ruby
-      - name: Download the previous release
+      - name: Download and prepare the previous release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p old
-          if gh release download --repo "$GITHUB_REPOSITORY" --pattern '*-linux-x86_64.tar.gz' --dir old; then
-            tar -xzf old/*.tar.gz -C old
-          else
-            echo "No previous release: nothing to compare with."
-          fi
+        run: python3 packaging/prepare_benchmark_baseline.py old
       - name: Run benchmarks
-        shell: bash
+        env:
+          ALLOW_SLOWER: ${{ inputs.allow_slower }}
         run: |
-          tar -xzf new/*.tar.gz -C new
-          NEW="$(echo new/Skrumi-*/skrumi.bin)"
-          OLD="$(ls old/*/skrumi.bin old/*/foxlang.bin 2>/dev/null || true)"
-          python3 benchmarks/run.py --foxlang "$NEW" ${OLD:+--baseline "$OLD"} \
-            --require python --require lua --require ruby --require javascript \
-            --json benchmarks.json ${{ inputs.allow_slower && '--max-slowdown 1000' || '' }}
+          chmod +x new/skrumi
+          ARGS=()
+          if [ -f old/baseline-path ]; then ARGS+=(--baseline "$(cat old/baseline-path)"); fi
+          if [ "$ALLOW_SLOWER" = true ]; then ARGS+=(--max-slowdown 1000); fi
+          python3 benchmarks/run.py --foxlang new/skrumi "${ARGS[@]}" \
+            --require python --require lua --require ruby --require javascript --json benchmarks.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: benchmarks-release
           path: benchmarks.json
+          if-no-files-found: error
 
-  build-android:
-    needs: version
-    if: needs.version.outputs.exists == 'false'
-    uses: ./.github/workflows/android.yml
-    with:
-      artifact-name: android-release
+  assemble:
+    needs: [version, validated-builds, build-android, editors, benchmarks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: gui-installer-candidate-*
+          merge-multiple: true
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-release
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: editors-release
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: benchmarks-release
+          path: dist
+      - name: Check the complete public asset inventory
+        run: python3 packaging/verify_release_assets.py dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release
+          path: dist/*
+          if-no-files-found: error
 
   release:
-    needs: [version, build-linux, build-windows, build-android, benchmarks]
-    if: needs.version.outputs.exists == 'false'
+    needs: [version, assemble]
+    if: needs.version.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
-          pattern: "*-release"
-          merge-multiple: true
+          name: verified-release
           path: dist
-
+      - name: Recheck the public asset inventory
+        run: python3 packaging/verify_release_assets.py dist
       - name: Create version tag
         env:
           TAG: ${{ needs.version.outputs.tag }}
@@ -223,7 +165,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" "$GITHUB_SHA" -m "Skrumi ${TAG#v}"
           git push origin "$TAG"
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -231,4 +172,5 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Skrumi ${{ needs.version.outputs.version }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: dist/*

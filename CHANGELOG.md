@@ -1,4 +1,4 @@
-## Unreleased — Skrumi identity and FoxLang compatibility
+## Skrumi 8.18.0 — GUI installer and public system/UI APIs
 
 - Make updated stdlib implementations canonical `.skm` sources with checked `.fox`
   compatibility adapters and one module identity. Prefer `.skm` in modern importers;
@@ -20,8 +20,16 @@
   ownership-aware update/uninstall, rollback, recovery, real progress and CLI checks.
 - Add public process capture/cancellation, user-directory and persistent PATH plans,
   file locks, USTAR extraction, image decoding from memory, and Ctrl+A/X field editing.
-- The installer remains under validation; release migration is not complete. See
-  `docs/INSTALLER_IMPLEMENTATION_STATUS.md` for outstanding work and guarantees.
+- Add public HKCU string-value snapshot/compare-exchange APIs and journal Windows
+  uninstall registration in Skrumi. Include a standalone maintenance application.
+- Preserve user changes and import legacy Linux/Windows ownership manifests; support
+  optional LSP installation and durable commit/rollback recovery records.
+- Build the release from verified Windows and portable Linux GUI candidates, retain
+  Android SDK/APKs and editor assets, and stop publishing language ZIP/TAR packages.
+  A manual candidate build validates the release without creating tags or publishing.
+- Resolve website downloads against actual latest-release assets, with no dead GUI
+  links before the first release. The release candidate remains under validation;
+  see `docs/INSTALLER_IMPLEMENTATION_STATUS.md` for outstanding work.
 
 - Rename the public language, CLI and LSP to Skrumi, `skrumi` and `skrumi-lsp`.
 - Support `.skm` alongside `.fox` through the same runtime and tooling.

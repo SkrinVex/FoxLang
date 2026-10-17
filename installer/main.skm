@@ -140,6 +140,10 @@ while (window_poll()) {
         string error_answer = ui_dialog("error", "Setup error", setup_error, "error");
         if (error_answer != "pending") { setup_screen = 1; }
     }
+    if (tx_warning != "" && !setup_confirm && setup_error == "") {
+        string warning_answer = ui_dialog("cleanup-warning", "Installation completed", tx_warning, "info");
+        if (warning_answer != "pending") { tx_warning = ""; }
+    }
     if (setup_recovery_confirm && !setup_confirm) {
         string recovery_answer = ui_dialog("recovery", "Interrupted installation", "An unfinished transaction was found. Restore the previous installation before continuing?", "confirm");
         if (recovery_answer == "yes") {

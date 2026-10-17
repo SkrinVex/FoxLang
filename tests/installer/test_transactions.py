@@ -33,6 +33,14 @@ try {{
             while (tx_phase != "integrated") {{ tx_step(); wait(1); }}
             tx_release(); exit(0);
         }}
+        if (a[0] == "cleanup-conflict") {{
+            while (tx_phase != "integrated") {{ tx_step(); wait(1); }}
+            fs_write_atomic(path_safe_join(tx_area, "new/user-data"), "preserve unknown data");
+        }}
+        if (a[0] == "commit-denied") {{
+            while (tx_phase != "integrated") {{ tx_step(); wait(1); }}
+            if (!fs_set_permissions(tx_area, "500")) {{ fail("cannot protect journal fixture"); }}
+        }}
         if (a[0] == "registry-conflict") {{
             while (tx_phase != "verifying") {{ tx_step(); }}
             array record = tx_registration[1];
@@ -42,6 +50,7 @@ try {{
             for (int i = 0; i < to_int(a[2]); i++) {{ tx_step(); }}
             if (a[0] == "cancel") {{ tx_cancel(); }}
         }} else {{ while (!tx_step()) {{ wait(1); }} }}
+        if (tx_warning != "") {{ print(tx_warning); }}
     }}
 }} catch (string error) {{
     print(error);
@@ -157,6 +166,37 @@ try {{
     assert (area/'unknown.txt').read_text() == 'preserve'
     (area/'unknown.txt').unlink(); area.rmdir()
     assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == expected
+    if os.name != 'nt' and os.geteuid() != 0:
+        # Refusing a durable commit also refuses an unsafe undo without a durable
+        # rollback intent. Both versions survive until permissions are restored.
+        try:
+            run(first, 'commit-denied', target, ok=False)
+            assert (area/'journal.json').is_file()
+            assert any((area/'backup').iterdir())
+        finally:
+            if area.exists(): area.chmod(0o700)
+        run(second, 'recover', target)
+        assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == expected
+    # A post-commit cleanup conflict is reported without rolling back a verified
+    # installation or deleting the unknown file. Recovery retries that cleanup.
+    warning = run(first, 'cleanup-conflict', target)
+    assert 'Cleanup remains pending' in warning.stdout
+    assert (target/'data/tool.txt').read_text() == 'first'
+    assert (area/'new/user-data').read_text() == 'preserve unknown data'
+    run(first, 'recover', target, ok=False)
+    assert (area/'new/user-data').read_text() == 'preserve unknown data'
+    (area/'new/user-data').unlink()
+    run(first, 'recover', target)
+    assert not area.exists() and (target/'data/tool.txt').read_text() == 'first'
+    run(second, 'install', target)
+    assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == expected
+    # Invalid state must not become an active transaction in the caller's catch.
+    area.mkdir(mode=0o700)
+    invalid_journal = json.dumps([3, str(target), 'unknown-phase', [], version, 'install', [], []])
+    (area/'journal.json').write_text(invalid_journal, encoding='utf-8')
+    run(first, 'recover', target, ok=False)
+    assert (area/'journal.json').read_text(encoding='utf-8') == invalid_journal
+    (area/'journal.json').unlink(); area.rmdir()
     # A damaged payload is rejected, with the old installation unchanged.
     corrupt = build('corrupt', corrupt=True)
     run(corrupt, 'install', target, ok=False)

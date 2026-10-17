@@ -18,8 +18,27 @@ string registration_quote(string argument) {
     return result + "\"";
 }
 
+string registration_key(string root) {
+    return "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Skrumi-" + sha256_bytes(str_lower(str_replace(root, "/", "\\")));
+}
+void registration_validate(array records, string root) {
+    if (size(records) > 7 || size(records) > 0 && os_platform() != "windows") { fail("Invalid registration journal"); }
+    array names;
+    for (int i = 0; i < size(records); i++) {
+        array record = records[i];
+        if (size(record) != 4 || record[0] != registration_key(root)) { fail("Registration key is outside this installation"); }
+        string name = record[1];
+        if (name != "DisplayName" && name != "DisplayVersion" && name != "InstallLocation" && name != "Publisher" && name != "URLInfoAbout" && name != "UninstallString" && name != "QuietUninstallString") { fail("Unknown registration value"); }
+        for (int j = 0; j < size(names); j++) { if (names[j] == name) { fail("Duplicate registration value"); } }
+        if (size(record[2]) != 3 || size(record[3]) != 3) { fail("Invalid registration snapshot"); }
+        push(names, name);
+    }
+}
+
 // [changes for this transaction, ownership baseline for the installed manifest].
 array registration_plan(string root, string version, array owned, bool uninstall, bool enabled) {
+    registration_validate(owned, root);
+    if (size(owned) > 0 && !uninstall && !enabled) { fail("Cannot drop the registered maintenance component"); }
     if (os_platform() != "windows" || !enabled && !uninstall) { return [[], []]; }
     array changes; array installed;
     if (uninstall) {
@@ -33,7 +52,7 @@ array registration_plan(string root, string version, array owned, bool uninstall
         }
         return [changes, []];
     }
-    string key = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Skrumi-" + sha256_bytes(str_lower(str_replace(root, "/", "\\")));
+    string key = registration_key(root);
     string command = registration_quote(root + ".maintenance.exe");
     array values = [
         ["DisplayName", "Skrumi"], ["DisplayVersion", version], ["InstallLocation", root],

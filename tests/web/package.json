@@ -2,7 +2,7 @@
   "name": "foxlang-playground-tests",
   "private": true,
   "scripts": {
-    "test": "node test_builder_model.js && node test_editor.js && node test_builder.js && node test_theme.js"
+    "test": "node test_builder_model.js && node test_editor.js && node test_builder.js && node test_theme.js && node test_downloads.js"
   },
   "devDependencies": {
     "playwright": "1.58.2"
