@@ -2,6 +2,9 @@
 from pathlib import Path
 import re
 import subprocess
+import os
+import shutil
+import sys
 
 root = Path(__file__).resolve().parents[1]
 retired = re.compile(r'fox[ _-]?lang|\.fox', re.I)
@@ -14,7 +17,18 @@ allowed = {
     'tests/test_module_resolution.py': 'Negative fallback and collision regression fixtures.',
     'tests/test_android_packaging.py': 'Negative source staging regression fixtures.',
 }
-paths = subprocess.check_output(['git', 'ls-files', '--cached', '--others', '--exclude-standard'], cwd=root, text=True).splitlines()
+if (root / '.git').exists() and shutil.which('git') and '--source-tree' not in sys.argv:
+    paths = subprocess.check_output(['git', 'ls-files', '--cached', '--others', '--exclude-standard'], cwd=root, text=True).splitlines()
+else:
+    # Docker/source archives intentionally omit Git metadata and the Git executable.
+    # Exclude only generated/dependency trees; keep all product sources and .github.
+    paths = []
+    for directory, folders, files in os.walk(root):
+        folders[:] = [name for name in folders
+                      if name not in {'.git', 'node_modules', '__pycache__', '.gradle', '.cxx', 'target', 'build', 'dist'}
+                      and not name.startswith(('build-', 'dist-'))
+                      and not (Path(directory) == root and name == 'web')]
+        paths.extend((Path(directory) / name).relative_to(root).as_posix() for name in files)
 for name in sorted(set(paths)):
     path = root / name
     if not path.is_file(): continue
