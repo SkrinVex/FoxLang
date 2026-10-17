@@ -38,7 +38,7 @@ def build_vsix(source_dir, output_vsix, version):
     <Identity Id="{pkg_id}" Version="{pkg_version}" Language="en-US" Publisher="{pkg_publisher}"/>
     <DisplayName>{display_name}</DisplayName>
     <Description xml:space="preserve">{description}</Description>
-    <Tags>skrumi,fox,lsp,language server</Tags>
+    <Tags>skrumi,lsp,language server</Tags>
     <Categories>Programming Languages</Categories>
   </Metadata>
   <Installation>

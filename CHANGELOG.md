@@ -2,6 +2,8 @@
 
 - Source files now use `.skm` exclusively. Runtime file execution, CLI source
   tools, imports, standalone collection and Android staging reject retired formats.
+- Unresolved imports now produce errors in CLI checks and LSP diagnostics,
+  so an unavailable dependency cannot pass a source check as a warning.
 - Removed caller-extension-dependent import selection, extension fallback and
   standard-library alias canonicalization. Standard precedence, relative paths,
   canonical module identity and cycle handling remain shared by runtime and tools.

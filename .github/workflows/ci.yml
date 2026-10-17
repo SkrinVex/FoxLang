@@ -11,6 +11,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  editor-packages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit editor identities and package VS Code
+        run: |
+          python3 tests/test_brand_audit.py
+          python3 packaging/package_vsix.py editors/vscode "$(cat VERSION)" skrumi.vsix
+      - name: Compile Zed extension with its locked dependencies
+        run: |
+          rustup target add wasm32-wasip1
+          cargo build --locked --release --target wasm32-wasip1 --manifest-path editors/zed/Cargo.toml
+
   playground-ui:
     runs-on: ubuntu-latest
     timeout-minutes: 10

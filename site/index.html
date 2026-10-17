@@ -1361,12 +1361,12 @@ print(square(4));</pre>
     });
   }
 
-  var BG = 0x14182a, GROUND = 0x3c8c3c, FOX = 0xff8c00, SUN = 0xffd24a, WHITE = 0xffffff;
+  var BG = 0x14182a, GROUND = 0x3c8c3c, ACCENT = 0xff8c00, SUN = 0xffd24a, WHITE = 0xffffff;
   var steps = [
     function () { pixels.fill(BG); return "clear_window(" + rgbText(BG) + ");"; },
     function () { rect(0, 30, 64, 10, GROUND); return "draw_rect(0, 30, 64, 10, " + rgbText(GROUND) + ");"; },
     function () { circle(50, 10, 6, SUN); return "draw_circle(50, 10, 6, " + rgbText(SUN) + ");"; },
-    function () { line(2, 29, 30, 18, FOX); return "draw_line(2, 29, 30, 18, " + rgbText(FOX) + ");"; },
+    function () { line(2, 29, 30, 18, ACCENT); return "draw_line(2, 29, 30, 18, " + rgbText(ACCENT) + ");"; },
     function () { var t = frameInput.value || " "; text(3, 3, t, WHITE); return 'draw_text(3, 3, "' + t + '", 1, rgb(255, 255, 255));'; },
     function () { presented = true; return "present_window(); // кадр ушёл в окно"; }
   ];
@@ -1457,9 +1457,9 @@ print(square(4));</pre>
     if (t === null) return "лимит";
     return (t < 0.1 ? t.toFixed(3) : t.toFixed(2)).replace(".", ",") + " с";
   }
-  function bar(name, value, max, color, isFox) {
+  function bar(name, value, max, color, isSkrumi) {
     var row = document.createElement("div");
-    row.className = "bar" + (isFox ? " is-skrumi" : "");
+    row.className = "bar" + (isSkrumi ? " is-skrumi" : "");
     var label = document.createElement("span"); label.className = "bar-name"; label.textContent = name;
     var track = document.createElement("span"); track.className = "bar-track";
     var fill = document.createElement("span"); fill.className = "bar-fill";

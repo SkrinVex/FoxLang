@@ -372,12 +372,12 @@ int main() {
         TEST_ASSERT(mentions(wrong, "'Color' is a constant and cannot be changed"));
     }
 
-    // 17. Unknown modules are reported as warnings
+    // 17. Unresolved imports are errors, including removed source formats
     {
         skrumi::SemanticAnalyzer analyzer;
         analyze("using definitely_missing_module;", analyzer);
         TEST_ASSERT(analyzer.getDiagnostics().size() == 1);
-        TEST_ASSERT(analyzer.getDiagnostics()[0].severity == skrumi::DiagnosticSeverity::Warning);
+        TEST_ASSERT(analyzer.getDiagnostics()[0].severity == skrumi::DiagnosticSeverity::Error);
     }
 
     // 18. Every standard module describes itself

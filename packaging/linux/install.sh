@@ -188,7 +188,7 @@ if [ -d "$HOME/.config/zed" ]; then
     }
   },
   "file_types": {
-    "C": ["skm", "fox"]
+    "C": ["skm"]
   }
 }
 ZED_EOF

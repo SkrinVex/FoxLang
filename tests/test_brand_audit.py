@@ -28,3 +28,15 @@ for name in sorted(set(paths)):
             assert not retired.search(text.split('## History')[0])
         print(f'{name}: {len(matches)} matches — {allowed[name]}')
 print('BRAND_AUDIT_OK')
+
+# Association metadata is executable configuration, not just display branding.
+import json
+import tomllib
+import xml.etree.ElementTree as ET
+vscode = json.loads((root / 'editors/vscode/package.json').read_text())
+assert vscode['name'] == 'skrumi-language'
+assert [(x['id'], x['extensions']) for x in vscode['contributes']['languages']] == [('skrumi', ['.skm'])]
+zed = tomllib.loads((root / 'editors/zed/languages/skrumi/config.toml').read_text())
+assert zed['name'] == 'Skrumi' and zed['path_suffixes'] == ['skm']
+kate = ET.fromstring((root / 'editors/kate/skrumi.xml').read_text())
+assert kate.attrib['extensions'] == '*.skm'
