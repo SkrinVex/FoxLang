@@ -1,5 +1,8 @@
 ## Skrumi 8.18.0 — GUI installer and public system/UI APIs
 
+- Add installation directory presets and per-user discovery/locking to prevent
+  duplicate managed installations; reuse the existing directory for updates.
+
 - Make updated stdlib implementations canonical `.skm` sources with checked `.fox`
   compatibility adapters and one module identity. Prefer `.skm` in modern importers;
   preserve `.fox` precedence inside legacy importing files.
@@ -30,7 +33,7 @@
   Android SDK/APKs and editor assets, and stop publishing language ZIP/TAR packages.
   A manual candidate build validates the release without creating tags or publishing.
 - Resolve website downloads against actual latest-release assets, with no dead GUI
-  links before the first release. See `docs/INSTALLER_IMPLEMENTATION_STATUS.md`
+  links before the first release. See `docs/GUI_INSTALLER.md`
   for platform validation requirements and transaction guarantees.
 
 - Rename the public language, CLI and LSP to Skrumi, `skrumi` and `skrumi-lsp`.

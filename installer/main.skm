@@ -1,4 +1,4 @@
-include("transaction.skm");
+include("location.skm");
 using ui;
 
 array setup_payload = json_decode(resource_read("manifest.json"));
@@ -16,7 +16,7 @@ if (size(setup_args) == 2 && setup_args[0] == "--uninstall-gui") {
     try {
         if (setup_args[1] == "recover") {
             if (size(setup_args) != 3) { fail("Recovery takes only a directory"); }
-            tx_recover(setup_args[2]);
+            location_recover(setup_args[2]);
         }
         else {
             if (setup_args[1] != "install" && setup_args[1] != "uninstall") { fail("Unknown operation"); }
@@ -29,18 +29,24 @@ if (size(setup_args) == 2 && setup_args[0] == "--uninstall-gui") {
                 else { fail("Unknown or duplicate option"); }
             }
             tx_include_lsp = with_lsp;
-            tx_begin(setup_args[2], setup_args[1] == "uninstall", with_path);
-            while (!tx_step()) { wait(1); }
+            location_begin(setup_args[2], setup_args[1] == "uninstall", with_path);
+            while (!location_step()) { wait(1); }
         }
         print(tx_message);
     } catch (string error) {
         print(error);
-        try { tx_cancel(); } catch (string recovery_error) { print("Recovery required: " + recovery_error); }
-        tx_release(); exit(1);
+        try { location_cancel(); } catch (string recovery_error) { print("Recovery required: " + recovery_error); }
+        location_release(); exit(1);
     }
     exit(0);
 }
 
+string setup_existing = "";
+string setup_discovery_error = "";
+try { setup_existing = location_discover(); if (setup_existing != "" && !setup_remove_requested) { setup_target = setup_existing; } }
+catch (string error) { setup_discovery_error = error; }
+array setup_locations = location_presets();
+bool setup_locations_open = false;
 int setup_font = load_font(resource_read("branding/font.ttf"));
 ui_set_font(setup_font, 14);
 UI_DIALOG_YES = "Yes"; UI_DIALOG_NO = "No"; UI_DIALOG_CANCEL = "Cancel";
@@ -53,14 +59,14 @@ bool setup_recovery_confirm = false;
 bool setup_uninstall = setup_maintenance || setup_remove_requested;
 bool setup_path = true;
 bool setup_lsp = true;
-string setup_error = "";
-bool setup_error_dialog = false;
+string setup_error = setup_discovery_error;
+bool setup_error_dialog = setup_error != "";
 int setup_scroll = 0;
 void setup_failure(string error) {
     setup_error = error; setup_error_dialog = true;
     tx_note("Error: " + error);
-    try { tx_cancel(); } catch (string recovery_error) { setup_error += "\nRecovery required: " + recovery_error; tx_note("Recovery required: " + recovery_error); }
-    tx_release(); setup_running = false; setup_screen = 2;
+    try { location_cancel(); } catch (string recovery_error) { setup_error += "\nRecovery required: " + recovery_error; tx_note("Recovery required: " + recovery_error); }
+    location_release(); setup_running = false; setup_screen = 2;
 }
 // Layout uses logical coordinates; all drawing and hit-testing share this transform.
 float setup_scale = 1;
@@ -119,7 +125,14 @@ while (window_poll()) {
     } else if (setup_screen == 1) {
         setup_text(48, 144, "Installation options", 26, UI_TEXT);
         setup_text(48, 202, "Install directory (current user)", 14, UI_MUTED);
-        setup_target = ui_text_field_box("directory", setup_x(48), setup_y(224), setup_px(704), setup_px(28), setup_target, "Directory");
+        if (setup_existing == "" || setup_uninstall) {
+            setup_target = ui_text_field_box("directory", setup_x(48), setup_y(224), setup_px(544), setup_px(28), setup_target, "Directory");
+            if (setup_button("locations", 604, 224, 148, 28, "Locations...")) { setup_locations_open = !setup_locations_open; }
+        } else {
+            setup_text(48, 230, setup_target, 14, UI_TEXT);
+            setup_text(48, 260, "Existing installation detected; updates use this directory.", 14, UI_MUTED);
+        }
+        if (!setup_locations_open) {
         if (!setup_maintenance) {
             setup_lsp = setup_checkbox("lsp", 48, 284, "Language server (LSP); CLI/runtime is always included", setup_lsp);
         } else { setup_text(48, 284, "Skrumi maintenance and recovery", 14, UI_TEXT); }
@@ -132,20 +145,29 @@ while (window_poll()) {
         }
         setup_text(48, 390, "User projects and modified files are preserved.", 14, UI_MUTED);
         if (setup_button("recover", 48, 426, 204, 32, "Recover interrupted setup")) {
-            try { tx_recover(setup_target); setup_error = ""; }
-            catch (string error) { setup_error = error; setup_error_dialog = true; tx_release(); }
+            try { location_recover(setup_target); setup_error = ""; }
+            catch (string error) { setup_error = error; setup_error_dialog = true; location_release(); }
         }
         if (setup_error != "") { setup_text(48, 476, setup_error, 14, rgb(190, 40, 40)); }
         if (!setup_maintenance && setup_button("back", 462, 536, 144, 30, "Back")) { setup_screen = 0; }
         string action = "Install";
+        if (setup_existing != "") { action = "Update"; }
         if (setup_uninstall) { action = "Uninstall"; }
         if (setup_primary("install", 620, 536, 148, 30, action)) {
             setup_error = "";
             try {
                 if (fs_exists_checked(path_absolute(setup_target) + ".skrumi-transaction")) { setup_recovery_confirm = true; }
-                else { tx_include_lsp = setup_lsp; tx_begin(setup_target, setup_uninstall, setup_path); setup_running = true; setup_screen = 2; }
+                else { tx_include_lsp = setup_lsp; location_begin(setup_target, setup_uninstall, setup_path); setup_running = true; setup_screen = 2; }
             }
             catch (string error) { setup_failure(error); }
+        }
+        } else {
+            setup_text(48, 284, "Choose a dedicated application directory", 14, UI_MUTED);
+            for (int i = 0; i < size(setup_locations); i++) {
+                if (setup_button("location-" + to_string(i), 48, 312 + i * 48, 704, 40, setup_locations[i][0])) {
+                    setup_target = setup_locations[i][1]; setup_locations_open = false;
+                }
+            }
         }
     } else {
         string heading = "Installing Skrumi";
@@ -168,7 +190,7 @@ while (window_poll()) {
             if (setup_primary("finish", 620, 536, 148, 30, "Finish")) { close_window(); break; }
         } else if (setup_button("cancel", 620, 536, 148, 30, "Cancel")) { setup_confirm = true; }
         if (setup_running && !setup_confirm) {
-            try { if (tx_step()) { setup_running = false; } }
+            try { if (location_step()) { setup_running = false; setup_existing = location_discover(); } }
             catch (string error) { setup_failure(error); }
         }
     }
@@ -183,8 +205,8 @@ while (window_poll()) {
     if (setup_recovery_confirm && !setup_confirm) {
         string recovery_answer = ui_dialog("recovery", "Interrupted installation", "An unfinished transaction was found. Restore the previous installation before continuing?", "confirm");
         if (recovery_answer == "yes") {
-            try { tx_recover(setup_target); setup_error = ""; setup_screen = 1; }
-            catch (string error) { setup_error = error; setup_error_dialog = true; tx_release(); setup_screen = 1; }
+            try { location_recover(setup_target); setup_error = ""; setup_screen = 1; }
+            catch (string error) { setup_error = error; setup_error_dialog = true; location_release(); setup_screen = 1; }
             setup_recovery_confirm = false;
         } else if (recovery_answer == "no" || recovery_answer == "cancel") { setup_recovery_confirm = false; }
     }
@@ -193,7 +215,7 @@ while (window_poll()) {
         if (setup_running) { question = "Cancel and restore the previous installation?"; }
         string answer = ui_dialog("exit", "Skrumi Setup", question, "confirm");
         if (answer == "yes") {
-            try { tx_cancel(); close_window(); break; }
+            try { location_cancel(); close_window(); break; }
             catch (string error) { setup_failure(error); setup_confirm = false; cancel_window_close(); }
         } else if (answer == "no" || answer == "cancel") { setup_confirm = false; cancel_window_close(); }
     }
@@ -201,4 +223,4 @@ while (window_poll()) {
 }
 free_image(setup_logo);
 free_font(setup_font);
-tx_release();
+location_release();

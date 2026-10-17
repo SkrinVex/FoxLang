@@ -61,6 +61,9 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         window.close_window(); wait_until(lambda: window.pixel(145,185) == 0xef7b35); click(570,370)
         assert process.poll() is None
         click(700,550)
+        click(680,236)
+        screenshot('location-presets')
+        click(200,380)  # Home / Skrumi preset, then retain explicit-path coverage.
         click(200,236)
         window.send_key('CTRL',True); time.sleep(.05); window.send_key('a',True); time.sleep(.05); window.send_key('a',False); window.send_key('CTRL',False); time.sleep(.05)
         window.type_text(str(target))
@@ -100,10 +103,9 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         window = NativeWindow('Skrumi Setup '+version)
         wait_until(window.find); time.sleep(.3)
         wait_until(lambda: window.pixel(630,540) == 0xef7b35)
-        click(700,550); click(200,236)
-        window.send_key('CTRL',True); time.sleep(.05); window.send_key('a',True); time.sleep(.05)
-        window.send_key('a',False); window.send_key('CTRL',False); time.sleep(.05)
-        window.type_text(str(target)); time.sleep(.15)
+        click(700,550)
+        # Existing custom path is discovered without typing it again.
+        screenshot('detected-update')
         click(54,364)
         # Start the update without the normal post-click wait, then interrupt an
         # actual staged transaction. No artificial delays exist in installer code.

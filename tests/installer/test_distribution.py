@@ -41,6 +41,29 @@ with tempfile.TemporaryDirectory(prefix='skrumi distribution ') as temp:
             assert Path(str(target)+'.maintenance.exe').is_file()
         assert not Path(str(target)+'.skrumi-transaction').exists()
         (target/'user-project.skm').write_text('print("keep");', encoding='utf-8')
+    # A second destination must not create another managed installation.
+    other = root/'Second Skrumi'
+    rejected = subprocess.run([str(installer), '--headless', 'install', str(other)],
+                              cwd=root, env=env, capture_output=True, text=True, timeout=30)
+    assert rejected.returncode != 0 and 'already installed at' in rejected.stdout, rejected
+    assert not other.exists()
+    # A process-wide per-user lock also excludes different target paths.
+    lock_source = root/'hold-location.skm'
+    lock_source.write_text('using fs; using os; int lock = fs_lock(path_safe_join(os_user_dir("state"), "Skrumi/setup-location.json.lock")); fs_write_atomic(os_args()[0], "ready"); while (true) { wait(100); }')
+    ready = root/'lock-ready'
+    holder = subprocess.Popen([str(target/('skrumi'+suffix)), str(lock_source), str(ready)], env=env)
+    try:
+        import time
+        deadline = time.monotonic()+10
+        while not ready.exists() and time.monotonic()<deadline:
+            assert holder.poll() is None
+            time.sleep(.02)
+        assert ready.exists()
+        blocked = subprocess.run([str(installer), '--headless', 'install', str(other)],
+                                 cwd=root, env=env, capture_output=True, text=True, timeout=30)
+        assert blocked.returncode != 0 and not other.exists(), blocked
+    finally:
+        holder.kill(); holder.wait()
     run(installer, '--headless', 'install', target, '--no-lsp')
     assert not (target/('skrumi-lsp'+suffix)).exists() and not (target/('foxlang-lsp'+suffix)).exists()
     assert run(target/('skrumi'+suffix), '--version') == 'Skrumi '+version
@@ -62,4 +85,8 @@ with tempfile.TemporaryDirectory(prefix='skrumi distribution ') as temp:
     assert {p.relative_to(target).as_posix() for p in target.rglob('*') if p.is_file()} == {'user-project.skm'}
     assert (target/'user-project.skm').read_text(encoding='utf-8') == 'print("keep");'
     assert not Path(str(target)+'.skrumi-transaction').exists()
+    # Uninstall releases the single-installation claim; stale metadata is harmless.
+    run(installer, '--headless', 'install', other)
+    run(installer, '--headless', 'uninstall', other)
+    assert not (other/('skrumi'+suffix)).exists()
 print('DISTRIBUTION_OK')
