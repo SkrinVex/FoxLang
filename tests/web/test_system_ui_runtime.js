@@ -43,6 +43,7 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
     assert.equal(await app.ccall('foxlang_run', 'number', ['string', 'string'], [filename, ''], {async: true}), 0, log);
   }
   for (const operation of ['process_start("program", [], 1000)', 'os_user_dir("home")',
+    'registry_user_snapshot("Software\\\\App", "name")',
     'env_user_snapshot("Path")', 'archive_extract("archive", "/out")']) {
     app.FS.writeFile('/unavailable.skm', `bool refused = false;
       try { ${operation}; } catch (string e) { refused = str_contains(e, "unavailable"); }

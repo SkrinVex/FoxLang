@@ -31,10 +31,16 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         raise AssertionError('GUI condition timed out')
     def click(x,y):
         window.mouse(x,y); time.sleep(.05); window.mouse(x,y,True); time.sleep(.05); window.mouse(x,y,False); time.sleep(.1)
+    def screenshot(name):
+        if os.environ.get('SKRUMI_GUI_SCREENSHOTS'):
+            directory = Path(os.environ['SKRUMI_GUI_SCREENSHOTS']).resolve()
+            directory.mkdir(parents=True, exist_ok=True)
+            window.screenshot(directory/(name+'.png'))
     try:
         wait_until(window.find)
         time.sleep(.3) # Wait for the window manager to map the client before XGetImage.
         wait_until(lambda: window.pixel(630,540) == 0xef7b35)
+        screenshot('welcome')
         # OS close request, No, repeated OS request, Cancel: the setup remains usable.
         window.close_window(); time.sleep(.15); click(400,370)
         assert process.poll() is None
@@ -45,6 +51,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         window.send_key('CTRL',True); time.sleep(.05); window.send_key('a',True); time.sleep(.05); window.send_key('a',False); window.send_key('CTRL',False); time.sleep(.05)
         window.type_text(str(target))
         time.sleep(.15)
+        screenshot('options')
         # Isolate the GUI test from the runner's actual PATH. Dedicated API tests cover PATH.
         click(54,364)
         # A pre-journal crash must be offered for recovery, not silently ignored.
@@ -59,6 +66,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         click(700,550)
         wait_until(lambda: (target/'.skrumi-install.json').is_file(), 30)
         wait_until(lambda: not Path(str(target)+'.skrumi-transaction').exists(), 30)
+        screenshot('completed')
         suffix = '.exe' if os.name == 'nt' else ''
         for command in ('skrumi','foxlang'):
             output = subprocess.check_output([str(target/(command+suffix)), '--version'], text=True)
@@ -83,6 +91,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         time.sleep(.02); window.mouse(700,550,False)
         wait_until(lambda: transaction_area.exists())
         window.close_window(); time.sleep(.15)
+        screenshot('cancel-update')
         window.mouse(220,370); time.sleep(.05); window.mouse(220,370,True)
         output, errors = process.communicate(timeout=15)
         assert process.returncode == 0, (output, errors)

@@ -56,6 +56,9 @@ if sys.argv[1] == 'wait':
     p = run(f'array r = run_capture({program}, {args("flood")}, 10000); print(size(r[1])); print(size(r[2])); print(r[5]);')
     assert p.stdout.splitlines() == [str(16*1024*1024), str(16*1024*1024), 'true'], p.stdout
     run('process_start("/missing/skrumi-process", [], 1000);', False)
+    invalid = root/('invalid.exe' if os.name == 'nt' else 'invalid')
+    invalid.write_bytes(b'not an executable'); invalid.chmod(0o755)
+    run(f'process_start({q(invalid)}, [], 1000);', False)
     run('process_poll(123);', False)
     run(f'process_start({program}, [42], 1000);', False)
     run(f'process_start({program}, [], 0);', False)

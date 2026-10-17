@@ -301,6 +301,11 @@ array ui_wrap_text(string text, int width) {
     }
     push(lines, line); return lines;
 }
+/// Подписи кнопок диалога можно локализовать до его показа.
+string UI_DIALOG_YES = "Да";
+string UI_DIALOG_NO = "Нет";
+string UI_DIALOG_CANCEL = "Отмена";
+string UI_DIALOG_OK = "OK";
 string UI_DIALOG_CONTENT = "";
 int UI_DIALOG_OFFSET = 0;
 
@@ -334,11 +339,11 @@ string ui_dialog_box(string id, int x, int y, int width, int height, string titl
     if (gfx_pressed("ESCAPE")) { answer = "cancel"; }
     if (kind == "confirm") {
         int button_width = max(12, (width - 48) / 3);
-        if (ui_primary_button(id + "#yes", x + 12, y + height - 42, button_width, 28, "Да")) { answer = "yes"; }
-        if (ui_button(id + "#no", x + 24 + button_width, y + height - 42, button_width, 28, "Нет")) { answer = "no"; }
-        if (ui_button(id + "#cancel", x + 36 + 2 * button_width, y + height - 42, button_width, 28, "Отмена")) { answer = "cancel"; }
+        if (ui_primary_button(id + "#yes", x + 12, y + height - 42, button_width, 28, UI_DIALOG_YES)) { answer = "yes"; }
+        if (ui_button(id + "#no", x + 24 + button_width, y + height - 42, button_width, 28, UI_DIALOG_NO)) { answer = "no"; }
+        if (ui_button(id + "#cancel", x + 36 + 2 * button_width, y + height - 42, button_width, 28, UI_DIALOG_CANCEL)) { answer = "cancel"; }
     } else {
-        if (ui_primary_button(id + "#ok", x + width - 92, y + height - 42, 80, 28, "OK")) { answer = "ok"; }
+        if (ui_primary_button(id + "#ok", x + width - 92, y + height - 42, 80, 28, UI_DIALOG_OK)) { answer = "ok"; }
     }
     ui_modal_end();
     return answer;

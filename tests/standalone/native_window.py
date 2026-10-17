@@ -169,6 +169,61 @@ class NativeWindow:
         try:return self.api.XGetPixel(image,0,0) & 0xffffff
         finally:self.api.XDestroyImage(image)
 
+    def screenshot(self, path):
+        """Save real native client pixels as PNG, using only test-side OS APIs."""
+        import struct
+        import zlib
+        from pathlib import Path
+        _, _, width, height = self.geometry()
+        if os.name == 'nt':
+            class Header(C.Structure):
+                _fields_ = [('size', C.c_uint32), ('width', C.c_int32), ('height', C.c_int32),
+                            ('planes', C.c_uint16), ('bits', C.c_uint16), ('compression', C.c_uint32),
+                            ('imageSize', C.c_uint32), ('x', C.c_int32), ('y', C.c_int32),
+                            ('used', C.c_uint32), ('important', C.c_uint32)]
+            for name, result, arguments in [
+                ('CreateCompatibleDC', C.c_void_p, [C.c_void_p]),
+                ('CreateCompatibleBitmap', C.c_void_p, [C.c_void_p, C.c_int, C.c_int]),
+                ('SelectObject', C.c_void_p, [C.c_void_p, C.c_void_p]),
+                ('DeleteObject', C.c_int, [C.c_void_p]), ('DeleteDC', C.c_int, [C.c_void_p]),
+                ('BitBlt', C.c_int, [C.c_void_p, C.c_int, C.c_int, C.c_int, C.c_int, C.c_void_p, C.c_int, C.c_int, C.c_uint]),
+                ('GetDIBits', C.c_int, [C.c_void_p, C.c_void_p, C.c_uint, C.c_uint, C.c_void_p, C.c_void_p, C.c_uint]),
+            ]:
+                function = getattr(self.gdi, name); function.restype = result; function.argtypes = arguments
+            source = self.api.GetDC(self.handle)
+            destination = self.gdi.CreateCompatibleDC(source)
+            bitmap = self.gdi.CreateCompatibleBitmap(source, width, height)
+            assert destination and bitmap
+            previous = self.gdi.SelectObject(destination, bitmap)
+            try:
+                assert self.gdi.BitBlt(destination, 0, 0, width, height, source, 0, 0, 0x00CC0020)
+                self.gdi.SelectObject(destination, previous)
+                header = Header(40, width, -height, 1, 32, 0, 0, 0, 0, 0, 0)
+                data = C.create_string_buffer(width*height*4)
+                assert self.gdi.GetDIBits(source, bitmap, 0, height, data, C.byref(header), 0) == height
+                raw = data.raw
+                rgb = bytearray(width*height*3)
+                rgb[0::3] = raw[2::4]; rgb[1::3] = raw[1::4]; rgb[2::3] = raw[0::4]
+            finally:
+                self.gdi.SelectObject(destination, previous)
+                self.gdi.DeleteObject(bitmap); self.gdi.DeleteDC(destination)
+                self.api.ReleaseDC(self.handle, source)
+        else:
+            image = self.api.XGetImage(self.display, self.handle, 0, 0, width, height, C.c_ulong(-1).value, 2)
+            assert image
+            rgb = bytearray()
+            try:
+                for y in range(height):
+                    for x in range(width):
+                        color = self.api.XGetPixel(image, x, y)
+                        rgb.extend(((color >> 16) & 255, (color >> 8) & 255, color & 255))
+            finally: self.api.XDestroyImage(image)
+        def chunk(kind, data):
+            return struct.pack('>I', len(data))+kind+data+struct.pack('>I', zlib.crc32(kind+data)&0xffffffff)
+        rows = b''.join(b'\0'+rgb[y*width*3:(y+1)*width*3] for y in range(height))
+        png = b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+        Path(path).write_bytes(png+chunk(b'IDAT', zlib.compress(rows))+chunk(b'IEND', b''))
+
     def geometry(self):
         if os.name == 'nt':
             class Rect(C.Structure):

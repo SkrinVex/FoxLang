@@ -55,7 +55,7 @@ def wait_until(predicate, process):
 
 with tempfile.TemporaryDirectory(prefix='skrumi-progress-') as directory:
     root = Path(directory)
-    (root / 'main.skm').write_text(PROGRAM)
+    (root / 'main.skm').write_text(PROGRAM, encoding='utf-8')
     built = subprocess.run([binary, 'build', 'main.skm', '-o', 'app'], cwd=root, capture_output=True, text=True)
     assert built.returncode == 0, built.stderr
     app = root / ('app.exe' if os.name == 'nt' else 'app')

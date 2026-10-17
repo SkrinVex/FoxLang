@@ -75,6 +75,7 @@ void addTextBuiltins(std::vector<Builtin>& out);
 void addCollectionBuiltins(std::vector<Builtin>& out);
 void addSystemBuiltins(std::vector<Builtin>& out);
 void addFileBuiltins(std::vector<Builtin>& out);
+void addUserRegistryBuiltins(std::vector<Builtin>& out);
 void addUserEnvironmentBuiltins(std::vector<Builtin>& out);
 void addDirectoryBuiltins(std::vector<Builtin>& out);
 void addProcessBuiltins(std::vector<Builtin>& out);

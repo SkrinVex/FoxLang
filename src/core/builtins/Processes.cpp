@@ -32,6 +32,15 @@ constexpr size_t captureLimit = 16 * 1024 * 1024;
     throw std::runtime_error(std::string("Process Error: ") + operation + " (" + std::to_string(code) + ")");
 }
 #ifdef _WIN32
+// Failed launches must report an error instead of opening a blocking system dialog.
+struct LaunchErrorMode {
+    DWORD previous = GetThreadErrorMode();
+    LaunchErrorMode() {
+        if (!SetThreadErrorMode(previous | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX, nullptr))
+            processError("set launch error mode", static_cast<int>(GetLastError()));
+    }
+    ~LaunchErrorMode() { SetThreadErrorMode(previous, nullptr); }
+};
 struct Handle {
     HANDLE value = nullptr;
     ~Handle() { if (value && value != INVALID_HANDLE_VALUE) CloseHandle(value); }
@@ -148,6 +157,7 @@ std::unique_ptr<Child> start(const std::string& program, const std::vector<std::
     auto child = std::make_unique<Child>();
     child->deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
 #ifdef _WIN32
+    LaunchErrorMode launchErrorMode;
     SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
     Handle outWrite, errWrite, input;
     if (!CreatePipe(&child->outRead.value, &outWrite.value, &attributes, 0) ||

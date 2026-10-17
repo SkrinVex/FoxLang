@@ -129,6 +129,8 @@
       <item>env_get</item>
       <item>env_required</item>
       <item>env_set</item>
+      <item>env_user_compare_exchange</item>
+      <item>env_user_snapshot</item>
       <item>error</item>
       <item>exists</item>
       <item>exit</item>
@@ -339,6 +341,7 @@
       <item>now_text</item>
       <item>open_path</item>
       <item>open_window</item>
+      <item>os_arch</item>
       <item>os_args</item>
       <item>os_cwd</item>
       <item>os_last_exit</item>
@@ -346,6 +349,7 @@
       <item>os_platform</item>
       <item>os_run</item>
       <item>os_run_output</item>
+      <item>os_user_dir</item>
       <item>owner</item>
       <item>pad_left</item>
       <item>pad_right</item>
@@ -369,6 +373,11 @@
       <item>pow</item>
       <item>present_window</item>
       <item>print</item>
+      <item>process_cancel</item>
+      <item>process_poll</item>
+      <item>process_release</item>
+      <item>process_result</item>
+      <item>process_start</item>
       <item>push</item>
       <item>put</item>
       <item>query</item>
@@ -383,6 +392,9 @@
       <item>read_resource</item>
       <item>recv_tcp</item>
       <item>redirect</item>
+      <item>registry_user_compare_exchange</item>
+      <item>registry_user_remove_empty_key</item>
+      <item>registry_user_snapshot</item>
       <item>remove_at</item>
       <item>remove_key</item>
       <item>remove_path</item>

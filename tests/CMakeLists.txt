@@ -275,3 +275,6 @@ add_test(NAME installer_gui COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE
 set_tests_properties(installer_gui PROPERTIES TIMEOUT 180 LABELS standalone SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
 add_test(NAME checked_archives COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_archives.py $<TARGET_FILE:foxlang>)
 set_tests_properties(checked_archives PROPERTIES TIMEOUT 60)
+
+add_test(NAME user_registry COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_user_registry.py $<TARGET_FILE:foxlang>)
+set_tests_properties(user_registry PROPERTIES TIMEOUT 60)

@@ -107,6 +107,7 @@ jobs:
         shell: bash
         env:
           FOXLANG_REQUIRE_GRAPHICS_TESTS: '1'
+          SKRUMI_GUI_SCREENSHOTS: ${{ github.workspace }}/build/gui-screenshots
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
             xvfb-run -a ctest --test-dir build -C Release --output-on-failure -L standalone
@@ -195,3 +196,10 @@ jobs:
           name: gui-installer-candidate-${{ matrix.name }}
           path: installer-dist/*
           if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-screenshots-${{ matrix.name }}
+          path: build/gui-screenshots/*.png
+          if-no-files-found: ignore

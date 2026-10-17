@@ -29,6 +29,7 @@ if (size(setup_args) > 0) {
 
 int setup_font = load_font(resource_read("branding/font.ttf"));
 ui_set_font(setup_font, 14);
+UI_DIALOG_YES = "Yes"; UI_DIALOG_NO = "No"; UI_DIALOG_CANCEL = "Cancel";
 int setup_logo = decode_image(resource_read("branding/logo.png"));
 int setup_screen = 0;
 bool setup_running = false;
@@ -45,6 +46,7 @@ void setup_failure(string error) {
 }
 ui_theme(false);
 open_window(800, 580, "Skrumi Setup " + setup_version);
+set_window_resizable(false);
 intercept_window_close(true);
 try { setup_recovery_confirm = fs_exists_checked(path_absolute(setup_target) + ".skrumi-transaction"); }
 catch (string error) { setup_error = error; }

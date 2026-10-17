@@ -12,7 +12,7 @@ def builtin_names(root):
     """Builtins as registered in the catalog: add({"name", ...}) and the graphics table."""
     names = set()
     for source in sorted((root / "src/core/builtins").glob("*.cpp")):
-        names.update(re.findall(r'add\(\{"([a-z_0-9]+)"', source.read_text(encoding="utf-8")))
+        names.update(re.findall(r'(?:add\(\{|push_back\(\{\{)"([a-z_0-9]+)"', source.read_text(encoding="utf-8")))
     graphics = (root / "src/graphics/Builtins.cpp").read_text(encoding="utf-8")
     names.update(re.findall(r'\{"(gfx_[a-z_]+)"', graphics))
     return names

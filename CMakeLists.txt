@@ -82,6 +82,7 @@ set(foxlang_core_sources
     src/core/builtins/StrictFiles.cpp
     src/core/builtins/Processes.cpp
     src/core/builtins/Directories.cpp
+    src/core/builtins/UserRegistry.cpp
     src/core/builtins/UserEnvironment.cpp
     src/core/builtins/NetworkBuiltins.cpp
     src/core/builtins/Sound.cpp
