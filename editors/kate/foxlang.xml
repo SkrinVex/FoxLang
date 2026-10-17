@@ -567,6 +567,7 @@
       <item>user_path_apply</item>
       <item>user_path_plan</item>
       <item>user_path_removal</item>
+      <item>user_path_validate</item>
       <item>values</item>
       <item>wait</item>
       <item>warn</item>
