@@ -47,10 +47,10 @@ print('BRAND_AUDIT_OK')
 import json
 import tomllib
 import xml.etree.ElementTree as ET
-vscode = json.loads((root / 'editors/vscode/package.json').read_text())
+vscode = json.loads((root / 'editors/vscode/package.json').read_text(encoding='utf-8'))
 assert vscode['name'] == 'skrumi-language'
 assert [(x['id'], x['extensions']) for x in vscode['contributes']['languages']] == [('skrumi', ['.skm'])]
-zed = tomllib.loads((root / 'editors/zed/languages/skrumi/config.toml').read_text())
+zed = tomllib.loads((root / 'editors/zed/languages/skrumi/config.toml').read_text(encoding='utf-8'))
 assert zed['name'] == 'Skrumi' and zed['path_suffixes'] == ['skm']
-kate = ET.fromstring((root / 'editors/kate/skrumi.xml').read_text())
+kate = ET.fromstring((root / 'editors/kate/skrumi.xml').read_text(encoding='utf-8'))
 assert kate.attrib['extensions'] == '*.skm'
