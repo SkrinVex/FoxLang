@@ -3,8 +3,14 @@ param([Parameter(Mandatory=$true)][string]$Installer)
 $ErrorActionPreference = 'Stop'
 $fixture = Join-Path $env:RUNNER_TEMP ('skrumi-volume-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
-$volume = Join-Path $fixture 'mount'
-New-Item -ItemType Directory -Path $volume | Out-Null
+# A mounted folder is an NTFS reparse point, intentionally rejected by checked
+# path APIs. Give this private volume an unused DOS drive root instead.
+$used = [System.IO.Directory]::GetLogicalDrives()
+$driveLetter = @('Z','Y','X','W','V','U','T','S','R','Q','P') | Where-Object {
+    $used -notcontains "${_}:\"
+} | Select-Object -First 1
+if (-not $driveLetter) { throw 'No free drive letter for the private test volume' }
+$volume = "${driveLetter}:\"
 $disk = Join-Path $fixture 'test.vhd'
 $script = Join-Path $fixture 'diskpart.txt'
 try {
@@ -14,7 +20,7 @@ select vdisk file="$disk"
 attach vdisk
 create partition primary
 format fs=ntfs quick label=SkrumiTest
-assign mount="$volume"
+assign letter=$driveLetter
 exit
 "@ | Set-Content -Encoding ASCII -Path $script
     & diskpart /s $script
