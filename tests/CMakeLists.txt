@@ -279,3 +279,7 @@ set_tests_properties(checked_archives PROPERTIES TIMEOUT 60)
 
 add_test(NAME user_registry COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_user_registry.py $<TARGET_FILE:foxlang>)
 set_tests_properties(user_registry PROPERTIES TIMEOUT 60)
+
+add_test(NAME installer_gui_ru COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/installer/test_gui.py $<TARGET_FILE:foxlang> $<TARGET_FILE:foxlang-lsp> ru)
+set_tests_properties(installer_gui_ru PROPERTIES TIMEOUT 180 LABELS standalone SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+add_test(NAME installer_translations COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/installer/test_translations.py $<TARGET_FILE:foxlang>)

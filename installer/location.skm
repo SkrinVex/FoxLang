@@ -11,10 +11,10 @@ bool location_managed(string root) {
     return fs_exists_checked(safe_join(root, ".skrumi-install.json")) || fs_exists_checked(safe_join(root, ".skrumi-install")) || fs_exists_checked(root + ".skrumi-transaction");
 }
 array location_presets() {
-    array result = [["Recommended (application data)", path_join(os_user_dir("data"), "Skrumi")], ["Home / Skrumi", path_join(os_user_dir("home"), "Skrumi")]];
+    array result = [[setup_tr("Recommended (application data)"), path_join(os_user_dir("data"), "Skrumi")], [setup_tr("Home / Skrumi"), path_join(os_user_dir("home"), "Skrumi")]];
     if (os_platform() == "windows") {
-        push(result, ["Local AppData / Programs / Skrumi", path_join(os_user_dir("data"), "Programs/Skrumi")]);
-    } else { push(result, ["Home / .local / opt / Skrumi", path_join(os_user_dir("home"), ".local/opt/Skrumi")]); }
+        push(result, [setup_tr("Local AppData / Programs / Skrumi"), path_join(os_user_dir("data"), "Programs/Skrumi")]);
+    } else { push(result, [setup_tr("Home / .local / opt / Skrumi"), path_join(os_user_dir("home"), ".local/opt/Skrumi")]); }
     return result;
 }
 string location_discover() {
@@ -22,7 +22,7 @@ string location_discover() {
     string record = location_record();
     if (fs_exists_checked(record)) {
         array saved = json_decode(read_checked(record));
-        if (size(saved) != 2 || saved[0] != "Skrumi location v1" || saved[1] == "") { fail("Invalid installation location record: " + record); }
+        if (size(saved) != 2 || saved[0] != "Skrumi location v1" || saved[1] == "") { fail(setup_tr("Invalid installation location record: ") + record); }
         if (location_managed(saved[1])) { push(candidates, saved[1]); }
     }
     array presets = location_presets();
@@ -39,7 +39,7 @@ string location_discover() {
         bool managed = false;
         try { managed = location_managed(candidate); } catch (string ignored) { continue; }
         if (managed) {
-            if (found != "" && location_key(found) != location_key(candidate)) { fail("Multiple managed installations found. Uninstall the unwanted copy explicitly: " + found + " / " + candidate); }
+            if (found != "" && location_key(found) != location_key(candidate)) { fail(setup_tr("Multiple managed installations found. Uninstall the unwanted copy explicitly: ") + found + " / " + candidate); }
             found = candidate;
         }
     }
@@ -50,7 +50,7 @@ void location_release() {
     if (location_lock != 0) { fs_unlock(location_lock); location_lock = 0; }
 }
 void location_acquire() {
-    if (location_lock != 0) { fail("An installation operation is already active"); }
+    if (location_lock != 0) { fail(setup_tr("An installation operation is already active")); }
     make_dirs_checked(path_parent(location_record()));
     location_lock = fs_lock(location_record() + ".lock");
 }
@@ -58,7 +58,7 @@ void location_begin(string target, bool uninstall, bool add_path) {
     location_acquire();
     if (!uninstall) {
         string existing = location_discover();
-        if (existing != "" && location_key(existing) != location_key(target)) { fail("Skrumi is already installed at " + existing + ". Update there or uninstall it first."); }
+        if (existing != "" && location_key(existing) != location_key(target)) { fail(setup_tr("Skrumi is already installed at ") + existing + setup_tr(". Update there or uninstall it first.")); }
         // Persist before creating the transaction: a killed process remains discoverable.
         // A stale record without a manifest/journal does not reserve a directory.
         fs_write_atomic(location_record(), json_value(["Skrumi location v1", path_absolute(target)]));

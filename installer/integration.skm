@@ -22,15 +22,15 @@ string registration_key(string root) {
     return "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Skrumi-" + sha256_bytes(str_lower(str_replace(root, "/", "\\")));
 }
 void registration_validate(array records, string root) {
-    if (size(records) > 7 || size(records) > 0 && os_platform() != "windows") { fail("Invalid registration journal"); }
+    if (size(records) > 7 || size(records) > 0 && os_platform() != "windows") { fail(setup_tr("Invalid registration journal")); }
     array names;
     for (int i = 0; i < size(records); i++) {
         array record = records[i];
-        if (size(record) != 4 || record[0] != registration_key(root)) { fail("Registration key is outside this installation"); }
+        if (size(record) != 4 || record[0] != registration_key(root)) { fail(setup_tr("Registration key is outside this installation")); }
         string name = record[1];
-        if (name != "DisplayName" && name != "DisplayVersion" && name != "InstallLocation" && name != "Publisher" && name != "URLInfoAbout" && name != "UninstallString" && name != "QuietUninstallString") { fail("Unknown registration value"); }
-        for (int j = 0; j < size(names); j++) { if (names[j] == name) { fail("Duplicate registration value"); } }
-        if (size(record[2]) != 3 || size(record[3]) != 3) { fail("Invalid registration snapshot"); }
+        if (name != "DisplayName" && name != "DisplayVersion" && name != "InstallLocation" && name != "Publisher" && name != "URLInfoAbout" && name != "UninstallString" && name != "QuietUninstallString") { fail(setup_tr("Unknown registration value")); }
+        for (int j = 0; j < size(names); j++) { if (names[j] == name) { fail(setup_tr("Duplicate registration value")); } }
+        if (size(record[2]) != 3 || size(record[3]) != 3) { fail(setup_tr("Invalid registration snapshot")); }
         push(names, name);
     }
 }
@@ -38,7 +38,7 @@ void registration_validate(array records, string root) {
 // [changes for this transaction, ownership baseline for the installed manifest].
 array registration_plan(string root, string version, array owned, bool uninstall, bool enabled) {
     registration_validate(owned, root);
-    if (size(owned) > 0 && !uninstall && !enabled) { fail("Cannot drop the registered maintenance component"); }
+    if (size(owned) > 0 && !uninstall && !enabled) { fail(setup_tr("Cannot drop the registered maintenance component")); }
     if (os_platform() != "windows" || !enabled && !uninstall) { return [[], []]; }
     array changes; array installed;
     if (uninstall) {
@@ -46,7 +46,7 @@ array registration_plan(string root, string version, array owned, bool uninstall
             array record = owned[i];
             array current = registry_user_snapshot(record[0], record[1]);
             if (json_value(current) != json_value(record[3]) && json_value(current) != json_value(record[2])) {
-                fail("Registration changed; preserved: " + record[1]);
+                fail(setup_tr("Registration changed; preserved: ") + record[1]);
             }
             push(changes, [record[0], record[1], current, record[2]]);
         }
@@ -68,11 +68,11 @@ array registration_plan(string root, string version, array owned, bool uninstall
         for (int j = 0; j < size(owned); j++) {
             array previous = owned[j];
             if (previous[0] == key && previous[1] == item[0]) {
-                if (json_value(current) != json_value(previous[3])) { fail("Registration changed; update refused: " + item[0]); }
+                if (json_value(current) != json_value(previous[3])) { fail(setup_tr("Registration changed; update refused: ") + item[0]); }
                 original = previous[2]; managed = true;
             }
         }
-        if (!managed && current[0]) { fail("Unmanaged registration value; preserved: " + item[0]); }
+        if (!managed && current[0]) { fail(setup_tr("Unmanaged registration value; preserved: ") + item[0]); }
         array after = [true, false, item[1]];
         push(changes, [key, item[0], current, after]);
         push(installed, [key, item[0], original, after]);

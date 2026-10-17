@@ -1,5 +1,8 @@
 ## Skrumi 8.18.0 — GUI installer and public system/UI APIs
 
+- Start GUI setup and maintenance with a Russian/English language selector;
+  localize controls, dialogs, operation logs and installer-owned diagnostics.
+
 - Add installation directory presets and per-user discovery/locking to prevent
   duplicate managed installations; reuse the existing directory for updates.
 

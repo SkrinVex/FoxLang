@@ -410,7 +410,7 @@ img { max-width: 100%; }
     <div><b>3</b><span>шага от текста до результата</span></div>
     <div><b>273</b><span>встроенных функций</span></div>
     <div><b>17</b><span>модулей библиотеки</span></div>
-    <div><b>136</b><span>автотестов CTest на Linux</span></div>
+    <div><b>138</b><span>автотестов CTest на Linux</span></div>
   </div>
 </header>
 
@@ -905,12 +905,12 @@ print(json_value({"ok": true, "n": 3}));   // {"ok":true,"n":3}</pre>
 ├── src/cli/        <i>команда skrumi: запуск, check, test, fmt</i>
 ├── std/            <i>стандартная библиотека на Skrumi</i>
 ├── editors/        <i>расширения для VS Code, Kate и Zed</i>
-├── tests/          <i>136 автотестов CTest на Linux</i>
+├── tests/          <i>138 автотестов CTest на Linux</i>
 ├── docs/           <i>документация</i>
 └── VERSION         <i>номер версии, одно место на весь проект</i></pre>
       <ul class="plain">
         <li><strong>Сборка.</strong> CMake собирает исходники C++ в две программы: <code>skrumi</code> и <code>skrumi-lsp</code>.</li>
-        <li><strong>Тесты.</strong> 136 проверок CTest на Linux: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши. Windows запускает свой набор CTest без Linux shell-интеграций. Android instrumentation и проверки WebAssembly, редактора и конструктора в браузере запускаются отдельно и в это число не входят.</li>
+        <li><strong>Тесты.</strong> 138 проверок CTest на Linux: от «2 + 2 = 4» до «окно открылось, кнопку нажали, модальное окно не пропустило клик». Некоторые тесты по-настоящему двигают мышью и нажимают клавиши. Windows запускает свой набор CTest без Linux shell-интеграций. Android instrumentation и проверки WebAssembly, редактора и конструктора в браузере запускаются отдельно и в это число не входят.</li>
         <li><strong>Релизы.</strong> Когда меняется <code>VERSION</code> и изменения попадают в ветку <code>master</code>, GitHub сам собирает версии для Linux, Windows и Android, запускает проверки платформ и публикует проверенные графические установщики, Android SDK/APK и расширения редакторов. Архивы с языком больше не входят в новые релизы.</li>
       </ul>
     </section>

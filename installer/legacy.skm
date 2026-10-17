@@ -22,14 +22,14 @@ array legacy_owned(string root) {
             string line = lines[i];
             if (line == "") { continue; }
             if (str_length(line) < 69 || str_substring(line, 64, 2) != "  " || str_substring(line, 66, 2) != "./") {
-                fail("Unsupported legacy checksum record; files preserved");
+                fail(setup_tr("Unsupported legacy checksum record; files preserved"));
             }
             string name = str_substring(line, 68);
             string path = safe_join(root, name);
             push(owned, [name, str_lower(str_substring(line, 0, 64)), permissions(path)]);
         }
-    } else { fail("Unsupported legacy installation platform"); }
-    if (size(owned) == 0 || size(owned) > 4096) { fail("Invalid legacy ownership manifest"); }
+    } else { fail(setup_tr("Unsupported legacy installation platform")); }
+    if (size(owned) == 0 || size(owned) > 4096) { fail(setup_tr("Invalid legacy ownership manifest")); }
     push(owned, [manifest, file_sha256(safe_join(root, manifest)), permissions(safe_join(root, manifest))]);
     return owned;
 }
