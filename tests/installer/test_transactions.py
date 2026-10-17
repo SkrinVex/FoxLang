@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 binary = Path(sys.argv[1]).resolve()
 repo = Path(__file__).resolve().parents[2]
@@ -32,6 +33,11 @@ try {{
         if (a[0] == "path-stop" || a[0] == "integration-stop") {{
             while (tx_phase != "integrated") {{ tx_step(); wait(1); }}
             tx_release(); exit(0);
+        }}
+        if (a[0] == "integration-wait") {{
+            while (tx_phase != "integrated") {{ tx_step(); wait(1); }}
+            fs_write_atomic(a[1] + ".crash-ready", "ready");
+            while (true) {{ wait(100); }}
         }}
         if (a[0] == "cleanup-conflict") {{
             while (tx_phase != "integrated") {{ tx_step(); wait(1); }}
@@ -155,6 +161,25 @@ try {{
             winreg.DeleteValue(handle, 'DisplayVersion')
         run(first, 'recover', registration_target)
         winreg.DeleteKey(winreg.HKEY_CURRENT_USER, registration_key)
+    # Abrupt OS termination: no Skrumi finally/destructor path can perform undo.
+    marker = Path(str(target) + '.crash-ready')
+    interrupted = subprocess.Popen([str(first), 'integration-wait', str(target)],
+                                   cwd=root, env=isolated_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        deadline = time.monotonic() + 30
+        while not marker.exists():
+            assert interrupted.poll() is None, interrupted.communicate()
+            assert time.monotonic() < deadline, 'integration never reached crash boundary'
+            time.sleep(.02)
+        interrupted.kill()
+        interrupted.communicate(timeout=10)
+        assert interrupted.returncode != 0
+        run(second, 'recover', target)
+        assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == expected
+    finally:
+        if interrupted.poll() is None:
+            interrupted.kill(); interrupted.communicate(timeout=10)
+        marker.unlink(missing_ok=True)
     # Crash before the first journal write: only an empty area may be removed.
     area = Path(str(target)+'.skrumi-transaction')
     area.mkdir(mode=0o700)

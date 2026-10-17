@@ -357,8 +357,8 @@ summary span {
   content: "";
   display: block;
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: var(--checkbox-side, 14px);
+  height: var(--checkbox-side, 14px);
   border: 1px solid var(--widget-border, #c8ced8);
   background: var(--widget-field, white);
 }

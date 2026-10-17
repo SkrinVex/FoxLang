@@ -164,6 +164,7 @@ public:
     void setFullscreen(bool fullscreen);
     bool fullscreen() const;
     void setSize(int width, int height);
+    std::array<double, 3> desktopMetrics() const;
     void sizeEvent(int width, int height) { pendingWidth_ = width; pendingHeight_ = height; }
     // True in the frame after the window changed size.
     bool resized() const { return resized_; }

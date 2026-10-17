@@ -897,6 +897,46 @@ void Window::applySize(int width, int height) {
     native_->resizeBuffers();
     resized_ = true;
 }
+std::array<double, 3> Window::desktopMetrics() const {
+#ifdef _WIN32
+    // This process uses Windows DPI virtualization: these logical coordinates
+    // already account for display scaling. Do not multiply by physical DPI again.
+    RECT work{};
+    if (!SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0)) fail("cannot query desktop work area");
+    return {double(std::max<LONG>(64, work.right - work.left - 32)),
+            double(std::max<LONG>(64, work.bottom - work.top - 64)), 1.0};
+#elif defined(__ANDROID__) || defined(__EMSCRIPTEN__)
+    fail("desktop metrics are unavailable on this platform");
+#else
+    auto* connection = native_->connection;
+    auto root = native_->root;
+    Native::Reply<xcb_get_geometry_reply_t> geometry(xcb_get_geometry_reply(connection,
+        xcb_get_geometry(connection, root), nullptr), &std::free);
+    if (!geometry) fail("cannot query desktop geometry");
+    double width = geometry->width, height = geometry->height;
+    Native::Reply<xcb_get_property_reply_t> work(xcb_get_property_reply(connection,
+        xcb_get_property(connection, 0, root, native_->atom("_NET_WORKAREA"), XCB_ATOM_CARDINAL, 0, 4), nullptr), &std::free);
+    if (work && work->format == 32 && work->type == XCB_ATOM_CARDINAL && xcb_get_property_value_length(work.get()) >= 16) {
+        auto* values = static_cast<uint32_t*>(xcb_get_property_value(work.get()));
+        if (values[2] > 0 && values[3] > 0) {
+            width = std::min(width, double(values[2])); height = std::min(height, double(values[3]));
+        }
+    }
+    double scale = 1.0;
+    Native::Reply<xcb_get_property_reply_t> resources(xcb_get_property_reply(connection,
+        xcb_get_property(connection, 0, root, XCB_ATOM_RESOURCE_MANAGER, XCB_ATOM_STRING, 0, 65536), nullptr), &std::free);
+    if (resources && resources->format == 8 && resources->type == XCB_ATOM_STRING) {
+        std::string text(static_cast<const char*>(xcb_get_property_value(resources.get())),
+                         xcb_get_property_value_length(resources.get()));
+        auto start = text.find("Xft.dpi:");
+        if (start != std::string::npos && (start == 0 || text[start - 1] == '\n')) {
+            auto dpi = std::strtod(text.c_str() + start + 8, nullptr);
+            if (dpi >= 120 && dpi <= 384) scale = std::clamp(dpi / 96, 1.0, 3.0);
+        }
+    }
+    return {std::max(64.0, width - 32), std::max(64.0, height - 64), scale};
+#endif
+}
 void Window::setResizable(bool resizable) { native_->setResizable(resizable); }
 void Window::setFullscreen(bool fullscreen) { native_->setFullscreen(fullscreen); }
 bool Window::fullscreen() const { return native_->fullscreen(); }

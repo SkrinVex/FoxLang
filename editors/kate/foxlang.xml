@@ -105,6 +105,7 @@
       <item>decode_image</item>
       <item>degrees</item>
       <item>delete</item>
+      <item>desktop_metrics</item>
       <item>dns_lookup</item>
       <item>double_clicked</item>
       <item>download</item>
@@ -197,6 +198,7 @@
       <item>gfx_close</item>
       <item>gfx_close_requested</item>
       <item>gfx_delta</item>
+      <item>gfx_desktop_metrics</item>
       <item>gfx_double_click</item>
       <item>gfx_down</item>
       <item>gfx_focused</item>
@@ -521,6 +523,7 @@
       <item>type_of</item>
       <item>ui_button</item>
       <item>ui_checkbox</item>
+      <item>ui_checkbox_box</item>
       <item>ui_click</item>
       <item>ui_dialog</item>
       <item>ui_dialog_box</item>
@@ -546,6 +549,7 @@
       <item>ui_scrollbar</item>
       <item>ui_set_font</item>
       <item>ui_text_field</item>
+      <item>ui_text_field_box</item>
       <item>ui_text_height</item>
       <item>ui_text_width</item>
       <item>ui_theme</item>

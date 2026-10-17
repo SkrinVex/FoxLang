@@ -74,33 +74,38 @@ bool ui_primary_button(string id, int x, int y, int width, int height, string la
 /// if (ui_focused("name") && key_pressed("ENTER")) { create(name); }
 /// ```
 string ui_text_field(string id, int x, int y, int width, string text, string placeholder) {
-    int border = UI_BORDER;
-    if (gfx_ui_focused(id)) {
-        border = UI_ACCENT;
-    }
-    gfx_rect(x, y, width, 28, border);
-    gfx_rect(x + 1, y + 1, width - 2, 26, UI_FIELD);
-    if (text == "") {
-        ui_draw_text(x + 4, y + (28 - ui_text_height()) / 2, placeholder, UI_MUTED);
-    }
-    if (UI_FONT != 0) { return gfx_ui_text_font(id, x, y, width, 28, text, UI_FONT, UI_FONT_SIZE, UI_TEXT); }
-    return gfx_ui_text(id, x, y, width, 28, text, 1, UI_TEXT);
+    return ui_text_field_box(id, x, y, width, 28, text, placeholder);
 }
 
-/// Флажок с подписью. Возвращает новое состояние: щелчок по флажку или подписи переключает его.
+/// Поле с явной высотой (не менее 8 пикселей), для масштабируемых макетов.
+string ui_text_field_box(string id, int x, int y, int width, int height, string text, string placeholder) {
+    if (width < 8 || height < 8) { fail("Text field: dimensions must be at least 8"); }
+    int border = UI_BORDER;
+    if (gfx_ui_focused(id)) { border = UI_ACCENT; }
+    gfx_rect(x, y, width, height, border);
+    gfx_rect(x + 1, y + 1, width - 2, height - 2, UI_FIELD);
+    if (text == "") { ui_draw_text(x + 4, y + (height - ui_text_height()) / 2, placeholder, UI_MUTED); }
+    if (UI_FONT != 0) { return gfx_ui_text_font(id, x, y, width, height, text, UI_FONT, UI_FONT_SIZE, UI_TEXT); }
+    return gfx_ui_text(id, x, y, width, height, text, 1, UI_TEXT);
+}
+
+/// Флажок с подписью. Возвращает новое состояние после щелчка.
 bool ui_checkbox(string id, int x, int y, string label, bool checked) {
-    int width = 20 + ui_text_width(label);
-    bool clicked = gfx_ui_click(id, x, y, width, 14);
+    return ui_checkbox_box(id, x, y, 14, label, checked);
+}
+
+/// Флажок с явной стороной квадрата (не менее 8 пикселей).
+bool ui_checkbox_box(string id, int x, int y, int side, string label, bool checked) {
+    if (side < 8) { fail("Checkbox: side must be at least 8"); }
+    int gap = max(3, side * 6 / 14);
+    int width = side + gap + ui_text_width(label);
     bool value = checked;
-    if (clicked) {
-        value = !checked;
-    }
-    gfx_rect(x, y, 14, 14, UI_BORDER);
-    gfx_rect(x + 1, y + 1, 12, 12, UI_FIELD);
-    if (value) {
-        gfx_rect(x + 3, y + 3, 8, 8, UI_ACCENT);
-    }
-    ui_draw_text(x + 20, y + (14 - ui_text_height()) / 2, label, UI_TEXT);
+    if (gfx_ui_click(id, x, y, width, max(side, ui_text_height()))) { value = !checked; }
+    gfx_rect(x, y, side, side, UI_BORDER);
+    gfx_rect(x + 1, y + 1, side - 2, side - 2, UI_FIELD);
+    int inset = max(2, side * 3 / 14);
+    if (value) { gfx_rect(x + inset, y + inset, side - 2 * inset, side - 2 * inset, UI_ACCENT); }
+    ui_draw_text(x + side + gap, y + (side - ui_text_height()) / 2, label, UI_TEXT);
     return value;
 }
 
@@ -121,8 +126,9 @@ void ui_modal_begin(int x, int y, int width, int height, string title) {
     gfx_ui_hover("#modal-card", x, y, width, height);
     gfx_rect(x - 1, y - 1, width + 2, height + 2, UI_BORDER);
     gfx_rect(x, y, width, height, UI_PANEL);
-    gfx_rect(x, y, width, 32, UI_ACCENT);
-    ui_draw_text(x + 12, y + (32 - ui_text_height()) / 2, title, rgb(255, 255, 255));
+    int header = max(32, ui_text_height() + 12);
+    gfx_rect(x, y, width, header, UI_ACCENT);
+    ui_draw_text(x + 12, y + (header - ui_text_height()) / 2, title, rgb(255, 255, 255));
 }
 
 void ui_modal_end() { gfx_ui_layer_end(); }
@@ -313,8 +319,10 @@ int UI_DIALOG_OFFSET = 0;
 /// kind: "info", "error", "confirm". Ответ: "ok", "yes", "no", "cancel".
 /// Escape всегда возвращает "cancel". Закрытие ОС обрабатывает вызывающее приложение.
 string ui_dialog(string id, string title, string message, string kind) {
-    int width = min(520, gfx_width() - 16);
-    int height = min(220, gfx_height() - 16);
+    float scale = 1;
+    if (UI_FONT != 0) { scale = UI_FONT_SIZE / 14.0; }
+    int width = min(520 * scale, gfx_width() - 16);
+    int height = min(220 * scale, gfx_height() - 16);
     return ui_dialog_box(id, (gfx_width() - width) / 2, (gfx_height() - height) / 2, width, height, title, message, kind);
 }
 
@@ -322,28 +330,31 @@ string ui_dialog(string id, string title, string message, string kind) {
 string ui_dialog_box(string id, int x, int y, int width, int height, string title, string message, string kind) {
     if (kind != "info" && kind != "error" && kind != "confirm") { fail("Dialog: unknown kind"); }
     if (width < 3 || height < 3) { fail("Dialog: invalid dimensions"); }
+    int header = max(40, ui_text_height() + 20);
+    int button_height = max(28, ui_text_height() + 10);
+    int footer = button_height + 24;
     ui_modal_begin(x, y, width, height, title);
     string content_key = id + "\n" + message;
     if (content_key != UI_DIALOG_CONTENT) { UI_DIALOG_CONTENT = content_key; UI_DIALOG_OFFSET = 0; }
     array lines = ui_wrap_text(message, max(1, width - 40));
     int line_height = ui_text_height() + 4;
-    UI_DIALOG_OFFSET = ui_scroll_begin(id + "#message", x + 12, y + 40, max(13, width - 24), max(1, height - 92), UI_DIALOG_OFFSET, size(lines) * line_height);
+    UI_DIALOG_OFFSET = ui_scroll_begin(id + "#message", x + 12, y + header, max(13, width - 24), max(1, height - header - footer), UI_DIALOG_OFFSET, size(lines) * line_height);
     int message_color = UI_TEXT;
     if (kind == "error") { message_color = rgb(220, 65, 65); }
     for (int i = 0; i < size(lines); i++) {
-        int line_y = y + 40 + i * line_height - UI_DIALOG_OFFSET;
-        if (line_y + line_height > y + 40 && line_y < y + height - 52) { ui_draw_text(x + 12, line_y, lines[i], message_color); }
+        int line_y = y + header + i * line_height - UI_DIALOG_OFFSET;
+        if (line_y + line_height > y + header && line_y < y + height - footer) { ui_draw_text(x + 12, line_y, lines[i], message_color); }
     }
     ui_scroll_end();
     string answer = "pending";
     if (gfx_pressed("ESCAPE")) { answer = "cancel"; }
     if (kind == "confirm") {
         int button_width = max(12, (width - 48) / 3);
-        if (ui_primary_button(id + "#yes", x + 12, y + height - 42, button_width, 28, UI_DIALOG_YES)) { answer = "yes"; }
-        if (ui_button(id + "#no", x + 24 + button_width, y + height - 42, button_width, 28, UI_DIALOG_NO)) { answer = "no"; }
-        if (ui_button(id + "#cancel", x + 36 + 2 * button_width, y + height - 42, button_width, 28, UI_DIALOG_CANCEL)) { answer = "cancel"; }
+        if (ui_primary_button(id + "#yes", x + 12, y + height - button_height - 14, button_width, button_height, UI_DIALOG_YES)) { answer = "yes"; }
+        if (ui_button(id + "#no", x + 24 + button_width, y + height - button_height - 14, button_width, button_height, UI_DIALOG_NO)) { answer = "no"; }
+        if (ui_button(id + "#cancel", x + 36 + 2 * button_width, y + height - button_height - 14, button_width, button_height, UI_DIALOG_CANCEL)) { answer = "cancel"; }
     } else {
-        if (ui_primary_button(id + "#ok", x + width - 92, y + height - 42, 80, 28, UI_DIALOG_OK)) { answer = "ok"; }
+        if (ui_primary_button(id + "#ok", x + width - 92, y + height - button_height - 14, 80, button_height, UI_DIALOG_OK)) { answer = "ok"; }
     }
     ui_modal_end();
     return answer;

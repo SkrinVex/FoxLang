@@ -41,6 +41,8 @@ jobs:
         run: docker buildx build --target portable --output type=local,dest=build-portable .
       - name: Verify no shared libraries and run standalone tests on Ubuntu
         run: xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/skrumi
+      - name: Exercise the portable installer native window on Ubuntu
+        run: xvfb-run -a python3 tests/installer/test_gui.py build-portable/skrumi build-portable/skrumi-lsp
       - name: Build and verify the portable offline installer
         run: |
           mkdir -p installer-dist
@@ -206,6 +208,11 @@ jobs:
           sudo mount -t tmpfs -o "size=96m,uid=$(id -u),gid=$(id -g),mode=0700" tmpfs "$TEST_VOLUME"
           trap 'sudo umount "$TEST_VOLUME"' EXIT
           python tests/installer/test_disk_full.py installer-dist/Skrumi-linux-x86_64.run "$TEST_VOLUME"
+
+      - name: Verify real disk exhaustion and locked publication on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./packaging/windows/test_disk_volume.ps1 -Installer installer-dist/Skrumi-windows-x86_64.exe
 
       - uses: actions/upload-artifact@v4
         with:

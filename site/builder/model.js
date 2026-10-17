@@ -125,11 +125,12 @@
           horizontal: r.horizontal,
           vertical: r.vertical,
         };
-        if (e.type === "field") layouts[mode].h = 28;
-        if (e.type === "checkbox") layouts[mode].h = 14;
+        if (e.type === "field" && !e.customSize) layouts[mode].h = 28;
+        if (e.type === "checkbox" && !e.customSize) layouts[mode].h = 14;
       }
       if (e.kind !== undefined && !["info", "error", "confirm"].includes(e.kind)) fail("Неизвестный вид диалога");
       if (e.type === "dialog" && Object.values(layouts).some(r => r.w < 144 || r.h < 100)) fail("Диалог: минимум 144×100");
+      if (e.customSize !== undefined && typeof e.customSize !== "boolean") fail("customSize: true или false");
       const label = text(e.text, 200, "Подпись");
       const minimum = integer(e.minimum ?? 0, -1000000, 1000000, "Минимум");
       const maximum = integer(e.maximum ?? 100, -1000000, 1000000, "Максимум");
@@ -147,11 +148,11 @@
         for (const r of Object.values(layouts)) {
           r.w = Math.min(
             4096,
-            Math.max(8, width + (e.type === "checkbox" ? 20 : 0)),
+            Math.max(8, width + (e.type === "checkbox" ? r.h + Math.max(3, Math.floor(r.h * 6 / 14)) : 0)),
           );
           r.h =
             e.type === "checkbox"
-              ? 14
+              ? r.h
               : Math.min(
                   4096,
                   Math.max(8, label.split("\n").length * 8 * factor),
@@ -166,6 +167,7 @@
         value: text(e.value, 500, "Текст поля"),
         message: text(e.message, 500, "Сообщение"),
         checked: e.checked,
+        customSize: e.customSize ?? false,
         kind: e.kind ?? "info",
         minimum, maximum,
         progress: integer(e.progress ?? 0, -1000000, 1000000, "Прогресс"),
@@ -403,11 +405,11 @@
           lines.push(`        ui_progress_bar(${args}, ${r.h}, progress_${e.id}, ${e.minimum}, ${e.maximum}, ${e.percent});`);
         if (e.type === "field")
           lines.push(
-            `        value_${e.id} = ui_text_field(${id}, ${args}, value_${e.id}, ${quote(e.text)});`,
+            `        value_${e.id} = ui_text_field_box(${id}, ${args}, ${r.h}, value_${e.id}, ${quote(e.text)});`,
           );
         if (e.type === "checkbox")
           lines.push(
-            `        checked_${e.id} = ui_checkbox(${id}, ${x}, ${y}, ${quote(e.text)}, checked_${e.id});`,
+            `        checked_${e.id} = ui_checkbox_box(${id}, ${x}, ${y}, ${r.h}, ${quote(e.text)}, checked_${e.id});`,
           );
         if (["button", "primary"].includes(e.type))
           lines.push(

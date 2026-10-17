@@ -20,6 +20,8 @@
   ownership-aware update/uninstall, rollback, recovery, real progress and CLI checks.
 - Add public process capture/cancellation, user-directory and persistent PATH plans,
   file locks, USTAR extraction, image decoding from memory, and Ctrl+A/X field editing.
+- Add desktop work-area metrics, scalable fields/checkboxes and resizable installer
+  layouts. Preserve old Builder sizing unless custom dimensions are selected.
 - Add public HKCU string-value snapshot/compare-exchange APIs and journal Windows
   uninstall registration in Skrumi. Include a standalone maintenance application.
 - Preserve user changes and import legacy Linux/Windows ownership manifests; support

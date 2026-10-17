@@ -14,6 +14,8 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
         const at = (x, y) => Array.from(pixels.slice((y * width + x) * 4, (y * width + x) * 4 + 4));
         assert.deepEqual(at(40, 25), [239, 123, 53, 255]);
         assert.deepEqual(at(180, 25), [236, 239, 243, 255]);
+        assert.deepEqual(at(200, 144), [239, 123, 53, 255]);
+        assert.deepEqual(at(20, 160), [200, 206, 216, 255]);
         let smoothPixels = 0;
         for (let y = 80; y < 110; y++) for (let x = 20; x < 180; x++) {
           const pixel = at(x, y);
@@ -64,6 +66,9 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
     int font = load_font(read_file("/font.ttf"));
     if (font_text_width(font, "WWW", 20) <= font_text_width(font, "iii", 20)) { fail("proportional font metrics"); }
     open_window(640, 360, "UI test");
+    refused = false;
+    try { desktop_metrics(); } catch (string error) { refused = str_contains(error, "unavailable"); }
+    if (!refused) { fail("desktop metrics must be unavailable in browser"); }
     intercept_window_close(true);
     ui_theme(false);
     int requests = 0;
@@ -74,6 +79,8 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
         frame++;
         clear_window(UI_PANEL);
         ui_progress_bar(20, 20, 202, 20, 50, 0, 100, false);
+        ui_text_field_box("sized", 20, 125, 160, 40, "text", "placeholder");
+        ui_checkbox_box("check", 190, 125, 28, "label", true);
         draw_font_text(font, 20, 80, "Skrumi Ж", 20, rgb(0, 0, 0));
         if (window_close_requested() && !asking) { requests++; asking = true; }
         if (asking && requests == 1) { cancel_window_close(); asking = false; }

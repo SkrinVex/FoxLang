@@ -38,6 +38,7 @@ void set_window_resizable(bool resizable) { gfx_resizable(resizable); }
 void set_window_size(int width, int height) { gfx_set_size(width, height); }
 bool window_fullscreen() { return gfx_fullscreen(); }
 void set_window_fullscreen(bool fullscreen) { gfx_set_fullscreen(fullscreen); }
+array desktop_metrics() { return gfx_desktop_metrics(); }
 bool window_resized() { return gfx_resized(); }
 int load_image(string path) { return gfx_image_load(path); }
 int image_width(int image) { return gfx_image_width(image); }

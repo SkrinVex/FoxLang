@@ -41,6 +41,19 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         time.sleep(.3) # Wait for the window manager to map the client before XGetImage.
         wait_until(lambda: window.pixel(630,540) == 0xef7b35)
         screenshot('welcome')
+        # Resize the actual native window: typography, controls and hit regions
+        # must use the same scale, not only a resized background image.
+        window.move(0, 0)
+        for factor, name in [(0.8, 'compact'), (1.2, 'large')]:
+            window.resize(round(800 * factor), round(580 * factor))
+            time.sleep(.2)
+            wait_until(lambda: window.pixel(round(630 * factor), round(540 * factor)) == 0xef7b35)
+            click(round(700 * factor), round(550 * factor))
+            wait_until(lambda: window.pixel(round(49 * factor), round(225 * factor)) in (0xffffff, 0xc8ced8))
+            screenshot('options-' + name)
+            click(round(530 * factor), round(550 * factor))
+        window.resize(800, 580); time.sleep(.2)
+        wait_until(lambda: window.pixel(630,540) == 0xef7b35)
         # OS close request, No, repeated OS request, Cancel: the setup remains usable.
         window.close_window(); time.sleep(.15); click(400,370)
         assert process.poll() is None

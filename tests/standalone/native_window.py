@@ -252,6 +252,16 @@ class NativeWindow:
             return bool(self.api.IsWindowVisible(self.handle))
         return self.property('WM_STATE')[:1] == [1] and self.handle in self.property('_NET_CLIENT_LIST', root=True)
 
+    def move(self, x, y):
+        """Place a test window inside the capture viewport before resizing."""
+        if os.name == 'nt':
+            self.api.SetWindowPos.argtypes = [C.c_void_p, C.c_void_p, C.c_int, C.c_int, C.c_int, C.c_int, C.c_uint]
+            assert self.api.SetWindowPos(self.handle, None, x, y, 0, 0, 1 | 4 | 16)
+        else:
+            self.api.XMoveWindow.argtypes = [C.c_void_p, C.c_ulong, C.c_int, C.c_int]
+            self.api.XMoveWindow(self.display, self.handle, x, y)
+            self.api.XFlush(self.display)
+
     def resize(self, width, height):
         """Ask the OS to resize the client area, just like a window-manager drag."""
         if os.name == 'nt':

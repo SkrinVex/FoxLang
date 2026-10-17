@@ -8,7 +8,14 @@ const create = require(
 (async () => {
   for (const template of ["welcome", "login", "blank"])
     for (const mode of ["desktop", "mobile"]) {
-      const p = M.validate(M.template(template));
+      const project = M.template(template);
+      for (const element of project.elements) {
+        if (["field", "checkbox"].includes(element.type)) {
+          element.customSize = true;
+          for (const layout of Object.values(element.layouts)) layout.h = element.type === "field" ? 40 : 24;
+        }
+      }
+      const p = M.validate(project);
       let frames = 0,
         polls = 0,
         log = "",

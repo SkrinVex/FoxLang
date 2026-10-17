@@ -243,6 +243,8 @@ const std::vector<Signature>& signatures() {
          [](Call& c) { window(c).setResizable(c.args[0].asBool()); return Value(); }},
         {"gfx_set_size", "set_window_size", "void", {{"int","width"},{"int","height"}}, "Меняет размер обычного окна и области рисования; сначала выйдите из fullscreen. Существующие пиксели в пересекающейся области сохраняются. 64..4096 по каждой оси, не более 8388608 пикселей.",
          [](Call& c) { Window& w = window(c); w.setSize(integer(c, 0), integer(c, 1)); return Value(); }},
+        {"gfx_desktop_metrics", "desktop_metrics", "array", {}, "После открытия окна: [доступная ширина, высота, рекомендуемый масштаб]. Windows: логические DPI-координаты; X11: work area и Xft.dpi. Browser/Android: явная ошибка.",
+         [](Call& c) { auto values = window(c).desktopMetrics(); return runtime::makeArray({Value::real(values[0]), Value::real(values[1]), Value::real(values[2])}); }},
         {"gfx_resized", "window_resized", "bool", {}, "Изменился ли размер окна с прошлого кадра — пора заново расставить элементы.",
          [](Call& c) { return Value::boolean(window(c).resized()); }},
         {"gfx_ui_text_font", "ui_text_field", "string", {{"string","id"},{"int","x"},{"int","y"},{"int","width"},{"int","height"},{"string","text"},{"int","font"},{"int","pixels"},{"int","color"}}, "Редактируемое поле с масштабируемым шрифтом; тот же ввод/фокус/выделение, что gfx_ui_text. Размер 8..96 пикселей.",

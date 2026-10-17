@@ -143,7 +143,7 @@
       $("message-label").hidden = !["button", "primary", "dialog"].includes(e.type);
       $("color-label").hidden = !["label", "panel"].includes(e.type);
       $("scale-label").hidden = e.type !== "label";
-      $("h").disabled = ["field", "checkbox", "label"].includes(e.type);
+      $("h").disabled = e.type === "label";
       $("w").disabled = ["label", "checkbox"].includes(e.type);
       $("horizontal").querySelector("[value=stretch]").disabled = [
         "label",
@@ -220,7 +220,11 @@
         node.style.borderColor = dark ? "#4b5362" : "#c8ced8";
         node.style.color = e.value ? (dark ? "#eef1f6" : "#1e232a") : (dark ? "#a6aebc" : "#78808a");
       }
-      if (e.type === "checkbox") node.style.color = dark ? "#eef1f6" : "#1e232a";
+      if (e.type === "checkbox") {
+        node.style.color = dark ? "#eef1f6" : "#1e232a";
+        node.style.setProperty("--checkbox-side", e.layouts[mode].h + "px");
+        node.style.gap = Math.max(3, Math.floor(e.layouts[mode].h * 6 / 14)) + "px";
+      }
       if (e.type === "button") { node.style.background = dark ? "#303744" : "#eef1f6"; node.style.color = dark ? "#eef1f6" : "#1e232a"; }
       if (e.type === "progress") {
         const fraction = Math.max(0, Math.min(1, (e.progress - e.minimum) / (e.maximum - e.minimum)));
@@ -347,6 +351,7 @@
       change(() => {
         const e = element();
         if (!e) return;
+        if (id === "h" && ["field", "checkbox"].includes(e.type)) e.customSize = true;
         if (["x", "y", "w", "h", "horizontal", "vertical"].includes(id))
           e.layouts[mode][id] = ["horizontal", "vertical"].includes(id)
             ? $(id).value
@@ -468,8 +473,8 @@
       s = project.sizes[mode];
     if (drag.resize) {
       r.w = Math.max(8, Math.min(s.width - drag.rect.x, drag.rect.w + dx));
-      if (element().type !== "field")
-        r.h = Math.max(8, Math.min(s.height - drag.rect.y, drag.rect.h + dy));
+      if (element().type === "field") element().customSize = true;
+      r.h = Math.max(8, Math.min(s.height - drag.rect.y, drag.rect.h + dy));
     } else {
       r.x = Math.max(0, Math.min(Math.max(0, s.width - r.w), drag.rect.x + dx));
       r.y = Math.max(

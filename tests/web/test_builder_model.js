@@ -66,6 +66,15 @@ assert.equal(M.rect(layout, panel, "desktop", 1000, 700).x, 400);
 const field = M.add(layout, "field");
 field.layouts.desktop.h = 90;
 assert.equal(M.validate(layout).elements[1].layouts.desktop.h, 28);
+field.customSize = true;
+assert.equal(M.validate(layout).elements[1].layouts.desktop.h, 90);
+const sizedCheck = M.add(layout, "checkbox");
+sizedCheck.customSize = true;
+sizedCheck.layouts.desktop.h = 28;
+assert.equal(M.validate(layout).elements[2].layouts.desktop.h, 28);
+const sizedSource = M.files(M.validate(layout), "desktop")["layout.skm"];
+assert(sizedSource.includes("ui_text_field_box("));
+assert(sizedSource.includes("ui_checkbox_box("));
 console.log("BUILDER_MODEL_OK");
 
 const large = M.template();

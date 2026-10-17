@@ -2718,3 +2718,40 @@ registry_user_compare_exchange(key, "DisplayName", [true, false, "Моё при�
 Подписи диалоговых кнопок задаются строками `UI_DIALOG_YES`, `UI_DIALOG_NO`,
 `UI_DIALOG_CANCEL`, `UI_DIALOG_OK`. Например, `UI_DIALOG_CANCEL = "Cancel";`.
 Возвращаемые идентификаторы `yes/no/cancel/ok` от локализации не меняются.
+
+### Размеры интерфейса и рабочая область
+
+`array desktop_metrics()` (`gfx_desktop_metrics()`) требует открытого окна и
+возвращает `[width, height, preferred_scale]`. Ширина/высота — доступная рабочая
+область с запасом под рамку (32/64 пикселя), минимум 64. Windows использует
+логические координаты DPI virtualization и масштаб 1; повторно умножать их на
+физический DPI не нужно. X11 использует геометрию root, первую EWMH work area
+и `Xft.dpi` из RESOURCE_MANAGER (120–384 DPI дают масштаб до 3; иначе 1).
+Это начальный ориентир для размера окна, а не отслеживание монитора при переносе.
+Ошибка запроса или отсутствие окна — Graphics Error; Android и браузер возвращают
+явную ошибку недоступности. Для текущей области рисования используйте
+`window_width()`/`window_height()` после `window_poll()`.
+
+- `string ui_text_field_box(string id, int x, int y, int width, int height, string text, string placeholder)`:
+  поле с явной высотой, оба размера не менее 8; возвращает отредактированный текст.
+- `bool ui_checkbox_box(string id, int x, int y, int side, string label, bool checked)`:
+  флажок со стороной не менее 8; возвращает состояние после клика по нему/подписи.
+
+Недопустимый размер вызывает перехватываемую ошибку. Шрифты и цвета берутся из
+общей темы UI. Старые `ui_text_field` и `ui_checkbox` сохраняют размеры 28 и 14.
+Диалоги автоматически увеличивают размеры и кнопки при выборе крупного `UI_FONT`.
+В Builder высота поля/флажка доступна в свойствах; старые проекты без `customSize`
+сохраняют прежние размеры, изменение высоты включает новое свойство.
+
+```skrumi
+using ui;
+open_window(640, 480, "Размеры UI");
+string name = "";
+bool enabled = true;
+while (window_poll()) {
+    clear_window(UI_PANEL);
+    name = ui_text_field_box("name", 24, 30, 300, 40, name, "Имя");
+    enabled = ui_checkbox_box("enabled", 24, 90, 24, "Включить", enabled);
+    present_window();
+}
+```
