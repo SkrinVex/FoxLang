@@ -44,7 +44,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi distribution ') as temp:
     # A second destination must not create another managed installation.
     other = root/'Second Skrumi'
     rejected = subprocess.run([str(installer), '--headless', 'install', str(other)],
-                              cwd=root, env=env, capture_output=True, text=True, timeout=30)
+                              cwd=root, env=env, capture_output=True, text=True, encoding='utf-8', timeout=30)
     assert rejected.returncode != 0 and 'already installed at' in rejected.stdout, rejected
     assert not other.exists()
     # A process-wide per-user lock also excludes different target paths.
@@ -60,7 +60,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi distribution ') as temp:
             time.sleep(.02)
         assert ready.exists()
         blocked = subprocess.run([str(installer), '--headless', 'install', str(other)],
-                                 cwd=root, env=env, capture_output=True, text=True, timeout=30)
+                                 cwd=root, env=env, capture_output=True, text=True, encoding='utf-8', timeout=30)
         assert blocked.returncode != 0 and not other.exists(), blocked
     finally:
         holder.kill(); holder.wait()
