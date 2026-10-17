@@ -37,6 +37,14 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         raise AssertionError('GUI condition timed out')
     def click(x,y):
         window.mouse(x,y); time.sleep(.05); window.mouse(x,y,True); time.sleep(.05); window.mouse(x,y,False); time.sleep(.1)
+    def wait_for_finish():
+        # The journal can disappear inside location_step(), after this frame has
+        # already drawn/registered Cancel. Wait for the next presented frame's
+        # primary Finish button before clicking: the old Cancel hit target must
+        # not consume the click. Move outside first to avoid the hover tint.
+        window.mouse(400,510)
+        wait_until(lambda: window.pixel(630,540) == 0xef7b35
+                   and window.pixel(145,185) != 0xef7b35, 30)
     def screenshot(name):
         if os.environ.get('SKRUMI_GUI_SCREENSHOTS'):
             directory = Path(os.environ['SKRUMI_GUI_SCREENSHOTS']).resolve()
@@ -127,6 +135,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         click(700,550)
         wait_until(lambda: (target/'.skrumi-install.json').is_file(), 30)
         wait_until(lambda: not Path(str(target)+'.skrumi-transaction').exists(), 30)
+        wait_for_finish()
         screenshot('completed')
         suffix = '.exe' if os.name == 'nt' else ''
         for command in ('skrumi','foxlang'):
@@ -204,6 +213,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         wait_until(lambda: not transaction_area.exists(), 30)
         assert (target/'user-project.skm').read_text(encoding='utf-8') == 'print("keep");'
         assert preexisting.read_bytes() == b'// project created before installation'
+        wait_for_finish()
         screenshot('removed')
         window.mouse(700,550); time.sleep(.05); window.mouse(700,550,True)
         output, errors = process.communicate(timeout=10)
@@ -230,6 +240,14 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         output, errors = process.communicate(timeout=10)
         assert process.returncode == 0, (output, errors)
         print('INSTALLER_GUI_SCENARIOS_OK', flush=True)
+    except BaseException:
+        # Preserve the original failure even if the process/window already died.
+        if process.poll() is None:
+            try:
+                screenshot('failure')
+            except Exception as capture_error:
+                print('Could not capture failed GUI:', capture_error, file=sys.stderr)
+        raise
     finally:
         if process.poll() is None: process.kill(); process.communicate()
         window.dispose()
