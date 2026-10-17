@@ -165,6 +165,21 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
             return text(std::string(buffer, length));
         });
 
+    // Immutable standalone resources, separate from source imports and disk paths.
+    add({"resource_read", "string", {{"string", "name"}}, 1, false, "resources",
+         "Байты встроенного ресурса standalone. Имя относительно --resources с разделителем /. Отсутствие ресурса — Resource Error; доступа к cwd нет."},
+        [](Call& c) {
+            if (!c.ctx.interpreter) throw std::runtime_error("Resource Error: resources require an interpreter");
+            return text(c.ctx.interpreter->getSources().readResource(c.text(0)));
+        });
+    add({"resource_list", "array", {}, 0, false, "resources", "Отсортированные имена встроенных ресурсов; пустой массив при их отсутствии."},
+        [](Call& c) {
+            ValueList values;
+            if (c.ctx.interpreter)
+                for (const auto& name : c.ctx.interpreter->getSources().listResources()) values.push_back(text(name));
+            return makeArray(std::move(values));
+        });
+
     // Process
     add({"os_args", "array", {}, 0, false, "os",
          "Пользовательские аргументы после имени программы: `skrumi app.skm a b` и `./app a b` дают `[a, b]`. Системные `--skrumi-*` (и прежние `--foxlang-*`) исключаются; после `--` аргументы передаются буквально."},

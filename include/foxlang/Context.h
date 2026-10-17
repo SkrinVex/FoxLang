@@ -22,8 +22,8 @@ struct Node;
 class Interpreter;
 namespace bytecode { struct Proto; }
 namespace runtime { struct Builtin; }
-namespace graphics { class Window; }
-namespace platform { struct ServerState; }
+namespace graphics { class Window; class Fonts; }
+namespace platform { struct ServerState; struct ProcessTable; struct FileLocks; }
 
 struct FuncParam {
     std::string type;
@@ -508,7 +508,10 @@ struct Context {
     unsigned generation = 0;
     unsigned functionGeneration = 0;
     std::shared_ptr<graphics::Window> graphics;
+    std::shared_ptr<graphics::Fonts> fonts;
     std::shared_ptr<platform::ServerState> server;
+    std::shared_ptr<platform::ProcessTable> processes;
+    std::shared_ptr<platform::FileLocks> fileLocks;
 
     Context() = default;
     // A block scope inside `outer`: same function frame, own names.

@@ -9,6 +9,7 @@ class NativeWindow:
     def __init__(self, title):
         self.title = title
         self.handle = None
+        self.control = False
         if os.name == 'nt':
             self.api = C.WinDLL('user32', use_last_error=True)
             self.gdi = C.WinDLL('gdi32', use_last_error=True)
@@ -75,6 +76,7 @@ class NativeWindow:
                'TAB': 0xff09, 'DELETE': 0xffff, 'HOME': 0xff50, 'END': 0xff57, 'SHIFT': 0xffe1, 'CTRL': 0xffe3, '/': 0x2f, '.': 0x2e}
 
     def send_key(self, name, down, shift=False, repeat=False):
+        if name == "CTRL": self.control = down
         if os.name == 'nt':
             key = self.VIRTUAL_KEYS.get(name, ord(name[0].upper()))
             # lParam as a real keyboard sends it: a repeat count of 1, bit 30 for a key that
@@ -93,7 +95,7 @@ class NativeWindow:
                     ('state',C.c_uint),('keycode',C.c_uint),('same_screen',C.c_int)]
             symbol = self.KEYSYMS.get(name, ord(name[0].lower()))
             event = KeyEvent(type=2 if down else 3, display=self.display, window=self.handle, root=self.root,
-                             keycode=self.api.XKeysymToKeycode(self.display,symbol), state=1 if shift else 0, same_screen=1)
+                             keycode=self.api.XKeysymToKeycode(self.display,symbol), state=(1 if shift else 0) | (4 if self.control else 0), same_screen=1)
             self._send(event, 1 if down else 2)
 
     def type_text(self, text):
@@ -102,7 +104,7 @@ class NativeWindow:
             if os.name == 'nt':
                 self.api.PostMessageW(self.handle, 0x102, ord(ch), 0)
             else:
-                shift = ch.isupper()
+                shift = ch.isupper() or ch in '~!@#$%^&*()_+{}|:"<>?'
                 self.send_key(ch, True, shift)
                 self.send_key(ch, False, shift)
 
@@ -167,6 +169,61 @@ class NativeWindow:
         try:return self.api.XGetPixel(image,0,0) & 0xffffff
         finally:self.api.XDestroyImage(image)
 
+    def screenshot(self, path):
+        """Save real native client pixels as PNG, using only test-side OS APIs."""
+        import struct
+        import zlib
+        from pathlib import Path
+        _, _, width, height = self.geometry()
+        if os.name == 'nt':
+            class Header(C.Structure):
+                _fields_ = [('size', C.c_uint32), ('width', C.c_int32), ('height', C.c_int32),
+                            ('planes', C.c_uint16), ('bits', C.c_uint16), ('compression', C.c_uint32),
+                            ('imageSize', C.c_uint32), ('x', C.c_int32), ('y', C.c_int32),
+                            ('used', C.c_uint32), ('important', C.c_uint32)]
+            for name, result, arguments in [
+                ('CreateCompatibleDC', C.c_void_p, [C.c_void_p]),
+                ('CreateCompatibleBitmap', C.c_void_p, [C.c_void_p, C.c_int, C.c_int]),
+                ('SelectObject', C.c_void_p, [C.c_void_p, C.c_void_p]),
+                ('DeleteObject', C.c_int, [C.c_void_p]), ('DeleteDC', C.c_int, [C.c_void_p]),
+                ('BitBlt', C.c_int, [C.c_void_p, C.c_int, C.c_int, C.c_int, C.c_int, C.c_void_p, C.c_int, C.c_int, C.c_uint]),
+                ('GetDIBits', C.c_int, [C.c_void_p, C.c_void_p, C.c_uint, C.c_uint, C.c_void_p, C.c_void_p, C.c_uint]),
+            ]:
+                function = getattr(self.gdi, name); function.restype = result; function.argtypes = arguments
+            source = self.api.GetDC(self.handle)
+            destination = self.gdi.CreateCompatibleDC(source)
+            bitmap = self.gdi.CreateCompatibleBitmap(source, width, height)
+            assert destination and bitmap
+            previous = self.gdi.SelectObject(destination, bitmap)
+            try:
+                assert self.gdi.BitBlt(destination, 0, 0, width, height, source, 0, 0, 0x00CC0020)
+                self.gdi.SelectObject(destination, previous)
+                header = Header(40, width, -height, 1, 32, 0, 0, 0, 0, 0, 0)
+                data = C.create_string_buffer(width*height*4)
+                assert self.gdi.GetDIBits(source, bitmap, 0, height, data, C.byref(header), 0) == height
+                raw = data.raw
+                rgb = bytearray(width*height*3)
+                rgb[0::3] = raw[2::4]; rgb[1::3] = raw[1::4]; rgb[2::3] = raw[0::4]
+            finally:
+                self.gdi.SelectObject(destination, previous)
+                self.gdi.DeleteObject(bitmap); self.gdi.DeleteDC(destination)
+                self.api.ReleaseDC(self.handle, source)
+        else:
+            image = self.api.XGetImage(self.display, self.handle, 0, 0, width, height, C.c_ulong(-1).value, 2)
+            assert image
+            rgb = bytearray()
+            try:
+                for y in range(height):
+                    for x in range(width):
+                        color = self.api.XGetPixel(image, x, y)
+                        rgb.extend(((color >> 16) & 255, (color >> 8) & 255, color & 255))
+            finally: self.api.XDestroyImage(image)
+        def chunk(kind, data):
+            return struct.pack('>I', len(data))+kind+data+struct.pack('>I', zlib.crc32(kind+data)&0xffffffff)
+        rows = b''.join(b'\0'+rgb[y*width*3:(y+1)*width*3] for y in range(height))
+        png = b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+        Path(path).write_bytes(png+chunk(b'IDAT', zlib.compress(rows))+chunk(b'IEND', b''))
+
     def geometry(self):
         if os.name == 'nt':
             class Rect(C.Structure):
@@ -194,6 +251,16 @@ class NativeWindow:
             self.api.IsWindowVisible.argtypes = [C.c_void_p]
             return bool(self.api.IsWindowVisible(self.handle))
         return self.property('WM_STATE')[:1] == [1] and self.handle in self.property('_NET_CLIENT_LIST', root=True)
+
+    def move(self, x, y):
+        """Place a test window inside the capture viewport before resizing."""
+        if os.name == 'nt':
+            self.api.SetWindowPos.argtypes = [C.c_void_p, C.c_void_p, C.c_int, C.c_int, C.c_int, C.c_int, C.c_uint]
+            assert self.api.SetWindowPos(self.handle, None, x, y, 0, 0, 1 | 4 | 16)
+        else:
+            self.api.XMoveWindow.argtypes = [C.c_void_p, C.c_ulong, C.c_int, C.c_int]
+            self.api.XMoveWindow(self.display, self.handle, x, y)
+            self.api.XFlush(self.display)
 
     def resize(self, width, height):
         """Ask the OS to resize the client area, just like a window-manager drag."""

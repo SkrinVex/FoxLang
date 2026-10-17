@@ -57,6 +57,8 @@ const std::map<std::string, const char*>& commands() {
          "  --console          Windows console EXE (default)\n"
          "  --no-console       Windows GUI EXE: no console is created at startup\n"
          "                      On Linux these switches have no effect. Last wins.\n"
+         "  --resources dir    Embed regular files from this explicit directory.\n"
+         "                      Read with resource_read; links are rejected.\n"
          "\n"
          "Override at launch with --skrumi-console / --skrumi-no-console.\n"
          "See skrumi help run for window size, fullscreen and user arguments.\n"

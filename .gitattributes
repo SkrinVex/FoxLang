@@ -5,3 +5,7 @@
 # The installer test checks the BOM; these rules preserve Windows line endings.
 /packaging/windows/*.ps1 text eol=crlf
 /packaging/windows/*.cmd text eol=crlf
+
+# Canonical stdlib and compatibility adapters are embedded byte for byte.
+/std/*.fox text eol=lf
+/std/*.skm text eol=lf

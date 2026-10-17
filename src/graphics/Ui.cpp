@@ -1,3 +1,4 @@
+#include "Font.h"
 #include "Graphics.h"
 #include <algorithm>
 #include <chrono>
@@ -189,19 +190,28 @@ Ui::Field& Ui::field(const std::string& id) {
 }
 
 std::string Ui::text(const std::string& id, int x, int y, int width, int height, const std::string& value,
-                     int scale, uint32_t color, Window& window) {
+                     int scale, uint32_t color, Window& window, Font* font, int pixels) {
     if (scale < 1 || scale > 32) throw std::runtime_error("Graphics Error: text scale must be 1..32");
     Region region = add(id, x, y, width, height, true, window);
     auto chars = characters(value);
     Field& state = field(id);
     const int pad = 4 * scale, cell = 6 * scale;
-    size_t visible = static_cast<size_t>(std::max(1, (width - 2 * pad) / cell));
+    int available = std::max(1, width - 2 * pad);
+    std::vector<int> offsets;
+    auto measure = [&]() {
+        offsets.clear(); offsets.push_back(0);
+        for (const auto& ch : chars) offsets.push_back(offsets.back() + (font ? font->width(ch, pixels) : cell));
+    };
+    measure();
+    state.scroll = std::min(state.scroll, chars.size());
 
     if (!clickTaken_ && window.keyPressed("MOUSE_LEFT") && active(region, window)) {
         clickTaken_ = true;
         focus_ = id;
-        int column = (window.mouseX() - x - pad + cell / 2) / cell;
-        state.cursor = std::min(chars.size(), state.scroll + static_cast<size_t>(std::max(0, column)));
+        int position = window.mouseX() - x - pad + offsets[state.scroll];
+        state.selectedAll = false;
+        state.cursor = state.scroll;
+        while (state.cursor < chars.size() && position > (offsets[state.cursor] + offsets[state.cursor+1]) / 2) ++state.cursor;
     }
     state.cursor = std::min(state.cursor, chars.size());
 
@@ -210,7 +220,13 @@ std::string Ui::text(const std::string& id, int x, int y, int width, int height,
     // opened a dialog (a letter shortcut) must not also land in the dialog's field.
     bool editing = focus_ == id;
     if (editing && !focusFresh_) {
+        auto eraseSelection = [&]() {
+            if (!state.selectedAll) return false;
+            chars.clear(); state.cursor = 0; state.scroll = 0; state.selectedAll = false;
+            return true;
+        };
         auto insert = [&](const std::string& typed) {
+            if (!typed.empty()) eraseSelection();
             for (auto& ch : characters(typed)) {
                 if (ch == "\n" || ch == "\r" || ch == "\t") continue;
                 if (chars.size() >= 65536) break;
@@ -225,12 +241,14 @@ std::string Ui::text(const std::string& id, int x, int y, int width, int height,
                 continue;
             }
             switch (step.key) {
-                case 8: if (state.cursor > 0) chars.erase(chars.begin() + static_cast<std::ptrdiff_t>(--state.cursor)); break;
-                case 46: if (state.cursor < chars.size()) chars.erase(chars.begin() + static_cast<std::ptrdiff_t>(state.cursor)); break;
-                case 37: if (state.cursor > 0) --state.cursor; break;
-                case 39: if (state.cursor < chars.size()) ++state.cursor; break;
-                case 36: state.cursor = 0; break;
-                case 35: state.cursor = chars.size(); break;
+                case 8: if (!eraseSelection() && state.cursor > 0) chars.erase(chars.begin() + static_cast<std::ptrdiff_t>(--state.cursor)); break;
+                case 46: if (!eraseSelection() && state.cursor < chars.size()) chars.erase(chars.begin() + static_cast<std::ptrdiff_t>(state.cursor)); break;
+                case 37: if (state.selectedAll) state.cursor = 0; else if (state.cursor > 0) --state.cursor; state.selectedAll = false; break;
+                case 39: if (state.selectedAll) state.cursor = chars.size(); else if (state.cursor < chars.size()) ++state.cursor; state.selectedAll = false; break;
+                case 36: state.selectedAll = false; state.cursor = 0; break;
+                case 35: state.selectedAll = false; state.cursor = chars.size(); break;
+                case 'A': if (step.control) { state.selectedAll = true; state.cursor = chars.size(); } break;
+                case 'X': if (step.control && state.selectedAll) { window.setClipboard(join(chars, 0, chars.size())); eraseSelection(); } break;
                 case 'V': if (step.control) insert(window.clipboard()); break;
                 case 'C': if (step.control) window.setClipboard(join(chars, 0, chars.size())); break;
                 default: break;
@@ -239,17 +257,27 @@ std::string Ui::text(const std::string& id, int x, int y, int width, int height,
     }
 
     // Keep the caret inside the visible part of a long text.
+    measure();
     if (state.cursor < state.scroll) state.scroll = state.cursor;
-    if (state.cursor > state.scroll + visible) state.scroll = state.cursor - visible;
+    while (state.scroll < state.cursor && offsets[state.cursor] - offsets[state.scroll] > available) ++state.scroll;
     if (state.scroll > chars.size()) state.scroll = chars.size();
+    size_t visible = 0;
+    while (state.scroll + visible < chars.size() && offsets[state.scroll+visible+1] - offsets[state.scroll] <= available) ++visible;
 
-    int textY = y + (height - 7 * scale) / 2;
-    window.surface().text(x + pad, textY, join(chars, state.scroll, state.scroll + visible), scale, color);
+    int textHeight = font ? pixels + 3 : 7 * scale;
+    int textY = y + (height - textHeight) / 2;
+    if (editing && state.selectedAll) {
+        window.surface().rectangle(x + pad, textY - scale,
+            offsets[state.scroll+visible] - offsets[state.scroll], textHeight + 2, color);
+        color ^= 0x00ffffff;
+    }
+    if (font) font->draw(window.surface(), x + pad, textY, join(chars, state.scroll, state.scroll + visible), pixels, color);
+    else window.surface().text(x + pad, textY, join(chars, state.scroll, state.scroll + visible), scale, color);
     // The caret blinks twice a second while the field has the keyboard.
     auto phase = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
     if (editing && (phase / 500) % 2 == 0) {
-        int caretX = x + pad + static_cast<int>(state.cursor - state.scroll) * cell - std::max(1, scale / 2);
-        window.surface().rectangle(caretX, textY - scale, std::max(1, scale), 9 * scale, color);
+        int caretX = x + pad + (offsets[state.cursor] - offsets[state.scroll]) - std::max(1, scale / 2);
+        window.surface().rectangle(caretX, textY - scale, std::max(1, scale), textHeight + 2, color);
     }
     return join(chars, 0, chars.size());
 }

@@ -967,7 +967,7 @@ std::string resolveFoxFile(const std::string& requested, const std::string& curr
             return platform::pathToUtf8(fs::weakly_canonical(candidate, ec));
         }
     }
-    throw std::runtime_error("Module Error: File '" + requested + "' not found. Checked current file, working directory and FOXLANG_HOME.");
+    throw std::runtime_error("Module Error: File '" + requested + "' not found. Checked current file, working directory and SKRUMI_HOME (FOXLANG_HOME fallback).");
 }
 
 } // namespace runtime

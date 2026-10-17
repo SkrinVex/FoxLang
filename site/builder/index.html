@@ -201,7 +201,10 @@
             <div class="two">
               <label>Фон<input id="background" type="color" /></label
               ><label>Акцент<input id="accent" type="color" /></label>
+              <label>Тема приложения<select id="application-theme"><option value="legacy">Классическая</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label>
             </div>
+            <label>Закрытие окна<select id="closeAction"><option value="default">Сразу закрыть</option><option value="confirm">Подтверждение</option><option value="event">Событие #close в on_click</option></select></label>
+            <details><summary>Цвета компонентов</summary><div id="styles-host"></div></details>
           </form>
         </details>
         <details open>
@@ -224,6 +227,13 @@
             <label id="message-label"
               >Сообщение при нажатии<input id="message" maxlength="500"
             /></label>
+            <label id="kind-label">Вид диалога<select id="kind"><option value="info">Информация</option><option value="error">Ошибка</option><option value="confirm">Да / Нет / Отмена</option></select></label>
+            <div id="progress-properties" hidden>
+              <label>Минимум<input id="minimum" type="number" min="-1000000" max="1000000" /></label>
+              <label>Максимум<input id="maximum" type="number" min="-1000000" max="1000000" /></label>
+              <label>Значение<input id="progress" type="number" min="-1000000" max="1000000" /></label>
+              <label class="check"><input id="percent" type="checkbox" />Показывать проценты</label>
+            </div>
             <div class="two">
               <label>X<input id="x" type="number" min="0" max="4096" /></label
               ><label>Y<input id="y" type="number" min="0" max="4096" /></label

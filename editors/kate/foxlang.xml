@@ -56,6 +56,8 @@
       <item>allow_cors</item>
       <item>any_of</item>
       <item>append_file</item>
+      <item>architecture</item>
+      <item>archive_extract</item>
       <item>arg_or</item>
       <item>args</item>
       <item>array_all</item>
@@ -76,6 +78,7 @@
       <item>atan2</item>
       <item>beep</item>
       <item>body</item>
+      <item>cancel_window_close</item>
       <item>ceil</item>
       <item>clamp</item>
       <item>clamp01</item>
@@ -94,16 +97,20 @@
       <item>cookie</item>
       <item>copy</item>
       <item>copy_array</item>
+      <item>copy_checked</item>
       <item>copy_path</item>
       <item>cos</item>
       <item>cwd</item>
       <item>debug</item>
+      <item>decode_image</item>
       <item>degrees</item>
       <item>delete</item>
+      <item>desktop_metrics</item>
       <item>dns_lookup</item>
       <item>double_clicked</item>
       <item>download</item>
       <item>draw_circle</item>
+      <item>draw_font_text</item>
       <item>draw_frame</item>
       <item>draw_image</item>
       <item>draw_image_alpha</item>
@@ -123,27 +130,34 @@
       <item>env_get</item>
       <item>env_required</item>
       <item>env_set</item>
+      <item>env_user_compare_exchange</item>
+      <item>env_user_snapshot</item>
       <item>error</item>
       <item>exists</item>
       <item>exit</item>
       <item>exp</item>
+      <item>extract_archive</item>
       <item>fail</item>
       <item>file_extension</item>
       <item>file_name</item>
+      <item>file_sha256</item>
       <item>file_size</item>
       <item>file_stem</item>
       <item>filter</item>
       <item>find</item>
       <item>find_first</item>
       <item>floor</item>
+      <item>font_text_width</item>
       <item>form</item>
       <item>format_bytes</item>
       <item>format_time</item>
       <item>frame_delta</item>
+      <item>free_font</item>
       <item>free_image</item>
       <item>free_space</item>
       <item>fs_copy</item>
       <item>fs_exists</item>
+      <item>fs_exists_checked</item>
       <item>fs_free_space</item>
       <item>fs_home</item>
       <item>fs_is_dir</item>
@@ -151,34 +165,52 @@
       <item>fs_is_file</item>
       <item>fs_is_link</item>
       <item>fs_list</item>
+      <item>fs_list_checked</item>
+      <item>fs_lock</item>
       <item>fs_make_dir</item>
+      <item>fs_mkdir_checked</item>
+      <item>fs_mkdtemp</item>
       <item>fs_modified</item>
       <item>fs_move</item>
       <item>fs_owner</item>
       <item>fs_permissions</item>
+      <item>fs_read_checked</item>
       <item>fs_remove</item>
       <item>fs_remove_all</item>
+      <item>fs_remove_checked</item>
+      <item>fs_rename_checked</item>
       <item>fs_set_permissions</item>
+      <item>fs_sha256</item>
       <item>fs_size</item>
       <item>fs_temp_dir</item>
+      <item>fs_unlock</item>
+      <item>fs_write_atomic</item>
       <item>gc_collect</item>
       <item>get</item>
       <item>get_or</item>
       <item>getch</item>
+      <item>gfx_cancel_close</item>
       <item>gfx_circle</item>
       <item>gfx_clear</item>
       <item>gfx_clip_begin</item>
       <item>gfx_clip_end</item>
       <item>gfx_clipboard</item>
       <item>gfx_close</item>
+      <item>gfx_close_requested</item>
       <item>gfx_delta</item>
+      <item>gfx_desktop_metrics</item>
       <item>gfx_double_click</item>
       <item>gfx_down</item>
       <item>gfx_focused</item>
+      <item>gfx_font_free</item>
+      <item>gfx_font_load</item>
+      <item>gfx_font_text</item>
+      <item>gfx_font_width</item>
       <item>gfx_frame</item>
       <item>gfx_fullscreen</item>
       <item>gfx_height</item>
       <item>gfx_image_alpha</item>
+      <item>gfx_image_decode</item>
       <item>gfx_image_draw</item>
       <item>gfx_image_draw_part</item>
       <item>gfx_image_free</item>
@@ -186,6 +218,7 @@
       <item>gfx_image_load</item>
       <item>gfx_image_pixel</item>
       <item>gfx_image_width</item>
+      <item>gfx_intercept_close</item>
       <item>gfx_line</item>
       <item>gfx_mouse_x</item>
       <item>gfx_mouse_y</item>
@@ -219,6 +252,7 @@
       <item>gfx_ui_layer_begin</item>
       <item>gfx_ui_layer_end</item>
       <item>gfx_ui_text</item>
+      <item>gfx_ui_text_font</item>
       <item>gfx_ui_typing</item>
       <item>gfx_ui_wheel</item>
       <item>gfx_wheel</item>
@@ -250,6 +284,7 @@
       <item>info</item>
       <item>input</item>
       <item>insert</item>
+      <item>intercept_window_close</item>
       <item>is_dir</item>
       <item>is_even</item>
       <item>is_executable</item>
@@ -283,6 +318,7 @@
       <item>list_dir</item>
       <item>listen</item>
       <item>listen_tls</item>
+      <item>load_font</item>
       <item>load_image</item>
       <item>log</item>
       <item>log10</item>
@@ -292,6 +328,8 @@
       <item>log_warn</item>
       <item>lower</item>
       <item>make_dir</item>
+      <item>make_dirs_checked</item>
+      <item>make_temp_dir</item>
       <item>max</item>
       <item>max_body_size</item>
       <item>method</item>
@@ -305,6 +343,7 @@
       <item>now_text</item>
       <item>open_path</item>
       <item>open_window</item>
+      <item>os_arch</item>
       <item>os_args</item>
       <item>os_cwd</item>
       <item>os_last_exit</item>
@@ -312,6 +351,7 @@
       <item>os_platform</item>
       <item>os_run</item>
       <item>os_run_output</item>
+      <item>os_user_dir</item>
       <item>owner</item>
       <item>pad_left</item>
       <item>pad_right</item>
@@ -324,6 +364,7 @@
       <item>path_join</item>
       <item>path_name</item>
       <item>path_parent</item>
+      <item>path_safe_join</item>
       <item>path_stem</item>
       <item>permissions</item>
       <item>platform</item>
@@ -334,6 +375,11 @@
       <item>pow</item>
       <item>present_window</item>
       <item>print</item>
+      <item>process_cancel</item>
+      <item>process_poll</item>
+      <item>process_release</item>
+      <item>process_result</item>
+      <item>process_start</item>
       <item>push</item>
       <item>put</item>
       <item>query</item>
@@ -342,10 +388,15 @@
       <item>random</item>
       <item>random_float</item>
       <item>range</item>
+      <item>read_checked</item>
       <item>read_file</item>
       <item>read_lines</item>
+      <item>read_resource</item>
       <item>recv_tcp</item>
       <item>redirect</item>
+      <item>registry_user_compare_exchange</item>
+      <item>registry_user_remove_empty_key</item>
+      <item>registry_user_snapshot</item>
       <item>remove_at</item>
       <item>remove_key</item>
       <item>remove_path</item>
@@ -368,6 +419,9 @@
       <item>reset_color</item>
       <item>resize</item>
       <item>resolve_host</item>
+      <item>resource_list</item>
+      <item>resource_names</item>
+      <item>resource_read</item>
       <item>respond</item>
       <item>respond_as</item>
       <item>respond_html</item>
@@ -378,7 +432,9 @@
       <item>round</item>
       <item>route</item>
       <item>run</item>
+      <item>run_capture</item>
       <item>run_output</item>
+      <item>safe_join</item>
       <item>save_upload</item>
       <item>secret</item>
       <item>send_file</item>
@@ -407,6 +463,7 @@
       <item>set_window_fullscreen</item>
       <item>set_window_resizable</item>
       <item>set_window_size</item>
+      <item>sha256_bytes</item>
       <item>show_cursor</item>
       <item>sign</item>
       <item>sin</item>
@@ -466,11 +523,15 @@
       <item>type_of</item>
       <item>ui_button</item>
       <item>ui_checkbox</item>
+      <item>ui_checkbox_box</item>
       <item>ui_click</item>
+      <item>ui_dialog</item>
+      <item>ui_dialog_box</item>
       <item>ui_double_click</item>
       <item>ui_drag</item>
       <item>ui_drag_x</item>
       <item>ui_drag_y</item>
+      <item>ui_draw_text</item>
       <item>ui_focus</item>
       <item>ui_focused</item>
       <item>ui_hover</item>
@@ -479,23 +540,38 @@
       <item>ui_modal_begin</item>
       <item>ui_modal_end</item>
       <item>ui_primary_button</item>
+      <item>ui_progress_bar</item>
+      <item>ui_progress_busy</item>
+      <item>ui_progress_fraction</item>
       <item>ui_scroll_begin</item>
       <item>ui_scroll_end</item>
       <item>ui_scroll_to</item>
       <item>ui_scrollbar</item>
+      <item>ui_set_font</item>
       <item>ui_text_field</item>
+      <item>ui_text_field_box</item>
+      <item>ui_text_height</item>
+      <item>ui_text_width</item>
+      <item>ui_theme</item>
       <item>ui_typing</item>
       <item>ui_unfocus</item>
       <item>ui_wheel</item>
+      <item>ui_wrap_text</item>
       <item>unix_time_ms</item>
       <item>upload_name</item>
       <item>upper</item>
       <item>uptime_ms</item>
       <item>url_decode</item>
       <item>url_encode</item>
+      <item>user_directory</item>
+      <item>user_path_apply</item>
+      <item>user_path_plan</item>
+      <item>user_path_removal</item>
+      <item>user_path_validate</item>
       <item>values</item>
       <item>wait</item>
       <item>warn</item>
+      <item>window_close_requested</item>
       <item>window_focused</item>
       <item>window_fullscreen</item>
       <item>window_height</item>
@@ -503,6 +579,7 @@
       <item>window_resized</item>
       <item>window_width</item>
       <item>write</item>
+      <item>write_atomic</item>
       <item>write_file</item>
       <item>write_lines</item>
     </list>

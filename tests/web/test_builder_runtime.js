@@ -8,7 +8,14 @@ const create = require(
 (async () => {
   for (const template of ["welcome", "login", "blank"])
     for (const mode of ["desktop", "mobile"]) {
-      const p = M.validate(M.template(template));
+      const project = M.template(template);
+      for (const element of project.elements) {
+        if (["field", "checkbox"].includes(element.type)) {
+          element.customSize = true;
+          for (const layout of Object.values(element.layouts)) layout.h = element.type === "field" ? 40 : 24;
+        }
+      }
+      const p = M.validate(project);
       let frames = 0,
         polls = 0,
         log = "",
@@ -42,6 +49,10 @@ const create = require(
       assert(frames >= 3);
     }
   const p = M.template();
+  p.theme = "dark";
+  const progress = M.add(p, "progress");
+  progress.progress = 65;
+  progress.layouts.desktop.y = 550;
   const field = p.elements.find((e) => e.type === "field"),
     check = p.elements.find((e) => e.type === "checkbox"),
     button = p.elements.find((e) => e.type === "primary");
@@ -119,6 +130,46 @@ const create = require(
   assert(log.includes("CHECK=true"), log);
   assert.equal(log.split("CUSTOM=" + button.id).length - 1, 2, log);
   assert(sizes.has("800x560") && sizes.has("360x640"));
+  for (const action of ["event", "confirm"]) {
+    const project = M.blank();
+    project.closeAction = action;
+    project.styles = { field: "#123456", buttonHover: "#345678" };
+    const dialog = M.add(project, "dialog");
+    dialog.kind = "confirm"; dialog.checked = action === "event";
+    project.main = "int close_count = 0;\n" + M.defaultMain().replace(
+      "print(layout_message(id));",
+      'if (id == "#close") { close_count++; if (close_count == 1) { layout_reject_close(); } else { layout_accept_close(); } }',
+    );
+    let tick = 0, output = "";
+    const runtime = await create({
+      print: s => { output += s + "\n"; }, printErr: s => { output += s + "\n"; },
+      canvasOpen: () => {}, canvasPresent: () => {},
+      canvasPoll: async () => {
+        await new Promise(resolve => setTimeout(resolve, 0)); tick++;
+        assert(tick < 20, "generated close handler did not terminate");
+        if (action === "event") {
+          const r = M.rect(project, dialog, "desktop");
+          if (tick === 3) { runtime._foxlang_mouse(r.x+24, r.y+r.h-30); runtime._foxlang_key(1, 1); }
+          if (tick === 4) runtime._foxlang_key(1, 0);
+          if (tick === 5) for (let i = 0; i < 3; i++) runtime._foxlang_close();
+          if (tick === 7) runtime._foxlang_close();
+        } else {
+          if (tick === 2 || tick === 5) runtime._foxlang_close();
+          if (tick === 3) runtime._foxlang_key(27, 1);
+          if (tick === 4) runtime._foxlang_key(27, 0);
+          if (tick === 6) { runtime._foxlang_mouse(160, 360); runtime._foxlang_key(1, 1); }
+        }
+      },
+    });
+    runtime.FS.writeFile('/layout.skm', M.generate(project));
+    runtime.FS.writeFile('/main.skm', project.main + `
+      if (UI_FIELD != rgb(18, 52, 86) || UI_BUTTON_HOVER != rgb(52, 86, 120)) { fail("generated style"); }
+      ${action === 'event' ? `if (close_count != 2 || result_${dialog.id} != "yes" || open_${dialog.id}) { fail("generated dialog/close result"); }` : ''}
+      print("CLOSE_OK");`);
+    assert.equal(await runtime.ccall('foxlang_run', 'number', ['string', 'string'],
+      ['/main.skm', ''], {async: true}), 0, output);
+    assert(output.includes('CLOSE_OK'), output);
+  }
   console.log("BUILDER_RUNTIME_OK");
 })().catch((e) => {
   console.error(e);

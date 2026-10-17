@@ -1,0 +1,66 @@
+//! Нативная 2D-графика Linux/Windows/Android: окно, фигуры, текст, клавиатура и мышь.
+//! Подробности — в docs/GRAPHICS.md.
+
+void open_window(int width, int height, string title) { gfx_open(width, height, title); }
+bool window_poll() { return gfx_poll(); }
+void close_window() { gfx_close(); }
+void intercept_window_close(bool enabled) { gfx_intercept_close(enabled); }
+bool window_close_requested() { return gfx_close_requested(); }
+void cancel_window_close() { gfx_cancel_close(); }
+void clear_window(int color) { gfx_clear(color); }
+void draw_rect(int x, int y, int width, int height, int color) { gfx_rect(x, y, width, height, color); }
+void draw_circle(int x, int y, int radius, int color) { gfx_circle(x, y, radius, color); }
+void draw_text(int x, int y, string text, int scale, int color) { gfx_text(x, y, text, scale, color); }
+void draw_line(int x1, int y1, int x2, int y2, int color) { gfx_line(x1, y1, x2, y2, color); }
+void draw_frame(int x, int y, int width, int height, int thickness, int color) { gfx_frame(x, y, width, height, thickness, color); }
+void draw_ring(int x, int y, int radius, int thickness, int color) { gfx_ring(x, y, radius, thickness, color); }
+int text_width(string text, int scale) { return gfx_text_width(text, scale); }
+void present_window() { gfx_present(); }
+float frame_delta() { return gfx_delta(); }
+bool key_down(string key) { return gfx_down(key); }
+bool key_pressed(string key) { return gfx_pressed(key); }
+int mouse_x() { return gfx_mouse_x(); }
+int mouse_y() { return gfx_mouse_y(); }
+bool window_focused() { return gfx_focused(); }
+int rgb(int red, int green, int blue) { return gfx_rgb(red, green, blue); }
+bool key_repeat(string key) { return gfx_repeat(key); }
+string text_input() { return gfx_text_input(); }
+int mouse_wheel() { return gfx_wheel(); }
+bool double_clicked() { return gfx_double_click(); }
+string clipboard_text() { return gfx_clipboard(); }
+void set_clipboard_text(string text) { gfx_set_clipboard(text); }
+void draw_rect_alpha(int x, int y, int width, int height, int color, int alpha) { gfx_rect_alpha(x, y, width, height, color, alpha); }
+int window_width() { return gfx_width(); }
+int window_height() { return gfx_height(); }
+void clip_begin(int x, int y, int width, int height) { gfx_clip_begin(x, y, width, height); }
+void clip_end() { gfx_clip_end(); }
+void set_window_resizable(bool resizable) { gfx_resizable(resizable); }
+void set_window_size(int width, int height) { gfx_set_size(width, height); }
+bool window_fullscreen() { return gfx_fullscreen(); }
+void set_window_fullscreen(bool fullscreen) { gfx_set_fullscreen(fullscreen); }
+array desktop_metrics() { return gfx_desktop_metrics(); }
+bool window_resized() { return gfx_resized(); }
+int load_image(string path) { return gfx_image_load(path); }
+int image_width(int image) { return gfx_image_width(image); }
+int image_height(int image) { return gfx_image_height(image); }
+void draw_image(int image, int x, int y) { gfx_image_draw(image, x, y, gfx_image_width(image), gfx_image_height(image), 255); }
+void draw_image_scaled(int image, int x, int y, int width, int height) { gfx_image_draw(image, x, y, width, height, 255); }
+void draw_image_alpha(int image, int x, int y, int opacity) { gfx_image_draw(image, x, y, gfx_image_width(image), gfx_image_height(image), opacity); }
+void draw_image_part(int image, int source_x, int source_y, int source_width, int source_height, int x, int y, int width, int height) {
+    gfx_image_draw_part(image, source_x, source_y, source_width, source_height, x, y, width, height);
+}
+int image_pixel(int image, int x, int y) { return gfx_image_pixel(image, x, y); }
+int image_alpha(int image, int x, int y) { return gfx_image_alpha(image, x, y); }
+void free_image(int image) { gfx_image_free(image); }
+void draw_rects(array rects) { gfx_rects(rects); }
+void draw_sprites(int image, int frame_width, int frame_height, array sprites) { gfx_sprites(image, frame_width, frame_height, sprites); }
+void draw_tiles(int image, int tile_width, int tile_height, array tiles, int columns, int x, int y) { gfx_tiles(image, tile_width, tile_height, tiles, columns, x, y); }
+
+/// PNG/BMP из памяти; удобно для встроенных ресурсов.
+int decode_image(string bytes) { return gfx_image_decode(bytes); }
+
+/// Масштабируемый шрифт из байтов TTF/OTF. Размеры текста — в пикселях, 8..96.
+int load_font(string bytes) { return gfx_font_load(bytes); }
+void free_font(int font) { gfx_font_free(font); }
+int font_text_width(int font, string text, int pixels) { return gfx_font_width(font, text, pixels); }
+void draw_font_text(int font, int x, int y, string text, int pixels, int color) { gfx_font_text(font, x, y, text, pixels, color); }

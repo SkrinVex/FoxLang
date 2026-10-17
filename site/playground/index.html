@@ -513,6 +513,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     <option value="modules">Несколько файлов</option>
     <option value="game">Игра в окне</option>
     <option value="todo">Окно с кнопками (ui)</option>
+    <option value="progress">Прогресс, темы и диалог (ui)</option>
     <option value="paint">Рисовалка</option>
     <option value="raycaster">Псевдо-3D лабиринт</option>
   </select>
@@ -589,6 +590,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     modules: ["modules/main.skm", "modules/shapes.skm", "modules/tools/report.skm"],
     game: ["game.skm"],
     todo: ["todo.skm"],
+    progress: ["progress.skm"],
     paint: ["paint.skm"],
     raycaster: ["raycaster.skm"]
   };
@@ -970,6 +972,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     if (message.type === "output") write(message.text, message.stream);
     else if (message.type === "alive") watch();
     else if (message.type === "window") showWindow(message);
+    else if (message.type === "window-ready" && canvasElement) canvasElement.setAttribute("aria-busy", "false");
     else if (message.type === "window-size") sizeWindow(message.width, message.height);
     else if (message.type === "window-closed") statusBox.textContent = "Окно закрыто";
     else if (message.type === "done") {
@@ -1092,6 +1095,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     screenBox.textContent = "";
     var canvas = document.createElement("canvas");
     canvas.tabIndex = 0;
+    canvas.setAttribute("aria-busy", "true");
     canvas.setAttribute("aria-label", "Окно программы: щёлкните, чтобы управлять с клавиатуры");
     canvas.width = 1;
     canvas.height = 1;

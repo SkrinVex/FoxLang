@@ -383,8 +383,12 @@ int main() {
     // 18. Every standard module describes itself
     {
         const auto& modules = foxlang::standardModules();
-        TEST_ASSERT(modules.size() == 16);
-        for (const auto& module : modules) TEST_ASSERT(!module.documentation.empty());
+        std::set<std::string> names;
+        for (const auto& module : modules) {
+            TEST_ASSERT(!module.documentation.empty());
+            TEST_ASSERT(names.insert(module.name).second); // adapters are not extra modules
+        }
+        TEST_ASSERT(names.count("resources") && names.count("ui") && names.count("fs") && names.count("graphics"));
     }
 
     // 19. Files of one program see each other; two programs sharing a library do not

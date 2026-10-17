@@ -22,12 +22,30 @@ share the parser, VM, formatter, test runner, project index and module system.
 A project may contain both. `include("helper.fox")` and `include("helper.skm")`
 refer to precisely the named file: no silent extension substitution.
 
-For `using helper;`, the existing standard-library precedence is retained. Within
-standard-module lookup and then ordinary module lookup, the complete legacy
-`.fox` search precedes `.skm` fallback. Thus adding `helper.skm` cannot silently
-replace an existing `helper.fox`. Prefer explicit `include(...)` when both exist.
-Embedded standard modules keep their historical `.fox` identities. A module's
-canonical identity still prevents repeated loading.
+For `using helper;`, standard modules still precede ordinary project modules.
+Within each disk lookup, the **importing file** selects the extension order:
+`.skm` (or a source identity without a legacy suffix) tries `.skm` then `.fox`;
+`.fox` tries `.fox` then `.skm`. The CLI command name and entry point do not override
+a nested module's choice. Both extensions are searched before the embedded stdlib,
+and the embedded stdlib still precedes a nonstandard local homonym. Execution or
+parse errors in a selected file never cause fallback to the other extension.
+
+This preserves legacy `.fox` project collisions while making `.skm` the primary
+format for new code. When migrating a file with paired dependencies, review
+extensionless `using` statements; use `using helper.fox;` or an explicit include to
+pin a legacy dependency. Arbitrary explicit includes never substitute extensions.
+Old standalone bundles retain their recorded import graph.
+
+The updated `fs`, `graphics` and `ui` standard implementations live in `.skm`.
+Their old `.fox` paths contain only checked compatibility adapters. The loader maps
+an adapter to the same canonical `.skm` identity, so importing both paths does not
+initialize globals twice and `using ... as ...` still exports the module's members.
+Only the exact shipped adapter body gets this treatment; user `.fox` implementations
+are never redirected. A missing adapter target is an error. In a copied CLI without
+a disk stdlib, explicit `std/ui.fox` and `std/ui.skm` also address that embedded module.
+Build and catalog checks reject two independent std implementations with one name.
+Other existing std modules keep their current paths until deliberately migrated;
+all newly added implementations use `.skm`.
 
 To migrate voluntarily: update your entry command, rename files, and update every
 explicit include/path that refers to a renamed file. Migrate incrementally; test
@@ -83,8 +101,7 @@ projects use `.skm`. The WASM C exports retain their names for compatibility;
 new generated bundles are named `skrumi.js` and `skrumi-graphics.js`.
 
 Before release, run native CTest, Windows installer CI, Android emulator/AAR/APK
-checks, and the browser/WASM jobs. See [migration verification](REBRANDING_VALIDATION.md)
-for actual local results and limitations. Publish compatibility copies of fixed
+checks, and the browser/WASM jobs. Publish compatibility copies of fixed
 old download names alongside new artifacts so existing `releases/latest` links
 continue working. Keep old releases and tags intact.
 
@@ -93,3 +110,25 @@ review Pages routing (repository redirects do not guarantee Pages redirects),
 badges, workflow references, GHCR coordinates and download links. No repository
 rename, marketplace publication, tag creation or release publication is part of
 this source migration.
+
+## Compatibility identifiers
+
+These identifiers remain stable for existing integrations:
+
+| Area | Retained names and reason |
+| --- | --- |
+| GitHub, Pages, badges, download URLs | After the owner renamed the repository to `SkrinVex/Skrumi`, active links use that repository and `skrinvex.github.io/Skrumi`. Historical links and `.fox` examples retain the old repository URL, which GitHub redirects. Old fixed VSIX/APK/AAR download names remain compatible. The README version badge is local and synchronized from VERSION. No new domain is assumed. |
+| History and legal notices | Previous changelog entries, LICENSE, bundled license heading, historical benchmark data and old release versions remain factual. |
+| C++ API / ABI | `include/foxlang`, `foxlang::`, `FoxLang.h`, existing fields such as `foxHome`, build target names and implementation macros. New `include/skrumi` headers and namespace aliases use the same classes. Both library filenames are installed. |
+| Native binary and bundle format | `foxlang`, `foxlang-lsp` aliases; bundle descriptor symbols/magic, internal synthetic `.fox` identities and Windows `FoxLangGraphicsWindow` class remain stable for existing tools. |
+| Runtime configuration | `FOXLANG_*`, `--foxlang-*`, legacy install paths and `FOXLANG_PREFIX` fallback remain accepted. Test-only environment switches retain their names. New settings and runtime help recommend Skrumi. |
+| Sources and module lookup | Updated stdlib implementations use `.skm` with verified `.fox` compatibility adapters. Extensionless `using` prefers `.skm` in modern importing files and retains `.fox` precedence in legacy importing files. `.skm` examples are the recommended current copies. |
+| Regression suite / benchmarks | Original `.fox` fixtures and their paths, old API coverage, migration tests, benchmark folder/JSON schema keys and baseline metadata remain stable. Literal strings in programs are test data. Assertions on actual new CLI branding were updated. |
+| Android | `org.foxlang.android`, `org.foxlang.runner`, application IDs, Gradle module `:foxlang`, `foxlang*` property fallbacks, JNI exports, `libfoxlang_android.so`, `foxlang-entry.txt` and Intent extra `foxlang.arguments`. Changing these would break SDK consumers or app updates. Skrumi facades delegate to this implementation. |
+| Android profiling | `FoxLang.present`, `FoxLang.frame.copy`, `FoxView.upload/draw` trace identifiers and historical captures remain readable by the profiler. |
+| VS Code | Published `SkrinVex.foxlang-language` identity, `fox` language ID, `source.fox` scopes, `foxlang.*` settings/commands, tasks/debug adapter/problem matcher IDs. Old configured paths and old diagnostic prefixes remain recognized. Both suffixes use the same registration. |
+| Zed | Extension/crate ID `foxlang`, persisted language key `FoxLang`, `foxlang-lsp` server registration and `FoxLang` debug adapter/schema identity. Display brand is Skrumi; executable lookup prefers Skrumi and falls back to legacy commands. |
+| Kate | Existing config keys, syntax/tool filenames and action names remain stable for shortcuts and existing settings. Display labels and executables are updated; source filter includes both suffixes. |
+| Browser | Storage keys, `FoxBuilder` global, builder message protocol, shared-project source names, `createFoxLang` factory and C exports remain compatible. Generated bundles have new names plus old URL copies. CSS classes and benchmark JSON keys are internal identifiers. |
+| Markdown language labels | `foxlang` code-fence identifiers are retained for existing highlighters. They are not a second parser. |
+| Temporary runtime files | Legacy temp-file prefixes are private implementation identifiers; changing them is unnecessary for the user-facing brand and could disrupt cleanup/diagnostic tooling. |

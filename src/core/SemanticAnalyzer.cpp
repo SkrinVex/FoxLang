@@ -92,7 +92,8 @@ const std::vector<ModuleInfo>& standardModules() {
     static const std::vector<ModuleInfo> modules = [] {
         std::vector<ModuleInfo> out;
         for (const auto& [path, text] : embeddedStdlib()) {
-            std::string name = path.substr(4, path.size() - 8); // "std/" + name + ".fox"
+            if (stdlibAliases().count(path)) continue;
+            std::string name = path.substr(4, path.size() - 8); // std/ + name + source suffix
             out.push_back({name, moduleDescription(text)});
         }
         return out;

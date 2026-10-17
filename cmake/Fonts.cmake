@@ -1,0 +1,41 @@
+# Small static outline-font rasterizer, shared by native and WebAssembly builds.
+# Optional compression, image and shaping dependencies are deliberately disabled.
+include(FetchContent)
+function(skrumi_fonts)
+    set(BUILD_SHARED_LIBS OFF)
+    set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(freetype
+        URL https://github.com/freetype/freetype/archive/refs/tags/VER-2-14-1.tar.gz
+        URL_HASH SHA256=44bd69d1f0750603410cfd4f26f1c5523c5a3a087a2dfa8639b757dc7c6677be)
+    FetchContent_MakeAvailable(freetype)
+    set_target_properties(freetype PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    if(EMSCRIPTEN)
+        # The non-graphical VM uses Wasm EH, while Asyncify uses JS exceptions.
+        # FreeType's setjmp/longjmp must be compiled for the matching ABI.
+        get_target_property(font_sources freetype SOURCES)
+        set(wasm_font_sources)
+        foreach(source IN LISTS font_sources)
+            if(IS_ABSOLUTE "${source}")
+                list(APPEND wasm_font_sources "${source}")
+            else()
+                list(APPEND wasm_font_sources "${freetype_SOURCE_DIR}/${source}")
+            endif()
+        endforeach()
+        add_library(skrumi_freetype_wasm STATIC ${wasm_font_sources})
+        get_target_property(font_includes freetype INCLUDE_DIRECTORIES)
+        target_include_directories(skrumi_freetype_wasm PUBLIC ${font_includes})
+        target_compile_definitions(skrumi_freetype_wasm PRIVATE FT2_BUILD_LIBRARY)
+        target_compile_options(skrumi_freetype_wasm PRIVATE -fwasm-exceptions)
+        target_link_libraries(foxlang_core PRIVATE skrumi_freetype_wasm)
+    else()
+        target_link_libraries(foxlang_core PRIVATE freetype)
+    endif()
+    file(READ "${freetype_SOURCE_DIR}/docs/FTL.TXT" font_license)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/FontLicenses.h"
+        "#pragma once\ninline const char* skrumiFontLicense() { return R\"SKFONT(FreeType 2.14.1, used under the FreeType License\n${font_license})SKFONT\"; }\n")
+endfunction()
+skrumi_fonts()

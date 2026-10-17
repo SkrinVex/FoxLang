@@ -1,3 +1,4 @@
+#include "Font.h"
 #include "Builtins.h"
 #include "Graphics.h"
 #include "foxlang/FoxLang.h"
@@ -47,6 +48,11 @@ Window& window(Call& c) {
     if (!slot) fail("call open_window first");
     return *slot;
 }
+Fonts& fonts(Call& c) {
+    auto& slot = c.ctx.getRoot()->fonts;
+    if (!slot) slot = std::make_shared<Fonts>();
+    return *slot;
+}
 Surface& surface(Call& c) { return window(c).surface(); }
 
 // Pictures live apart from the window: they can be loaded before it opens.
@@ -61,12 +67,8 @@ Image& picture(const Call& c, size_t i) {
         fail(std::to_string(handle) + " is not a loaded image");
     return *loaded[size_t(handle) - 1];
 }
-Value loadImage(const std::string& path) {
-    std::ifstream file(platform::pathFromUtf8(path), std::ios::binary);
-    if (!file) fail("cannot open image '" + path + "'");
-    std::stringstream bytes;
-    bytes << file.rdbuf();
-    auto image = std::make_shared<Image>(decodeImage(bytes.str()));
+Value decodePicture(const std::string& bytes) {
+    auto image = std::make_shared<Image>(decodeImage(bytes));
     auto& loaded = images();
     for (size_t slot = 0; slot < loaded.size(); ++slot)
         if (!loaded[slot]) {
@@ -76,6 +78,14 @@ Value loadImage(const std::string& path) {
     loaded.push_back(image);
     return Value::integer(static_cast<long long>(loaded.size()));
 }
+Value loadImage(const std::string& path) {
+    std::ifstream file(platform::pathFromUtf8(path), std::ios::binary);
+    if (!file) fail("cannot open image '" + path + "'");
+    std::stringstream bytes; bytes << file.rdbuf();
+    if (file.bad()) fail("cannot read image '" + path + "'");
+    return decodePicture(bytes.str());
+}
+
 uint32_t pixel(const Call& c) {
     Image& image = picture(c, 0);
     int x = integer(c, 1), y = integer(c, 2);
@@ -171,6 +181,12 @@ const std::vector<Signature>& signatures() {
          [](Call& c) { return Value::boolean(window(c).poll()); }},
         {"gfx_close", "close_window", "void", {}, "Закрыть окно и освободить ресурсы. Повторный вызов допустим.",
          [](Call& c) { c.ctx.getRoot()->graphics.reset(); return Value(); }},
+        {"gfx_intercept_close", "intercept_window_close", "void", {{"bool","enabled"}}, "Перехватывать запрос закрытия; window_poll продолжает возвращать true. Отключение при ожидающем запросе закрывает окно.",
+         [](Call& c) { window(c).interceptClose(c.args[0].asBool()); return Value(); }},
+        {"gfx_close_requested", "window_close_requested", "bool", {}, "Есть ожидающий запрос закрытия. Повторные запросы объединяются до cancel_window_close или close_window.",
+         [](Call& c) { return Value::boolean(window(c).closeRequested()); }},
+        {"gfx_cancel_close", "cancel_window_close", "void", {}, "Отменить ожидающий запрос закрытия окна.",
+         [](Call& c) { window(c).cancelClose(); return Value(); }},
         {"gfx_clear", "clear_window", "void", {{"int","color"}}, "Очистить буфер цветом rgb(r,g,b).",
          [](Call& c) { Surface& s = surface(c); s.clear(color(c, 0)); return Value(); }},
         {"gfx_rect", "draw_rect", "void", {{"int","x"},{"int","y"},{"int","width"},{"int","height"},{"int","color"}}, "Нарисовать заполненный прямоугольник с отсечением по границам окна.",
@@ -227,8 +243,22 @@ const std::vector<Signature>& signatures() {
          [](Call& c) { window(c).setResizable(c.args[0].asBool()); return Value(); }},
         {"gfx_set_size", "set_window_size", "void", {{"int","width"},{"int","height"}}, "Меняет размер обычного окна и области рисования; сначала выйдите из fullscreen. Существующие пиксели в пересекающейся области сохраняются. 64..4096 по каждой оси, не более 8388608 пикселей.",
          [](Call& c) { Window& w = window(c); w.setSize(integer(c, 0), integer(c, 1)); return Value(); }},
+        {"gfx_desktop_metrics", "desktop_metrics", "array", {}, "После открытия окна: [доступная ширина, высота, рекомендуемый масштаб]. Windows: логические DPI-координаты; X11: work area и Xft.dpi. Browser/Android: явная ошибка.",
+         [](Call& c) { auto values = window(c).desktopMetrics(); return runtime::makeArray({Value::real(values[0]), Value::real(values[1]), Value::real(values[2])}); }},
         {"gfx_resized", "window_resized", "bool", {}, "Изменился ли размер окна с прошлого кадра — пора заново расставить элементы.",
          [](Call& c) { return Value::boolean(window(c).resized()); }},
+        {"gfx_ui_text_font", "ui_text_field", "string", {{"string","id"},{"int","x"},{"int","y"},{"int","width"},{"int","height"},{"string","text"},{"int","font"},{"int","pixels"},{"int","color"}}, "Редактируемое поле с масштабируемым шрифтом; тот же ввод/фокус/выделение, что gfx_ui_text. Размер 8..96 пикселей.",
+         [](Call& c) { auto& font = fonts(c).get(integer(c, 6)); font.width("", integer(c, 7)); return Value::string(window(c).ui().text(id(c, 0), integer(c, 1), integer(c, 2), integer(c, 3), integer(c, 4), c.args[5].str(), 1, color(c, 8), window(c), &font, integer(c, 7))); }},
+        {"gfx_font_load", "load_font", "int", {{"string","bytes"}}, "Загружает масштабируемый Unicode-шрифт из памяти (до 8 МиБ); до 32 font handle на runtime. Ошибка формата — Graphics Error.",
+         [](Call& c) { return Value::integer(fonts(c).load(c.args[0].str())); }},
+        {"gfx_font_free", "free_font", "void", {{"int","font"}}, "Освобождает font handle. Шрифты также освобождаются при уничтожении runtime.",
+         [](Call& c) { fonts(c).release(integer(c, 0)); return Value(); }},
+        {"gfx_font_width", "font_text_width", "int", {{"int","font"},{"string","text"},{"int","pixels"}}, "Ширина текста шрифтом; размер 8..96 пикселей, без shaping/kerning. Переносы строк поддерживаются.",
+         [](Call& c) { return Value::integer(fonts(c).get(integer(c, 0)).width(c.args[1].str(), integer(c, 2))); }},
+        {"gfx_font_text", "draw_font_text", "void", {{"int","font"},{"int","x"},{"int","y"},{"string","text"},{"int","pixels"},{"int","color"}}, "Сглаженный текст, x/y — верх строки, размер 8..96 пикселей. Общий рендерер Windows/Linux/Android/Web; требуется окно.",
+         [](Call& c) { fonts(c).get(integer(c, 0)).draw(surface(c), integer(c, 1), integer(c, 2), c.args[3].str(), integer(c, 4), color(c, 5)); return Value(); }},
+        {"gfx_image_decode", "decode_image", "int", {{"string","bytes"}}, "Декодирует PNG/BMP из байтов строки, включая resource_read; без временных файлов. Ошибка формата — Graphics Error.",
+         [](Call& c) { return decodePicture(c.args[0].str()); }},
         {"gfx_image_load", "load_image", "int", {{"string","path"}}, "Загружает картинку PNG или BMP и возвращает её номер для рисования. Окно не требуется. Поддерживаются все виды PNG, в том числе с прозрачностью.",
          [](Call& c) { return loadImage(c.args[0].str()); }},
         {"gfx_image_width", "image_width", "int", {{"int","image"}}, "Ширина загруженной картинки в пикселях.",

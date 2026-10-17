@@ -1,12 +1,13 @@
 name: Skrumi CI
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches: [master]
 
 concurrency:
-  group: foxlang-ci-${{ github.event.pull_request.number || github.ref }}
+  group: skrumi-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -40,6 +41,23 @@ jobs:
         run: docker buildx build --target portable --output type=local,dest=build-portable .
       - name: Verify no shared libraries and run standalone tests on Ubuntu
         run: xvfb-run -a python3 tests/standalone/test_portable_linux.py build-portable/skrumi
+      - name: Exercise the portable installer native window on Ubuntu
+        run: xvfb-run -a python3 tests/installer/test_gui.py build-portable/skrumi build-portable/skrumi-lsp
+      - name: Build and verify the portable offline installer
+        run: |
+          mkdir -p installer-dist
+          python3 packaging/build_gui_installer.py --runtime build-portable/skrumi --lsp build-portable/skrumi-lsp --output installer-dist/Skrumi-linux-x86_64.run
+          python3 tests/installer/test_distribution.py installer-dist/Skrumi-linux-x86_64.run "$(tr -d '[:space:]' < VERSION)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gui-installer-candidate-linux
+          path: installer-dist/Skrumi-linux-x86_64.run
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-runtime
+          path: build-portable/skrumi
+          if-no-files-found: error
 
   # The playground page's Skrumi: WebAssembly built with Emscripten, run in Node.
   web:
@@ -59,6 +77,7 @@ jobs:
         run: |
           node tests/web/test_playground.js site/playground
           node tests/web/test_builder_runtime.js site/playground
+          node tests/web/test_system_ui_runtime.js site/playground
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -97,7 +116,7 @@ jobs:
         run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build --config Release --parallel 4
 
       - name: Run Tests (CTest)
         run: ctest --test-dir build -C Release --output-on-failure -LE standalone
@@ -106,6 +125,7 @@ jobs:
         shell: bash
         env:
           FOXLANG_REQUIRE_GRAPHICS_TESTS: '1'
+          SKRUMI_GUI_SCREENSHOTS: ${{ github.workspace }}/build/gui-screenshots
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
             xvfb-run -a ctest --test-dir build -C Release --output-on-failure -L standalone
@@ -163,3 +183,46 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./packaging/windows/test_install.ps1 -PackageDir ./dist -Direct
+
+      - name: Build and verify the offline GUI distribution
+        shell: bash
+        run: |
+          BIN_DIR=build
+          SUFFIX=
+          ASSET=Skrumi-linux-x86_64.run
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            BIN_DIR=build/Release
+            SUFFIX=.exe
+            ASSET=Skrumi-windows-x86_64.exe
+          fi
+          mkdir -p installer-dist
+          python packaging/build_gui_installer.py --runtime "$BIN_DIR/skrumi$SUFFIX" --lsp "$BIN_DIR/skrumi-lsp$SUFFIX" --output "installer-dist/$ASSET"
+          python tests/installer/test_distribution.py "installer-dist/$ASSET" "$(tr -d '[:space:]' < VERSION)"
+
+      - name: Verify real disk exhaustion and denied publication on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          TEST_VOLUME="$RUNNER_TEMP/skrumi-installer-test-volume"
+          mkdir -p "$TEST_VOLUME"
+          sudo mount -t tmpfs -o "size=96m,uid=$(id -u),gid=$(id -g),mode=0700" tmpfs "$TEST_VOLUME"
+          trap 'sudo umount "$TEST_VOLUME"' EXIT
+          python tests/installer/test_disk_full.py installer-dist/Skrumi-linux-x86_64.run "$TEST_VOLUME"
+
+      - name: Verify real disk exhaustion and locked publication on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./packaging/windows/test_disk_volume.ps1 -Installer installer-dist/Skrumi-windows-x86_64.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os == 'Windows' && 'gui-installer-candidate-windows' || 'gui-installer-native-linux' }}
+          path: installer-dist/*
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-screenshots-${{ matrix.name }}
+          path: build/gui-screenshots/*.png
+          if-no-files-found: ignore

@@ -13,5 +13,6 @@ std::optional<Sources> unpack(const Bytes& image);
 Bytes pack(Bytes image, const Sources& sources, bool noConsole = false);
 Bytes readImage(const std::filesystem::path& path);
 std::filesystem::path executablePath();
-void build(const std::filesystem::path& input, std::filesystem::path output, bool noConsole = false);
+void build(const std::filesystem::path& input, std::filesystem::path output, bool noConsole = false,
+           const std::filesystem::path& resources = {});
 } // namespace foxlang::bundle

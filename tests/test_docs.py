@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix="fox-docs-test-") as directory:
             if "#include" in code:
                 continue
             line = text.count("\n", 0, match.start()) + 2
-            source = Path(directory) / "block.fox"
+            source = Path(directory) / "block.skm"
             source.write_text(code, encoding="utf-8")
             result = subprocess.run([str(binary), "check", str(source)], cwd=directory, env=env,
                                     capture_output=True, encoding="utf-8", timeout=30)
@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix="fox-docs-test-") as directory:
 
 reference = (root / "DOCUMENTATION.md").read_text(encoding="utf-8")
 names = set(catalog.builtin_names(root))
-modules = sorted((root / "std").glob("*.fox"))
+modules = catalog.standard_modules(root)
 for module in modules:
     if f"using {module.stem};" not in reference:
         failures.append(f"DOCUMENTATION.md has no section for `using {module.stem};`")

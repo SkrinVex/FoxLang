@@ -1,0 +1,27 @@
+using ui;
+using time;
+open_window(640, 360, "Skrumi — ProgressBar и Dialog");
+intercept_window_close(true);
+ui_theme(false);
+float value = 35;
+bool asking = false;
+bool dark = false;
+while (window_poll()) {
+    if (window_close_requested()) { asking = true; }
+    clear_window(UI_PANEL);
+    draw_text(24, 28, "Компоненты Skrumi", 3, UI_TEXT);
+    draw_text(24, 76, "Значение меняется кнопками; это пример UI.", 1, UI_MUTED);
+    ui_progress_bar(24, 110, 592, 28, value, 0, 100, true);
+    ui_progress_busy(24, 156, 592, 12, uptime_ms() / 1000.0);
+    if (ui_button("less", 24, 208, 100, 32, "-10")) { value -= 10; }
+    if (ui_button("more", 136, 208, 100, 32, "+10")) { value += 10; }
+    if (ui_button("theme", 248, 208, 160, 32, "Сменить тему")) { dark = !dark; ui_theme(dark); }
+    if (asking) {
+        string answer = ui_dialog("quit", "Выход", "Закрыть окно примера?", "confirm");
+        if (answer == "yes") { break; }
+        if (answer == "no" || answer == "cancel") { cancel_window_close(); asking = false; }
+    }
+    present_window();
+    wait(10);
+}
+close_window();

@@ -1,4 +1,50 @@
-## Unreleased — Skrumi identity and FoxLang compatibility
+## Skrumi 8.18.0 — GUI installer and public system/UI APIs
+
+- Highlight the selected directory preset, enable recovery only for a detected
+  transaction, clarify platform-specific PATH activation, and verify preservation
+  of preexisting unrelated files (including files inside `std`) and collision refusal.
+
+- Compact directory presets into inline rows; separate removal from update options
+  with a dedicated page and explicit confirmation before any filesystem changes.
+
+- Start GUI setup and maintenance with a Russian/English language selector;
+  localize controls, dialogs, operation logs and installer-owned diagnostics.
+
+- Add installation directory presets and per-user discovery/locking to prevent
+  duplicate managed installations; reuse the existing directory for updates.
+
+- Make updated stdlib implementations canonical `.skm` sources with checked `.fox`
+  compatibility adapters and one module identity. Prefer `.skm` in modern importers;
+  preserve `.fox` precedence inside legacy importing files.
+- Add explicit standalone resource packaging (`--resources`) and public resource
+  reads without cwd fallback; retain v1 bundle support and add v2 resource records.
+- Add native streaming SHA-256 through the existing Mbed TLS dependency.
+
+- Add checked file reads, durable atomic writes, unique temporary directories and
+  validated portable child paths to the public `fs` library. Browser durable writes
+  explicitly fail; existing filesystem return conventions remain unchanged.
+- Add opt-in deferred window close requests, Skrumi ProgressBar and nonblocking
+  dialogs, and light/dark UI palettes shared by existing components.
+- Add ProgressBar and application palettes to UI Builder, preserve format-1 projects,
+  and add a Playground example and native/browser runtime tests.
+- Reject NUL in process arguments, enforce the documented stdout capture limit,
+  and report waitpid failures instead of an apparent successful exit.
+- Add the offline `.skm` installer application and its journaled file transactions,
+  ownership-aware update/uninstall, rollback, recovery, real progress and CLI checks.
+- Add public process capture/cancellation, user-directory and persistent PATH plans,
+  file locks, USTAR extraction, image decoding from memory, and Ctrl+A/X field editing.
+- Add desktop work-area metrics, scalable fields/checkboxes and resizable installer
+  layouts. Preserve old Builder sizing unless custom dimensions are selected.
+- Add public HKCU string-value snapshot/compare-exchange APIs and journal Windows
+  uninstall registration in Skrumi. Include a standalone maintenance application.
+- Preserve user changes and import legacy Linux/Windows ownership manifests; support
+  optional LSP installation and durable commit/rollback recovery records.
+- Build the release from verified Windows and portable Linux GUI candidates, retain
+  Android SDK/APKs and editor assets, and stop publishing language ZIP/TAR packages.
+  A manual candidate build validates the release without creating tags or publishing.
+- Resolve website downloads against actual latest-release assets, with no dead GUI
+  links before the first release. See `docs/GUI_INSTALLER.md`
+  for platform validation requirements and transaction guarantees.
 
 - Rename the public language, CLI and LSP to Skrumi, `skrumi` and `skrumi-lsp`.
 - Support `.skm` alongside `.fox` through the same runtime and tooling.

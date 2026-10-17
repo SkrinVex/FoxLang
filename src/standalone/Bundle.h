@@ -20,8 +20,11 @@ public:
     std::string entry;
     std::map<std::string, std::string> files;
     std::map<ImportKey, std::string> imports;
+    std::map<std::string, std::string> resources;
     std::string resolve(const ModuleImport& request, const std::string& from) const override;
     std::string read(const std::string& identity) const override;
+    std::string readResource(const std::string& name) const override;
+    std::vector<std::string> listResources() const override;
 };
 
 Bytes encode(const Sources& sources);

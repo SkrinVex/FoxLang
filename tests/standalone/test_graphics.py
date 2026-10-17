@@ -35,6 +35,8 @@ with tempfile.TemporaryDirectory(prefix='fox-native-window-') as directory:
     source=dev/'main.fox'
     source.write_text('''using graphics;
 open_window(320, 240, "'''+title+'''");
+array metrics = desktop_metrics();
+if (size(metrics) != 3 || metrics[0] < 64 || metrics[1] < 64 || metrics[2] < 1 || metrics[2] > 3) { fail("desktop metrics"); }
 int atlas = load_image("tiles.bmp");
 int frames = 0;
 int presses = 0;

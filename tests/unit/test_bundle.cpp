@@ -49,6 +49,27 @@ int main(int argc, char** argv) {
         require(roundtrip.resolve({"helper", true}, "main.fox") == "helper.fox", "wrong import");
         rejects([&] { roundtrip.resolve({"helper", false}, "main.fox"); });
         rejects([&] { roundtrip.read("not bundled"); });
+        require(roundtrip.resources.empty(), "v1 must not invent resources");
+        auto withResources = sources;
+        withResources.resources = {{"assets/data.bin", std::string("a\0b", 3)}, {"empty", ""}};
+        auto resourcePayload = encode(withResources);
+        auto resourceRoundtrip = decode(resourcePayload);
+        require(resourceRoundtrip.resources == withResources.resources, "v2 changed binary resource bytes");
+        require(resourceRoundtrip.readResource("assets/data.bin") == std::string("a\0b", 3), "resource read lost NUL");
+        require(resourceRoundtrip.listResources() == (std::vector<std::string>{"assets/data.bin", "empty"}), "resource list is not sorted");
+        rejects([&] { resourceRoundtrip.readResource("missing"); });
+        auto duplicateResources = sources;
+        duplicateResources.resources = {{"a", ""}, {"b", ""}};
+        auto duplicateResourcePayload = encode(duplicateResources);
+        duplicateResourcePayload[duplicateResourcePayload.size() - 5] = 'a';
+        rejects([&] { decode(duplicateResourcePayload); });
+        for (const auto& name : {"../escape", "/absolute", "a\\b", "a//b", "a/../b", "C:file"}) {
+            auto invalidResource = withResources;
+            invalidResource.resources[name] = "bad";
+            rejects([&] { encode(invalidResource); });
+        }
+        for (std::size_t length = 0; length < resourcePayload.size(); ++length)
+            rejects([&] { decode(Bytes(resourcePayload.begin(), resourcePayload.begin() + length)); });
         require(checksum(Bytes{'1','2','3','4','5','6','7','8','9'}) == 0xcbf43926u, "wrong CRC32");
         for (std::size_t length = 0; length < payload.size(); ++length) {
             rejects([&] { decode(Bytes(payload.begin(), payload.begin() + length)); });

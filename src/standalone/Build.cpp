@@ -38,7 +38,7 @@ public:
 };
 }
 
-void build(const fs::path& input, fs::path output, bool noConsole) {
+void build(const fs::path& input, fs::path output, bool noConsole, const fs::path& resourceDirectory) {
     if (output.empty()) output = input.stem();
 #ifdef _WIN32
     auto extension = output.extension().string();
@@ -49,6 +49,40 @@ void build(const fs::path& input, fs::path output, bool noConsole) {
     if (fs::exists(fs::symlink_status(output))) throw std::runtime_error("Build Error: output already exists: " + platform::pathToUtf8(output));
     if (!fs::is_regular_file(input)) throw std::runtime_error("Build Error: could not open file '" + platform::pathToUtf8(input) + "'");
     auto sources = collect(platform::pathToUtf8(input), *filesystemSources());
+    if (!resourceDirectory.empty()) {
+        auto root = fs::absolute(resourceDirectory);
+        auto rejectLink = [](const fs::path& path) {
+            if (fs::is_symlink(fs::symlink_status(path)))
+                throw std::runtime_error("Build Error: resource links are not allowed: " + platform::pathToUtf8(path));
+#ifdef _WIN32
+            auto attributes = GetFileAttributesW(path.c_str());
+            if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_REPARSE_POINT))
+                throw std::runtime_error("Build Error: invalid resource or reparse point: " + platform::pathToUtf8(path));
+#endif
+        };
+        rejectLink(root);
+        if (!fs::is_directory(root)) throw std::runtime_error("Build Error: resources must be a directory");
+        size_t total = encode(sources).size() + 4; // v2 resource count
+        for (const auto& item : fs::recursive_directory_iterator(root)) {
+            rejectLink(item.path());
+            if (item.is_directory()) continue;
+            if (!item.is_regular_file()) throw std::runtime_error("Build Error: resource must be a regular file");
+            auto name = item.path().lexically_relative(root).generic_u8string();
+            if (!validResourceName(name)) throw std::runtime_error("Build Error: invalid resource name: " + name);
+            auto size = item.file_size();
+            if (sources.resources.size() >= maxFiles || total > maxPayload ||
+                size > maxPayload - total || name.size() + 8 > maxPayload - total - size)
+                throw std::runtime_error("Build Error: resources exceed bundle limits");
+            std::string data(static_cast<size_t>(size), '\0');
+            std::ifstream stream(item.path(), std::ios::binary);
+            if (!stream) throw std::runtime_error("Build Error: cannot read resource: " + name);
+            stream.read(data.data(), static_cast<std::streamsize>(size));
+            if (stream.gcount() != static_cast<std::streamsize>(size) || stream.bad() || stream.peek() != std::char_traits<char>::eof())
+                throw std::runtime_error("Build Error: resource read failed or size changed: " + name);
+            total += static_cast<size_t>(size) + name.size() + 8;
+            sources.resources.emplace(name, std::move(data));
+        }
+    }
     auto image = pack(readImage(executablePath()), sources, noConsole);
     TemporaryDirectory temporary(output.parent_path());
     auto candidate = temporary.path / "program";

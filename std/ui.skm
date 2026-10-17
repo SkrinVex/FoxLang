@@ -1,0 +1,361 @@
+//! Интерфейс для окон `graphics`: кнопки, поля ввода, флажки, прокрутка и модальные окна, которые ведут
+//! себя как в обычных программах. Клик достаётся только верхнему элементу, модальное окно
+//! блокирует всё под собой, клавиатура принадлежит полю с фокусом (Tab — следующее поле).
+//! У каждого элемента свой строковый `id`, одинаковый от кадра к кадру.
+using graphics;
+
+/// Необязательный масштабируемый шрифт; 0 сохраняет прежний пиксельный рендерер.
+int UI_FONT = 0;
+int UI_FONT_SIZE = 14;
+void ui_set_font(int font, int pixels) {
+    if (font != 0) { gfx_font_width(font, "", pixels); }
+    UI_FONT = font; UI_FONT_SIZE = pixels;
+}
+int ui_text_width(string text) {
+    if (UI_FONT != 0) { return gfx_font_width(UI_FONT, text, UI_FONT_SIZE); }
+    return gfx_text_width(text, 1);
+}
+int ui_text_height() { if (UI_FONT != 0) { return UI_FONT_SIZE + 3; } return 7; }
+void ui_draw_text(int x, int y, string text, int color) {
+    if (UI_FONT != 0) { gfx_font_text(UI_FONT, x, y, text, UI_FONT_SIZE, color); }
+    else { gfx_text(x, y, text, 1, color); }
+}
+
+/// Цвет акцента: рамка поля в фокусе, основная кнопка, флажок.
+int UI_ACCENT = rgb(45, 105, 175);
+int UI_TEXT = rgb(30, 35, 42);
+int UI_MUTED = rgb(120, 128, 138);
+int UI_BORDER = rgb(200, 206, 216);
+int UI_FIELD = rgb(255, 255, 255);
+int UI_BUTTON = rgb(238, 241, 246);
+int UI_BUTTON_HOVER = rgb(222, 229, 239);
+int UI_PANEL = rgb(255, 255, 255);
+int UI_BACKDROP = rgb(15, 20, 30);
+int UI_TRACK = rgb(236, 239, 243);
+int UI_THUMB = rgb(188, 196, 207);
+int UI_THUMB_ACTIVE = rgb(140, 150, 163);
+/// Сколько пикселей прокручивает один щелчок колеса в `ui_scroll_begin`.
+int UI_SCROLL_STEP = 48;
+
+/// Кнопка с подписью по центру. `true` в кадре, когда по ней щёлкнули.
+///
+/// ```skrumi
+/// if (ui_button("save", 20, 20, 120, 30, "Сохранить")) { save(); }
+/// ```
+bool ui_button(string id, int x, int y, int width, int height, string label) {
+    bool clicked = gfx_ui_click(id, x, y, width, height);
+    bool hover = gfx_ui_hover(id, x, y, width, height);
+    int fill = UI_BUTTON;
+    if (hover) {
+        fill = UI_BUTTON_HOVER;
+    }
+    gfx_rect(x, y, width, height, UI_BORDER);
+    gfx_rect(x + 1, y + 1, width - 2, height - 2, fill);
+    ui_draw_text(x + (width - ui_text_width(label)) / 2, y + (height - ui_text_height()) / 2, label, UI_TEXT);
+    return clicked;
+}
+
+/// Основная (выделенная цветом) кнопка, например «ОК» в диалоге.
+bool ui_primary_button(string id, int x, int y, int width, int height, string label) {
+    bool clicked = gfx_ui_click(id, x, y, width, height);
+    gfx_rect(x, y, width, height, UI_ACCENT);
+    if (gfx_ui_hover(id, x, y, width, height)) {
+        gfx_rect_alpha(x, y, width, height, rgb(0, 0, 0), 40);
+    }
+    ui_draw_text(x + (width - ui_text_width(label)) / 2, y + (height - ui_text_height()) / 2, label, rgb(255, 255, 255));
+    return clicked;
+}
+
+/// Однострочное поле ввода высотой 28 пикселей. Возвращает текст после правок этого кадра;
+/// `placeholder` — серая подсказка, видна, пока поле пустое (и в фокусе тоже).
+///
+/// ```skrumi
+/// name = ui_text_field("name", 20, 60, 300, name, "Имя файла");
+/// if (ui_focused("name") && key_pressed("ENTER")) { create(name); }
+/// ```
+string ui_text_field(string id, int x, int y, int width, string text, string placeholder) {
+    return ui_text_field_box(id, x, y, width, 28, text, placeholder);
+}
+
+/// Поле с явной высотой (не менее 8 пикселей), для масштабируемых макетов.
+string ui_text_field_box(string id, int x, int y, int width, int height, string text, string placeholder) {
+    if (width < 8 || height < 8) { fail("Text field: dimensions must be at least 8"); }
+    int border = UI_BORDER;
+    if (gfx_ui_focused(id)) { border = UI_ACCENT; }
+    gfx_rect(x, y, width, height, border);
+    gfx_rect(x + 1, y + 1, width - 2, height - 2, UI_FIELD);
+    if (text == "") { ui_draw_text(x + 4, y + (height - ui_text_height()) / 2, placeholder, UI_MUTED); }
+    if (UI_FONT != 0) { return gfx_ui_text_font(id, x, y, width, height, text, UI_FONT, UI_FONT_SIZE, UI_TEXT); }
+    return gfx_ui_text(id, x, y, width, height, text, 1, UI_TEXT);
+}
+
+/// Флажок с подписью. Возвращает новое состояние после щелчка.
+bool ui_checkbox(string id, int x, int y, string label, bool checked) {
+    return ui_checkbox_box(id, x, y, 14, label, checked);
+}
+
+/// Флажок с явной стороной квадрата (не менее 8 пикселей).
+bool ui_checkbox_box(string id, int x, int y, int side, string label, bool checked) {
+    if (side < 8) { fail("Checkbox: side must be at least 8"); }
+    int gap = max(3, side * 6 / 14);
+    int width = side + gap + ui_text_width(label);
+    bool value = checked;
+    if (gfx_ui_click(id, x, y, width, max(side, ui_text_height()))) { value = !checked; }
+    gfx_rect(x, y, side, side, UI_BORDER);
+    gfx_rect(x + 1, y + 1, side - 2, side - 2, UI_FIELD);
+    int inset = max(2, side * 3 / 14);
+    if (value) { gfx_rect(x + inset, y + inset, side - 2 * inset, side - 2 * inset, UI_ACCENT); }
+    ui_draw_text(x + side + gap, y + (side - ui_text_height()) / 2, label, UI_TEXT);
+    return value;
+}
+
+/// Начинает модальное окно: затемняет всё окно, рисует карточку с заголовком и отключает
+/// все элементы под ней. Содержимое рисуется между `ui_modal_begin` и `ui_modal_end`.
+///
+/// ```skrumi
+/// if (asking) {
+///     ui_modal_begin(200, 150, 400, 180, "Новая папка");
+///     folder = ui_text_field("folder", 220, 200, 360, folder, "Имя");
+///     if (ui_button("cancel", 380, 280, 90, 28, "Отмена")) { asking = false; }
+///     ui_modal_end();
+/// }
+/// ```
+void ui_modal_begin(int x, int y, int width, int height, string title) {
+    gfx_ui_layer_begin(true);
+    gfx_rect_alpha(0, 0, gfx_width(), gfx_height(), UI_BACKDROP, 110);
+    gfx_ui_hover("#modal-card", x, y, width, height);
+    gfx_rect(x - 1, y - 1, width + 2, height + 2, UI_BORDER);
+    gfx_rect(x, y, width, height, UI_PANEL);
+    int header = max(32, ui_text_height() + 12);
+    gfx_rect(x, y, width, header, UI_ACCENT);
+    ui_draw_text(x + 12, y + (header - ui_text_height()) / 2, title, rgb(255, 255, 255));
+}
+
+void ui_modal_end() { gfx_ui_layer_end(); }
+
+/// Слой поверх интерфейса, который не блокирует остальное: выпадающий список, подсказка.
+void ui_layer_begin() { gfx_ui_layer_begin(false); }
+void ui_layer_end() { gfx_ui_layer_end(); }
+
+bool ui_hover(string id, int x, int y, int width, int height) { return gfx_ui_hover(id, x, y, width, height); }
+bool ui_click(string id, int x, int y, int width, int height) { return gfx_ui_click(id, x, y, width, height); }
+bool ui_focused(string id) { return gfx_ui_focused(id); }
+void ui_focus(string id) { gfx_ui_focus(id); }
+void ui_unfocus() { gfx_ui_focus(""); }
+bool ui_typing() { return gfx_ui_typing(); }
+
+/// Двойной щелчок по элементу — например, чтобы открыть файл в списке.
+bool ui_double_click(string id, int x, int y, int width, int height) {
+    return gfx_ui_hover(id, x, y, width, height) && gfx_double_click();
+}
+
+/// Вертикальная полоса прокрутки. `offset` — первая видимая позиция, `total` — длина всего
+/// содержимого, `page` — сколько видно сразу; единицы любые, но одни и те же (строки или
+/// пиксели). Ползунок тянется мышью, щелчок по дорожке листает на страницу. Возвращает
+/// новое смещение в пределах `0..total - page`.
+///
+/// ```skrumi
+/// first = ui_scrollbar("lines-bar", 780, 40, 12, 400, first, size(lines), 25);
+/// ```
+int ui_scrollbar(string id, int x, int y, int width, int height, int offset, int total, int page) {
+    int limit = max(0, total - page);
+    int value = clamp(offset, 0, limit);
+    gfx_rect(x, y, width, height, UI_TRACK);
+    if (limit == 0 || height < 8) {
+        return value;
+    }
+    int thumb = clamp(height * page / total, min(24, height), height);
+    int travel = height - thumb;
+    int thumb_y = y + travel * value / limit;
+    if (gfx_ui_click(id + "#track", x, y, width, height)) {
+        if (gfx_mouse_y() < thumb_y) {
+            value = max(0, value - page);
+        } else if (gfx_mouse_y() >= thumb_y + thumb) {
+            value = min(limit, value + page);
+        }
+    }
+    bool held = gfx_ui_drag(id, x, thumb_y, width, thumb);
+    if (held && travel > 0) {
+        int top = gfx_mouse_y() - gfx_ui_drag_y() - y;
+        value = clamp((top * limit + travel / 2) / travel, 0, limit);
+    }
+    thumb_y = y + travel * value / limit;
+    int color = UI_THUMB;
+    if (held || gfx_ui_hover(id, x, thumb_y, width, thumb)) {
+        color = UI_THUMB_ACTIVE;
+    }
+    gfx_rect(x + 2, thumb_y + 1, max(1, width - 4), max(1, thumb - 2), color);
+    return value;
+}
+
+/// Начинает прокручиваемую область: колесо мыши над ней, полоса прокрутки шириной 12 пикселей
+/// у правого края, и всё, что нарисовано до `ui_scroll_end`, обрезается по области — как
+/// картинка, так и щелчки по элементам. `content_height` — полная высота содержимого в
+/// пикселях. Возвращает смещение: рисуйте содержимое выше на него.
+///
+/// ```skrumi
+/// scroll = ui_scroll_begin("files", 10, 60, 400, 300, scroll, size(names) * 24);
+/// for (int i = 0; i < size(names); i++) {
+///     int row_y = 60 + i * 24 - scroll;
+///     if (row_y > -24 && row_y < 360 && ui_click("file" + i, 10, row_y, 388, 24)) { selected = i; }
+///     draw_text(16, row_y + 8, names[i], 1, UI_TEXT);
+/// }
+/// ui_scroll_end();
+/// ```
+int ui_scroll_begin(string id, int x, int y, int width, int height, int offset, int content_height) {
+    int value = offset - gfx_ui_wheel(id, x, y, width, height) * UI_SCROLL_STEP;
+    value = ui_scrollbar(id + "#bar", x + width - 12, y, 12, height, value, content_height, height);
+    gfx_clip_begin(x, y, width - 12, height);
+    return value;
+}
+
+/// Закрывает область, начатую `ui_scroll_begin`.
+void ui_scroll_end() { gfx_clip_end(); }
+
+/// Смещение, при котором отрезок `top..bottom` (например, выбранная строка) виден в окне
+/// высотой `page` — для прокрутки к выделению с клавиатуры.
+int ui_scroll_to(int offset, int top, int bottom, int page) {
+    if (top < offset) {
+        return max(0, top);
+    }
+    if (bottom > offset + page) {
+        return bottom - page;
+    }
+    return offset;
+}
+
+/// Поворот колеса для своей прокручиваемой области: его получает самая внутренняя область под
+/// мышью, если её не закрывает модальное окно. Для своих виджетов прокрутки.
+int ui_wheel(string id, int x, int y, int width, int height) { return gfx_ui_wheel(id, x, y, width, height); }
+
+/// Элемент, который тянут мышью (ползунок, разделитель панелей): `true` от нажатия на нём до
+/// отпускания кнопки. `ui_drag_x()`/`ui_drag_y()` — где внутри элемента его схватили.
+bool ui_drag(string id, int x, int y, int width, int height) { return gfx_ui_drag(id, x, y, width, height); }
+int ui_drag_x() { return gfx_ui_drag_x(); }
+int ui_drag_y() { return gfx_ui_drag_y(); }
+
+/// Единая светлая/тёмная палитра. После вызова можно переопределить отдельные UI_* цвета.
+void ui_theme(bool dark) {
+    UI_ACCENT = rgb(239, 123, 53);
+    UI_BACKDROP = rgb(15, 20, 30);
+    if (dark) {
+        UI_TEXT = rgb(238, 241, 246);
+        UI_MUTED = rgb(166, 174, 188);
+        UI_BORDER = rgb(75, 83, 98);
+        UI_FIELD = rgb(30, 35, 44);
+        UI_BUTTON = rgb(48, 55, 68);
+        UI_BUTTON_HOVER = rgb(64, 73, 88);
+        UI_PANEL = rgb(24, 29, 37);
+        UI_TRACK = rgb(48, 55, 68);
+        UI_THUMB = rgb(100, 110, 127);
+        UI_THUMB_ACTIVE = rgb(145, 155, 171);
+    } else {
+        UI_TEXT = rgb(30, 35, 42);
+        UI_MUTED = rgb(120, 128, 138);
+        UI_BORDER = rgb(200, 206, 216);
+        UI_FIELD = rgb(255, 255, 255);
+        UI_BUTTON = rgb(238, 241, 246);
+        UI_BUTTON_HOVER = rgb(222, 229, 239);
+        UI_PANEL = rgb(255, 255, 255);
+        UI_TRACK = rgb(236, 239, 243);
+        UI_THUMB = rgb(188, 196, 207);
+        UI_THUMB_ACTIVE = rgb(140, 150, 163);
+    }
+}
+
+/// Доля прогресса 0..1; значения вне диапазона ограничиваются. maximum <= minimum — ошибка.
+float ui_progress_fraction(float value, float minimum, float maximum) {
+    if (maximum <= minimum) { fail("ProgressBar: maximum must exceed minimum"); }
+    return clamp((value - minimum) / (maximum - minimum), 0.0, 1.0);
+}
+
+/// Индикатор с цветами UI_BORDER, UI_TRACK, UI_ACCENT, UI_TEXT. Перерисовывайте каждый кадр.
+void ui_progress_bar(int x, int y, int width, int height, float value, float minimum, float maximum, bool percent) {
+    float fraction = ui_progress_fraction(value, minimum, maximum);
+    if (width < 3 || height < 3) { return; }
+    gfx_rect(x, y, width, height, UI_BORDER);
+    gfx_rect(x + 1, y + 1, width - 2, height - 2, UI_TRACK);
+    gfx_rect(x + 1, y + 1, to_int((width - 2) * fraction), height - 2, UI_ACCENT);
+    string label = to_string(to_int(fraction * 100)) + "%";
+    if (percent && height >= ui_text_height() + 4 && width >= ui_text_width(label) + 4) {
+        ui_draw_text(x + (width - ui_text_width(label)) / 2, y + (height - ui_text_height()) / 2, label, UI_TEXT);
+    }
+}
+
+/// Неопределённый прогресс: phase — неотрицательное время/счётчик; не изображает объём работы.
+void ui_progress_busy(int x, int y, int width, int height, float phase) {
+    if (width < 3 || height < 3) { return; }
+    gfx_rect(x, y, width, height, UI_BORDER);
+    gfx_rect(x + 1, y + 1, width - 2, height - 2, UI_TRACK);
+    int block = max(1, (width - 2) / 4);
+    float position = abs(phase - floor(phase / 2) * 2 - 1);
+    gfx_rect(x + 1 + to_int((width - 2 - block) * position), y + 1, block, height - 2, UI_ACCENT);
+}
+
+/// Перенос Unicode-текста по ширине текущего UI-шрифта; сохраняет явные переводы строк.
+array ui_wrap_text(string text, int width) {
+    if (width < 1) { fail("Text: width must be positive"); }
+    array lines;
+    string line = "";
+    for (int i = 0; i < str_length(text); i++) {
+        string character = str_substring(text, i, 1);
+        if (character == "\n") { push(lines, line); line = ""; }
+        else {
+            if (line != "" && ui_text_width(line + character) > width) { push(lines, line); line = ""; }
+            line += character;
+        }
+    }
+    push(lines, line); return lines;
+}
+/// Подписи кнопок диалога можно локализовать до его показа.
+string UI_DIALOG_YES = "Да";
+string UI_DIALOG_NO = "Нет";
+string UI_DIALOG_CANCEL = "Отмена";
+string UI_DIALOG_OK = "OK";
+string UI_DIALOG_CONTENT = "";
+int UI_DIALOG_OFFSET = 0;
+
+/// Неблокирующий диалог; вызывайте последним в каждом кадре, пока ответ равен "pending".
+/// kind: "info", "error", "confirm". Ответ: "ok", "yes", "no", "cancel".
+/// Escape всегда возвращает "cancel". Закрытие ОС обрабатывает вызывающее приложение.
+string ui_dialog(string id, string title, string message, string kind) {
+    float scale = 1;
+    if (UI_FONT != 0) { scale = UI_FONT_SIZE / 14.0; }
+    int width = min(520 * scale, gfx_width() - 16);
+    int height = min(220 * scale, gfx_height() - 16);
+    return ui_dialog_box(id, (gfx_width() - width) / 2, (gfx_height() - height) / 2, width, height, title, message, kind);
+}
+
+/// Диалог с явным прямоугольником; семантика ответа и модальности как у ui_dialog.
+string ui_dialog_box(string id, int x, int y, int width, int height, string title, string message, string kind) {
+    if (kind != "info" && kind != "error" && kind != "confirm") { fail("Dialog: unknown kind"); }
+    if (width < 3 || height < 3) { fail("Dialog: invalid dimensions"); }
+    int header = max(40, ui_text_height() + 20);
+    int button_height = max(28, ui_text_height() + 10);
+    int footer = button_height + 24;
+    ui_modal_begin(x, y, width, height, title);
+    string content_key = id + "\n" + message;
+    if (content_key != UI_DIALOG_CONTENT) { UI_DIALOG_CONTENT = content_key; UI_DIALOG_OFFSET = 0; }
+    array lines = ui_wrap_text(message, max(1, width - 40));
+    int line_height = ui_text_height() + 4;
+    UI_DIALOG_OFFSET = ui_scroll_begin(id + "#message", x + 12, y + header, max(13, width - 24), max(1, height - header - footer), UI_DIALOG_OFFSET, size(lines) * line_height);
+    int message_color = UI_TEXT;
+    if (kind == "error") { message_color = rgb(220, 65, 65); }
+    for (int i = 0; i < size(lines); i++) {
+        int line_y = y + header + i * line_height - UI_DIALOG_OFFSET;
+        if (line_y + line_height > y + header && line_y < y + height - footer) { ui_draw_text(x + 12, line_y, lines[i], message_color); }
+    }
+    ui_scroll_end();
+    string answer = "pending";
+    if (gfx_pressed("ESCAPE")) { answer = "cancel"; }
+    if (kind == "confirm") {
+        int button_width = max(12, (width - 48) / 3);
+        if (ui_primary_button(id + "#yes", x + 12, y + height - button_height - 14, button_width, button_height, UI_DIALOG_YES)) { answer = "yes"; }
+        if (ui_button(id + "#no", x + 24 + button_width, y + height - button_height - 14, button_width, button_height, UI_DIALOG_NO)) { answer = "no"; }
+        if (ui_button(id + "#cancel", x + 36 + 2 * button_width, y + height - button_height - 14, button_width, button_height, UI_DIALOG_CANCEL)) { answer = "cancel"; }
+    } else {
+        if (ui_primary_button(id + "#ok", x + width - 92, y + height - button_height - 14, 80, button_height, UI_DIALOG_OK)) { answer = "ok"; }
+    }
+    ui_modal_end();
+    return answer;
+}

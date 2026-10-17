@@ -1,0 +1,35 @@
+// Import verified ownership manifests produced by the repository's older installers.
+// Integrations outside that directory have no reversible baseline and are preserved.
+using fs;
+array legacy_owned(string root) {
+    if (!fs_exists_checked(safe_join(root, ".skrumi-install"))) { return []; }
+    array owned;
+    string manifest = ".skrumi-files.sha256";
+    if (os_platform() == "windows") {
+        manifest = ".skrumi-files.json";
+        string content = read_checked(safe_join(root, manifest));
+        if (str_starts_with(content, "﻿")) { content = str_substring(content, 1); }
+        array records = json_decode(content);
+        for (int i = 0; i < size(records); i++) {
+            map entry = records[i];
+            string name = str_replace(entry["path"], "\\", "/");
+            string path = safe_join(root, name);
+            push(owned, [name, str_lower(entry["hash"]), permissions(path)]);
+        }
+    } else if (os_platform() == "linux") {
+        array lines = str_split(read_checked(safe_join(root, manifest)), "\n");
+        for (int i = 0; i < size(lines); i++) {
+            string line = lines[i];
+            if (line == "") { continue; }
+            if (str_length(line) < 69 || str_substring(line, 64, 2) != "  " || str_substring(line, 66, 2) != "./") {
+                fail(setup_tr("Unsupported legacy checksum record; files preserved"));
+            }
+            string name = str_substring(line, 68);
+            string path = safe_join(root, name);
+            push(owned, [name, str_lower(str_substring(line, 0, 64)), permissions(path)]);
+        }
+    } else { fail(setup_tr("Unsupported legacy installation platform")); }
+    if (size(owned) == 0 || size(owned) > 4096) { fail(setup_tr("Invalid legacy ownership manifest")); }
+    push(owned, [manifest, file_sha256(safe_join(root, manifest)), permissions(safe_join(root, manifest))]);
+    return owned;
+}

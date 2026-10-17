@@ -1,0 +1,293 @@
+include("location.skm");
+using ui;
+
+array setup_payload = json_decode(resource_read("manifest.json"));
+string setup_version = setup_payload[0];
+bool setup_maintenance = resource_read("installer-mode") == "maintenance";
+bool setup_remove_requested = false;
+string setup_target = path_join(os_user_dir("data"), "Skrumi");
+array setup_args = os_args();
+if (size(setup_args) == 2 && setup_args[0] == "--uninstall-gui") {
+    setup_target = setup_args[1]; setup_remove_requested = true;
+} else if (size(setup_args) > 0) {
+    if ((size(setup_args) < 3 || size(setup_args) > 5) || setup_args[0] != "--headless") {
+        print("Usage: installer --headless install|uninstall|recover DIRECTORY [--path] [--no-lsp]"); exit(2);
+    }
+    try {
+        if (setup_args[1] == "recover") {
+            if (size(setup_args) != 3) { fail(setup_tr("Recovery takes only a directory")); }
+            location_recover(setup_args[2]);
+        }
+        else {
+            if (setup_args[1] != "install" && setup_args[1] != "uninstall") { fail(setup_tr("Unknown operation")); }
+            if (setup_maintenance && setup_args[1] == "install") { fail(setup_tr("Download the full installer to install or update Skrumi")); }
+            bool with_path = false;
+            bool with_lsp = true;
+            for (int i = 3; i < size(setup_args); i++) {
+                if (setup_args[i] == "--path" && !with_path) { with_path = true; }
+                else if (setup_args[i] == "--no-lsp" && with_lsp) { with_lsp = false; }
+                else { fail(setup_tr("Unknown or duplicate option")); }
+            }
+            tx_include_lsp = with_lsp;
+            location_begin(setup_args[2], setup_args[1] == "uninstall", with_path);
+            while (!location_step()) { wait(1); }
+        }
+        print(tx_message);
+    } catch (string error) {
+        print(error);
+        try { location_cancel(); } catch (string recovery_error) { print(setup_tr("Recovery required: ") + recovery_error); }
+        location_release(); exit(1);
+    }
+    exit(0);
+}
+
+string setup_existing = "";
+array setup_locations = location_presets();
+bool setup_locations_open = false;
+int setup_font = load_font(resource_read("branding/font.ttf"));
+ui_set_font(setup_font, 14);
+UI_DIALOG_YES = setup_tr("Yes"); UI_DIALOG_NO = setup_tr("No"); UI_DIALOG_CANCEL = setup_tr("Cancel");
+int setup_logo = decode_image(resource_read("branding/logo.png"));
+int setup_screen = -1;
+bool setup_running = false;
+bool setup_confirm = false;
+bool setup_recovery_confirm = false;
+bool setup_remove_confirm = false;
+bool setup_uninstall = setup_maintenance || setup_remove_requested;
+bool setup_path = true;
+bool setup_lsp = true;
+string setup_error = "";
+bool setup_error_dialog = setup_error != "";
+int setup_scroll = 0;
+void setup_failure(string error) {
+    setup_error = error; setup_error_dialog = true;
+    tx_note(setup_tr("Error: ") + error);
+    try { location_cancel(); } catch (string recovery_error) { setup_error += "\n" + setup_tr("Recovery required: ") + recovery_error; tx_note(setup_tr("Recovery required: ") + recovery_error); }
+    location_release(); setup_running = false; setup_screen = 2;
+}
+// Both install and confirmed removal use the same recovery/transaction entry point.
+void setup_begin_operation(bool uninstall) {
+    setup_error = "";
+    try {
+        if (fs_exists_checked(path_absolute(setup_target) + ".skrumi-transaction")) { setup_recovery_confirm = true; }
+        else {
+            tx_include_lsp = setup_lsp;
+            location_begin(setup_target, uninstall, !uninstall && setup_path);
+            setup_running = true; setup_screen = 2;
+        }
+    } catch (string error) { setup_failure(error); }
+}
+int setup_options_screen() { if (setup_uninstall) { return 3; } return 1; }
+// Layout uses logical coordinates; all drawing and hit-testing share this transform.
+float setup_scale = 1;
+int setup_left = 0;
+int setup_top = 0;
+int setup_px(float value) { return round(value * setup_scale); }
+int setup_x(float value) { return setup_left + setup_px(value); }
+int setup_y(float value) { return setup_top + setup_px(value); }
+void setup_text(int x, int y, string text, int pixels, int color) {
+    draw_font_text(setup_font, setup_x(x), setup_y(y), text, max(8, min(96, setup_px(pixels))), color);
+}
+void setup_rect(int x, int y, int width, int height, int color) {
+    draw_rect(setup_x(x), setup_y(y), setup_px(width), max(1, setup_px(height)), color);
+}
+bool setup_button(string id, int x, int y, int width, int height, string label) {
+    return ui_button(id, setup_x(x), setup_y(y), setup_px(width), setup_px(height), label);
+}
+bool setup_primary(string id, int x, int y, int width, int height, string label) {
+    return ui_primary_button(id, setup_x(x), setup_y(y), setup_px(width), setup_px(height), label);
+}
+bool setup_checkbox(string id, int x, int y, string label, bool checked) {
+    return ui_checkbox_box(id, setup_x(x), setup_y(y), max(8, setup_px(14)), label, checked);
+}
+ui_theme(false);
+open_window(800, 580, "Skrumi " + setup_version);
+array setup_desktop = desktop_metrics();
+float setup_initial_scale = min(setup_desktop[2], min(setup_desktop[0] / 800.0, setup_desktop[1] / 580.0));
+setup_initial_scale = max(0.6, min(3, setup_initial_scale));
+set_window_size(round(800 * setup_initial_scale), round(580 * setup_initial_scale));
+set_window_resizable(true);
+intercept_window_close(true);
+while (window_poll()) {
+    if (window_width() < 480 || window_height() < 348) {
+        set_window_size(max(480, window_width()), max(348, window_height()));
+    }
+    setup_scale = min(3, min(window_width() / 800.0, window_height() / 580.0));
+    setup_left = (window_width() - setup_px(800)) / 2;
+    setup_top = (window_height() - setup_px(580)) / 2;
+    ui_set_font(setup_font, max(8, min(96, setup_px(14))));
+    UI_SCROLL_STEP = setup_px(48);
+    if (window_close_requested()) { setup_confirm = true; }
+    clear_window(rgb(248, 249, 251));
+    setup_rect(0, 0, 800, 112, UI_PANEL);
+    draw_image_scaled(setup_logo, setup_x(24), setup_y(12), setup_px(88), setup_px(88));
+    setup_text(132, 32, "Skrumi", 36, UI_TEXT);
+    setup_text(134, 78, setup_version + "  /  " + os_platform() + " " + os_arch(), 14, UI_MUTED);
+    setup_rect(32, 524, 736, 1, UI_BORDER);
+    if (setup_screen == -1) {
+        setup_text(48, 156, "Выберите язык / Choose language", 26, UI_TEXT);
+        setup_text(48, 216, "Язык установщика / Installer language", 18, UI_MUTED);
+        string chosen = "";
+        if (setup_primary("language-ru", 48, 280, 340, 52, "Русский")) { chosen = "ru"; }
+        if (setup_primary("language-en", 412, 280, 340, 52, "English")) { chosen = "en"; }
+        if (chosen != "") {
+            setup_language = chosen;
+            UI_DIALOG_YES = setup_tr("Yes"); UI_DIALOG_NO = setup_tr("No"); UI_DIALOG_CANCEL = setup_tr("Cancel");
+            setup_locations = location_presets();
+            try {
+                setup_existing = location_discover();
+                if (setup_existing != "" && !setup_remove_requested) { setup_target = setup_existing; }
+                setup_recovery_confirm = fs_exists_checked(path_absolute(setup_target) + ".skrumi-transaction");
+                setup_error = ""; setup_error_dialog = false;
+            } catch (string error) { setup_error = error; setup_error_dialog = true; }
+
+            setup_screen = 0;
+            if (setup_maintenance || setup_remove_requested) { setup_screen = 3; }
+        }
+    } else if (setup_screen == 0) {
+        setup_text(48, 156, setup_tr("Welcome to Skrumi"), 26, UI_TEXT);
+        setup_text(48, 216, setup_tr("Native tools, scripting and graphical applications."), 18, UI_TEXT);
+        setup_text(48, 266, setup_tr("This offline installer includes the runtime and language server."), 14, UI_MUTED);
+        setup_text(48, 292, setup_tr("No existing Skrumi installation is required."), 14, UI_MUTED);
+        if (setup_button("language", 48, 536, 204, 30, "Язык / Language")) { setup_screen = -1; }
+        if (setup_primary("continue", 620, 536, 148, 30, setup_tr("Continue"))) { setup_screen = setup_options_screen(); }
+    } else if (setup_screen == 1) {
+        setup_uninstall = false;
+        setup_text(48, 144, setup_tr("Installation options"), 26, UI_TEXT);
+        setup_text(48, 202, setup_tr("Install directory (current user)"), 14, UI_MUTED);
+        if (setup_existing == "") {
+            setup_target = ui_text_field_box("directory", setup_x(48), setup_y(224), setup_px(544), setup_px(28), setup_target, setup_tr("Directory"));
+            if (setup_button("locations", 604, 224, 148, 28, setup_tr("Locations..."))) { setup_locations_open = !setup_locations_open; }
+        } else {
+            setup_locations_open = false;
+            setup_text(48, 230, setup_target, 14, UI_TEXT);
+            setup_text(48, 260, setup_tr("Existing installation detected; updates use this directory."), 14, UI_MUTED);
+        }
+        if (setup_locations_open && key_pressed("ESCAPE")) { setup_locations_open = false; }
+        int options_y = 284;
+        if (setup_locations_open) {
+            // Compact inline rows; other options remain visible and cannot be clicked through.
+            setup_rect(48, 258, 544, size(setup_locations) * 28 + 2, UI_BORDER);
+            for (int i = 0; i < size(setup_locations); i++) {
+                int row_y = 259 + i * 28;
+                int row_color = UI_FIELD;
+                if (gfx_ui_hover("location-" + to_string(i), setup_x(49), setup_y(row_y), setup_px(542), setup_px(28))) { row_color = UI_BUTTON_HOVER; }
+                setup_rect(49, row_y, 542, 28, row_color);
+                if (setup_target != "" && location_key(setup_target) == location_key(setup_locations[i][1])) {
+                    setup_rect(49, row_y, 542, 28, rgb(255, 237, 225));
+                    setup_rect(49, row_y, 4, 28, UI_ACCENT);
+                }
+                setup_text(64, row_y + 5, setup_locations[i][0], 14, UI_TEXT);
+                if (ui_click("location-" + to_string(i), setup_x(49), setup_y(row_y), setup_px(542), setup_px(28))) {
+                    setup_target = setup_locations[i][1]; setup_locations_open = false;
+                }
+            }
+            options_y = 370;
+        }
+        setup_lsp = setup_checkbox("lsp", 48, options_y, setup_tr("Language server (LSP); CLI/runtime is always included"), setup_lsp);
+        setup_path = setup_checkbox("path", 48, options_y + 36, setup_tr("Add to user PATH"), setup_path);
+        string path_hint = setup_tr("Applies when your shell reads its profile; a new terminal may not be enough.");
+        if (os_platform() == "windows") { path_hint = setup_tr("Restart the terminal app; running programs keep their environment."); }
+        setup_text(48, options_y + 60, path_hint, 12, UI_MUTED);
+        if (!setup_locations_open) { setup_text(48, 378, setup_tr("User projects and modified files are preserved."), 14, UI_MUTED); }
+        int recovery_y = 426; if (setup_locations_open) { recovery_y = 466; }
+        // Recheck the selected directory, including changes made by another process.
+        bool recovery_available = false;
+        try {
+            if (setup_target != "") { recovery_available = fs_exists_checked(path_absolute(setup_target) + ".skrumi-transaction"); }
+        } catch (string error) { recovery_available = false; }
+        if (!recovery_available) {
+            setup_rect(48, recovery_y, 204, 32, UI_BORDER);
+            setup_text(58, recovery_y + 8, setup_tr("Recover interrupted setup"), 14, UI_MUTED);
+        }
+        if (recovery_available && setup_button("recover", 48, recovery_y, 204, 32, setup_tr("Recover interrupted setup"))) {
+            try { location_recover(setup_target); setup_error = ""; }
+            catch (string error) { setup_error = error; setup_error_dialog = true; location_release(); }
+        }
+        if (setup_error != "" && !setup_locations_open) { setup_text(48, 476, setup_error, 14, rgb(190, 40, 40)); }
+        if (setup_existing != "" && setup_button("remove-mode", 48, 536, 204, 30, setup_tr("Uninstall..."))) {
+            setup_uninstall = true; setup_locations_open = false; setup_screen = 3;
+        }
+        if (setup_button("back", 462, 536, 144, 30, setup_tr("Back"))) { setup_locations_open = false; setup_screen = 0; }
+        string action = setup_tr("Install");
+        if (setup_existing != "") { action = setup_tr("Update"); }
+        if (setup_primary("install", 620, 536, 148, 30, action)) { setup_locations_open = false; setup_begin_operation(false); }
+    } else if (setup_screen == 3) {
+        setup_uninstall = true;
+        setup_text(48, 144, setup_tr("Uninstall Skrumi"), 26, UI_TEXT);
+        setup_text(48, 202, setup_tr("Installation to remove"), 14, UI_MUTED);
+        setup_target = ui_text_field_box("remove-directory", setup_x(48), setup_y(224), setup_px(704), setup_px(28), setup_target, setup_tr("Directory"));
+        setup_text(48, 294, setup_tr("Remove the managed runtime and its PATH/OS registration."), 14, UI_TEXT);
+        setup_text(48, 330, setup_tr("User projects and modified files are preserved."), 14, UI_MUTED);
+        setup_text(48, 366, setup_tr("You will be asked to confirm before any files are removed."), 14, UI_MUTED);
+        if (setup_button("remove-back", 462, 536, 144, 30, setup_tr("Back"))) {
+            setup_remove_confirm = false;
+            if (setup_maintenance || setup_remove_requested) { setup_screen = -1; }
+            else { setup_uninstall = false; if (setup_existing != "") { setup_target = setup_existing; } setup_screen = 1; }
+        }
+        int saved_accent = UI_ACCENT; UI_ACCENT = rgb(190, 40, 40);
+        if (setup_primary("remove", 620, 536, 148, 30, setup_tr("Uninstall"))) { setup_remove_confirm = true; }
+        UI_ACCENT = saved_accent;
+    } else {
+        string heading = setup_tr("Installing Skrumi");
+        if (setup_uninstall) { heading = setup_tr("Removing Skrumi"); }
+        if (!setup_running && setup_error == "") { heading = setup_tr("Completed"); }
+        if (setup_error != "") { heading = setup_tr("Installation stopped"); }
+        setup_text(48, 144, heading, 26, UI_TEXT);
+        float progress = tx_cursor;
+        if (tx_phase == "publishing" || tx_phase == "verifying" || tx_phase == "integrated") { progress += size(tx_entries); }
+        if (tx_phase == "committed") { progress = size(tx_entries) * 2 + 1; }
+        ui_progress_bar(setup_x(48), setup_y(198), setup_px(704), setup_px(26), progress, 0, max(1, size(tx_entries) * 2 + 1), true);
+        setup_text(48, 242, tx_message, 14, UI_TEXT);
+        setup_scroll = ui_scroll_begin("log", setup_x(48), setup_y(274), setup_px(704), setup_px(166), setup_px(setup_scroll), setup_px(size(tx_log) * 18)) / setup_scale;
+        for (int i = 0; i < size(tx_log); i++) { setup_text(52, 278 + i * 18 - setup_scroll, tx_log[i], 14, UI_MUTED); }
+        ui_scroll_end();
+        setup_text(48, 462, setup_target, 14, UI_MUTED);
+        if (setup_error != "") { setup_text(48, 490, setup_tr("See error details. Original files were restored when safe."), 14, rgb(190, 40, 40)); }
+        if (!setup_running) {
+            if (setup_button("options", 462, 536, 144, 30, setup_tr("Options"))) { setup_screen = setup_options_screen(); }
+            if (setup_primary("finish", 620, 536, 148, 30, setup_tr("Finish"))) { close_window(); break; }
+        } else if (setup_button("cancel", 620, 536, 148, 30, setup_tr("Cancel"))) { setup_confirm = true; }
+        if (setup_running && !setup_confirm) {
+            try { if (location_step()) { setup_running = false; setup_existing = location_discover(); } }
+            catch (string error) { setup_failure(error); }
+        }
+    }
+    if (setup_screen != -1 && setup_error_dialog && !setup_confirm) {
+        string error_answer = ui_dialog("error", setup_tr("Setup error"), setup_tr("The operation could not be completed. Details: ") + setup_error, "error");
+        if (error_answer != "pending") { setup_error_dialog = false; setup_screen = setup_options_screen(); }
+    }
+    if (tx_warning != "" && !setup_confirm && setup_error == "") {
+        string warning_answer = ui_dialog("cleanup-warning", setup_tr("Installation completed"), tx_warning, "info");
+        if (warning_answer != "pending") { tx_warning = ""; }
+    }
+    if (setup_screen != -1 && setup_recovery_confirm && !setup_confirm) {
+        string recovery_answer = ui_dialog("recovery", setup_tr("Interrupted installation"), setup_tr("An unfinished transaction was found. Restore the previous installation before continuing?"), "confirm");
+        if (recovery_answer == "yes") {
+            try { location_recover(setup_target); setup_error = ""; setup_screen = setup_options_screen(); }
+            catch (string error) { setup_error = error; setup_error_dialog = true; location_release(); setup_screen = setup_options_screen(); }
+            setup_recovery_confirm = false;
+        } else if (recovery_answer == "no" || recovery_answer == "cancel") { setup_recovery_confirm = false; }
+    }
+    if (setup_remove_confirm && !setup_confirm && !setup_error_dialog && !setup_recovery_confirm) {
+        UI_DIALOG_YES = setup_tr("Uninstall"); UI_DIALOG_NO = setup_tr("Keep installed");
+        string remove_answer = ui_dialog("remove-confirm", setup_tr("Confirm removal"), setup_tr("Remove Skrumi from this directory? ") + "\n" + setup_target + "\n\n" + setup_tr("User projects and modified files are preserved."), "confirm");
+        UI_DIALOG_YES = setup_tr("Yes"); UI_DIALOG_NO = setup_tr("No");
+        if (remove_answer == "yes") { setup_remove_confirm = false; setup_begin_operation(true); }
+        else if (remove_answer == "no" || remove_answer == "cancel") { setup_remove_confirm = false; }
+    }
+    if (setup_confirm) {
+        string question = setup_tr("Exit Skrumi Setup?");
+        if (setup_screen == -1) { question = "Выйти? / Exit?"; UI_DIALOG_YES = "Да / Yes"; UI_DIALOG_NO = "Нет / No"; UI_DIALOG_CANCEL = "Отмена / Cancel"; }
+        if (setup_running) { question = setup_tr("Cancel and restore the previous installation?"); }
+        string answer = ui_dialog("exit", setup_tr("Skrumi Setup"), question, "confirm");
+        if (answer == "yes") {
+            try { location_cancel(); close_window(); break; }
+            catch (string error) { setup_failure(error); setup_confirm = false; cancel_window_close(); }
+        } else if (answer == "no" || answer == "cancel") { setup_confirm = false; cancel_window_close(); }
+    }
+    present_window();
+}
+free_image(setup_logo);
+free_font(setup_font);
+location_release();

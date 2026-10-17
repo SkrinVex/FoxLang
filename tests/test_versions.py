@@ -34,7 +34,8 @@ assert re.search(r'name = "foxlang"\nversion = "([^"]+)"', lock)[1] == version
 # not repeat the number, or the next release would leave a stale copy behind.
 prose = [root / "README.md", root / "DOCUMENTATION.md", *(root / "docs").glob("*.md"),
          *(root / "editors").glob("*/README.md"), root / "tests/README.md",
-         *(root / "examples").glob("*.fox"), *(root / "std").glob("*.fox")]
+         *(root / "examples").glob("*.fox"), *(root / "std").glob("*.fox"),
+         *(root / "examples").glob("*.skm"), *(root / "std").glob("*.skm")]
 for path in prose:
     assert not re.search(r"(?<![\d.])" + re.escape(version) + r"(?![\d.])", path.read_text(encoding="utf-8")), \
         f"{path.relative_to(root)} repeats the version {version}; refer to VERSION or `foxlang --version` instead"

@@ -4,6 +4,7 @@
 // Starting other programs: no shell is involved, so arguments reach the program
 // exactly as given and cannot be reinterpreted as commands.
 #include "foxlang/Platform.h"
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -60,6 +61,9 @@ void appendQuoted(std::wstring& line, const std::wstring& arg) {
 int runProcess(const std::string& program, const std::vector<std::string>& args, std::string* output) {
     if (program.empty() || program.find('\0') != std::string::npos)
         throw std::runtime_error("Runtime Error: program name is empty or invalid");
+    for (const auto& arg : args)
+        if (arg.find('\0') != std::string::npos)
+            throw std::runtime_error("Runtime Error: process arguments must not contain NUL");
 #ifdef _WIN32
     std::wstring line;
     appendQuoted(line, wide(program));
@@ -91,7 +95,7 @@ int runProcess(const std::string& program, const std::vector<std::string>& args,
         char buffer[4096];
         DWORD count = 0;
         while (ReadFile(readPipe, buffer, sizeof(buffer), &count, nullptr) && count > 0)
-            if (output->size() < maxOutput) output->append(buffer, count);
+            if (output->size() < maxOutput) output->append(buffer, std::min<size_t>(count, maxOutput - output->size()));
         CloseHandle(readPipe);
     }
     WaitForSingleObject(process.hProcess, INFINITE);
@@ -129,12 +133,14 @@ int runProcess(const std::string& program, const std::vector<std::string>& args,
             ssize_t count = read(pipeFds[0], buffer, sizeof(buffer));
             if (count < 0 && errno == EINTR) continue;
             if (count <= 0) break;
-            if (output->size() < maxOutput) output->append(buffer, static_cast<size_t>(count));
+            if (output->size() < maxOutput) output->append(buffer, std::min<size_t>(static_cast<size_t>(count), maxOutput - output->size()));
         }
         close(pipeFds[0]);
     }
     int status = 0;
-    while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+    pid_t waited;
+    do { waited = waitpid(pid, &status, 0); } while (waited < 0 && errno == EINTR);
+    if (waited < 0) return -1;
     if (WIFEXITED(status)) return WEXITSTATUS(status);
     return 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
 #endif

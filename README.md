@@ -4,6 +4,10 @@
 > The project retains its original development history and supports existing `.fox`
 > source files alongside the new `.skm` format. See the [migration guide](docs/MIGRATION_FROM_FOXLANG.md).
 
+Новые компоненты UI: [ProgressBar, диалоги, темы и отмена закрытия](examples/progress.skm).
+Публичные файловые операции и их гарантии описаны в [документации](DOCUMENTATION.md#проверяемые-файловые-операции).
+GUI-установщик: [установка, обновление и восстановление](docs/GUI_INSTALLER.md).
+
 
 [![Версия исходников](resources/version.svg)](VERSION)
 ![C++](https://img.shields.io/badge/runtime-C%2B%2B17-blue)
@@ -51,8 +55,8 @@ for (int i = 0; i < size(words); i++) {
 - Обработка ошибок: `try` / `catch` / `finally` и `throw`.
 - Строки с полной поддержкой UTF-8: длина, подстроки и поиск считают символы,
   `upper`/`lower` понимают кириллицу.
-- Стандартная библиотека из 16 модулей: `string`, `arrays`, `math`, `json`, `fs`,
-  `os`, `time`, `env`, `log`, `http`, `server`, `net`, `terminal`, `graphics`, `ui`, `sound`.
+- Стандартная библиотека из 17 модулей: `string`, `arrays`, `math`, `json`, `fs`,
+  `os`, `time`, `env`, `log`, `http`, `server`, `net`, `terminal`, `graphics`, `ui`, `sound`, `resources`.
 - Веб-сервер для сайтов и API: маршруты с параметрами (`/users/:id`), статические
   файлы, HTML-шаблоны, формы и загрузка файлов, cookies, редиректы, скачивание, CORS,
   HTTPS без reverse proxy. HTTP(S)-клиент со статусом ответа, TCP и DNS — на Linux и
@@ -84,12 +88,22 @@ for (int i = 0; i < size(words); i++) {
 
 ## Установка
 
-Готовые пакеты для Linux и Windows — в [GitHub Releases](https://github.com/SkrinVex/Skrumi/releases).
-Linux-пакет содержит установщик: `./install.sh` кладёт `skrumi` и `skrumi-lsp` в `~/.local/bin` и настраивает редакторы.
-В Windows распакуйте ZIP и запустите `install.cmd`: он установит Skrumi в `%LOCALAPPDATA%\Skrumi`, добавит команды в пользовательский `PATH` и установит расширение VS Code.
-Используется встроенный Windows PowerShell 5.1; отдельно устанавливать PowerShell 7 не требуется.
-Для обновления скачайте новый ZIP и запустите `install.cmd` ещё раз; распакованную папку после установки можно удалить.
-Удаление доступно через `%LOCALAPPDATA%\Skrumi\uninstall.cmd`.
+Основной способ установки — самостоятельные графические установщики для
+Windows и Linux x86_64. [Страница загрузки](https://skrinvex.github.io/Skrumi/#download)
+показывает кнопки только для файлов, действительно опубликованных в последнем
+стабильном [GitHub Release](https://github.com/SkrinVex/Skrumi/releases/latest).
+До первого GUI-релиза пользуйтесь сборкой из исходников ниже.
+
+Windows: запустите `Skrumi-windows-x86_64.exe`. Linux с X11/XWayland:
+выдайте `Skrumi-linux-x86_64.run` право исполнения и запустите его.
+Skrumi, Python, PowerShell и подключение к интернету для установки не требуются.
+Установка выполняется для текущего пользователя; LSP и изменение PATH можно отключить.
+Откройте новый терминал после установки и проверьте `skrumi --version`.
+
+Для обновления запустите новый установщик с прежним каталогом. Для удаления
+выберите соответствующий режим в установщике; Windows также регистрирует Skrumi
+в списке установленных приложений. [Поставка, восстановление и ограничения](docs/GUI_INSTALLER.md).
+Старые ZIP/TAR-пакеты остаются в исторических релизах, но новые релизы их не публикуют.
 
 Сборка из исходников (CMake 3.18+, компиляторы C и C++17; на Linux ещё pkg-config
 и `libxcb1-dev libxau-dev libxdmcp-dev`):

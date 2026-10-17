@@ -77,9 +77,9 @@
 ## Kate
 
 1. Включите плагин **Отладчик** (Настройка → Настроить Kate → Модули).
-2. `install.sh` сам кладёт настройки в `~/.config/kate/debugger/dap.json`. Вручную —
-   скопируйте [`editors/kate/dap.json`](../editors/kate/dap.json) туда же или добавьте
-   его секцию `skrumi` в свой файл.
+2. Скопируйте настройки в `~/.config/kate/debugger/dap.json`: возьмите [`editors/kate/dap.json`](../editors/kate/dap.json) туда же или добавьте
+   его секцию `foxlang` в свой файл, сохранив остальные настройки. GUI-установщик
+   не изменяет конфигурацию Kate.
 3. На панели отладчика выберите профиль **foxlang → launch (debug)** (или
    **launch (stop on entry)**) и запустите отладку текущего файла.
 

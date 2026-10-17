@@ -28,9 +28,9 @@ with tempfile.TemporaryDirectory(prefix='skrumi-compat-') as tmp:
             out.unlink(missing_ok=True)
             run(exe, 'build', entry, '-o', out)
             assert run(out).stdout.strip() == '7'
-        # Stable legacy-first policy for extensionless modules; explicit imports are exact.
+        # Collision preference belongs to the importing file, not CLI spelling.
         (root / 'extra.fox').write_text('int extra() { return 8; }')
-        assert run(binary, entry).stdout.strip() == '11'
+        assert run(binary, entry).stdout.strip() == ('11' if suffix == '.fox' else '7')
         (root / 'extra.fox').unlink()
         entry.write_text('include("missing.skm");')
         error = run(binary, entry, ok=False)

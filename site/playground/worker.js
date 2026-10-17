@@ -58,6 +58,7 @@ let canvas = null;
 let context = null;
 let lastAlive = 0;
 let presented = false;
+let firstPresented = false;
 let lastPoll = 0;
 
 const yieldToBrowser = (() => {
@@ -72,6 +73,7 @@ const windowHooks = graphics ? {
     if (!canvas) throw new Error("no canvas");
     canvas.width = width;
     canvas.height = height;
+    firstPresented = false;
     context = canvas.getContext("2d");
     postMessage({ type: "window", width, height, title });
   },
@@ -84,6 +86,7 @@ const windowHooks = graphics ? {
     }
     context.putImageData(new ImageData(new Uint8ClampedArray(pixels), width, height), 0, 0);
     presented = true;
+    if (!firstPresented) { firstPresented = true; postMessage({ type: "window-ready" }); }
   },
   async canvasPoll() {
     out.drain();

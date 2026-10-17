@@ -1,3 +1,4 @@
+#include "../graphics/Font.h"
 // What the browser playground cannot do: HTTP(S) requests and HTTPS servers need
 // libcurl and Mbed TLS, which the WebAssembly build leaves out, and there are no
 // processes to start.
@@ -25,7 +26,7 @@ namespace {
 HttpResponse httpRequest(const std::string&, const std::string&, const std::string&, const std::string&) {
     unavailable("HTTP");
 }
-const char* thirdPartyLicenses() { return ""; }
+const char* thirdPartyLicenses() { return graphics::fontLicense(); }
 
 struct TlsServer::State {};
 TlsServer::TlsServer(const std::string&, const std::string&) { unavailable("HTTPS"); }

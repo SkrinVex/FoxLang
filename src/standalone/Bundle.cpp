@@ -51,9 +51,11 @@ void name(const std::string& value) {
 }
 
 void validate(const Sources& sources) {
-    if (sources.files.empty() || sources.files.size() > maxFiles || sources.imports.size() > maxImports) invalid("invalid entry count");
+    if (sources.files.empty() || sources.files.size() > maxFiles || sources.imports.size() > maxImports || sources.resources.size() > maxFiles) invalid("invalid entry count");
     if (!sources.files.count(sources.entry)) invalid("entry point is missing");
     for (const auto& file : sources.files) name(file.first);
+    for (const auto& resource : sources.resources)
+        if (!validResourceName(resource.first)) invalid("invalid resource name");
     for (const auto& edge : sources.imports) {
         name(std::get<2>(edge.first));
         if (!sources.files.count(std::get<0>(edge.first)) || !sources.files.count(edge.second)) invalid("import references a missing file");
@@ -73,12 +75,26 @@ std::string Sources::read(const std::string& identity) const {
     return found->second;
 }
 
+std::string Sources::readResource(const std::string& name) const {
+    if (!validResourceName(name)) throw std::runtime_error("Resource Error: invalid resource name");
+    auto found = resources.find(name);
+    if (found == resources.end()) throw std::runtime_error("Resource Error: missing bundled resource '" + name + "'");
+    return found->second;
+}
+
+std::vector<std::string> Sources::listResources() const {
+    std::vector<std::string> names;
+    for (const auto& resource : resources) names.push_back(resource.first);
+    return names;
+}
+
 Bytes encode(const Sources& sources) {
     validate(sources);
     Bytes bytes(std::begin(magic), std::end(magic));
-    number(bytes, 1);
+    number(bytes, sources.resources.empty() ? 1 : 2);
     number(bytes, static_cast<std::uint32_t>(sources.files.size()));
     number(bytes, static_cast<std::uint32_t>(sources.imports.size()));
+    if (!sources.resources.empty()) number(bytes, static_cast<std::uint32_t>(sources.resources.size()));
     string(bytes, sources.entry);
     for (const auto& file : sources.files) {
         string(bytes, file.first);
@@ -90,6 +106,10 @@ Bytes encode(const Sources& sources) {
         string(bytes, std::get<2>(edge.first));
         string(bytes, edge.second);
     }
+    for (const auto& resource : sources.resources) {
+        string(bytes, resource.first);
+        string(bytes, resource.second);
+    }
     if (bytes.size() > maxPayload) invalid("payload exceeds 64 MiB");
     return bytes;
 }
@@ -97,10 +117,12 @@ Bytes encode(const Sources& sources) {
 Sources decode(const Bytes& bytes) {
     if (bytes.size() < 24 || bytes.size() > maxPayload || !std::equal(std::begin(magic), std::end(magic), bytes.begin())) invalid("invalid payload magic or size");
     Reader reader(bytes);
-    if (reader.number() != 1) invalid("unsupported payload version");
+    auto version = reader.number();
+    if (version != 1 && version != 2) invalid("unsupported payload version");
     auto fileCount = reader.number();
     auto importCount = reader.number();
-    if (!fileCount || fileCount > maxFiles || importCount > maxImports) invalid("invalid entry count");
+    auto resourceCount = version == 2 ? reader.number() : 0;
+    if (!fileCount || fileCount > maxFiles || importCount > maxImports || resourceCount > maxFiles) invalid("invalid entry count");
     Sources sources;
     sources.entry = reader.string(maxName);
     for (std::uint32_t i = 0; i < fileCount; ++i) {
@@ -115,6 +137,11 @@ Sources decode(const Bytes& bytes) {
         auto requested = reader.string(maxName);
         auto target = reader.string(maxName);
         if (!sources.imports.emplace(Sources::ImportKey{from, kind == 1, requested}, target).second) invalid("duplicate import");
+    }
+    for (std::uint32_t i = 0; i < resourceCount; ++i) {
+        auto name = reader.string(maxName);
+        auto contents = reader.string(maxPayload);
+        if (!sources.resources.emplace(name, std::move(contents)).second) invalid("duplicate resource");
     }
     if (!reader.done()) invalid("unexpected trailing data");
     validate(sources);
@@ -132,7 +159,7 @@ std::uint32_t checksum(const Bytes& bytes) {
 
 Sources collect(const std::string& entry, const SourceProvider& provider) {
     Sources sources;
-    sources.entry = "main.fox";
+    sources.entry = "main" + std::filesystem::u8path(entry).extension().u8string();
     auto root = platform::pathToUtf8(std::filesystem::canonical(platform::pathFromUtf8(entry)));
     std::map<std::string, std::string> identities{{root, sources.entry}};
     std::vector<std::string> pending{root};
@@ -161,7 +188,7 @@ Sources collect(const std::string& entry, const SourceProvider& provider) {
             auto found = identities.find(resolved);
             if (found == identities.end()) {
                 if (identities.size() >= maxFiles) invalid("too many source files");
-                auto localId = "module/" + std::to_string(identities.size()) + ".fox";
+                auto localId = "module/" + std::to_string(identities.size()) + std::filesystem::u8path(resolved).extension().u8string();
                 found = identities.emplace(resolved, localId).first;
                 pending.push_back(resolved);
             }

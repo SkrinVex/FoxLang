@@ -8,6 +8,7 @@
 #include <vector>
 
 namespace foxlang::graphics {
+class Font;
 
 // Shared software renderer: identical pixels on Win32 and X11, no GPU/asset files.
 class Surface {
@@ -70,7 +71,7 @@ public:
     bool click(const std::string& id, int x, int y, int width, int height, Window& window);
     // Edits and draws a single-line text field's content; returns the new text.
     std::string text(const std::string& id, int x, int y, int width, int height, const std::string& value,
-                     int scale, uint32_t color, Window& window);
+                     int scale, uint32_t color, Window& window, Font* font = nullptr, int pixels = 14);
     bool focused(const std::string& id) const { return focus_ == id; }
     // A field focused before it is first drawn keeps the focus for one more frame.
     void setFocus(const std::string& id) {
@@ -105,7 +106,7 @@ private:
     std::string hot_, focus_;
     bool clickTaken_ = false;
     bool focusFresh_ = false;
-    struct Field { size_t cursor = 0, scroll = 0; };
+    struct Field { size_t cursor = 0, scroll = 0; bool selectedAll = false; };
     std::vector<std::pair<std::string, Field>> fields_;
     int layer() const { return stack_.empty() ? 0 : stack_.back(); }
     // Registers the element, cut to the clip rectangle, and returns where it can be hit.
@@ -149,12 +150,21 @@ public:
     void wheelEvent(int steps) { wheel_ += steps; }
     void focusEvent(bool focused);
     void mouseEvent(int x, int y) { mouseX_ = x; mouseY_ = y; }
-    void closeEvent() { open_ = false; }
+    // Requests may be deferred by an application; destruction cannot be cancelled.
+    void closeEvent() { if (interceptClose_) closeRequested_ = true; else open_ = false; }
+    void destroyedEvent() { open_ = false; closeRequested_ = false; }
+    void interceptClose(bool enabled) {
+        interceptClose_ = enabled;
+        if (!enabled && closeRequested_) { closeRequested_ = false; open_ = false; }
+    }
+    bool closeRequested() const { return closeRequested_; }
+    void cancelClose() { closeRequested_ = false; }
     // The drawing area follows the window when the user may resize it.
     void setResizable(bool resizable);
     void setFullscreen(bool fullscreen);
     bool fullscreen() const;
     void setSize(int width, int height);
+    std::array<double, 3> desktopMetrics() const;
     void sizeEvent(int width, int height) { pendingWidth_ = width; pendingHeight_ = height; }
     // True in the frame after the window changed size.
     bool resized() const { return resized_; }
@@ -173,6 +183,7 @@ private:
     std::chrono::steady_clock::time_point lastClick_{};
     int lastClickX_ = -1000, lastClickY_ = -1000;
     bool open_ = true, focused_ = false, resized_ = false;
+    bool interceptClose_ = false, closeRequested_ = false;
     int pendingWidth_ = 0, pendingHeight_ = 0;
     void applySize(int width, int height);
     int mouseX_ = 0, mouseY_ = 0;
