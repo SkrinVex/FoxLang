@@ -72,8 +72,8 @@ try {
         } else {
             Invoke-Cmd (Join-Path $ReleaseDir 'install.cmd') ('-InstallDir "{0}" -SkipEnvironment' -f $InstallDir)
         }
-        foreach ($Alias in @('skrumi.exe', 'skrumi-lsp.exe')) {
-        if (-not (Test-Path (Join-Path $InstallDir $Alias))) { throw "Missing compatibility command: $Alias" }
+        foreach ($Command in @('skrumi.exe', 'skrumi-lsp.exe')) {
+        if (-not (Test-Path (Join-Path $InstallDir $Command))) { throw "Missing command: $Command" }
     }
     $Manifest = Get-Content -LiteralPath (Join-Path $ExtensionDir 'package.json') -Raw | ConvertFrom-Json
         if ($Manifest.version -ne $Version) { throw 'VSIX fallback installed the wrong extension version.' }

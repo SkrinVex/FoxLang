@@ -38,8 +38,8 @@ array<array<int>> grid = [[1], [2.5]];
 push(grid[0], 3.9);
 assert_true(grid == [[1, 3], [2]], "nested typed arrays");
 map<string, array<string>> tags = {"fox": ["red"]};
-push(tags.skm, 1);
-assert_true(tags.skm == ["red", "1"], "a map of typed arrays");
+push(tags["fox"], 1);
+assert_true(tags["fox"] == ["red", "1"], "a map of typed arrays");
 
 // 3. Parameters, results, fields
 int total(array<int> items) {

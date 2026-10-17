@@ -36,11 +36,13 @@ function expect(condition, message, result) {
 }
 
 (async () => {
-  for (const entry of ["main.skm", "main.skm"]) {
-    const mixed = await run({[entry]: 'include("old.skm"); using modern; print(old() + modern());',
-      "old.skm": 'int old() { return 20; }', "modern.skm": 'int modern() { return 22; }'}, "", entry);
-    expect(mixed.code === 0 && mixed.out === "42\n", "mixed source extensions", mixed);
-  }
+  const modules = await run({"main.skm": 'include("helper.skm"); using extra; print(helper() + extra());',
+    "helper.skm": 'int helper() { return 20; }', "extra.skm": 'int extra() { return 22; }'});
+  expect(modules.code === 0 && modules.out === "42\n", "canonical source imports", modules);
+  const unsupported = await run({"main.txt": 'print(42);'}, "", "main.txt");
+  expect(unsupported.code === 1 && unsupported.err.includes(".skm"), "reject unsupported source format", unsupported);
+  const unsupportedCheck = JSON.parse(unsupported.module.ccall("skrumi_check", "string", ["string"], ["main.txt"]));
+  expect(unsupportedCheck.length === 1 && unsupportedCheck[0].severity === "error", "checker rejects unsupported format");
 
   const examples = path.join(directory, "examples");
   const expected = {

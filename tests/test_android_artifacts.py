@@ -33,7 +33,7 @@ for path, prefix in [(args.aar, "jni"), (args.apk, "lib")]:
         if prefix == "lib":
             entry = archive.read("assets/skrumi-entry.txt").decode().strip()
             assert entry
-            assert any(n.startswith("assets/program/") and n.endswith((".skm", ".skm")) for n in archive.namelist())
+            assert any(n.startswith("assets/program/") and n.endswith(".skm") for n in archive.namelist())
             assert not any("/.env" in n for n in archive.namelist())
             if args.source:
                 assert entry == args.source.name

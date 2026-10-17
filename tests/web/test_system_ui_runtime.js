@@ -40,14 +40,13 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
     },
   });
   app.FS.writeFile('/font.ttf', fs.readFileSync(path.join(__dirname, '../../installer/assets/DejaVuSans.ttf')));
-  app.FS.writeFile('/choice.skm', 'string selected() { return "legacy"; }');
   app.FS.writeFile('/choice.skm', 'string selected() { return "modern"; }');
-  for (const [suffix, expected] of [['.skm', 'legacy'], ['.skm', 'modern']]) {
+  for (const [suffix, expected] of [['.skm', 'modern']]) {
     const filename = '/imports' + suffix;
     app.FS.writeFile(filename, `using choice; if (selected() != "${expected}") { fail("import precedence"); }
-      using ui; UI_ACCENT = 123; include("std/ui.skm"); include("std/ui.skm");
-      using ui.skm as legacy_ui;
-      if (UI_ACCENT != 123 || legacy_ui.ui_progress_fraction(50, 0, 100) != 0.5) { fail("stdlib alias"); }`);
+      using ui; UI_ACCENT = 123; include("std/ui.skm");
+      using ui.skm as widgets;
+      if (UI_ACCENT != 123 || widgets.ui_progress_fraction(50, 0, 100) != 0.5) { fail("canonical stdlib identity"); }`);
     assert.equal(await app.ccall('skrumi_run', 'number', ['string', 'string'], [filename, ''], {async: true}), 0, log);
   }
   for (const operation of ['process_start("program", [], 1000)', 'os_user_dir("home")',

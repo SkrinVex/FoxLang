@@ -46,9 +46,9 @@ with tempfile.TemporaryDirectory(prefix='skrumi distribution ') as temp:
     collision.unlink()
     for attempt in range(2):
         run(installer, '--headless', 'install', target)
-        for name in ('skrumi'):
+        for name in ('skrumi',):
             assert run(target/(name+suffix), '--version') == 'Skrumi '+version
-        for name in ('skrumi-lsp'):
+        for name in ('skrumi-lsp',):
             assert run(target/(name+suffix), '--version') == 'skrumi-lsp '+version
         marker = json.loads((target/'.skrumi-install.json').read_text(encoding='utf-8'))
         assert marker[1] == version and len(marker[2]) >= 4

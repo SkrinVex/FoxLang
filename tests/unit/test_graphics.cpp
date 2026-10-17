@@ -134,7 +134,7 @@ int main() {
     CHECK(keysymToUnicode(0xFF08) == 0 && keysymToUnicode(0xFFE1) == 0); // BackSpace, Shift type nothing
     skrumi::Interpreter interpreter;
     auto measured = interpreter.runSource("using graphics; int w = text_width(\"Skrumi\", 2);");
-    CHECK(measured.success && interpreter.getGlobal("w").text() == "82");
+    CHECK(measured.success && interpreter.getGlobal("w").text() == "70");
     auto result = interpreter.runSource("using graphics; int c = rgb(18, 52, 86); close_window(); close_window();");
     CHECK(result.success);
     CHECK(interpreter.getGlobal("c").text() == "1193046");

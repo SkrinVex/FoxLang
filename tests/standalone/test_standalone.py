@@ -125,7 +125,7 @@ include("sub/first.skm"); include("sub/../sub/first.skm"); using local;
 void deferred() { include("late.skm"); }
 deferred();
 print(local_value() + nested() + late_value());
-print(min(7, 2)); print(contains("Skrumi", "Lang")); print(join(range(1, 4), "-"));
+print(min(7, 2)); print(contains("Skrumi", "Skru")); print(join(range(1, 4), "-"));
 info("bundled logging");
 ''')
     s.source("sub/first.skm", 'include("../main.skm"); include("deeper/second.skm");')

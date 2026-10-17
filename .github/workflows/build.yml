@@ -71,7 +71,6 @@ jobs:
           mkdir -p dist-editors
           python3 packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" dist-editors/skrumi.vsix
           cp editors/kate/skrumi.xml dist-editors/skrumi.xml
-          cp editors/kate/skrumi.xml dist-editors/skrumi.xml
       - uses: actions/upload-artifact@v4
         with:
           name: editors-release

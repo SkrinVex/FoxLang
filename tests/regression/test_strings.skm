@@ -13,7 +13,7 @@ assert_true(length("Лисий отскок") == 12 && size("Лисий отск
 assert_true(length("🦊") == 1 && size("🦊") == 4, "emoji is one character");
 
 // 2. Search
-assert_true(contains("Skrumi Programming", "Lang") && !contains("Skrumi", "Python"), "contains");
+assert_true(contains("Skrumi Programming", "Skru") && !contains("Skrumi", "Python"), "contains");
 assert_true(starts_with("Skrumi", "Skru") && !starts_with("Skru", "Skrumi"), "starts_with");
 assert_true(ends_with("файл.skm", ".skm") && !ends_with("fox", "файл.skm"), "ends_with");
 assert_true(index_of("Привет, мир", "мир") == 8 && index_of("abc", "z") == -1, "index_of counts characters");

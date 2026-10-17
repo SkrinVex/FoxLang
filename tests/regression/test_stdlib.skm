@@ -35,7 +35,7 @@ float half_turn = radians(180.0);
 assert_true(half_turn > 3.1415 && half_turn < 3.1416, "radians of half turn");
 
 // 2. String stdlib
-assert_true(contains("Skrumi Programming", "Lang"), "contains true");
+assert_true(contains("Skrumi Programming", "Skru"), "contains true");
 assert_true(!contains("Skrumi Programming", "Python"), "contains false");
 assert_true(replace("hello world", "world", "fox") == "hello fox", "replace");
 assert_true(to_int("12345") == 12345, "to_int");

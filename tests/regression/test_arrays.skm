@@ -47,7 +47,7 @@ assert_true(size(empty) == 1 && empty[0] == "start", "resize shrinks");
 
 // 4. Strings: bytes vs characters, split and join
 string test_str = "Skrumi";
-assert_true(size(test_str) == 7, "string size");
+assert_true(size(test_str) == 6, "string size");
 array parts = str_split("a,b,c", ",");
 assert_true(size(parts) == 3 && parts[0] == "a" && parts[2] == "c", "str_split into a declared array");
 array letters = str_split("Лис🦊", "");

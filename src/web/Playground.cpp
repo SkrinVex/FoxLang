@@ -85,6 +85,10 @@ EMSCRIPTEN_KEEPALIVE int skrumi_run(const char* path, const char* input) {
 // [{"line":1,"column":5,"endLine":1,"endColumn":8,"severity":"error","message":"..."}].
 EMSCRIPTEN_KEEPALIVE const char* skrumi_check(const char* path) {
     static std::string json;
+    if (!skrumi::isSourceFile(path)) {
+        json = R"([{"line":1,"column":1,"endLine":1,"endColumn":1,"severity":"error","message":"source files must use .skm"}])";
+        return json.c_str();
+    }
     std::string text;
     {
         std::ifstream file(path, std::ios::binary);

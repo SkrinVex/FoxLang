@@ -154,7 +154,7 @@ std::string SemanticAnalyzer::loadModuleSymbols(const ModuleImport& request, Sou
         identity = sources->resolve(request, currentFile);
         text = sources->read(identity);
     } catch (const std::exception&) {
-        if (!quiet) diagnostics.push_back({DiagnosticSeverity::Warning, "Module '" + request.name + "' not found", importRange});
+        if (!quiet) diagnostics.push_back({DiagnosticSeverity::Error, "Module '" + request.name + "' not found", importRange});
         return "";
     }
     if (!loadedModules.insert(identity).second) return identity;

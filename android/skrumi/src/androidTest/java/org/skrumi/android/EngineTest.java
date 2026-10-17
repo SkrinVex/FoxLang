@@ -15,11 +15,11 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 public class EngineTest {
-    @Test public void skrumiFacadeAndMixedExtensions() throws Exception {
+    @Test public void canonicalModulesAndSourcePolicy() throws Exception {
         File dir = directory();
-        Files.write(new File(dir, "legacy.skm").toPath(), "int legacy() { return 20; }".getBytes(StandardCharsets.UTF_8));
-        Files.write(new File(dir, "modern.skm").toPath(), "int modern() { return 22; }".getBytes(StandardCharsets.UTF_8));
-        Files.write(new File(dir, "main.skm").toPath(), "include(\"legacy.skm\"); using modern; print(legacy() + modern());".getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(dir, "helper.skm").toPath(), "int helper() { return 20; }".getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(dir, "extra.skm").toPath(), "int extra() { return 22; }".getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(dir, "main.skm").toPath(), "include(\"helper.skm\"); using extra; print(helper() + extra());".getBytes(StandardCharsets.UTF_8));
         try (org.skrumi.android.Skrumi engine = new org.skrumi.android.Skrumi(dir, new Skrumi.Host() {})) {
             Skrumi.RunResult result = engine.runFile("main.skm").get(20, TimeUnit.SECONDS);
             assertTrue(result.error, result.success);
@@ -27,6 +27,8 @@ public class EngineTest {
         }
         try (Skrumi engine = new Skrumi(dir, new Skrumi.Host() {})) {
             assertTrue(engine.runFile("main.skm").get(20, TimeUnit.SECONDS).success);
+            Files.write(new File(dir, "main.txt").toPath(), "print(99);".getBytes(StandardCharsets.UTF_8));
+            assertFalse(engine.runFile("main.txt").get(20, TimeUnit.SECONDS).success);
         }
     }
 
