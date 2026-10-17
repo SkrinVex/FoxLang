@@ -4,7 +4,7 @@
 #include <cstring>
 #include <stdexcept>
 
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 namespace {
 
 [[noreturn]] void broken(const std::string& reason) { throw std::runtime_error("Graphics Error: " + reason); }
@@ -357,4 +357,4 @@ Image decodeImage(const std::string& bytes) {
     broken("unsupported image format: PNG and BMP are supported");
 }
 
-} // namespace foxlang::graphics
+} // namespace skrumi::graphics

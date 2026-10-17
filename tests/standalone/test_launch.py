@@ -31,9 +31,9 @@ if len(sys.argv) > 1 and sys.argv[1] == '--detached-probe':
     sys.exit(0)
 
 binary = str(Path(sys.argv[1]).resolve())
-with tempfile.TemporaryDirectory(prefix='fox-launch-') as directory:
+with tempfile.TemporaryDirectory(prefix='skrumi-launch-') as directory:
     root = Path(directory)
-    source = root / 'args.fox'
+    source = root / 'args.skm'
     source.write_text('using os; using json; print(json_value(os_args())); write_file("args.json", json_value(os_args()));', encoding='utf-8')
     def run(args):
         result = subprocess.run([str(a) for a in args], cwd=root, capture_output=True, text=True, encoding='utf-8', timeout=30)
@@ -49,25 +49,25 @@ with tempfile.TemporaryDirectory(prefix='fox-launch-') as directory:
             assert struct.unpack_from('<H', image, pe + 24 + 68)[0] == subsystem
         apps.append(app)
     for prefix in [[binary, source], *[[app] for app in apps]]:
-        for mode in ['--foxlang-no-console', '--foxlang-console']:
-            expected = ['--help', '--width', 'user value', 'Привет 🦊', '--foxlang-width', 'literal', '--']
-            result = run([*prefix, '--help', mode, '--foxlang-width', '640', '--width', 'user value',
-                          'Привет 🦊', '--', '--foxlang-width', 'literal', '--'])
+        for mode in ['--skrumi-no-console', '--skrumi-console']:
+            expected = ['--help', '--width', 'user value', 'Привет 🦊', '--skrumi-width', 'literal', '--']
+            result = run([*prefix, '--help', mode, '--skrumi-width', '640', '--width', 'user value',
+                          'Привет 🦊', '--', '--skrumi-width', 'literal', '--'])
             assert json.loads(result.stdout) == expected, result.stdout
-        for flags in [['--foxlang-width'], ['--foxlang-width', '63'], ['--foxlang-height', '4097'],
-                      ['--foxlang-height', '5.5'], ['--foxlang-width', '4096', '--foxlang-height', '4096'],
-                      ['--foxlang-typo']]:
+        for flags in [['--skrumi-width'], ['--skrumi-width', '63'], ['--skrumi-height', '4097'],
+                      ['--skrumi-height', '5.5'], ['--skrumi-width', '4096', '--skrumi-height', '4096'],
+                      ['--skrumi-typo']]:
             result = subprocess.run([*map(str, prefix), *flags], cwd=root, capture_output=True, timeout=30)
             assert result.returncode != 0 and result.stderr, flags
-    assert '--skrumi-fullscreen' in run([apps[0], '--foxlang-help']).stdout
-    assert json.loads(run([binary, '--foxlang-width', '640', source, '--custom']).stdout) == ['--custom']
+    assert '--skrumi-fullscreen' in run([apps[0], '--skrumi-help']).stdout
+    assert json.loads(run([binary, '--skrumi-width', '640', source, '--custom']).stdout) == ['--custom']
     # Console switching must keep redirected stdin and stdout usable.
-    echo_source = root / 'echo.fox'
+    echo_source = root / 'echo.skm'
     echo_source.write_text('print(input(""));', encoding='utf-8')
     for flag in ['--no-console', '--console']:
         echo_app = root / ('echo-' + flag[2:] + ('.exe' if os.name == 'nt' else ''))
         run([binary, 'build', echo_source, flag, '-o', echo_app])
-        for mode in ['--foxlang-console', '--foxlang-no-console']:
+        for mode in ['--skrumi-console', '--skrumi-no-console']:
             echoed = subprocess.run([str(echo_app), mode], cwd=root, input='redirected input\n',
                 capture_output=True, text=True, encoding='utf-8', timeout=30)
             assert echoed.returncode == 0 and echoed.stdout == 'redirected input\n', (flag, mode, echoed)
@@ -88,7 +88,7 @@ with tempfile.TemporaryDirectory(prefix='fox-launch-') as directory:
         for build_mode, default_console in [('--no-console', False), ('--console', True)]:
             app = root / (build_mode[2:] + '-waiting.exe')
             run([binary, 'build', source, '-o', app, build_mode])
-            for flags, console in [([], default_console), (['--foxlang-console'], True), (['--foxlang-no-console'], False)]:
+            for flags, console in [([], default_console), (['--skrumi-console'], True), (['--skrumi-no-console'], False)]:
                 probe = subprocess.run([sys.executable, str(Path(__file__).resolve()), '--detached-probe',
                     str(app), str(root), 'yes' if console else 'no', *flags], cwd=root,
                     creationflags=subprocess.DETACHED_PROCESS, capture_output=True, timeout=20)

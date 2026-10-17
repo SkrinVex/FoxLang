@@ -1,9 +1,9 @@
 /* Browser editor. The model is the single source for layout and generated code. */
 (() => {
   "use strict";
-  const M = window.FoxBuilder,
+  const M = window.SkrumiBuilder,
     $ = (id) => document.getElementById(id),
-    key = "foxlang-ui-project-v1";
+    key = "skrumi-ui-project-v1";
   let project = M.template(),
     mode = matchMedia("(max-width:600px)").matches ? "mobile" : "desktop",
     selected = null,
@@ -155,7 +155,7 @@
     }
     draw();
     const generated = M.files(project, mode);
-    const files = {"main.skm": project.main, "layout.skm": generated["layout.skm"] || generated["layout.fox"]};
+    const files = {"main.skm": project.main, "layout.skm": generated["layout.skm"] || generated["layout.skm"]};
     const code = files[$("code-file").value];
     $("code").readOnly = $("code-file").value !== "main.skm";
     if ($("code").value !== code) $("code").value = code;
@@ -585,13 +585,13 @@
       event.source !== $("preview").contentWindow
     )
       return;
-    if (event.data?.type === "foxlang-builder-ready") {
+    if (event.data?.type === "skrumi-builder-ready") {
       frameReady = true;
       $("run").disabled = false;
       $("preview-note").textContent = "Skrumi готов к запуску.";
     }
     if (
-      event.data?.type === "foxlang-builder-height" &&
+      event.data?.type === "skrumi-builder-height" &&
       Number.isFinite(event.data.height)
     )
       $("preview").style.height =
@@ -603,7 +603,7 @@
       return;
     }
     $("preview").contentWindow.postMessage(
-      { type: "foxlang-builder-run", files: M.files(project, mode) },
+      { type: "skrumi-builder-run", files: M.files(project, mode) },
       location.origin,
     );
     frameStarted = true;
@@ -612,7 +612,7 @@
   $("stop").onclick = () => {
     if (frameReady)
       $("preview").contentWindow.postMessage(
-        { type: "foxlang-builder-stop" },
+        { type: "skrumi-builder-stop" },
         location.origin,
       );
     $("preview-note").textContent = "Остановлено";

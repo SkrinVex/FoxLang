@@ -18,16 +18,14 @@ function log(msg) {
 
 function installationHome() {
     if (process.env.SKRUMI_HOME) return process.env.SKRUMI_HOME;
-    if (process.env.FOXLANG_HOME) return process.env.FOXLANG_HOME;
     if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
-        const modern = path.join(process.env.LOCALAPPDATA, 'Skrumi');
-        return fs.existsSync(modern) ? modern : path.join(process.env.LOCALAPPDATA, 'FoxLang');
+        return path.join(process.env.LOCALAPPDATA, 'Skrumi');
     }
     return '';
 }
 
 function resolveServerPath() {
-    const config = vscode.workspace.getConfiguration('foxlang');
+    const config = vscode.workspace.getConfiguration('skrumi');
     let customPath = config.get('lsp.serverPath');
     if (customPath && customPath !== 'skrumi-lsp') {
         return customPath;
@@ -54,9 +52,8 @@ function resolveServerPath() {
         ...(installedHome ? [path.join(installedHome, process.platform === 'win32' ? 'skrumi-lsp.exe' : 'skrumi-lsp')] : []),
         path.join(home, '.local', 'bin', 'skrumi-lsp'),
         path.join(home, '.local', 'share', 'skrumi', 'skrumi-lsp'),
-        path.join(home, '.local', 'share', 'foxlang', 'foxlang-lsp'),
-        '/usr/local/bin/foxlang-lsp',
-        '/usr/bin/foxlang-lsp'
+        '/usr/local/bin/skrumi-lsp',
+        '/usr/bin/skrumi-lsp'
     ];
 
     for (const p of candidatePaths) {
@@ -138,7 +135,7 @@ function startServer(context) {
     try {
         const installedHome = installationHome();
         const env = Object.assign({}, process.env);
-        if (installedHome) env.FOXLANG_HOME = installedHome;
+        if (installedHome) env.SKRUMI_HOME = installedHome;
         serverProcess = cp.spawn(serverPath, [], {
             stdio: ['pipe', 'pipe', 'pipe'],
             env
@@ -217,9 +214,9 @@ function startServer(context) {
         log('Server initialized successfully');
         sendMessage({ jsonrpc: '2.0', method: 'initialized', params: {} });
 
-        // Synchronize currently opened Fox documents
+        // Synchronize currently opened Skrumi documents
         vscode.workspace.textDocuments.forEach(doc => {
-            if (doc.languageId === 'fox') {
+            if (doc.languageId === 'skrumi') {
                 syncDocumentOpen(doc);
             }
         });
@@ -229,14 +226,14 @@ function startServer(context) {
 }
 
 function syncDocumentOpen(document) {
-    if (document.languageId !== 'fox') return;
+    if (document.languageId !== 'skrumi') return;
     sendMessage({
         jsonrpc: '2.0',
         method: 'textDocument/didOpen',
         params: {
             textDocument: {
                 uri: document.uri.toString(),
-                languageId: 'fox',
+                languageId: 'skrumi',
                 version: document.version,
                 text: document.getText()
             }
@@ -245,7 +242,7 @@ function syncDocumentOpen(document) {
 }
 
 function syncDocumentChange(event) {
-    if (event.document.languageId !== 'fox') return;
+    if (event.document.languageId !== 'skrumi') return;
     sendMessage({
         jsonrpc: '2.0',
         method: 'textDocument/didChange',
@@ -262,7 +259,7 @@ function syncDocumentChange(event) {
 }
 
 function syncDocumentClose(document) {
-    if (document.languageId !== 'fox') return;
+    if (document.languageId !== 'skrumi') return;
     diagnosticCollection.delete(document.uri);
     sendMessage({
         jsonrpc: '2.0',
@@ -277,7 +274,7 @@ function syncDocumentClose(document) {
 
 function activate(context) {
     outputChannel = vscode.window.createOutputChannel('Skrumi Language Server');
-    diagnosticCollection = vscode.languages.createDiagnosticCollection('foxlang');
+    diagnosticCollection = vscode.languages.createDiagnosticCollection('skrumi');
     context.subscriptions.push(diagnosticCollection);
     context.subscriptions.push(outputChannel);
 
@@ -291,12 +288,12 @@ function activate(context) {
     context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(doc => syncDocumentClose(doc)));
     // A saved file changes what the other files of its project see.
     context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
-        if (doc.languageId !== 'fox') return;
+        if (doc.languageId !== 'skrumi') return;
         sendMessage({ jsonrpc: '2.0', method: 'textDocument/didSave', params: { textDocument: { uri: doc.uri.toString() } } });
     }));
 
     // Hover Provider
-    context.subscriptions.push(vscode.languages.registerHoverProvider('fox', {
+    context.subscriptions.push(vscode.languages.registerHoverProvider('skrumi', {
         async provideHover(document, position) {
             try {
                 const res = await sendRequest('textDocument/hover', {
@@ -314,7 +311,7 @@ function activate(context) {
     }));
 
     // Completion Provider
-    context.subscriptions.push(vscode.languages.registerCompletionItemProvider('fox', {
+    context.subscriptions.push(vscode.languages.registerCompletionItemProvider('skrumi', {
         async provideCompletionItems(document, position) {
             try {
                 const res = await sendRequest('textDocument/completion', {
@@ -342,7 +339,7 @@ function activate(context) {
     }, '.', ' '));
 
     // Signature Help Provider (Fires on '(' and ',')
-    context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('fox', {
+    context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('skrumi', {
         async provideSignatureHelp(document, position) {
             try {
                 const res = await sendRequest('textDocument/signatureHelp', {
@@ -379,7 +376,7 @@ function activate(context) {
     }, '(', ','));
 
     // Definition Provider (F12 / Ctrl+Click)
-    context.subscriptions.push(vscode.languages.registerDefinitionProvider('fox', {
+    context.subscriptions.push(vscode.languages.registerDefinitionProvider('skrumi', {
         async provideDefinition(document, position) {
             try {
                 const res = await sendRequest('textDocument/definition', {
@@ -405,7 +402,7 @@ function activate(context) {
     }));
 
     // Document Symbols Provider (Ctrl+Shift+O)
-    context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider('fox', {
+    context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider('skrumi', {
         async provideDocumentSymbols(document) {
             try {
                 const res = await sendRequest('textDocument/documentSymbol', {
@@ -445,7 +442,7 @@ function activate(context) {
     const toRange = r => new vscode.Range(r.start.line, r.start.character, r.end.line, r.end.character);
 
     // Find All References (Shift+F12): every file of the program.
-    context.subscriptions.push(vscode.languages.registerReferenceProvider('fox', {
+    context.subscriptions.push(vscode.languages.registerReferenceProvider('skrumi', {
         async provideReferences(document, position, referenceContext) {
             try {
                 const res = await sendRequest('textDocument/references', {
@@ -462,7 +459,7 @@ function activate(context) {
     }));
 
     // Rename Symbol (F2): the declaration and its uses in every file of the program.
-    context.subscriptions.push(vscode.languages.registerRenameProvider('fox', {
+    context.subscriptions.push(vscode.languages.registerRenameProvider('skrumi', {
         async prepareRename(document, position) {
             const res = await sendRequest('textDocument/prepareRename', {
                 textDocument: { uri: document.uri.toString() },
@@ -484,8 +481,8 @@ function activate(context) {
         }
     }));
 
-    // Format Document (Shift+Alt+F): the same layout as foxlang fmt.
-    context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider('fox', {
+    // Format Document (Shift+Alt+F): the same layout as skrumi fmt.
+    context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider('skrumi', {
         async provideDocumentFormattingEdits(document, options) {
             try {
                 const res = await sendRequest('textDocument/formatting', {
@@ -501,7 +498,7 @@ function activate(context) {
     }));
 
     // Command to restart LSP
-    context.subscriptions.push(vscode.commands.registerCommand('foxlang.restartServer', () => {
+    context.subscriptions.push(vscode.commands.registerCommand('skrumi.restartServer', () => {
         if (serverProcess) {
             try { serverProcess.kill(); } catch {}
             serverProcess = null;

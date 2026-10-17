@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <optional>
 
-namespace foxlang::bundle {
+namespace skrumi::bundle {
 constexpr std::size_t descriptorSize = 40;
 constexpr std::size_t maxImage = 256 * 1024 * 1024;
 
@@ -15,4 +15,4 @@ Bytes readImage(const std::filesystem::path& path);
 std::filesystem::path executablePath();
 void build(const std::filesystem::path& input, std::filesystem::path output, bool noConsole = false,
            const std::filesystem::path& resources = {});
-} // namespace foxlang::bundle
+} // namespace skrumi::bundle

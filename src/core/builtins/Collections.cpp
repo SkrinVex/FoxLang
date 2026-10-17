@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 
 bool isNumber(const Value& value) { return value.isNumber(); }
@@ -187,4 +187,4 @@ void addCollectionBuiltins(std::vector<Builtin>& out) {
         });
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

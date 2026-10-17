@@ -15,7 +15,7 @@ def create_certificates(directory):
                 tool = str(candidate)
                 break
     if not tool:
-        raise RuntimeError("TLS tests require the openssl utility (not needed by FoxLang)")
+        raise RuntimeError("TLS tests require the openssl utility (not needed by Skrumi)")
 
     def generate(*args):
         result = subprocess.run([tool, *args], cwd=directory, capture_output=True, timeout=30)

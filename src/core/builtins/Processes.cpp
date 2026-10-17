@@ -1,6 +1,6 @@
 // Public, interpreter-owned child processes. No shell and no VM calls from threads.
 #include "Builtin.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <algorithm>
 #include <chrono>
 #include <limits>
@@ -24,7 +24,7 @@ extern char** environ;
 #endif
 #endif
 
-namespace foxlang::platform {
+namespace skrumi::platform {
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
 namespace {
 constexpr size_t captureLimit = 16 * 1024 * 1024;
@@ -247,9 +247,9 @@ struct ProcessTable { int next = 1; std::map<int, std::unique_ptr<Child>> childr
 #else
 struct ProcessTable {};
 #endif
-} // namespace foxlang::platform
+} // namespace skrumi::platform
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
 platform::ProcessTable& table(Call& c) {
@@ -303,4 +303,4 @@ void addProcessBuiltins(std::vector<Builtin>& out) {
     out.push_back({{"process_cancel", "void", {{"int", "handle"}}, 1, false, "os", "Запрашивает принудительное завершение группы процесса. Затем дождитесь process_poll и освободите handle."}, operation});
     out.push_back({{"process_release", "void", {{"int", "handle"}}, 1, false, "os", "Освобождает завершённый процесс. Неизвестный/работающий handle — Process Error. При уничтожении runtime оставшиеся процессы останавливаются."}, operation});
 }
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

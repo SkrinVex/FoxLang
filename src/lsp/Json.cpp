@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <stdexcept>
 
-namespace foxlang {
+namespace skrumi {
 namespace lsp {
 
 void JsonValue::skipWhitespace(const std::string& s, size_t& i) {
@@ -235,4 +235,4 @@ JsonValue JsonValue::parseObject(const std::string& s, size_t& i) {
 }
 
 } // namespace lsp
-} // namespace foxlang
+} // namespace skrumi

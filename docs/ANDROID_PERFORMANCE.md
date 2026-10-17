@@ -1,6 +1,6 @@
 # Измерение графики Skrumi на Android
 
-Raycaster рисует программно в C++ и передаёт полный кадр в `FoxView`. Путь кадра:
+Raycaster рисует программно в C++ и передаёт полный кадр в `SkrumiView`. Путь кадра:
 RGB-буфер → преобразование в ARGB и Java `int[]` через JNI → `Bitmap.setPixels()`
 → `Canvas.drawBitmap()`. Это несколько проходов по памяти; при увеличении
 разрешения их стоимость растёт. FPS игры включает ещё VM, расчёт лучей, рисование
@@ -44,10 +44,10 @@ python3 packaging/profile_android.py --trace build/android-profile/trace.txt
 
 | Секция | Граница измерения |
 |---|---|
-| `FoxLang.present WIDTHxHEIGHT` | Нативный вызов Host: подготовка кадра, JNI, callback `onFrame()` и освобождение локальной JNI-ссылки. Исполнение VM и построение сцены сюда не входят |
-| `FoxLang.frame.copy` | Выделение Java-массива и временного C++-буфера, преобразование RGB → ARGB, `SetIntArrayRegion`, освобождение временного буфера |
-| `FoxView.upload` | Ожидание блокировки кадра, создание Bitmap при смене размера и `Bitmap.setPixels()` |
-| `FoxView.draw` | Вызов рисования на UI-потоке, включая ожидание блокировки и передачу команд Canvas |
+| `Skrumi.present WIDTHxHEIGHT` | Нативный вызов Host: подготовка кадра, JNI, callback `onFrame()` и освобождение локальной JNI-ссылки. Исполнение VM и построение сцены сюда не входят |
+| `Skrumi.frame.copy` | Выделение Java-массива и временного C++-буфера, преобразование RGB → ARGB, `SetIntArrayRegion`, освобождение временного буфера |
+| `SkrumiView.upload` | Ожидание блокировки кадра, создание Bitmap при смене размера и `Bitmap.setPixels()` |
+| `SkrumiView.draw` | Вызов рисования на UI-потоке, включая ожидание блокировки и передачу команд Canvas |
 
 Все значения — **прошедшее время**, включая вытеснение потока планировщиком.
 `copy` и `upload` входят в `present`: складывать все три величины нельзя.

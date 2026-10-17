@@ -1,5 +1,5 @@
 #include "Graphics.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -16,25 +16,25 @@
 #include <windowsx.h>
 #include <mutex>
 #elif defined(__ANDROID__)
-#include "foxlang/Android.h"
+#include "skrumi/Android.h"
 #elif defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
 // The page's side of a playground window (see Window::Native below).
-EM_JS(int, fox_canvas_open, (int width, int height, const char* title), {
+EM_JS(int, skrumi_canvas_open, (int width, int height, const char* title), {
     if (!Module.canvasOpen) return 0;
     Module.canvasOpen(width, height, UTF8ToString(title));
     return 1;
 });
-EM_JS(void, fox_canvas_present, (const void* pixels, int width, int height), {
+EM_JS(void, skrumi_canvas_present, (const void* pixels, int width, int height), {
     Module.canvasPresent(HEAPU8.subarray(pixels, pixels + width * height * 4), width, height);
 });
-EM_JS(void, fox_canvas_poll, (), {
+EM_JS(void, skrumi_canvas_poll, (), {
     return Asyncify.handleAsync(() => Module.canvasPoll());
 });
-EM_JS(void, fox_canvas_close, (), {
+EM_JS(void, skrumi_canvas_close, (), {
     if (Module.canvasClose) Module.canvasClose();
 });
-EM_JS(void, fox_canvas_resizable, (int resizable), {
+EM_JS(void, skrumi_canvas_resizable, (int resizable), {
     if (Module.canvasResizable) Module.canvasResizable(!!resizable);
 });
 #else
@@ -44,7 +44,7 @@ EM_JS(void, fox_canvas_resizable, (int resizable), {
 #include <xcb/xcbext.h>
 #endif
 
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 namespace {
 [[noreturn]] void fail(const std::string& message) { throw std::runtime_error("Graphics Error: " + message); }
 
@@ -230,7 +230,7 @@ struct Window::Native {
             WNDCLASSW cls{};
             cls.lpfnWndProc = procedure;
             cls.hInstance = GetModuleHandleW(nullptr);
-            cls.lpszClassName = L"FoxLangGraphicsWindow";
+            cls.lpszClassName = L"SkrumiGraphicsWindow";
             cls.hCursor = LoadCursor(nullptr, IDC_ARROW);
             if (!RegisterClassW(&cls) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) fail("cannot register Win32 window class");
         });
@@ -247,7 +247,7 @@ struct Window::Native {
         DWORD style = WS_OVERLAPPEDWINDOW;
         RECT rect{0, 0, owner.surface().width(), owner.surface().height()};
         AdjustWindowRect(&rect, style, FALSE);
-        hwnd = CreateWindowExW(0, L"FoxLangGraphicsWindow", wide.c_str(), style,
+        hwnd = CreateWindowExW(0, L"SkrumiGraphicsWindow", wide.c_str(), style,
                                CW_USEDEFAULT, CW_USEDEFAULT, rect.right - rect.left, rect.bottom - rect.top,
                                nullptr, nullptr, GetModuleHandleW(nullptr), this);
         if (!hwnd) fail("cannot create Win32 window");
@@ -367,17 +367,17 @@ struct Window::Native {
     ~Native() {
         if (shown == &owner) {
             shown = nullptr;
-            fox_canvas_close();
+            skrumi_canvas_close();
         }
     }
     void open(const std::string& title) {
-        if (!fox_canvas_open(owner.surface().width(), owner.surface().height(), title.c_str()))
+        if (!skrumi_canvas_open(owner.surface().width(), owner.surface().height(), title.c_str()))
             fail("windows are not available here; run the program with skrumi on a computer");
         shown = &owner;
         owner.focusEvent(true);
         present();
     }
-    void poll() { fox_canvas_poll(); }
+    void poll() { skrumi_canvas_poll(); }
     void present() {
         const auto& surface = owner.surface();
         const auto& pixels = surface.pixels();
@@ -386,12 +386,12 @@ struct Window::Native {
             uint32_t c = pixels[i];
             rgba[i] = 0xff000000u | ((c & 0xff) << 16) | (c & 0xff00) | ((c >> 16) & 0xff);
         }
-        fox_canvas_present(rgba.data(), surface.width(), surface.height());
+        skrumi_canvas_present(rgba.data(), surface.width(), surface.height());
     }
     bool fullscreen() const { return false; }
     void setFullscreen(bool on) { if (on) fail("fullscreen requires a native Windows or X11 window"); }
     void resizeBuffers() {}
-    void setResizable(bool resizable) { fox_canvas_resizable(resizable); }
+    void setResizable(bool resizable) { skrumi_canvas_resizable(resizable); }
     void setSize(int width, int height) { owner.sizeEvent(width, height); }
     std::string clipboard() { return ""; }
     void setClipboard(const std::string&) {}
@@ -399,15 +399,15 @@ struct Window::Native {
 
 // What the page reports from the canvas, in the codes the native backends use.
 extern "C" {
-EMSCRIPTEN_KEEPALIVE void foxlang_key(int key, int down) { if (shown) shown->keyEvent(key, down != 0); }
-EMSCRIPTEN_KEEPALIVE void foxlang_char(int codepoint) {
+EMSCRIPTEN_KEEPALIVE void skrumi_key(int key, int down) { if (shown) shown->keyEvent(key, down != 0); }
+EMSCRIPTEN_KEEPALIVE void skrumi_char(int codepoint) {
     if (shown && codepoint >= 0x20 && codepoint != 0x7f && codepoint <= 0x10ffff) shown->textEvent(utf8(static_cast<uint32_t>(codepoint)));
 }
-EMSCRIPTEN_KEEPALIVE void foxlang_mouse(int x, int y) { if (shown) shown->mouseEvent(x, y); }
-EMSCRIPTEN_KEEPALIVE void foxlang_wheel(int steps) { if (shown) shown->wheelEvent(steps); }
-EMSCRIPTEN_KEEPALIVE void foxlang_focus(int focused) { if (shown) shown->focusEvent(focused != 0); }
-EMSCRIPTEN_KEEPALIVE void foxlang_size(int width, int height) { if (shown) shown->sizeEvent(width, height); }
-EMSCRIPTEN_KEEPALIVE void foxlang_close() { if (shown) shown->closeEvent(); }
+EMSCRIPTEN_KEEPALIVE void skrumi_mouse(int x, int y) { if (shown) shown->mouseEvent(x, y); }
+EMSCRIPTEN_KEEPALIVE void skrumi_wheel(int steps) { if (shown) shown->wheelEvent(steps); }
+EMSCRIPTEN_KEEPALIVE void skrumi_focus(int focused) { if (shown) shown->focusEvent(focused != 0); }
+EMSCRIPTEN_KEEPALIVE void skrumi_size(int width, int height) { if (shown) shown->sizeEvent(width, height); }
+EMSCRIPTEN_KEEPALIVE void skrumi_close() { if (shown) shown->closeEvent(); }
 }
 #else
 struct Window::Native {
@@ -503,7 +503,7 @@ struct Window::Native {
     }
     void attachShm(size_t bytes) {
         detachShm();
-        if (platform::configEnv("FOXLANG_X11_SHM") == "0") return;
+        if (platform::configEnv("SKRUMI_X11_SHM") == "0") return;
         const auto* extension = xcb_get_extension_data(connection, &shmExtension());
         if (!extension || !extension->present) return;
         int id = shmget(IPC_PRIVATE, bytes, IPC_CREAT | 0600);
@@ -704,7 +704,7 @@ struct Window::Native {
             XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK, values));
         protocols = atom("WM_PROTOCOLS"); deleteWindow = atom("WM_DELETE_WINDOW");
         clipboardAtom = atom("CLIPBOARD"); utf8Atom = atom("UTF8_STRING");
-        targetsAtom = atom("TARGETS"); transferAtom = atom("FOXLANG_CLIPBOARD");
+        targetsAtom = atom("TARGETS"); transferAtom = atom("SKRUMI_CLIPBOARD");
         check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, protocols, XCB_ATOM_ATOM, 32, 1, &deleteWindow));
         check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, atom("_NET_WM_NAME"), atom("UTF8_STRING"), 8, static_cast<uint32_t>(title.size()), title.data()));
         check(xcb_change_property_checked(connection, XCB_PROP_MODE_REPLACE, window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, static_cast<uint32_t>(title.size()), title.data()));
@@ -1007,4 +1007,4 @@ bool Window::keyPressed(const std::string& key) const { return pressed_[keyCode(
 bool Window::keyRepeat(const std::string& key) const { return repeated_[keyCode(key)]; }
 std::string Window::clipboard() { return native_->clipboard(); }
 void Window::setClipboard(const std::string& text) { native_->setClipboard(text); }
-} // namespace foxlang::graphics
+} // namespace skrumi::graphics

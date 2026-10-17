@@ -64,7 +64,7 @@ jobs:
         run: |
           emcmake cmake -S . -B web -DCMAKE_BUILD_TYPE=Release
           cmake --build web -j4
-          cp web/skrumi*.js web/skrumi*.wasm web/foxlang*.js web/foxlang*.wasm site/playground/
+          cp web/skrumi*.js web/skrumi*.wasm site/playground/
           node tests/web/test_playground.js site/playground
           node tests/web/test_builder_model.js
           node tests/web/test_builder_runtime.js site/playground

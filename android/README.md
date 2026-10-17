@@ -1,9 +1,9 @@
 # Skrumi для Android
 
-См. [руководство Android](../docs/ANDROID.md): AAR для Java/Kotlin, FoxView,
-сборка APK из `.fox`, ввод, жизненный цикл, ограничения Android и тестирование.
+См. [руководство Android](../docs/ANDROID.md): AAR для Java/Kotlin, SkrumiView,
+сборка APK из `.skm`, ввод, жизненный цикл, ограничения Android и тестирование.
 
 ```bash
-./gradlew :foxlang:assembleRelease :app:assembleDebug
-./gradlew :foxlang:connectedDebugAndroidTest -PfoxlangAbis=x86_64
+./gradlew :skrumi:assembleRelease :app:assembleDebug
+./gradlew :skrumi:connectedDebugAndroidTest -PskrumiAbis=x86_64
 ```

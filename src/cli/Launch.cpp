@@ -10,15 +10,14 @@
 #include <io.h>
 #endif
 
-namespace foxlang::cli {
+namespace skrumi::cli {
 LaunchOptions parseLaunch(const std::vector<std::string>& arguments) {
     LaunchOptions result;
     bool literal = false;
     for (size_t i = 0; i < arguments.size(); ++i) {
         auto arg = arguments[i];
-        if (!literal && arg.rfind("--skrumi-", 0) == 0) arg = "--foxlang-" + arg.substr(9);
         if (!literal && arg == "--") { literal = true; continue; }
-        if (literal || arg.rfind("--foxlang-", 0) != 0) {
+        if (literal || arg.rfind("--skrumi-", 0) != 0) {
             result.interpreter.arguments.push_back(arg);
             continue;
         }
@@ -31,12 +30,12 @@ LaunchOptions parseLaunch(const std::vector<std::string>& arguments) {
             if (n < 64 || n > 4096) throw std::runtime_error(arg + " must be in 64..4096");
             return n;
         };
-        if (arg == "--foxlang-console") result.console = ConsoleMode::Console;
-        else if (arg == "--foxlang-no-console") result.console = ConsoleMode::Hidden;
-        else if (arg == "--foxlang-width") result.interpreter.windowWidth = dimension();
-        else if (arg == "--foxlang-height") result.interpreter.windowHeight = dimension();
-        else if (arg == "--foxlang-fullscreen") result.interpreter.windowFullscreen = true;
-        else if (arg == "--foxlang-windowed") result.interpreter.windowFullscreen = false;
+        if (arg == "--skrumi-console") result.console = ConsoleMode::Console;
+        else if (arg == "--skrumi-no-console") result.console = ConsoleMode::Hidden;
+        else if (arg == "--skrumi-width") result.interpreter.windowWidth = dimension();
+        else if (arg == "--skrumi-height") result.interpreter.windowHeight = dimension();
+        else if (arg == "--skrumi-fullscreen") result.interpreter.windowFullscreen = true;
+        else if (arg == "--skrumi-windowed") result.interpreter.windowFullscreen = false;
         else throw std::runtime_error("unknown runtime option '" + arg + "'");
     }
     if (int64_t(result.interpreter.windowWidth) * result.interpreter.windowHeight > 8388608)
@@ -80,4 +79,4 @@ void reportError(const std::string& message) {
 #endif
     std::cerr << "Skrumi: " << message << std::endl;
 }
-} // namespace foxlang::cli
+} // namespace skrumi::cli

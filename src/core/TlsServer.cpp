@@ -1,5 +1,5 @@
 #include "TlsServer.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
@@ -10,7 +10,7 @@
 #include <psa/crypto.h>
 #include <stdexcept>
 
-namespace foxlang::platform {
+namespace skrumi::platform {
 namespace {
 void checked(int result, const char* operation) {
     if (result == 0) return;

@@ -1,12 +1,12 @@
 @echo off
 setlocal DisableDelayedExpansion
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" %*
-set "FOXLANG_EXIT=%ERRORLEVEL%"
+set "SKRUMI_EXIT=%ERRORLEVEL%"
 echo.
-if "%FOXLANG_EXIT%"=="0" (
+if "%SKRUMI_EXIT%"=="0" (
   echo Installation finished.
 ) else (
-  echo Installation failed with exit code %FOXLANG_EXIT%.
+  echo Installation failed with exit code %SKRUMI_EXIT%.
 )
 pause
-exit /b %FOXLANG_EXIT%
+exit /b %SKRUMI_EXIT%

@@ -13,18 +13,18 @@ from certificates import create_certificates
 from test_standalone import Scenario
 
 
-with tempfile.TemporaryDirectory(prefix="fox-https-server-") as temporary:
+with tempfile.TemporaryDirectory(prefix="skrumi-https-server-") as temporary:
     s = Scenario(Path(sys.argv[1]).resolve(), temporary)
     credentials = create_certificates(s.project / "credentials")
     # Test two TLS records in each direction; include JSON Unicode/surrogate pairs.
     message = "Привет 🦊 " * 6000
-    s.source("main.fox", '''using server; using json; using env;
+    s.source("main.skm", '''using server; using json; using env;
 void health() { respond("ready"); }
 void webhook() { respond_status(201, json_path(body(), "message.text")); }
 void failure() { int invalid = 1 / 0; }
 void stop() { respond("stopped"); server_stop(); }
 get("/health", "health"); get("/failure", "failure"); post("/telegram", "webhook"); get("/stop", "stop");
-listen_tls(to_int(secret("FOX_TEST_PORT")), env("FOX_TEST_CERT"), env("FOX_TEST_KEY"));
+listen_tls(to_int(secret("SKRUMI_TEST_PORT")), env("SKRUMI_TEST_CERT"), env("SKRUMI_TEST_KEY"));
 ''')
     s.build()
     data = s.app.read_bytes()
@@ -37,12 +37,12 @@ listen_tls(to_int(secret("FOX_TEST_PORT")), env("FOX_TEST_CERT"), env("FOX_TEST_
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
-    env = dict(s.env, FOX_TEST_PORT=str(port), FOX_TEST_CERT=str(runtime_credentials / "server.pem"),
-               FOX_TEST_KEY=str(runtime_credentials / "server.key"))
+    env = dict(s.env, SKRUMI_TEST_PORT=str(port), SKRUMI_TEST_CERT=str(runtime_credentials / "server.pem"),
+               SKRUMI_TEST_KEY=str(runtime_credentials / "server.key"))
 
     # Missing/mismatched credentials must fail before opening a listener, never downgrade to HTTP.
-    for changes in ({"FOX_TEST_KEY": ""}, {"FOX_TEST_KEY": str(runtime_credentials / "missing.key")},
-                    {"FOX_TEST_CERT": str(runtime_credentials / "ca.pem")}):
+    for changes in ({"SKRUMI_TEST_KEY": ""}, {"SKRUMI_TEST_KEY": str(runtime_credentials / "missing.key")},
+                    {"SKRUMI_TEST_CERT": str(runtime_credentials / "ca.pem")}):
         failed = s.command([s.app], s.receiver, dict(env, **changes))
         assert failed.returncode != 0 and "HTTPS Server Error" in failed.stderr, failed
 

@@ -4,7 +4,7 @@
 #include <chrono>
 #include <stdexcept>
 
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 namespace {
 
 std::vector<std::string> characters(const std::string& text) {
@@ -282,4 +282,4 @@ std::string Ui::text(const std::string& id, int x, int y, int width, int height,
     return join(chars, 0, chars.size());
 }
 
-} // namespace foxlang::graphics
+} // namespace skrumi::graphics

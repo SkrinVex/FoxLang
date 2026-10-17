@@ -123,7 +123,7 @@ CASES = {
         "        case 2: if (i == 1) { return \"two at 1\"; } break;\n        default: continue;\n      }\n    } finally {\n"
         "      print(\"finally\", i);\n    }\n  }\n  return \"none\";\n}\nprint(pick(1));\nprint(pick(2));\nprint(pick(3));\n"
     ),
-    "deferred_include": "void load() { include(\"tests/regression/helper_module.fox\"); }\nload();\nprint(\"loaded\");\n",
+    "deferred_include": "void load() { include(\"tests/regression/helper_module.skm\"); }\nload();\nprint(\"loaded\");\n",
     "struct_default_error": "struct S {\n  int a = 1 / 0;\n}\nprint(\"before\");\nS s = S();\n",
     "struct_default_call": "int made = 0;\nint make() { made++; return made * 10; }\nstruct S { int a = make(); string t = \"x\"; }\nS one = S();\nS two = S(5);\nprint(one, two, made);\n",
     "nested_try_return": (
@@ -160,7 +160,7 @@ def main():
     failures = []
     with tempfile.TemporaryDirectory() as work:
         for name, source in CASES.items():
-            path = Path(work) / f"{name}.fox"
+            path = Path(work) / f"{name}.skm"
             path.write_text(source, encoding="utf-8")
             actual[name] = run(binary, path.name, work)
             if not update and actual[name] != expected.get(name):

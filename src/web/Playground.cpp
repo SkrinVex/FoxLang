@@ -1,12 +1,12 @@
 // The Skrumi of the browser playground: WebAssembly in a web worker. The page runs
 // every program in a fresh worker and ends it when time runs out, so nothing here
 // needs to stop a program; output goes to the worker's stdout and stderr.
-#include "foxlang/FoxLang.h"
-#include "foxlang/Lexer.h"
-#include "foxlang/Parser.h"
-#include "foxlang/Project.h"
-#include "foxlang/SemanticAnalyzer.h"
-#include "foxlang/SourceProvider.h"
+#include "skrumi/Skrumi.h"
+#include "skrumi/Lexer.h"
+#include "skrumi/Parser.h"
+#include "skrumi/Project.h"
+#include "skrumi/SemanticAnalyzer.h"
+#include "skrumi/SourceProvider.h"
 #include <emscripten/emscripten.h>
 #include <fstream>
 #include <iterator>
@@ -14,10 +14,10 @@
 #include <streambuf>
 #include <string>
 
-EM_JS_DEPS(foxlang_playground, "$UTF8ToString");
+EM_JS_DEPS(skrumi_playground, "$UTF8ToString");
 
 // Shows a line the program read, as a terminal would echo what was typed.
-EM_JS(void, foxlang_echo_input, (const char* text, int size), {
+EM_JS(void, skrumi_echo_input, (const char* text, int size), {
     Module.echoInput(UTF8ToString(text, size));
 });
 
@@ -37,7 +37,7 @@ protected:
         at_ = end;
         std::cout << std::flush;
         std::string shown = line_.back() == '\n' ? line_ : line_ + "\n";
-        foxlang_echo_input(shown.data(), static_cast<int>(shown.size()));
+        skrumi_echo_input(shown.data(), static_cast<int>(shown.size()));
         setg(line_.data(), line_.data(), line_.data() + line_.size());
         return traits_type::to_int_type(*gptr());
     }
@@ -58,8 +58,8 @@ void appendEscaped(std::string& out, const std::string& text) {
 
 extern "C" {
 
-EMSCRIPTEN_KEEPALIVE const char* foxlang_version() {
-    static const std::string version = foxlang::Interpreter::getVersion();
+EMSCRIPTEN_KEEPALIVE const char* skrumi_version() {
+    static const std::string version = skrumi::Interpreter::getVersion();
     return version.c_str();
 }
 
@@ -68,12 +68,12 @@ EMSCRIPTEN_KEEPALIVE const char* foxlang_version() {
 
 // Runs the file with the text of the input box as its standard input; returns its
 // exit code (1 after an error, which goes to stderr).
-EMSCRIPTEN_KEEPALIVE int foxlang_run(const char* path, const char* input) {
+EMSCRIPTEN_KEEPALIVE int skrumi_run(const char* path, const char* input) {
     PageInput page(input);
     std::cin.rdbuf(&page);
-    foxlang::InterpreterOptions options;
+    skrumi::InterpreterOptions options;
     options.loadDotEnv = false;
-    foxlang::Interpreter interpreter(options);
+    skrumi::Interpreter interpreter(options);
     auto result = interpreter.runFile(path);
     std::cout << std::flush;
     std::cin.rdbuf(nullptr);
@@ -83,26 +83,30 @@ EMSCRIPTEN_KEEPALIVE int foxlang_run(const char* path, const char* input) {
 
 // The problems of one file for the editor, with the files next to it known:
 // [{"line":1,"column":5,"endLine":1,"endColumn":8,"severity":"error","message":"..."}].
-EMSCRIPTEN_KEEPALIVE const char* foxlang_check(const char* path) {
+EMSCRIPTEN_KEEPALIVE const char* skrumi_check(const char* path) {
     static std::string json;
+    if (!skrumi::isSourceFile(path)) {
+        json = R"([{"line":1,"column":1,"endLine":1,"endColumn":1,"severity":"error","message":"source files must use .skm"}])";
+        return json.c_str();
+    }
     std::string text;
     {
         std::ifstream file(path, std::ios::binary);
         text.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
     }
-    foxlang::Lexer lexer(text, true);
+    skrumi::Lexer lexer(text, true);
     auto tokens = lexer.tokenize();
-    std::vector<foxlang::Diagnostic> diagnostics = lexer.getDiagnostics();
-    foxlang::Parser parser(std::move(tokens), path);
-    std::vector<foxlang::Diagnostic> parsed;
+    std::vector<skrumi::Diagnostic> diagnostics = lexer.getDiagnostics();
+    skrumi::Parser parser(std::move(tokens), path);
+    std::vector<skrumi::Diagnostic> parsed;
     auto program = parser.parseProgramWithDiagnostics(parsed);
     diagnostics.insert(diagnostics.end(), parsed.begin(), parsed.end());
-    auto sources = std::make_shared<foxlang::OverlaySources>(foxlang::filesystemSources(""));
-    foxlang::ProjectIndex project(sources);
+    auto sources = std::make_shared<skrumi::OverlaySources>(skrumi::filesystemSources(""));
+    skrumi::ProjectIndex project(sources);
     // Every file of the program sees the others: the project is the working directory.
-    std::string canonical = foxlang::canonicalPath(path);
-    project.setRoot(foxlang::canonicalPath("."));
-    foxlang::SemanticAnalyzer analyzer(canonical, "", sources);
+    std::string canonical = skrumi::canonicalPath(path);
+    project.setRoot(skrumi::canonicalPath("."));
+    skrumi::SemanticAnalyzer analyzer(canonical, "", sources);
     analyzer.addProjectFiles(project.peers(canonical));
     analyzer.analyze(program.get());
     const auto& semantic = analyzer.getDiagnostics();

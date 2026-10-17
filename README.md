@@ -1,8 +1,7 @@
 # <img src="resources/branding/skrumi-mark.svg" width="40" height="40" alt=""> Skrumi
 
-> Previously known as FoxLang. Skrumi is the continuation of FoxLang under a new name.
-> The project retains its original development history and supports existing `.fox`
-> source files alongside the new `.skm` format. See the [migration guide](docs/MIGRATION_FROM_FOXLANG.md).
+Единственные команда и расширение исходников — `skrumi` и `.skm`.
+[Перенос старых проектов](docs/MIGRATION.md).
 
 Новые компоненты UI: [ProgressBar, диалоги, темы и отмена закрытия](examples/progress.skm).
 Публичные файловые операции и их гарантии описаны в [документации](DOCUMENTATION.md#проверяемые-файловые-операции).
@@ -22,7 +21,7 @@ C-подобным синтаксисом, строгими типами, мас
 установленный Skrumi.
 
 **Android:** [встроить язык в Kotlin/Java или собрать APK из `.skm`](docs/ANDROID.md).
-Демо игры: [raycaster APK](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang-android-raycaster.apk) · [исходник](examples/raycaster.skm) · [замеры кадров на устройстве](docs/ANDROID_PERFORMANCE.md).
+Демо игры: [raycaster APK](https://github.com/SkrinVex/Skrumi/releases/latest/download/skrumi-android-raycaster.apk) · [исходник](examples/raycaster.skm) · [замеры кадров на устройстве](docs/ANDROID_PERFORMANCE.md).
 
 **Визуально собрать интерфейс:** [конструктор Skrumi UI](https://skrinvex.github.io/Skrumi/builder/) —
 макеты для ПК и телефона, живой запуск, отдельные `layout.skm` и `main.skm`: правки макета не стирают вашу логику. [Руководство](docs/BUILDER.md).
@@ -203,9 +202,9 @@ python3 packaging/build_android.py examples/raycaster.skm --name "Лабирин
 встроенных функций и модулей берутся из того же каталога, по которому работает
 рантайм, поэтому подсказки всегда совпадают с языком.
 
-* **VS Code** (подсветка, LSP, кнопка ▶ запуска, отладка по F5, проверка и сборка): установите `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang.vsix)
-  командой `code --install-extension foxlang.vsix`.
-* **Kate**: подсветка [`editors/kate/foxlang.xml`](editors/kate/foxlang.xml), настройки
+* **VS Code** (подсветка, LSP, кнопка ▶ запуска, отладка по F5, проверка и сборка): установите `skrumi.vsix` из [последнего выпуска](https://github.com/SkrinVex/Skrumi/releases/latest/download/skrumi.vsix)
+  командой `code --install-extension skrumi.vsix`.
+* **Kate**: подсветка [`editors/kate/skrumi.xml`](editors/kate/skrumi.xml), настройки
   LSP [`editors/kate/settings.json`](editors/kate/settings.json) и внешние инструменты
   запуска, проверки и сборки [`editors/kate/externaltools/`](editors/kate/externaltools/),
   отладчик [`editors/kate/dap.json`](editors/kate/dap.json).
@@ -231,8 +230,8 @@ docker run --rm -v "$(pwd)":/app ghcr.io/skrinvex/skrumi:latest script.skm
 #include <iostream>
 
 int main() {
-    foxlang::Interpreter interpreter;
-    foxlang::RunResult result = interpreter.runSource("int answer = 40 + 2;");
+    skrumi::Interpreter interpreter;
+    skrumi::RunResult result = interpreter.runSource("int answer = 40 + 2;");
     if (result.success) std::cout << interpreter.getGlobal("answer").text() << std::endl;
     return result.exitCode;
 }
@@ -266,7 +265,7 @@ ctest --test-dir build -C Release --output-on-failure
 
 ```bash
 python3 benchmarks/run.py                            # Skrumi и другие языки
-python3 benchmarks/run.py --baseline путь/к/foxlang  # сравнение с другой версией
+python3 benchmarks/run.py --baseline путь/к/skrumi  # сравнение с другой версией
 ```
 
 Подробно: [benchmarks/README.md](benchmarks/README.md).
@@ -274,7 +273,7 @@ python3 benchmarks/run.py --baseline путь/к/foxlang  # сравнение �
 ```text
 Skrumi/
 ├── VERSION              # единственное место с номером версии
-├── include/foxlang/     # публичный C++ API: Interpreter, Builtins, Parser, SemanticAnalyzer
+├── include/skrumi/     # публичный C++ API: Interpreter, Builtins, Parser, SemanticAnalyzer
 ├── src/core/            # ядро skrumi_core: лексер, парсер, AST, рантайм, сеть
 │   └── builtins/        # каталог встроенных функций, по разделам
 ├── src/graphics/        # программный рендерер и нативные окна
@@ -292,3 +291,9 @@ Skrumi/
 ## Лицензия
 
 MIT. Автор: [SkrinVex](https://skrinvex.su).
+
+## History
+
+Skrumi ранее назывался FoxLang. Начиная с major-релиза 9 обратная совместимость
+удалена: единственные команда и расширение — `skrumi` и `.skm`.
+[Ручной перенос программ и настроек](docs/MIGRATION.md). История проекта сохранена.

@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: foxlang-android-${{ inputs.artifact-name || 'ci' }}-${{ github.event.pull_request.number || github.ref }}
+  group: skrumi-android-${{ inputs.artifact-name || 'ci' }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ inputs.artifact-name != 'android-release' }}
 
 jobs:
@@ -37,27 +37,23 @@ jobs:
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.3.13750724' 'cmake;3.22.1'
       - name: Build AAR and installable demo for all four ABIs
         working-directory: android
-        run: ./gradlew --no-daemon :foxlang:assembleRelease :app:assembleDebug -PfoxlangAbis=arm64-v8a,armeabi-v7a,x86_64,x86
+        run: ./gradlew --no-daemon :skrumi:assembleRelease :app:assembleDebug -PskrumiAbis=arm64-v8a,armeabi-v7a,x86_64,x86
       - name: Verify packaging and 16 KB compatibility
         run: |
           python3 tests/test_android_packaging.py
           python3 tests/test_android_trace.py
-          python3 tests/test_android_artifacts.py --aar android/foxlang/build/outputs/aar/foxlang-release.aar --apk android/app/build/outputs/apk/debug/app-debug.apk
+          python3 tests/test_android_artifacts.py --aar android/skrumi/build/outputs/aar/skrumi-release.aar --apk android/app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
           mkdir -p dist-android
-          cp android/foxlang/build/outputs/aar/foxlang-release.aar dist-android/skrumi-android.aar
+          cp android/skrumi/build/outputs/aar/skrumi-release.aar dist-android/skrumi-android.aar
           cp android/app/build/outputs/apk/debug/app-debug.apk dist-android/skrumi-android-demo.apk
       - name: Build and verify the raycaster APK from the shared example
         run: |
-          android/gradlew -p android --no-daemon :app:assembleDebug -PfoxlangDemo=raycaster -PfoxlangAbis=arm64-v8a,armeabi-v7a,x86_64,x86
+          android/gradlew -p android --no-daemon :app:assembleDebug -PskrumiDemo=raycaster -PskrumiAbis=arm64-v8a,armeabi-v7a,x86_64,x86
           python3 tests/test_android_artifacts.py --aar dist-android/skrumi-android.aar --apk android/app/build/outputs/apk/debug/app-debug.apk --source examples/raycaster.skm
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
           cp android/app/build/outputs/apk/debug/app-debug.apk dist-android/skrumi-android-raycaster.apk
-      - name: Preserve fixed download aliases
-        run: |
-          cp dist-android/skrumi-android.aar dist-android/foxlang-android.aar
-          cp dist-android/skrumi-android-demo.apk dist-android/foxlang-android-demo.apk
-          cp dist-android/skrumi-android-raycaster.apk dist-android/foxlang-android-raycaster.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact-name || 'android-ci' }}
@@ -96,8 +92,8 @@ jobs:
           target: default
           disable-animations: true
           script: |
-            android/gradlew -p android --no-daemon :foxlang:connectedDebugAndroidTest :app:connectedDebugAndroidTest -PfoxlangAbis=x86_64 -PfoxlangDemo=raycaster
-            "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging android/app/build/outputs/apk/debug/app-debug.apk | grep -F "package: name='org.foxlang.raycaster'"
+            android/gradlew -p android --no-daemon :skrumi:connectedDebugAndroidTest :app:connectedDebugAndroidTest -PskrumiAbis=x86_64 -PskrumiDemo=raycaster
+            "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging android/app/build/outputs/apk/debug/app-debug.apk | grep -F "package: name='org.skrumi.raycaster'"
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             python3 packaging/profile_android.py --output android-profile
       - uses: actions/upload-artifact@v4
@@ -105,6 +101,6 @@ jobs:
         with:
           name: android-tests-${{ inputs.artifact-name || 'ci' }}-api-${{ matrix.api }}
           path: |
-            android/foxlang/build/reports/androidTests/
+            android/skrumi/build/reports/androidTests/
             android/app/build/reports/androidTests/
             android-profile/

@@ -1,6 +1,6 @@
-#include "foxlang/Context.h"
-#include "foxlang/AST.h"
-#include "foxlang/Runtime.h"
+#include "skrumi/Context.h"
+#include "skrumi/AST.h"
+#include "skrumi/Runtime.h"
 #include <algorithm>
 #include <cstring>
 #include <random>
@@ -11,7 +11,7 @@
 #include <string>
 #include <stdexcept>
 
-namespace foxlang {
+namespace skrumi {
 
 // The index of a big map: open addressing over positions in `keys`, with the hash of
 // every key kept, so a lookup compares a string only when the hashes match.
@@ -143,9 +143,9 @@ void Object::clearContents() {
 }
 
 #if defined(__GNUC__) || defined(__clang__)
-#define FOXLANG_PREFETCH(address) __builtin_prefetch(address)
+#define SKRUMI_PREFETCH(address) __builtin_prefetch(address)
 #else
-#define FOXLANG_PREFETCH(address) ((void)0)
+#define SKRUMI_PREFETCH(address) ((void)0)
 #endif
 
 size_t runtime::collectCycles() {
@@ -172,8 +172,8 @@ size_t runtime::collectCycles() {
     };
     constexpr size_t ahead = 16;
     for (size_t i = 0; i < count; ++i) {
-        if (i + ahead < count) FOXLANG_PREFETCH(all[i + ahead]);
-        if (i + ahead / 2 < count) FOXLANG_PREFETCH(all[i + ahead / 2]->items.data());
+        if (i + ahead < count) SKRUMI_PREFETCH(all[i + ahead]);
+        if (i + ahead / 2 < count) SKRUMI_PREFETCH(all[i + ahead / 2]->items.data());
         Object* o = all[i];
         start(o);
         for (const Value& item : o->items) {
@@ -193,7 +193,7 @@ size_t runtime::collectCycles() {
         if (holds[target->gcIndex]) reached.push_back(target);
     };
     for (size_t i = 0; i < count; ++i) {
-        if (i + ahead < count) FOXLANG_PREFETCH(all[i + ahead]);
+        if (i + ahead < count) SKRUMI_PREFETCH(all[i + ahead]);
         if (all[i]->gcRefs > 0) reach(all[i]);
         while (!reached.empty()) {
             Object* next = reached.back();
@@ -201,7 +201,7 @@ size_t runtime::collectCycles() {
             const ValueList& items = next->items;
             for (size_t j = 0; j < items.size(); ++j) {
                 if (j + ahead < items.size())
-                    if (Object* later = items[j + ahead].ref()) FOXLANG_PREFETCH(later);
+                    if (Object* later = items[j + ahead].ref()) SKRUMI_PREFETCH(later);
                 if (Object* target = items[j].ref()) reach(target);
             }
         }
@@ -540,4 +540,4 @@ void Context::setVar(const std::string& name, Value val) {
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
 }
 
-} // namespace foxlang
+} // namespace skrumi

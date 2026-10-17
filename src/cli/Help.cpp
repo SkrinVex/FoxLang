@@ -1,7 +1,7 @@
 #include "Help.h"
 #include <map>
 
-namespace foxlang::cli {
+namespace skrumi::cli {
 namespace {
 
 // What `skrumi help <command>` and `skrumi <command> --help` show.
@@ -115,7 +115,7 @@ const std::map<std::string, const char*>& commands() {
 void printHelp(std::ostream& out, const std::string& version) {
     out << "Skrumi " << version << " - scripts, console tools, servers and 2D games\n"
         << "\n"
-        << "Compatibility: foxlang, .fox, --foxlang-* and FOXLANG_* remain supported.\n\n"
+        << "Source files: .skm. Configuration: --skrumi-* and SKRUMI_*.\n\n"
         << "Usage: skrumi [runtime options] <script.skm> [args...]\n"
         << "       skrumi <command> [options]\n"
         << "\n"
@@ -178,4 +178,4 @@ std::string commandNames() {
     return names;
 }
 
-} // namespace foxlang::cli
+} // namespace skrumi::cli

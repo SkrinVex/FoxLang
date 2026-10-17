@@ -7,7 +7,7 @@
 #define CHECK(c) do { if (!(c)) { std::cerr << "FAIL " #c << ':' << __LINE__ << '\n'; return 1; } } while (0)
 template<class F> bool rejects(F action) { try { action(); } catch (const std::exception&) { return true; } return false; }
 int main(int argc, char** argv) {
-    using namespace foxlang::graphics;
+    using namespace skrumi::graphics;
     CHECK(argc == 2);
     std::ifstream input(argv[1], std::ios::binary);
     CHECK(input.good());

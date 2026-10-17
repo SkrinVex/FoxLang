@@ -6,13 +6,13 @@ build*/
 __pycache__/
 node_modules/
 dist/
-/foxlang
-/foxlang.exe
-/foxlang.bin
+/skrumi
+/skrumi.exe
+/skrumi.bin
 .kiro/settings/lsp.json
 web-ide
 desktop-app
-src/foxlang
+src/skrumi
 
 # Local secrets
 .env
@@ -44,4 +44,4 @@ android/local.properties
 /skrumi.bin
 /site/playground/*.wasm
 /site/playground/skrumi*.js
-/site/playground/foxlang*.js
+/site/playground/skrumi*.js

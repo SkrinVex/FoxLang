@@ -1,8 +1,8 @@
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #ifdef __ANDROID__
-#include "foxlang/Android.h"
+#include "skrumi/Android.h"
 #endif
-#include "foxlang/AST.h"
+#include "skrumi/AST.h"
 #include "TlsServer.h"
 #include <algorithm>
 #include <charconv>
@@ -30,7 +30,7 @@
 #include <cerrno>
 #endif
 
-namespace foxlang::platform {
+namespace skrumi::platform {
 namespace {
 #ifdef _WIN32
 using NativeSocket = SOCKET;
@@ -414,4 +414,4 @@ void runHttpServer(int port, Context& rootCtx, const std::function<bool()>& shou
         }
     }
 }
-} // namespace foxlang::platform
+} // namespace skrumi::platform

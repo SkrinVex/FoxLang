@@ -7,7 +7,7 @@
 #include <cstring>
 #include <stdexcept>
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 
 size_t sequenceLength(unsigned char lead) {
@@ -165,7 +165,7 @@ void addTextBuiltins(std::vector<Builtin>& out) {
 
     add({"str_length", "int", {{"string", "text"}}, 1, false, "string",
          "Число символов строки. `size(text)` для строки считает байты UTF-8.\n\n"
-         "```foxlang\nint n = str_length(\"Лисий\"); // 5, а size() даст 10\n```"},
+         "```skrumi\nint n = str_length(\"Лисий\"); // 5, а size() даст 10\n```"},
         [](Call& c) { return integer(static_cast<long long>(characterCount(c.text(0)))); });
     out.back().fast = [](Value* const* args, size_t count, Value& result) {
         if (count != 1 || !args[0]->isString()) return false;
@@ -191,7 +191,7 @@ void addTextBuiltins(std::vector<Builtin>& out) {
         });
     add({"str_split", "array", {{"string", "text"}, {"string", "delimiter"}}, 2, false, "string",
          "Разбивает строку по разделителю и возвращает массив строк. Пустой разделитель делит на символы.\n\n"
-         "```foxlang\narray parts = str_split(\"a,b,c\", \",\");\n```"},
+         "```skrumi\narray parts = str_split(\"a,b,c\", \",\");\n```"},
         [](Call& c) {
             ValueList parts;
             const std::string& source = c.text(0);
@@ -221,7 +221,7 @@ void addTextBuiltins(std::vector<Builtin>& out) {
         });
     add({"str_join", "string", {{"array", "items"}, {"string", "separator"}}, 2, false, "string",
          "Склеивает элементы массива в строку через разделитель.\n\n"
-         "```foxlang\nstring csv = str_join(parts, \";\");\n```"},
+         "```skrumi\nstring csv = str_join(parts, \";\");\n```"},
         [](Call& c) {
             const auto& items = c.array(0);
             const std::string& separator = c.text(1);
@@ -274,7 +274,7 @@ void addTextBuiltins(std::vector<Builtin>& out) {
         });
     add({"str_substring", "string", {{"string", "text"}, {"int", "start"}, {"int", "length"}}, 2, false, "string",
          "Подстрока из `length` символов начиная с символа `start`; без `length` — до конца строки. "
-         "Выход за границы строки укорачивает результат.\n\n```foxlang\nstring word = str_substring(\"Привет, мир\", 8, 3); // \"мир\"\n```"},
+         "Выход за границы строки укорачивает результат.\n\n```skrumi\nstring word = str_substring(\"Привет, мир\", 8, 3); // \"мир\"\n```"},
         [](Call& c) {
             const std::string& source = c.text(0);
             size_t start = c.amount(1, maxText);
@@ -313,19 +313,19 @@ void addTextBuiltins(std::vector<Builtin>& out) {
         [](Call& c) { return text(jsonType(c.text(0), c.text(1))); });
     add({"json_value", "string", {{"any", "value"}}, 1, false, "",
          "Значение Skrumi в виде JSON: числа и `bool` как есть, `null` как `null`, строка в кавычках с экранированием, "
-         "массив — JSON-массив, словарь и структура — JSON-объект.\n\n```foxlang\njson_value([1, \"лис\", true]) // [1,\"лис\",true]\n```"},
+         "массив — JSON-массив, словарь и структура — JSON-объект.\n\n```skrumi\njson_value([1, \"лис\", true]) // [1,\"лис\",true]\n```"},
         [](Call& c) { return text(toJson(c.at(0))); });
     add({"json_decode", "any", {{"string", "json"}}, 1, false, "",
          "Разбирает JSON целиком: объект становится словарём `map`, массив — массивом, целые числа — `int`, "
          "дробные — `float`, `null` — `null`. Некорректный JSON — ошибка выполнения.\n\n"
-         "```foxlang\nmap user = json_decode(\"{\\\"name\\\": \\\"Лис\\\", \\\"tags\\\": [1, 2]}\");\nprint(user.name, user[\"tags\"][1]);\n```"},
+         "```skrumi\nmap user = json_decode(\"{\\\"name\\\": \\\"Лис\\\", \\\"tags\\\": [1, 2]}\");\nprint(user.name, user[\"tags\"][1]);\n```"},
         [](Call& c) {
             return parseJson(c.text(0), "json_decode()");
         });
     add({"json_set", "string", {{"string", "json"}, {"string", "path"}, {"any", "value"}}, 3, false, "",
          "Новый JSON-документ, где по пути записано значение (строка — как JSON-строка, массив — как JSON-массив). "
          "Недостающие ключи объектов создаются; пустой документ считается `{}`.\n\n"
-         "```foxlang\nstring user = json_set(\"\", \"name\", \"Лис\");\nuser = json_set(user, \"stats.age\", 3); // {\"name\":\"Лис\",\"stats\":{\"age\":3}}\n```"},
+         "```skrumi\nstring user = json_set(\"\", \"name\", \"Лис\");\nuser = json_set(user, \"stats.age\", 3); // {\"name\":\"Лис\",\"stats\":{\"age\":3}}\n```"},
         [](Call& c) { return text(jsonSet(c.text(0), c.text(1), toJson(c.at(2)))); });
     add({"json_set_raw", "string", {{"string", "json"}, {"string", "path"}, {"string", "raw_json"}}, 3, false, "",
          "Как `json_set`, но значение — уже готовый JSON (объект, массив или литерал), который вставляется без кавычек. "
@@ -353,4 +353,4 @@ void addTextBuiltins(std::vector<Builtin>& out) {
         [](Call& c) { return text(http::htmlEscape(c.text(0))); });
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

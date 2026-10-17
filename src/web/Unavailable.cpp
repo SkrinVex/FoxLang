@@ -2,7 +2,7 @@
 // What the browser playground cannot do: HTTP(S) requests and HTTPS servers need
 // libcurl and Mbed TLS, which the WebAssembly build leaves out, and there are no
 // processes to start.
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include "../core/TlsServer.h"
 #include <cerrno>
 #include <spawn.h>
@@ -15,11 +15,11 @@ extern "C" int posix_spawnp(pid_t*, const char*, const posix_spawn_file_actions_
     return ENOSYS;
 }
 
-namespace foxlang::platform {
+namespace skrumi::platform {
 namespace {
 [[noreturn]] void unavailable(const char* what) {
     throw std::runtime_error(std::string("Runtime Error: ") + what +
-                             " is not available in the browser playground; run the program with foxlang on a computer");
+                             " is not available in the browser playground; run the program with skrumi on a computer");
 }
 } // namespace
 
@@ -37,4 +37,4 @@ TlsSession::~TlsSession() = default;
 bool TlsSession::handshake() { return false; }
 int TlsSession::read(unsigned char*, std::size_t) { return -1; }
 int TlsSession::write(const unsigned char*, std::size_t) { return -1; }
-} // namespace foxlang::platform
+} // namespace skrumi::platform

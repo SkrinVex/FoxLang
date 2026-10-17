@@ -1,5 +1,5 @@
 #include "../../src/graphics/Graphics.h"
-#include "foxlang/FoxLang.h"
+#include "skrumi/Skrumi.h"
 #include <algorithm>
 #include <climits>
 #include <iostream>
@@ -7,7 +7,7 @@
 
 #define CHECK(condition) do { if (!(condition)) { std::cerr << "FAIL " #condition << ':' << __LINE__ << '\n'; return 1; } } while (0)
 int main() {
-    using foxlang::graphics::Surface;
+    using skrumi::graphics::Surface;
     Surface resized(80, 60);
     resized.clear(0x123456);
     resized.rectangle(20, 20, 5, 5, 0xabcdef);
@@ -104,7 +104,7 @@ int main() {
     CHECK(unbalanced);
     // Pictures: stretched by nearest pixel, their alpha and the opacity mixed in, clipped
     {
-        foxlang::graphics::Image picture;
+        skrumi::graphics::Image picture;
         picture.width = 2;
         picture.height = 1;
         picture.pixels = {0xFFFF0000u, 0x800000FFu}; // opaque red, half-transparent blue
@@ -125,16 +125,16 @@ int main() {
         CHECK(outside);
     }
     // X11 keysyms a Russian layout sends become Cyrillic text
-    using foxlang::graphics::keysymToUnicode;
+    using skrumi::graphics::keysymToUnicode;
     CHECK(keysymToUnicode('a') == 'a' && keysymToUnicode('/') == '/' && keysymToUnicode(0xE9) == 0xE9);
     CHECK(keysymToUnicode(0x6CC) == 0x43B && keysymToUnicode(0x6EC) == 0x41B); // л Л
     CHECK(keysymToUnicode(0x6C1) == 0x430 && keysymToUnicode(0x6FF) == 0x42A); // а Ъ
     CHECK(keysymToUnicode(0x6A3) == 0x451 && keysymToUnicode(0x6B3) == 0x401); // ё Ё
     CHECK(keysymToUnicode(0x100263A) == 0x263A && keysymToUnicode(0xFFB5) == '5');
     CHECK(keysymToUnicode(0xFF08) == 0 && keysymToUnicode(0xFFE1) == 0); // BackSpace, Shift type nothing
-    foxlang::Interpreter interpreter;
-    auto measured = interpreter.runSource("using graphics; int w = text_width(\"FoxLang\", 2);");
-    CHECK(measured.success && interpreter.getGlobal("w").text() == "82");
+    skrumi::Interpreter interpreter;
+    auto measured = interpreter.runSource("using graphics; int w = text_width(\"Skrumi\", 2);");
+    CHECK(measured.success && interpreter.getGlobal("w").text() == "70");
     auto result = interpreter.runSource("using graphics; int c = rgb(18, 52, 86); close_window(); close_window();");
     CHECK(result.success);
     CHECK(interpreter.getGlobal("c").text() == "1193046");

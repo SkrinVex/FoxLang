@@ -4,7 +4,7 @@
 #include <iostream>
 #include <stdexcept>
 
-using namespace foxlang::bundle;
+using namespace skrumi::bundle;
 
 static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
@@ -26,10 +26,10 @@ static Bytes peFixture() {
     put(pe, 68, 0x8664, 2); put(pe, 70, 1, 2); // machine, sections
     put(pe, 84, 240, 2); put(pe, 86, 2, 2); // optional size, executable
     put(pe, 88, 0x20b, 2); put(pe, 196, 16); // PE32+, directory count
-    const std::string section = ".foxbndl";
+    const std::string section = ".skmbndl";
     std::copy(section.begin(), section.end(), pe.begin() + 328);
     put(pe, 344, 40); put(pe, 348, 400); // raw size, offset
-    const std::string descriptor("FOXSTUB\0", 8);
+    const std::string descriptor("SKMSTUB\0", 8);
     std::copy(descriptor.begin(), descriptor.end(), pe.begin() + 400);
     put(pe, 408, 1);
     return pe;
@@ -39,15 +39,15 @@ int main(int argc, char** argv) {
     try {
         require(argc == 2, "expected CLI image path");
         Sources sources;
-        sources.entry = "main.fox";
-        sources.files = {{"main.fox", "using helper;"}, {"helper.fox", "string word = \"Привет 🦊\";"}};
-        sources.imports[{"main.fox", true, "helper"}] = "helper.fox";
-        sources.imports[{"helper.fox", false, "main.fox"}] = "main.fox";
+        sources.entry = "main.skm";
+        sources.files = {{"main.skm", "using helper;"}, {"helper.skm", "string word = \"Привет 🦊\";"}};
+        sources.imports[{"main.skm", true, "helper"}] = "helper.skm";
+        sources.imports[{"helper.skm", false, "main.skm"}] = "main.skm";
         auto payload = encode(sources);
         auto roundtrip = decode(payload);
         require(roundtrip.files == sources.files && roundtrip.imports == sources.imports && roundtrip.entry == sources.entry, "roundtrip changed sources");
-        require(roundtrip.resolve({"helper", true}, "main.fox") == "helper.fox", "wrong import");
-        rejects([&] { roundtrip.resolve({"helper", false}, "main.fox"); });
+        require(roundtrip.resolve({"helper", true}, "main.skm") == "helper.skm", "wrong import");
+        rejects([&] { roundtrip.resolve({"helper", false}, "main.skm"); });
         rejects([&] { roundtrip.read("not bundled"); });
         require(roundtrip.resources.empty(), "v1 must not invent resources");
         auto withResources = sources;
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
         invalidSources.entry = "missing";
         rejects([&] { encode(invalidSources); });
         invalidSources = sources;
-        invalidSources.imports[{"main.fox", false, "missing"}] = "missing";
+        invalidSources.imports[{"main.skm", false, "missing"}] = "missing";
         rejects([&] { encode(invalidSources); });
 
         // Duplicate file records, missing entry, invalid graph and import kind.

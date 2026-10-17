@@ -6,7 +6,7 @@
 #include <memory>
 #include <sstream>
 
-namespace foxlang {
+namespace skrumi {
 namespace lsp {
 
 enum class JsonType {
@@ -119,4 +119,4 @@ private:
 };
 
 } // namespace lsp
-} // namespace foxlang
+} // namespace skrumi

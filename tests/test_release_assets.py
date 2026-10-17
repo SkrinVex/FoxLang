@@ -21,6 +21,7 @@ with tempfile.TemporaryDirectory() as temporary:
             target.write_bytes(b'fixture')
     (folder / 'Skrumi-linux-x86_64.run').write_bytes(b'\x7fELFfixture')
     (folder / 'Skrumi-windows-x86_64.exe').write_bytes(b'MZfixture')
+    module.write_checksums(folder)
     module.verify(folder)
     def rejected():
         try:
@@ -39,6 +40,6 @@ with tempfile.TemporaryDirectory() as temporary:
     apk.write_bytes(b'broken')
     rejected()
     apk.write_bytes(original)
-    (folder / 'foxlang.xml').write_bytes(b'different')
+    (folder / 'skrumi.xml').write_bytes(b'')
     rejected()
 print('RELEASE_INVENTORY_REGRESSION_OK')

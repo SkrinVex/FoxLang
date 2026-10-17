@@ -1,10 +1,10 @@
-// foxlang fmt, foxlang test and foxlang disasm: source layout, the built-in test runner
+// skrumi fmt, skrumi test and skrumi disasm: source layout, the built-in test runner
 // and the bytecode listing.
 #include "Tools.h"
-#include "foxlang/SourceProvider.h"
-#include "foxlang/FoxLang.h"
-#include "foxlang/Formatter.h"
-#include "foxlang/Bytecode.h"
+#include "skrumi/SourceProvider.h"
+#include "skrumi/Skrumi.h"
+#include "skrumi/Formatter.h"
+#include "skrumi/Bytecode.h"
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
@@ -12,12 +12,13 @@
 #include <iostream>
 #include <sstream>
 
-namespace foxlang::cli {
+namespace skrumi::cli {
 namespace {
 
 namespace fs = std::filesystem;
 
 std::string readText(const fs::path& path) {
+    if (!isSourceFile(platform::pathToUtf8(path))) throw std::runtime_error("source files must use .skm");
     std::ifstream file(path, std::ios::binary);
     if (!file) throw std::runtime_error("could not open file '" + platform::pathToUtf8(path) + "'");
     std::stringstream buffer;
@@ -25,7 +26,7 @@ std::string readText(const fs::path& path) {
     return buffer.str();
 }
 
-// A directory stands for the .fox files below it, without hidden folders, build
+// A directory stands for the .skm files below it, without hidden folders, build
 // output and node_modules; a file stands for itself.
 std::vector<fs::path> sourceFiles(const std::vector<std::string>& arguments, bool (*wanted)(const fs::path&)) {
     std::vector<fs::path> files;
@@ -34,6 +35,7 @@ std::vector<fs::path> sourceFiles(const std::vector<std::string>& arguments, boo
         fs::path path = platform::pathFromUtf8(root);
         std::error_code error;
         if (fs::is_regular_file(path, error)) {
+            if (!isSourceFile(root)) throw std::runtime_error("source files must use .skm");
             files.push_back(path);
             continue;
         }
@@ -54,7 +56,7 @@ std::vector<fs::path> sourceFiles(const std::vector<std::string>& arguments, boo
     return files;
 }
 
-bool anyFox(const fs::path&) { return true; }
+bool anySource(const fs::path&) { return true; }
 
 bool testFile(const fs::path& path) {
     std::string stem = platform::pathToUtf8(path.stem());
@@ -85,7 +87,7 @@ int format(const std::vector<std::string>& arguments) {
         else paths.push_back(argument);
     }
     int changed = 0;
-    for (const auto& path : sourceFiles(paths, anyFox)) {
+    for (const auto& path : sourceFiles(paths, anySource)) {
         std::string text = readText(path);
         std::string formatted = formatSource(text);
         if (formatted == text) continue;
@@ -206,4 +208,4 @@ int disassemble(const std::vector<std::string>& arguments) {
     return 0;
 }
 
-} // namespace foxlang::cli
+} // namespace skrumi::cli

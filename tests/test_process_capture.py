@@ -80,7 +80,7 @@ if sys.argv[1] == 'wait':
             while status_path.exists():
                 try:
                     status = status_path.read_text()
-                except FileNotFoundError:
+                except (FileNotFoundError, ProcessLookupError):
                     break
                 if any(line.startswith('State:') and 'Z' in line for line in status.splitlines()):
                     break  # Dead, awaiting the host's orphan reaper.

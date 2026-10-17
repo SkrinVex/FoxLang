@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <unordered_map>
 
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 namespace {
 // Seven rows above the baseline and two for descenders (g, p, q, y, j).
 using Glyph = std::array<uint8_t, 9>;
@@ -289,4 +289,4 @@ void Surface::text(int x, int y, const std::string& value, int scale, uint32_t c
         cursorX += 6 * scale;
     }
 }
-} // namespace foxlang::graphics
+} // namespace skrumi::graphics

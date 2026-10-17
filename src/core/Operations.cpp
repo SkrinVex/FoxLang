@@ -1,10 +1,10 @@
 #include "Operations.h"
-#include "foxlang/Runtime.h"
+#include "skrumi/Runtime.h"
 #include <charconv>
 #include <cmath>
 #include <stdexcept>
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 
 namespace {
 
@@ -233,4 +233,4 @@ bool switchMatches(const Value& value, const Value& candidate) {
     return numeric ? l == r : deepEqual(value, candidate);
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

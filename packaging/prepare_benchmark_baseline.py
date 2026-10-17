@@ -42,7 +42,7 @@ def prepare(destination):
         binary = root / 'skrumi'
         with tarfile.open(root / archives[0], 'r:gz') as archive:
             candidates = [m for m in archive.getmembers() if m.isfile()
-                          and Path(m.name).name in ('skrumi.bin', 'foxlang.bin')]
+                          and Path(m.name).name in ('skrumi.bin',)]
             primary = [m for m in candidates if Path(m.name).name == 'skrumi.bin']
             candidates = primary or candidates
             if len(candidates) != 1 or not 0 < candidates[0].size <= 64 * 1024 * 1024:

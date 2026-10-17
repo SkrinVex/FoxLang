@@ -22,7 +22,7 @@
 #include <unistd.h>
 #endif
 
-namespace foxlang::debug {
+namespace skrumi::debug {
 namespace {
 
 constexpr size_t maxMessage = 64 * 1024 * 1024;
@@ -275,4 +275,4 @@ std::unique_ptr<Channel> Channel::connect(const std::string& host, int port) {
     return channel;
 }
 
-} // namespace foxlang::debug
+} // namespace skrumi::debug

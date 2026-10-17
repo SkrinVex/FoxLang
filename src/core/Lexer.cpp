@@ -1,8 +1,8 @@
-#include "foxlang/Lexer.h"
+#include "skrumi/Lexer.h"
 #include <cctype>
 #include <stdexcept>
 
-namespace foxlang {
+namespace skrumi {
 
 namespace {
 struct Keyword { const char* text; TokenType type; };
@@ -461,4 +461,4 @@ void Lexer::scanString(std::vector<Token>& tokens, SourcePosition startPos, bool
     tokens.push_back({type, str, startPos.line, startPos.column, {startPos, endPos}});
 }
 
-} // namespace foxlang
+} // namespace skrumi

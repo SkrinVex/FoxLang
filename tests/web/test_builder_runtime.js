@@ -27,7 +27,7 @@ const create = require(
         canvasPresent: () => frames++,
         canvasPoll: async () => {
           await new Promise((r) => setTimeout(r, 0));
-          if (++polls === 4) app._foxlang_close();
+          if (++polls === 4) app._skrumi_close();
         },
       });
       app.FS.mkdirTree("/project");
@@ -36,7 +36,7 @@ const create = require(
         app.FS.writeFile(name, source);
       assert.equal(
         await app.ccall(
-          "foxlang_run",
+          "skrumi_run",
           "number",
           ["string", "string"],
           ["main.skm", ""],
@@ -94,17 +94,17 @@ const create = require(
       ++polls;
       const click = (e, mode) => {
         const r = M.rect(p, e, mode);
-        app._foxlang_mouse(r.x + 5, r.y + 5);
-        app._foxlang_key(1, 1);
+        app._skrumi_mouse(r.x + 5, r.y + 5);
+        app._skrumi_key(1, 1);
       };
       if (polls === 3) click(field, "desktop");
-      if ([4, 7, 9, 13].includes(polls)) app._foxlang_key(1, 0);
-      if (polls === 5) app._foxlang_char(65);
+      if ([4, 7, 9, 13].includes(polls)) app._skrumi_key(1, 0);
+      if (polls === 5) app._skrumi_char(65);
       if (polls === 6) click(check, "desktop");
       if (polls === 8) click(button, "desktop");
-      if (polls === 10) app._foxlang_size(360, 640);
+      if (polls === 10) app._skrumi_size(360, 640);
       if (polls === 12) click(button, "mobile");
-      if (polls === 15) app._foxlang_close();
+      if (polls === 15) app._skrumi_close();
     },
   });
   app.FS.mkdirTree("/project");
@@ -117,7 +117,7 @@ const create = require(
   );
   assert.equal(
     await app.ccall(
-      "foxlang_run",
+      "skrumi_run",
       "number",
       ["string", "string"],
       ["main.skm", ""],
@@ -149,15 +149,15 @@ const create = require(
         assert(tick < 20, "generated close handler did not terminate");
         if (action === "event") {
           const r = M.rect(project, dialog, "desktop");
-          if (tick === 3) { runtime._foxlang_mouse(r.x+24, r.y+r.h-30); runtime._foxlang_key(1, 1); }
-          if (tick === 4) runtime._foxlang_key(1, 0);
-          if (tick === 5) for (let i = 0; i < 3; i++) runtime._foxlang_close();
-          if (tick === 7) runtime._foxlang_close();
+          if (tick === 3) { runtime._skrumi_mouse(r.x+24, r.y+r.h-30); runtime._skrumi_key(1, 1); }
+          if (tick === 4) runtime._skrumi_key(1, 0);
+          if (tick === 5) for (let i = 0; i < 3; i++) runtime._skrumi_close();
+          if (tick === 7) runtime._skrumi_close();
         } else {
-          if (tick === 2 || tick === 5) runtime._foxlang_close();
-          if (tick === 3) runtime._foxlang_key(27, 1);
-          if (tick === 4) runtime._foxlang_key(27, 0);
-          if (tick === 6) { runtime._foxlang_mouse(160, 360); runtime._foxlang_key(1, 1); }
+          if (tick === 2 || tick === 5) runtime._skrumi_close();
+          if (tick === 3) runtime._skrumi_key(27, 1);
+          if (tick === 4) runtime._skrumi_key(27, 0);
+          if (tick === 6) { runtime._skrumi_mouse(160, 360); runtime._skrumi_key(1, 1); }
         }
       },
     });
@@ -166,7 +166,7 @@ const create = require(
       if (UI_FIELD != rgb(18, 52, 86) || UI_BUTTON_HOVER != rgb(52, 86, 120)) { fail("generated style"); }
       ${action === 'event' ? `if (close_count != 2 || result_${dialog.id} != "yes" || open_${dialog.id}) { fail("generated dialog/close result"); }` : ''}
       print("CLOSE_OK");`);
-    assert.equal(await runtime.ccall('foxlang_run', 'number', ['string', 'string'],
+    assert.equal(await runtime.ccall('skrumi_run', 'number', ['string', 'string'],
       ['/main.skm', ''], {async: true}), 0, output);
     assert(output.includes('CLOSE_OK'), output);
   }

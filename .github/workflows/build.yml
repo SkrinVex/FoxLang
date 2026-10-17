@@ -70,9 +70,7 @@ jobs:
       - run: |
           mkdir -p dist-editors
           python3 packaging/package_vsix.py editors/vscode "${{ needs.version.outputs.version }}" dist-editors/skrumi.vsix
-          cp dist-editors/skrumi.vsix dist-editors/foxlang.vsix
-          cp editors/kate/foxlang.xml dist-editors/skrumi.xml
-          cp editors/kate/foxlang.xml dist-editors/foxlang.xml
+          cp editors/kate/skrumi.xml dist-editors/skrumi.xml
       - uses: actions/upload-artifact@v4
         with:
           name: editors-release
@@ -102,7 +100,7 @@ jobs:
           ARGS=()
           if [ -f old/baseline-path ]; then ARGS+=(--baseline "$(cat old/baseline-path)"); fi
           if [ "$ALLOW_SLOWER" = true ]; then ARGS+=(--max-slowdown 1000); fi
-          python3 benchmarks/run.py --foxlang new/skrumi "${ARGS[@]}" \
+          python3 benchmarks/run.py --skrumi new/skrumi "${ARGS[@]}" \
             --require python --require lua --require ruby --require javascript --json benchmarks.json
       - uses: actions/upload-artifact@v4
         if: always()
@@ -134,7 +132,7 @@ jobs:
           name: benchmarks-release
           path: dist
       - name: Check the complete public asset inventory
-        run: python3 packaging/verify_release_assets.py dist
+        run: python3 packaging/verify_release_assets.py dist --write-checksums
       - uses: actions/upload-artifact@v4
         with:
           name: verified-release

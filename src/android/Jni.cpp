@@ -1,5 +1,5 @@
-#include "foxlang/Android.h"
-#include "foxlang/FoxLang.h"
+#include "skrumi/Android.h"
+#include "skrumi/Skrumi.h"
 #include "NetworkLicenses.h"
 #include <jni.h>
 #include <android/trace.h>
@@ -14,7 +14,7 @@
 #include <sstream>
 
 namespace {
-using namespace foxlang;
+using namespace skrumi;
 // System Trace/Perfetto can measure the frame path without timing VM execution.
 // Disabled tracing does not allocate strings or issue trace writes.
 struct TraceSection {
@@ -103,11 +103,11 @@ struct Host final : android::Host {
     void present(const uint32_t* pixels, int w, int h) override {
         checkCancelled();
         const bool trace = ATrace_isEnabled();
-        const auto label = trace ? "FoxLang.present " + std::to_string(w) + "x" + std::to_string(h) : std::string{};
+        const auto label = trace ? "Skrumi.present " + std::to_string(w) + "x" + std::to_string(h) : std::string{};
         TraceSection presentTrace(label.c_str(), trace);
         jintArray frame;
         {
-            TraceSection copyTrace("FoxLang.frame.copy", trace);
+            TraceSection copyTrace("Skrumi.frame.copy", trace);
             frame = env->NewIntArray(w * h);
             if (!frame) { env->ExceptionClear(); throw std::runtime_error("Android frame allocation failed"); }
             std::vector<jint> argb(static_cast<size_t>(w) * h);
@@ -158,9 +158,9 @@ jobjectArray array(JNIEnv* env, const std::vector<std::string>& values) {
     return result;
 }
 }
-#define JNI_METHOD(name) Java_org_foxlang_android_FoxLang_##name
+#define JNI_METHOD(name) Java_org_skrumi_android_Skrumi_##name
 extern "C" JNIEXPORT jstring JNICALL JNI_METHOD(nativeVersion)(JNIEnv* env, jclass) {
-    return string(env, foxlang::Interpreter::getVersion());
+    return string(env, skrumi::Interpreter::getVersion());
 }
 extern "C" JNIEXPORT jstring JNICALL JNI_METHOD(nativeNotices)(JNIEnv* env, jclass) {
     try { return string(env, networkLicenses()); }
@@ -170,7 +170,7 @@ extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeCreate)(JNIEnv* env, jclass,
     try {
         std::lock_guard<std::mutex> execution(runtimeMutex);
         auto s = std::make_shared<Session>(); s->directory = string(env, directory);
-        InterpreterOptions options; options.loadDotEnv = false; options.foxHome = s->directory;
+        InterpreterOptions options; options.loadDotEnv = false; options.skrumiHome = s->directory;
         for (jsize i = 0; i < env->GetArrayLength(args); ++i) { auto arg = static_cast<jstring>(env->GetObjectArrayElement(args, i)); options.arguments.push_back(string(env, arg)); env->DeleteLocalRef(arg); }
         s->interpreter = std::make_unique<Interpreter>(std::move(options));
         std::lock_guard<std::mutex> lock(handlesMutex); jlong id = nextHandle++; sessions[id] = s; return id;

@@ -1,17 +1,17 @@
-// The WebAssembly FoxLang of the playground page: runs its examples and the limits
+// The WebAssembly Skrumi of the playground page: runs its examples and the limits
 // the page relies on. Usage: node test_playground.js <directory with skrumi.js>
 const path = require("path");
 const fs = require("fs");
 
 const directory = path.resolve(process.argv[2] || ".");
-const createFoxLang = require(path.join(directory, "skrumi.js"));
+const createSkrumi = require(path.join(directory, "skrumi.js"));
 
 // Runs main.skm among the given files, as the page's worker does: all of them in
 // one directory that is also the working directory.
 async function run(files, input = "", entry = "main.skm") {
   if (typeof files === "string") files = { "main.skm": files };
   let out = "", err = "", echoed = "";
-  const module = await createFoxLang({
+  const module = await createSkrumi({
     preRun: [(m) => m.FS.init(() => null, (c) => { if (c !== null) out += String.fromCharCode(c); },
                                (c) => { if (c !== null) err += String.fromCharCode(c); })],
     echoInput: (text) => { echoed += text; out += Buffer.from(text, "utf8").toString("latin1"); },
@@ -22,7 +22,7 @@ async function run(files, input = "", entry = "main.skm") {
     module.FS.writeFile("/project/" + name, text);
   }
   module.FS.chdir("/project");
-  const code = module.ccall("foxlang_run", "number", ["string", "string"], [entry, input]);
+  const code = module.ccall("skrumi_run", "number", ["string", "string"], [entry, input]);
   const decode = (text) => Buffer.from(text, "latin1").toString("utf8");
   return { code, out: decode(out), err: decode(err), echoed, module };
 }
@@ -36,11 +36,13 @@ function expect(condition, message, result) {
 }
 
 (async () => {
-  for (const entry of ["main.fox", "main.skm"]) {
-    const mixed = await run({[entry]: 'include("old.fox"); using modern; print(old() + modern());',
-      "old.fox": 'int old() { return 20; }', "modern.skm": 'int modern() { return 22; }'}, "", entry);
-    expect(mixed.code === 0 && mixed.out === "42\n", "mixed source extensions", mixed);
-  }
+  const canonicalModules = await run({"main.skm": 'include("helper.skm"); using extra; print(helper() + extra());',
+    "helper.skm": 'int helper() { return 20; }', "extra.skm": 'int extra() { return 22; }'});
+  expect(canonicalModules.code === 0 && canonicalModules.out === "42\n", "canonical source imports", canonicalModules);
+  const unsupported = await run({"main.txt": 'print(42);'}, "", "main.txt");
+  expect(unsupported.code === 1 && unsupported.err.includes(".skm"), "reject unsupported source format", unsupported);
+  const unsupportedCheck = JSON.parse(unsupported.module.ccall("skrumi_check", "string", ["string"], ["main.txt"]));
+  expect(unsupportedCheck.length === 1 && unsupportedCheck[0].severity === "error", "checker rejects unsupported format");
 
   const examples = path.join(directory, "examples");
   const expected = {
@@ -64,8 +66,8 @@ function expect(condition, message, result) {
     expect(result.code === 0 && result.out.includes(text), file, result);
   }
 
-  const echo = await run('string a = input("? ");\nprint("got " + a);', "fox\n");
-  expect(echo.out === "? fox\ngot fox\n", "input is echoed where it is read", echo);
+  const echo = await run('string a = input("? ");\nprint("got " + a);', "skrumi\n");
+  expect(echo.out === "? skrumi\ngot skrumi\n", "input is echoed where it is read", echo);
 
   const broken = await run("int x = 1;\nprint(missing);");
   expect(broken.code === 1 && broken.err.includes("main.skm:2"), "errors name their line", broken);
@@ -76,7 +78,7 @@ function expect(condition, message, result) {
   const window = await run('using graphics;\nopen_window(200, 200, "x");');
   expect(window.code === 1 && window.err.includes("windows are not available here"), "graphics explain themselves", window);
 
-  const problems = JSON.parse(broken.module.ccall("foxlang_check", "string", ["string"], ["main.skm"]));
+  const problems = JSON.parse(broken.module.ccall("skrumi_check", "string", ["string"], ["main.skm"]));
   expect(problems.length === 1 && problems[0].line === 2 && problems[0].severity === "error", "the checker reports problems");
 
   // The build for programs with a window: frames reach the page's canvas, keys reach
@@ -92,8 +94,8 @@ function expect(condition, message, result) {
     canvasPoll: async () => {
       polls++;
       await new Promise((resolve) => setTimeout(resolve, 0));
-      if (polls === 3) graphics._foxlang_key(39, 1);
-      if (polls === 5) graphics._foxlang_key(39, 0);
+      if (polls === 3) graphics._skrumi_key(39, 1);
+      if (polls === 5) graphics._skrumi_key(39, 0);
     },
   });
   graphics.FS.mkdirTree("/project");
@@ -112,7 +114,7 @@ try { throw "ой"; } catch (string e) { print("caught " + e); }
 wait(5);
 print("x=" + x);
 `);
-  const windowCode = await graphics.ccall("foxlang_run", "number", ["string", "string"], ["main.skm", ""], { async: true });
+  const windowCode = await graphics.ccall("skrumi_run", "number", ["string", "string"], ["main.skm", ""], { async: true });
   expect(windowCode === 0 && opened === "160x100 Тест", "a window opens on the page's canvas", { code: windowCode, out: printed, err: "" });
   expect(printed.includes("pixel 255,128,0,255"), "frames arrive as RGBA", { code: windowCode, out: printed, err: "" });
   expect(printed.includes("x=2") && printed.includes("caught ой"), "keys arrive while the program polls", { code: windowCode, out: printed, err: "" });
@@ -128,13 +130,13 @@ print("x=" + x);
       canvasPresent: () => { shownFrames++; },
       canvasPoll: async () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
-        if (++closePolls === 4) program._foxlang_close();
+        if (++closePolls === 4) program._skrumi_close();
       },
     });
     program.FS.mkdirTree("/project");
     program.FS.chdir("/project");
     program.FS.writeFile("main.skm", fs.readFileSync(path.join(examples, file), "utf8"));
-    const exit = await program.ccall("foxlang_run", "number", ["string", "string"], ["main.skm", ""], { async: true });
+    const exit = await program.ccall("skrumi_run", "number", ["string", "string"], ["main.skm", ""], { async: true });
     expect(exit === 0 && shownFrames >= 3, file + " runs in a window", { code: exit, out: log, err: "" });
   }
 

@@ -71,7 +71,7 @@ skrumi-lsp --help
   которому рантайм проверяет вызовы. Подсказка показывает необязательные параметры
   в скобках и повторяющиеся — с многоточием: `input([string prompt]) -> string`,
   `print(any values...) -> void`;
-* **модули стандартной библиотеки** читаются из `std/*.skm` и совместимых `std/*.fox`: описание модуля — строки
+* **модули стандартной библиотеки** читаются из `std/*.skm`: описание модуля — строки
   `//!` в начале файла, описание функции — строки `///` над ней. Функция-обёртка без
   своего описания показывает описание встроенной функции, которую вызывает;
 * **свои модули** из `using` и `include` разбираются так же, включая вложенные импорты.
@@ -122,8 +122,8 @@ python3 packaging/sync_editor_builtins.py --check
 
 ### Установка из выпуска
 
-Скачайте `foxlang.vsix` из [последнего выпуска](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang.vsix) и выполните
-`code --install-extension foxlang.vsix` (или в VS Code: Расширения → `...` → **Install from VSIX...**).
+Скачайте `skrumi.vsix` из [последнего выпуска](https://github.com/SkrinVex/Skrumi/releases/latest/download/skrumi.vsix) и выполните
+`code --install-extension skrumi.vsix` (или в VS Code: Расширения → `...` → **Install from VSIX...**).
 Сервер `skrumi-lsp` ставится отдельно — из пакета выпуска или сборкой из исходников.
 
 ### Установка из репозитория:
@@ -134,7 +134,7 @@ python3 packaging/sync_editor_builtins.py --check
    ```
 2. Скопируйте каталог расширения в папку расширений VS Code:
    ```bash
-   cp -r editors/vscode ~/.vscode/extensions/SkrinVex.foxlang-language
+   cp -r editors/vscode ~/.vscode/extensions/SkrinVex.skrumi-language
    ```
 3. Перезапустите VS Code либо вызовите команду `Developer: Reload Window` через палитру команд (`Ctrl+Shift+P`).
 4. При открытии любого файла с расширением `.skm` активируется подсветка синтаксиса и автоматически запустится `skrumi-lsp`.
@@ -156,8 +156,8 @@ python3 packaging/sync_editor_builtins.py --check
 {
   "version": "2.0.0",
   "tasks": [
-    { "type": "foxlang", "command": "run", "file": "site.skm", "args": ["--port", "8080"], "label": "Сайт" },
-    { "type": "foxlang", "command": "check", "file": "site.skm", "label": "Проверка" }
+    { "type": "skrumi", "command": "run", "file": "site.skm", "args": ["--port", "8080"], "label": "Сайт" },
+    { "type": "skrumi", "command": "check", "file": "site.skm", "label": "Проверка" }
   ]
 }
 ```
@@ -171,15 +171,15 @@ F5 или «Skrumi: отладить программу» запускает г�
 ### Конфигурация в `settings.json` VS Code:
 ```json
 {
-  "foxlang.lsp.serverPath": "foxlang-lsp",
-  "foxlang.lsp.trace.server": "off",
-  "foxlang.run.executablePath": "foxlang",
-  "foxlang.run.entryFile": "main.skm",
-  "foxlang.run.arguments": []
+  "skrumi.lsp.serverPath": "skrumi-lsp",
+  "skrumi.lsp.trace.server": "off",
+  "skrumi.run.executablePath": "skrumi",
+  "skrumi.run.entryFile": "main.skm",
+  "skrumi.run.arguments": []
 }
 ```
 
-`foxlang.run.entryFile` — главный файл относительно папки проекта: с ним ▶ запускает
+`skrumi.run.entryFile` — главный файл относительно папки проекта: с ним ▶ запускает
 программу целиком из любого открытого файла. Пусто — запускается открытый файл.
 *Если бинарник `skrumi-lsp` не находится в глобальном `PATH`, укажите абсолютный путь: `"/path/to/Skrumi/build/skrumi-lsp"`.*
 
@@ -190,11 +190,11 @@ F5 или «Skrumi: отладить программу» запускает г�
 Поддержка редактора Kate находится в каталоге [`editors/kate/`](../editors/kate/).
 
 ### Шаг 1. Подсветка синтаксиса (KSyntaxHighlighting)
-Скопируйте файл правил `foxlang.xml` в каталог синтаксисов KDE:
+Скопируйте файл правил `skrumi.xml` в каталог синтаксисов KDE:
 
 ```bash
 mkdir -p ~/.local/share/org.kde.syntax-highlighting/syntax/
-cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
+cp editors/kate/skrumi.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 ```
 
 Теперь Kate распознаёт файлы `.skm` с подсветкой ключевых слов, типов данных, комментариев, чисел, строк и встроенных функций.
@@ -209,7 +209,7 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 ```json
 {
     "servers": {
-        "foxlang": {
+        "skrumi": {
             "command": ["skrumi-lsp"],
             "root": "",
             "url": "https://github.com/SkrinVex/Skrumi",
@@ -223,7 +223,7 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 ```json
 {
     "servers": {
-        "foxlang": {
+        "skrumi": {
             "command": ["/home/user/Skrumi/build/skrumi-lsp"],
             "root": "",
             "url": "https://github.com/SkrinVex/Skrumi",
@@ -250,10 +250,10 @@ cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
 ### Шаг 5. Отладчик
 
 Включите плагин **Отладчик** и положите [`editors/kate/dap.json`](../editors/kate/dap.json)
-в `~/.config/kate/debugger/dap.json`. Если файл уже есть, добавьте секцию `foxlang`
+в `~/.config/kate/debugger/dap.json`. Если файл уже есть, добавьте секцию `skrumi`
 из примера, сохранив остальные настройки. Старый `install.sh` исторических пакетов
 автоматизировал эти действия; GUI-установщик не изменяет настройки редакторов.
-На панели отладчика появится профиль **foxlang**. Подробнее — в [DEBUGGING.md](DEBUGGING.md).
+На панели отладчика появится профиль **skrumi**. Подробнее — в [DEBUGGING.md](DEBUGGING.md).
 
 ### Возможности в Kate:
 * **Подсветка ошибок в коде**: красные и жёлтые подчеркивания в редакторе и список в нижней вкладке **Diagnostics**.
@@ -270,8 +270,8 @@ cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
 
 Расширение обеспечивает:
 * Автоматическое распознавание файлов `.skm`;
-* Подсветку синтаксиса на основе Tree-sitter ([`highlights.scm`](../editors/zed/languages/foxlang/highlights.scm));
-* Автозакрытие и сопоставление скобок ([`brackets.scm`](../editors/zed/languages/foxlang/brackets.scm));
+* Подсветку синтаксиса на основе Tree-sitter ([`highlights.scm`](../editors/zed/languages/skrumi/highlights.scm));
+* Автозакрытие и сопоставление скобок ([`brackets.scm`](../editors/zed/languages/skrumi/brackets.scm));
 * Интеграцию с `skrumi-lsp` через Rust/WASI расширение ([`src/lib.rs`](../editors/zed/src/lib.rs)).
 
 ### Вариант А: Локальная установка dev-расширения в Zed
@@ -284,7 +284,7 @@ cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
 
 ### Запуск задач
 
-Расширение добавляет задачи [`tasks.json`](../editors/zed/languages/foxlang/tasks.json):
+Расширение добавляет задачи [`tasks.json`](../editors/zed/languages/skrumi/tasks.json):
 «Skrumi: запустить», «проверить» и «собрать» для текущего файла. Вызов — палитра
 команд, `task: spawn`.
 
@@ -299,7 +299,7 @@ cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
 ```json
 {
   "lsp": {
-    "foxlang-lsp": {
+    "skrumi-lsp": {
       "binary": {
         "path": "skrumi-lsp",
         "arguments": ["--stdio"]
@@ -308,22 +308,22 @@ cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
   },
   "languages": {
     "C": {
-      "language_servers": ["foxlang-lsp", "..."]
+      "language_servers": ["skrumi-lsp", "..."]
     }
   },
   "file_types": {
-    "C": ["skm", "fox"]
+    "C": ["skm"]
   }
 }
 ```
 
 ### Публикация расширения в официальный реестр Zed
 Zed использует открытый репозиторий [zed-industries/extensions](https://github.com/zed-industries/extensions):
-1. Опубликуйте каталог `editors/zed` в отдельном публичном репозитории GitHub (например, `https://github.com/SkrinVex/zed-foxlang`).
+1. Опубликуйте каталог `editors/zed` в отдельном публичном репозитории GitHub (например, `https://github.com/SkrinVex/zed-skrumi`).
 2. Сделайте Fork репозитория `zed-industries/extensions`.
 3. Добавьте submodule:
    ```bash
-   git submodule add https://github.com/SkrinVex/zed-foxlang.git extensions/foxlang
+   git submodule add https://github.com/SkrinVex/zed-skrumi.git extensions/skrumi
    ```
 4. Создайте Pull Request в `zed-industries/extensions`. После мерджа расширение станет доступно во вкладке **Extensions** редактора Zed.
 

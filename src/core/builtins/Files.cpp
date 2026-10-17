@@ -1,9 +1,9 @@
 // File system details, path arithmetic and starting programs: what a file manager or
 // a build script needs beyond reading and writing whole files.
 #include "Builtin.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #ifdef __ANDROID__
-#include "foxlang/Android.h"
+#include "skrumi/Android.h"
 #endif
 #include <algorithm>
 #include <cctype>
@@ -17,7 +17,7 @@
 #include <unistd.h>
 #endif
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 namespace fs = std::filesystem;
 
@@ -220,7 +220,7 @@ void addFileBuiltins(std::vector<Builtin>& out) {
             std::error_code ec;
 #ifdef __ANDROID__
             if (android::current()) {
-                auto temporary = pathOf(".foxlang-tmp");
+                auto temporary = pathOf(".skrumi-tmp");
                 fs::create_directories(temporary, ec);
                 return text(ec ? "" : textOf(temporary));
             }
@@ -267,7 +267,7 @@ void addFileBuiltins(std::vector<Builtin>& out) {
     add({"os_run", "int", {{"string", "program"}, {"array", "args"}}, 1, false, "os",
          "Запускает программу с аргументами и ждёт её завершения. Возвращает код возврата, `-1` — не удалось "
          "запустить. Командная оболочка не используется: аргументы передаются как есть.\n\n"
-         "```foxlang\nint code = os_run(\"git\", [\"status\", \"--short\"]);\n```"},
+         "```skrumi\nint code = os_run(\"git\", [\"status\", \"--short\"]);\n```"},
         [](Call& c) {
             std::vector<std::string> args;
             if (c.has(1)) for (const auto& item : c.array(1)) args.push_back(item.text());
@@ -286,4 +286,4 @@ void addFileBuiltins(std::vector<Builtin>& out) {
         [](Call&) { return integer(lastExitCode()); });
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

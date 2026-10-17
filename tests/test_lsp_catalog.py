@@ -1,7 +1,7 @@
 """Check shipped stdlib/editor metadata through the actual LSP executable.
 
-No FoxLang code is executed: graphics, network and filesystem calls are analyzed
-in an empty directory without DISPLAY, stdlib files or a FoxLang installation.
+No Skrumi code is executed: graphics, network and filesystem calls are analyzed
+in an empty directory without DISPLAY, stdlib files or a Skrumi installation.
 """
 import importlib.util
 import json
@@ -31,9 +31,9 @@ def position(text):
 
 
 def document(name, code, valid=False):
-    uri = "file:///fox-lsp-test/" + name + ".fox"
+    uri = "file:///fox-lsp-test/" + name + ".skm"
     messages.append(dict(jsonrpc="2.0", method="textDocument/didOpen", params=dict(
-        textDocument=dict(uri=uri, languageId="fox", version=1, text=code))))
+        textDocument=dict(uri=uri, languageId="skrumi", version=1, text=code))))
     if valid:
         diagnostics.add(uri)
     return dict(uri=uri)
@@ -129,8 +129,8 @@ frames = []
 for message in messages:
     data = json.dumps(message, ensure_ascii=False).encode("utf-8")
     frames.append(f"Content-Length: {len(data)}\r\n\r\n".encode("ascii") + data)
-with tempfile.TemporaryDirectory(prefix="fox-lsp-catalog-") as directory:
-    env = {**os.environ, "FOXLANG_HOME": str(Path(directory) / "absent")}
+with tempfile.TemporaryDirectory(prefix="skrumi-lsp-catalog-") as directory:
+    env = {**os.environ, "SKRUMI_HOME": str(Path(directory) / "absent")}
     env.pop("DISPLAY", None)
     process = subprocess.run([str(binary)], input=b"".join(frames), capture_output=True,
                              cwd=directory, env=env, timeout=25)

@@ -11,6 +11,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  editor-packages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit editor identities and package VS Code
+        run: |
+          python3 tests/test_brand_audit.py
+          python3 packaging/package_vsix.py editors/vscode "$(cat VERSION)" skrumi.vsix
+      - name: Compile Zed extension with its locked dependencies
+        run: |
+          rustup target add wasm32-wasip1
+          cargo build --locked --release --target wasm32-wasip1 --manifest-path editors/zed/Cargo.toml
+
   playground-ui:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -72,7 +86,7 @@ jobs:
         run: |
           emcmake cmake -S . -B web -DCMAKE_BUILD_TYPE=Release
           cmake --build web -j4
-          cp web/skrumi*.js web/skrumi*.wasm web/foxlang*.js web/foxlang*.wasm site/playground/
+          cp web/skrumi*.js web/skrumi*.wasm site/playground/
       - name: Run the playground's examples and limits
         run: |
           node tests/web/test_playground.js site/playground
@@ -124,7 +138,7 @@ jobs:
       - name: Build and run standalone executables in clean temporary directories
         shell: bash
         env:
-          FOXLANG_REQUIRE_GRAPHICS_TESTS: '1'
+          SKRUMI_REQUIRE_GRAPHICS_TESTS: '1'
           SKRUMI_GUI_SCREENSHOTS: ${{ github.workspace }}/build/gui-screenshots
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
@@ -164,8 +178,6 @@ jobs:
             cp build/skrumi.exe build/skrumi-lsp.exe dist/
           fi
           cp VERSION dist/VERSION
-          cp dist/skrumi.exe dist/foxlang.exe
-          cp dist/skrumi-lsp.exe dist/foxlang-lsp.exe
           cp -R std dist/std
           cp -R editors dist/editors
           cp packaging/windows/install.ps1 packaging/windows/install.cmd dist/

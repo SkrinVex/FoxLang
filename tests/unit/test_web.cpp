@@ -1,6 +1,6 @@
 // Web building blocks without sockets: templates, JSON builders, URL and HTML
 // coding, forms, uploads, cookies, routing, static files and error replies.
-#include "foxlang/FoxLang.h"
+#include "skrumi/Skrumi.h"
 #include "../../src/core/HttpServer.h"
 #include <filesystem>
 #include <fstream>
@@ -15,10 +15,10 @@
     } while (0)
 
 namespace fs = std::filesystem;
-using foxlang::platform::HttpReply;
+using skrumi::platform::HttpReply;
 
 static bool throws(const std::string& code) {
-    foxlang::Interpreter interp;
+    skrumi::Interpreter interp;
     return !interp.runSource(code).success;
 }
 
@@ -28,7 +28,7 @@ static std::string header(const HttpReply& reply, const std::string& name) {
 }
 
 int main() {
-    using namespace foxlang;
+    using namespace skrumi;
     auto step = [](const char* what) { std::cout << "-> " << what << std::endl; };
 
     step("templates");
@@ -59,7 +59,7 @@ int main() {
         CHECK(runtime::jsonValid(R"({"a":[1,{"b":null}]})") && !runtime::jsonValid("{\"a\":") && !runtime::jsonValid("1 2"));
         auto entries = runtime::jsonEntries(R"({"x":1,"y":"z"})");
         CHECK(entries.size() == 2 && entries[1].first == "y" && entries[1].second == "\"z\"");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource(
             "string doc = json_set(\"\", \"name\", \"Лис \\\"1\\\"\"); doc = json_set(doc, \"tags\", [1, \"a\", true]);"
             "doc = json_set_raw(doc, \"inner\", \"{\\\"k\\\":[]}\"); string value = json_value([1.5, [2]]);"
@@ -105,7 +105,7 @@ int main() {
 
     step("routing");
     {
-        fs::path site = fs::temp_directory_path() / "foxlang-web-unit";
+        fs::path site = fs::temp_directory_path() / "skrumi-web-unit";
         fs::remove_all(site);
         fs::create_directories(site / "public" / "docs");
         std::ofstream(site / "public" / "app.js") << "console.log(1)";
@@ -113,7 +113,7 @@ int main() {
         std::ofstream(site / "public" / ".env") << "SECRET=1";
         std::ofstream(site / "secret.txt") << "outside";
 
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         std::string code =
             "void user() { server_respond(200, \"user \" + request_param(\"id\") + \" \" + request_query_param(\"tab\")); }\n"
             "void me() { server_respond(200, \"me\"); }\n"

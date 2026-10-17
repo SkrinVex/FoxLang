@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $PackageDir = (Resolve-Path -LiteralPath $PackageDir).Path
 $BaseTemp = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }
-$TempRoot = Join-Path $BaseTemp "foxlang-installer-test-$PID"
+$TempRoot = Join-Path $BaseTemp "skrumi-installer-test-$PID"
 $ReleaseDir = Join-Path $TempRoot 'Распакованный архив'
 $InstallDir = Join-Path $TempRoot 'Skrumi Лиса & !'
 $ProfileDir = Join-Path $TempRoot 'user profile'
@@ -65,15 +65,15 @@ try {
     $ExtensionsDir = Join-Path $ProfileDir '.vscode\extensions'
     New-Item -ItemType Directory -Force -Path $ExtensionsDir | Out-Null
     $Version = (Get-Content -LiteralPath (Join-Path $PackageDir 'VERSION') -Raw).Trim()
-    $ExtensionDir = Join-Path $ExtensionsDir "SkrinVex.foxlang-language-$Version"
+    $ExtensionDir = Join-Path $ExtensionsDir "SkrinVex.skrumi-language-$Version"
     foreach ($Attempt in 1..2) {
         if ($Direct) {
             & (Join-Path $ReleaseDir 'install.ps1') -InstallDir $InstallDir -SkipEnvironment
         } else {
             Invoke-Cmd (Join-Path $ReleaseDir 'install.cmd') ('-InstallDir "{0}" -SkipEnvironment' -f $InstallDir)
         }
-        foreach ($Alias in @('foxlang.exe', 'foxlang-lsp.exe')) {
-        if (-not (Test-Path (Join-Path $InstallDir $Alias))) { throw "Missing compatibility command: $Alias" }
+        foreach ($Command in @('skrumi.exe', 'skrumi-lsp.exe')) {
+        if (-not (Test-Path (Join-Path $InstallDir $Command))) { throw "Missing command: $Command" }
     }
     $Manifest = Get-Content -LiteralPath (Join-Path $ExtensionDir 'package.json') -Raw | ConvertFrom-Json
         if ($Manifest.version -ne $Version) { throw 'VSIX fallback installed the wrong extension version.' }
@@ -89,10 +89,10 @@ try {
     $LspVersion = (& (Join-Path $InstallDir 'skrumi-lsp.exe') --version | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or $LspVersion -ne "skrumi-lsp $Version") { throw "LSP reports '$LspVersion'." }
     if (-not (Test-Path -LiteralPath (Join-Path $InstallDir 'std') -PathType Container)) { throw 'Installed standard library is missing.' }
-    $Program = Join-Path $TempRoot 'smoke.fox'
-    [System.IO.File]::WriteAllText($Program, 'print("FOX_INSTALL_OK");')
+    $Program = Join-Path $TempRoot 'smoke.skm'
+    [System.IO.File]::WriteAllText($Program, 'print("SKRUMI_INSTALL_OK");')
     $Output = (& (Join-Path $InstallDir 'skrumi.exe') $Program 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0 -or $Output -notmatch 'FOX_INSTALL_OK') { throw "Installed runtime smoke test failed: $Output" }
+    if ($LASTEXITCODE -ne 0 -or $Output -notmatch 'SKRUMI_INSTALL_OK') { throw "Installed runtime smoke test failed: $Output" }
     if ($Direct) {
         & (Join-Path $InstallDir 'uninstall.ps1') -SkipEnvironment
     } else {

@@ -28,22 +28,22 @@ for name in ("editors/zed/Cargo.toml", "editors/zed/extension.toml"):
     text = (root / name).read_text()
     assert re.search(r'^version = "([^"]+)"', text, re.M)[1] == version, name
 lock = (root / "editors/zed/Cargo.lock").read_text()
-assert re.search(r'name = "foxlang"\nversion = "([^"]+)"', lock)[1] == version
+assert re.search(r'name = "skrumi"\nversion = "([^"]+)"', lock)[1] == version
 
 # VERSION is the single source: documentation, examples and the standard library must
 # not repeat the number, or the next release would leave a stale copy behind.
 prose = [root / "README.md", root / "DOCUMENTATION.md", *(root / "docs").glob("*.md"),
          *(root / "editors").glob("*/README.md"), root / "tests/README.md",
-         *(root / "examples").glob("*.fox"), *(root / "std").glob("*.fox"),
+         *(root / "examples").glob("*.skm"), *(root / "std").glob("*.skm"),
          *(root / "examples").glob("*.skm"), *(root / "std").glob("*.skm")]
 for path in prose:
     assert not re.search(r"(?<![\d.])" + re.escape(version) + r"(?![\d.])", path.read_text(encoding="utf-8")), \
-        f"{path.relative_to(root)} repeats the version {version}; refer to VERSION or `foxlang --version` instead"
+        f"{path.relative_to(root)} repeats the version {version}; refer to VERSION or `skrumi --version` instead"
 
 spec = importlib.util.spec_from_file_location("package_vsix", root / "packaging/package_vsix.py")
 packager = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(packager)
-with tempfile.TemporaryDirectory(prefix="fox-vsix-test-") as directory:
+with tempfile.TemporaryDirectory(prefix="skrumi-vsix-test-") as directory:
     directory = Path(directory)
     source = directory / "extension"
     shutil.copytree(root / "editors/vscode", source)

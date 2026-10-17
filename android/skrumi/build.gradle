@@ -1,0 +1,24 @@
+plugins { id 'com.android.library' }
+def skrumiVersion = file('../../VERSION').text.trim()
+android {
+    namespace 'org.skrumi.android'
+    compileSdk 35
+    ndkVersion '27.3.13750724'
+    if ((System.getenv('SKRUMI_NDK_DIR'))) ndkPath (System.getenv('SKRUMI_NDK_DIR'))
+    defaultConfig {
+        minSdk 28
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        consumerProguardFiles 'consumer-rules.pro'
+        ndk { abiFilters.addAll(((project.findProperty('skrumiAbis')) ?: 'arm64-v8a,x86_64').split(',')) }
+        externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_shared', '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'; targets 'skrumi_android' } }
+    }
+    externalNativeBuild { cmake { path file('../../CMakeLists.txt'); version '3.22.1' } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    publishing { singleVariant('release') { withSourcesJar() } }
+}
+version = skrumiVersion
+dependencies {
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
+    androidTestImplementation 'junit:junit:4.13.2'
+}

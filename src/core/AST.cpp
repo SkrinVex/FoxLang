@@ -1,9 +1,9 @@
-#include "foxlang/AST.h"
-#include "foxlang/Bytecode.h"
+#include "skrumi/AST.h"
+#include "skrumi/Bytecode.h"
 #include <cerrno>
 #include <cstdlib>
 
-namespace foxlang {
+namespace skrumi {
 
 void CallDepth::exceeded(const std::string& name, int depth) {
     throw std::runtime_error("Runtime Error: call depth limit reached in '" + name + "' after " + std::to_string(depth) +
@@ -61,4 +61,4 @@ void EnumDefNode::declare(Context& context) {
     ++root.generation;
 }
 
-} // namespace foxlang
+} // namespace skrumi

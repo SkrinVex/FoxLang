@@ -13,10 +13,10 @@ with tempfile.TemporaryDirectory(prefix='skrumi-install-') as temp:
     prefix = root / 'cmake prefix'
     subprocess.run(['cmake', '--install', str(binary.parent), '--prefix', str(prefix)], check=True, capture_output=True)
     suffix = binary.suffix
-    for name in ('skrumi', 'foxlang', 'skrumi-lsp', 'foxlang-lsp'):
+    for name in ('skrumi', 'skrumi-lsp'):
         subprocess.run([str(prefix / 'bin' / (name + suffix)), '--version'], check=True, capture_output=True)
     assert (prefix / 'include/skrumi/Skrumi.h').exists()
-    assert (prefix / 'include/foxlang/FoxLang.h').exists()
+    assert (prefix / 'include/skrumi/Skrumi.h').exists()
     if os.name != 'nt':
         package = root / 'package'; package.mkdir()
         for name in ('skrumi', 'skrumi-lsp'):
@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-install-') as temp:
             assert (result.returncode == 0) == ok, result.stderr
         install()
         install() # update owned launchers, including escaped paths
-        for name in ('skrumi', 'foxlang', 'skrumi-lsp', 'foxlang-lsp'):
+        for name in ('skrumi', 'skrumi-lsp'):
             subprocess.run([str(prefix / 'bin' / name), '--version'], check=True, capture_output=True)
         personal = prefix / 'share/skrumi/personal.skm'
         personal.write_text('print("keep me");')
@@ -40,10 +40,10 @@ with tempfile.TemporaryDirectory(prefix='skrumi-install-') as temp:
         refused = subprocess.run(['bash', str(prefix / 'share/skrumi/uninstall.sh')], capture_output=True)
         assert refused.returncode != 0 and personal.read_text() == 'print("keep me");'
         personal.unlink()
-        foreign = prefix / 'bin/foxlang'
+        foreign = prefix / 'bin/skrumi'
         foreign.write_text('#!/bin/sh\necho unrelated\n')
         install(False)
         subprocess.run(['bash', str(prefix / 'share/skrumi/uninstall.sh')], check=True, capture_output=True)
         assert foreign.read_text() == '#!/bin/sh\necho unrelated\n'
-        assert not (prefix / 'bin/skrumi').exists()
+        assert not (prefix / 'bin/skrumi-lsp').exists()
 print('INSTALLATION_OK')

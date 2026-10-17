@@ -14,7 +14,7 @@
 <style>
 :root {
   color-scheme: light;
-  --fox-ink: #ffffff;
+  --skrumi-ink: #ffffff;
   --code-bg: #ffffff;
   --code-head: #f6f8fa;
   --code-line: #e3e8ee;
@@ -35,7 +35,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --fox-ink: #1a1206;
+    --skrumi-ink: #1a1206;
     --code-bg: #0e1116;
     --code-head: #151a21;
     --code-line: #232a34;
@@ -56,7 +56,7 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --fox-ink: #1a1206;
+  --skrumi-ink: #1a1206;
   --code-bg: #0e1116;
   --code-head: #151a21;
   --code-line: #232a34;
@@ -85,7 +85,7 @@ body {
   display: flex;
   flex-direction: column;
 }
-a { color: var(--fox); }
+a { color: var(--skrumi); }
 button, select { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
@@ -109,7 +109,7 @@ button, select { font: inherit; color: inherit; }
   min-width: 0;
 }
 .brand img { width: 28px; height: 28px; flex-shrink: 0; }
-.brand b { font: 700 17px var(--display); color: var(--fox); }
+.brand b { font: 700 17px var(--display); color: var(--skrumi); }
 .brand span { color: var(--muted); font-size: 14px; }
 .btn {
   display: inline-flex;
@@ -126,13 +126,13 @@ button, select { font: inherit; color: inherit; }
 }
 .btn:hover { border-color: var(--muted); }
 .btn:focus-visible, select:focus-visible, textarea:focus-visible, .tab:focus-visible, .views button:focus-visible {
-  outline: 2px solid var(--fox);
+  outline: 2px solid var(--skrumi);
   outline-offset: 1px;
 }
 .btn.run {
-  background: var(--fox);
-  border-color: var(--fox);
-  color: var(--fox-ink);
+  background: var(--skrumi);
+  border-color: var(--skrumi);
+  color: var(--skrumi-ink);
   font-weight: 600;
 }
 .btn.run:hover { filter: brightness(1.08); }
@@ -206,7 +206,7 @@ main {
   white-space: nowrap;
   user-select: none;
 }
-.tab.active { background: var(--tab-active); color: var(--code-ink); box-shadow: inset 0 2px 0 var(--fox); }
+.tab.active { background: var(--tab-active); color: var(--code-ink); box-shadow: inset 0 2px 0 var(--skrumi); }
 .tab .name { padding: 8px 0; }
 .tab .bad-mark { color: var(--out-err); font-size: 10px; }
 .tab .close {
@@ -337,7 +337,7 @@ main {
   touch-action: none;
   cursor: crosshair;
 }
-.screen canvas:focus-visible { box-shadow: 0 0 0 2px var(--fox); }
+.screen canvas:focus-visible { box-shadow: 0 0 0 2px var(--skrumi); }
 .screen { position: relative; flex-direction: column; align-items: center; gap: 8px; }
 /* Phones have no keyboard for a canvas: arrows, a space bar and a button that opens
    the on-screen keyboard sit under the window. */
@@ -370,7 +370,7 @@ main {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
-.pad-key.held { background: var(--fox); border-color: var(--fox); color: var(--fox-ink); }
+.pad-key.held { background: var(--skrumi); border-color: var(--skrumi); color: var(--skrumi-ink); }
 .dpad .up { grid-column: 2; grid-row: 1; }
 .dpad .left { grid-column: 1; grid-row: 2; }
 .dpad .down { grid-column: 2; grid-row: 2; }
@@ -562,7 +562,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
 
 <footer>
   Программа выполняется в вашем браузере, на сервер ничего не отправляется. Запускается
-  <code>main.skm</code> (старые <code>.fox</code> тоже поддерживаются), остальные файлы подключаются через <code>using</code> и <code>include</code>.
+  <code>main.skm</code> (старые <code>.skm</code> тоже поддерживаются), остальные файлы подключаются через <code>using</code> и <code>include</code>.
   Окно (<code>using graphics</code>) рисуется прямо на странице; сети, звука и запуска
   программ здесь нет, файлы живут в памяти до конца запуска.
   <a href="../builder/">Собрать интерфейс в конструкторе</a>. Ограничения:
@@ -577,8 +577,8 @@ html[data-builder-embed] .screen canvas { max-height: none; }
   "use strict";
   var TIME_LIMIT_MS = 10000;
   var OUTPUT_LIMIT = 1000000; // characters shown before the run is stopped
-  var FILES_KEY = "foxlang-playground-files";
-  var OLD_SOURCE_KEY = "foxlang-playground-source";
+  var FILES_KEY = "skrumi-playground-files";
+  var OLD_SOURCE_KEY = "skrumi-playground-source";
   var ENTRY = "main.skm";
   var EXAMPLES = {
     hello: ["hello.skm"],
@@ -605,7 +605,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
   var builderInitialized = false;
   if (builderEmbed) document.documentElement.dataset.builderEmbed = "true";
   function builderReady() {
-    if (builderEmbed && builderInitialized && !runButton.disabled) parent.postMessage({type: "foxlang-builder-ready"}, location.origin);
+    if (builderEmbed && builderInitialized && !runButton.disabled) parent.postMessage({type: "skrumi-builder-ready"}, location.origin);
   }
   function storageGet(key) { if (builderEmbed) return null; try { return localStorage.getItem(key); } catch (e) { return null; } }
   function storageSet(key, value) { if (builderEmbed) return; try { localStorage.setItem(key, value); } catch (e) { /* private mode */ } }
@@ -627,7 +627,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
 
   function validName(name) {
     return typeof name === "string" && name.length <= 60 &&
-      /^[A-Za-z0-9_][A-Za-z0-9_\-]*(\/[A-Za-z0-9_][A-Za-z0-9_\-]*)*\.(?:skm|fox)$/.test(name);
+      /^[A-Za-z0-9_][A-Za-z0-9_\-]*(\/[A-Za-z0-9_][A-Za-z0-9_\-]*)*\.skm$/.test(name);
   }
 
   // main.skm first, the rest by name.
@@ -713,7 +713,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     var name = window.prompt(question, initial);
     if (name === null) return null;
     name = name.trim();
-    if (name && !/\.(?:skm|fox)$/.test(name)) name += ".skm";
+    if (name && !/\.skm$/.test(name)) name += ".skm";
     if (!validName(name)) {
       flash("Имя файла: латинские буквы, цифры, _ и -, папки через /");
       return null;
@@ -734,7 +734,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     if (files.length >= 20) { flash("Не больше 20 файлов"); return; }
     var name = askName("Имя нового файла:", "utils.skm");
     if (!name) return;
-    var line = name.indexOf("/") < 0 ? "using " + name.replace(/\.(?:skm|fox)$/, "") + ";" : 'include("' + name + '");';
+    var line = name.indexOf("/") < 0 ? "using " + name.replace(/\.skm$/, "") + ";" : 'include("' + name + '");';
     files.push({ name: name, text: "// Подключите этот файл в main.skm строкой\n// " + line + "\n\n", problems: [] });
     sortFiles();
     select(indexOf(name));
@@ -767,7 +767,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
   function setFiles(list) {
     // Preserve old shared links and saved projects without renaming their imports.
     ENTRY = list.some(function (f) { return f.name === "main.skm"; }) ? "main.skm" :
-      list.some(function (f) { return f.name === "main.fox"; }) ? "main.fox" : "main.skm";
+      list.some(function (f) { return f.name === "main.skm"; }) ? "main.skm" : "main.skm";
     files = list.filter(function (f) { return validName(f.name); })
                 .map(function (f) { return { name: f.name, text: String(f.text), problems: [] }; });
     if (!files.some(function (f) { return f.name === ENTRY; })) files.push({ name: ENTRY, text: "", problems: [] });
@@ -1409,11 +1409,11 @@ html[data-builder-embed] .screen canvas { max-height: none; }
   window.addEventListener("message", function (event) {
     if (!builderEmbed || event.source !== parent || event.origin !== location.origin || !builderInitialized) return;
     var message = event.data;
-    if (message && message.type === "foxlang-builder-stop") stop();
-    if (message && message.type === "foxlang-builder-run" && !runButton.disabled) {
+    if (message && message.type === "skrumi-builder-stop") stop();
+    if (message && message.type === "skrumi-builder-run" && !runButton.disabled) {
       var files = message.files;
-      var entryName = files && typeof files["main.skm"] === "string" ? "main.skm" : "main.fox";
-      var layoutName = entryName === "main.skm" ? "layout.skm" : "layout.fox";
+      var entryName = files && typeof files["main.skm"] === "string" ? "main.skm" : "main.skm";
+      var layoutName = entryName === "main.skm" ? "layout.skm" : "layout.skm";
       if (!files || Object.keys(files).length !== 2 ||
           typeof files[entryName] !== "string" || typeof files[layoutName] !== "string" ||
           files[entryName].length + files[layoutName].length > 500000) return;
@@ -1425,7 +1425,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
   if (builderEmbed) {
     setView("output");
     new ResizeObserver(function () {
-      parent.postMessage({type: "foxlang-builder-height", height: Math.ceil(main.getBoundingClientRect().height) + 8}, location.origin);
+      parent.postMessage({type: "skrumi-builder-height", height: Math.ceil(main.getBoundingClientRect().height) + 8}, location.origin);
     }).observe(main);
   }
 

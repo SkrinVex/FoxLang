@@ -1,6 +1,6 @@
-id = "foxlang"
+id = "skrumi"
 name = "Skrumi"
-version = "8.18.0"
+version = "9.0.0"
 schema_version = 1
 authors = ["SkrinVex <skrinvex@gmail.com>"]
 description = "Official Skrumi language support for Zed: syntax highlighting, brackets, LSP integration (diagnostics, completions, hover, goto definition) and a debugger."
@@ -15,9 +15,9 @@ repository = "https://github.com/tree-sitter/tree-sitter-c"
 commit = "b780e47fc780ddc8da13afa35a3f4ed5c157823d"
 
 
-[language_servers.foxlang-lsp]
+[language_servers.skrumi-lsp]
 name = "skrumi-lsp"
-languages = ["FoxLang"]
+languages = ["Skrumi"]
 
-[debug_adapters.FoxLang]
-schema_path = "debug_adapter_schemas/FoxLang.json"
+[debug_adapters.Skrumi]
+schema_path = "debug_adapter_schemas/Skrumi.json"

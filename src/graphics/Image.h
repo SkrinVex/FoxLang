@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 
 // A decoded picture: 0xAARRGGBB per pixel, rows top to bottom.
 struct Image {
@@ -15,4 +15,4 @@ struct Image {
 // uncompressed 24/32-bit BMP. A damaged or unsupported file is a Graphics Error.
 Image decodeImage(const std::string& bytes);
 
-} // namespace foxlang::graphics
+} // namespace skrumi::graphics

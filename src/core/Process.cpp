@@ -1,9 +1,9 @@
 #ifdef __ANDROID__
-#include "foxlang/Android.h"
+#include "skrumi/Android.h"
 #endif
 // Starting other programs: no shell is involved, so arguments reach the program
 // exactly as given and cannot be reinterpreted as commands.
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <algorithm>
 #include <stdexcept>
 #include <string>
@@ -22,7 +22,7 @@
 extern char** environ;
 #endif
 
-namespace foxlang::platform {
+namespace skrumi::platform {
 namespace {
 constexpr std::size_t maxOutput = 16 * 1024 * 1024;
 
@@ -160,4 +160,4 @@ bool openWithDefaultApp(const std::string& target) {
 #endif
 }
 
-} // namespace foxlang::platform
+} // namespace skrumi::platform

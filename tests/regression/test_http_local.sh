@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FOXLANG_BIN="${1:-./foxlang}"
+SKRUMI_BIN="${1:-./skrumi}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVER_SCRIPT="$SCRIPT_DIR/server_fixture.fox"
+SERVER_SCRIPT="$SCRIPT_DIR/server_fixture.skm"
 PORT=18095
 
 cleanup() {
@@ -15,7 +15,7 @@ cleanup() {
 trap cleanup EXIT
 
 # 1. Start server in background
-"$FOXLANG_BIN" "$SERVER_SCRIPT" >/dev/null 2>&1 &
+"$SKRUMI_BIN" "$SERVER_SCRIPT" >/dev/null 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to start listening
@@ -34,41 +34,41 @@ if [[ "$READY" -ne 1 ]]; then
 fi
 
 # 2. Test GET route, method, path, response status
-GET_STATUS=$(curl -s -o /tmp/fox_get.out -w "%{http_code}" "http://127.0.0.1:$PORT/test/get")
+GET_STATUS=$(curl -s -o /tmp/skrumi_get.out -w "%{http_code}" "http://127.0.0.1:$PORT/test/get")
 if [[ "$GET_STATUS" != "200" ]]; then
     echo "FAIL: Expected GET status 200, got $GET_STATUS"
     exit 1
 fi
 
-grep -q '"route":"get_ok"' /tmp/fox_get.out || { echo "FAIL: GET route not matched"; exit 1; }
-grep -q '"path":"/test/get"' /tmp/fox_get.out || { echo "FAIL: GET path not matched"; exit 1; }
-grep -q '"method":"GET"' /tmp/fox_get.out || { echo "FAIL: GET method not matched"; exit 1; }
+grep -q '"route":"get_ok"' /tmp/skrumi_get.out || { echo "FAIL: GET route not matched"; exit 1; }
+grep -q '"path":"/test/get"' /tmp/skrumi_get.out || { echo "FAIL: GET path not matched"; exit 1; }
+grep -q '"method":"GET"' /tmp/skrumi_get.out || { echo "FAIL: GET method not matched"; exit 1; }
 
 # 3. Test POST route, request body, response status
-POST_DATA='{"msg":"hello_from_fox_test"}'
-POST_STATUS=$(curl -s -o /tmp/fox_post.out -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "$POST_DATA" "http://127.0.0.1:$PORT/test/post")
+POST_DATA='{"msg":"hello_from_skrumi_test"}'
+POST_STATUS=$(curl -s -o /tmp/skrumi_post.out -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "$POST_DATA" "http://127.0.0.1:$PORT/test/post")
 if [[ "$POST_STATUS" != "201" ]]; then
     echo "FAIL: Expected POST status 201, got $POST_STATUS"
     exit 1
 fi
 
-grep -q '"route":"post_ok"' /tmp/fox_post.out || { echo "FAIL: POST route not matched"; exit 1; }
-grep -q 'hello_from_fox_test' /tmp/fox_post.out || { echo "FAIL: POST body not matched"; exit 1; }
+grep -q '"route":"post_ok"' /tmp/skrumi_post.out || { echo "FAIL: POST route not matched"; exit 1; }
+grep -q 'hello_from_skrumi_test' /tmp/skrumi_post.out || { echo "FAIL: POST body not matched"; exit 1; }
 
 # 4. Test Telegram-style Webhook route with Unicode/emoji and json_path
 TG_PAYLOAD='{"update_id":123,"message":{"message_id":1,"from":{"id":42,"first_name":"Алексей 🦊"},"chat":{"id":"987654"},"text":"/ping 🦊"}}'
-TG_STATUS=$(curl -s -o /tmp/fox_tg.out -w "%{http_code}" -X POST -H "Content-Type: application/json; charset=utf-8" -d "$TG_PAYLOAD" "http://127.0.0.1:$PORT/telegram")
+TG_STATUS=$(curl -s -o /tmp/skrumi_tg.out -w "%{http_code}" -X POST -H "Content-Type: application/json; charset=utf-8" -d "$TG_PAYLOAD" "http://127.0.0.1:$PORT/telegram")
 if [[ "$TG_STATUS" != "200" ]]; then
     echo "FAIL: Expected Telegram webhook status 200, got $TG_STATUS"
     exit 1
 fi
 
-grep -q '"ok":true' /tmp/fox_tg.out || { echo "FAIL: Telegram response ok flag missing"; exit 1; }
-grep -q '"chat_id":"987654"' /tmp/fox_tg.out || { echo "FAIL: Telegram chat_id not matched"; exit 1; }
-grep -q 'Привет, Алексей 🦊' /tmp/fox_tg.out || { echo "FAIL: Telegram response Cyrillic/emoji not matched"; exit 1; }
+grep -q '"ok":true' /tmp/skrumi_tg.out || { echo "FAIL: Telegram response ok flag missing"; exit 1; }
+grep -q '"chat_id":"987654"' /tmp/skrumi_tg.out || { echo "FAIL: Telegram chat_id not matched"; exit 1; }
+grep -q 'Привет, Алексей 🦊' /tmp/skrumi_tg.out || { echo "FAIL: Telegram response Cyrillic/emoji not matched"; exit 1; }
 
-# 5. Test FoxLang HTTP client with http_post_json against the local server
-CLIENT_SCRIPT="/tmp/fox_client_test_$$.fox"
+# 5. Test Skrumi HTTP client with http_post_json against the local server
+CLIENT_SCRIPT="/tmp/skrumi_client_test_$$.skm"
 cat << 'EOF' > "$CLIENT_SCRIPT"
 using http;
 using json;
@@ -87,7 +87,7 @@ void main() {
 main();
 EOF
 
-CLIENT_OUT=$("$FOXLANG_BIN" "$CLIENT_SCRIPT")
+CLIENT_OUT=$("$SKRUMI_BIN" "$CLIENT_SCRIPT")
 rm -f "$CLIENT_SCRIPT"
 if ! echo "$CLIENT_OUT" | grep -q "CLIENT_HTTP_POST_JSON_OK"; then
     echo "FAIL: http_post_json failed, output: $CLIENT_OUT"

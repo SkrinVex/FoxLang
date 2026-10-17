@@ -1,2 +1,0 @@
-// Skrumi compatibility alias; implementation: fs.skm.
-include("fs.skm");

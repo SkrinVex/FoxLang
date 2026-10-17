@@ -9,34 +9,40 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 with tempfile.TemporaryDirectory() as temp:
     d = Path(temp); project = d / "source"; (project / "nested").mkdir(parents=True)
-    (project / "nested/app.fox").write_text('include("helper.fox");\nprint(name);')
-    (project / "nested/helper.fox").write_text('string name = "🦊";', encoding="utf-8")
+    (project / "nested/app.skm").write_text('include("helper.skm");\nprint(name);')
+    (project / "nested/helper.skm").write_text('string name = "🦊";', encoding="utf-8")
     (project / ".env").write_text("SECRET=hidden")
     (project / "private.key").write_text("not a resource")
     (project / "build-release").mkdir()
-    (project / "build-release/generated.fox").write_text("not a source resource")
+    (project / "build-release/generated.skm").write_text("not a source resource")
     (project / "logo.png").write_bytes(b"resource")
     staged = d / "assets"
-    names = m.stage_project(project / "nested/app.fox", project, ["logo.png"], staged)
-    assert names == {Path("nested/app.fox"), Path("nested/helper.fox"), Path("logo.png")}
-    assert (staged / "foxlang-entry.txt").read_text() == "nested/app.fox"
+    names = m.stage_project(project / "nested/app.skm", project, ["logo.png"], staged)
+    assert names == {Path("nested/app.skm"), Path("nested/helper.skm"), Path("logo.png")}
+    assert (staged / "skrumi-entry.txt").read_text() == "nested/app.skm"
     assert not (staged / "program/.env").exists()
     assert not (staged / "program/private.key").exists()
-    (project / "nested/new.skm").write_text('include("helper.fox"); print(name);')
+    (project / "nested/new.skm").write_text('include("helper.skm"); print(name);')
     mixed = m.stage_project(project / "nested/new.skm", project, [], d / "mixed")
-    assert Path("nested/helper.fox") in mixed and Path("nested/new.skm") in mixed
-    assert (d / "mixed/foxlang-entry.txt").read_text() == "nested/new.skm"
+    assert Path("nested/helper.skm") in mixed and Path("nested/new.skm") in mixed
+    assert (d / "mixed/skrumi-entry.txt").read_text() == "nested/new.skm"
+    (project / "old.fox").write_text('print(99);')
+    staged_names = m.stage_project(project / "nested/app.skm", project, [], d / "only-current")
+    assert Path("old.fox") not in staged_names
+    try: m.stage_project(project / "old.fox", project, [], d / "old-entry")
+    except ValueError: pass
+    else: raise AssertionError("Retired source extension accepted")
     for invalid in ["../outside", ".env", str((project / "logo.png").resolve())]:
-        try: m.stage_project(project / "nested/app.fox", project, [invalid], d / "invalid")
+        try: m.stage_project(project / "nested/app.skm", project, [invalid], d / "invalid")
         except ValueError: pass
         else: raise AssertionError(invalid)
-    try: (project / "escape.fox").symlink_to(project / "private.key")
+    try: (project / "escape.skm").symlink_to(project / "private.key")
     except OSError: pass # Windows developers may lack symlink permission.
     else:
-        try: m.stage_project(project / "escape.fox", project, [], d / "entry-symlink")
+        try: m.stage_project(project / "escape.skm", project, [], d / "entry-symlink")
         except ValueError: pass
         else: raise AssertionError("entry symlink was packaged")
-        try: m.stage_project(project / "nested/app.fox", project, [], d / "symlink")
+        try: m.stage_project(project / "nested/app.skm", project, [], d / "symlink")
         except ValueError: pass
         else: raise AssertionError("symlink was packaged")
 print("ANDROID_PACKAGING_OK")

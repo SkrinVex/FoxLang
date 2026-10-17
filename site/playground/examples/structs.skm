@@ -12,8 +12,8 @@ array foxes = [
 ];
 
 array_sort(foxes, (Fox a, Fox b) => a.speed > b.speed);
-for (Fox fox in foxes) {
-    print("${fox.name}: ${fox.age} г., ${fox.speed} км/ч");
+for (Fox skrumi in foxes) {
+    print("${skrumi.name}: ${skrumi.age} г., ${skrumi.speed} км/ч");
 }
 
 Fox fastest = foxes[0];

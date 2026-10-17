@@ -5,7 +5,7 @@ Every program prints a checksum; all languages must print the same one, so a fas
 result can never come from doing less work. Each program runs several times, in turns
 with the others, and the best time counts: the other runs mostly measure the machine.
 
-With --baseline (an older foxlang binary) the run fails when the new build is slower
+With --baseline (an older skrumi binary) the run fails when the new build is slower
 on any benchmark by more than --max-slowdown and more than --noise seconds. That is the
 check a release has to pass. --smoke runs every program once on a tiny input, only to
 see that they all agree; the tests use it.
@@ -65,7 +65,7 @@ def cpu_name():
     return platform.processor() or platform.machine()
 
 
-def foxlang_home(binary):
+def skrumi_home(binary):
     """A release keeps std next to its binary; a build in the source tree uses the tree's."""
     beside = Path(binary).parent
     return str(beside if (beside / "std").is_dir() else ROOT)
@@ -86,13 +86,13 @@ def run_once(command, cwd, timeout, env):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--skrumi", "--foxlang", dest="foxlang", default=str(ROOT / "build" / "skrumi"), help="the build being measured")
-    parser.add_argument("--baseline", help="an older foxlang binary to compare with")
+    parser.add_argument("--skrumi", dest="skrumi", default=str(ROOT / "build" / "skrumi"), help="the build being measured")
+    parser.add_argument("--baseline", help="an older skrumi binary to compare with")
     parser.add_argument("--runs", type=int, default=5, help="runs of each program; the best one counts")
     parser.add_argument("--max-slowdown", type=float, default=0.10, help="allowed slowdown against the baseline, 0.10 = 10%%")
     parser.add_argument("--noise", type=float, default=0.03, help="differences below this many seconds never fail")
     parser.add_argument("--timeout", type=float, default=120, help="seconds one run may take")
-    parser.add_argument("--only-foxlang", action="store_true", help="skip the other languages")
+    parser.add_argument("--only-skrumi", action="store_true", help="skip the other languages")
     parser.add_argument("--require", action="append", default=[], help="fail if this language is not installed")
     parser.add_argument("--smoke", action="store_true", help="one run on tiny inputs, only checking the answers")
     parser.add_argument("--json", help="write the results here")
@@ -100,14 +100,14 @@ def main():
     if args.smoke:
         args.runs = 1
 
-    names = sorted(p.stem for p in (HERE / "foxlang").glob("*.fox"))
-    foxlang = str(Path(args.foxlang).resolve())
+    names = sorted(p.stem for p in (HERE / "skrumi").glob("*.skm"))
+    skrumi = str(Path(args.skrumi).resolve())
     # (key, shown name, command prefix, folder, extension)
-    implementations = [("foxlang", "Skrumi", [foxlang], "foxlang", ".fox")]
+    implementations = [("skrumi", "Skrumi", [skrumi], "skrumi", ".skm")]
     if args.baseline:
-        implementations.append(("foxlang_baseline", "Skrumi (previous)", [str(Path(args.baseline).resolve())], "foxlang", ".fox"))
+        implementations.append(("skrumi_baseline", "Skrumi (previous)", [str(Path(args.baseline).resolve())], "skrumi", ".skm"))
     missing = []
-    if not args.only_foxlang:
+    if not args.only_skrumi:
         for key, shown, folder, extension, candidates in LANGUAGES:
             found = next((shutil.which(c) for c in candidates if shutil.which(c)), None)
             if found:
@@ -136,8 +136,8 @@ def main():
                 if turn > 0 and best[name].get(key, 0) is None:
                     continue  # it ran out of time once; once is enough
                 env = dict(os.environ)
-                if folder == "foxlang":
-                    env["FOXLANG_HOME"] = foxlang_home(command[0])
+                if folder == "skrumi":
+                    env["SKRUMI_HOME"] = skrumi_home(command[0])
                 took, printed = run_once(command + [program.name] + given, program.parent, args.timeout, env)
                 if took is None:
                     best[name][key] = None
@@ -148,7 +148,7 @@ def main():
 
     failures = []
     for name in names:
-        expected = answers[name].get("foxlang")
+        expected = answers[name].get("skrumi")
         for key, printed in answers[name].items():
             if printed != expected:
                 failures.append(f"{name}: {key} printed {printed!r}, Skrumi printed {expected!r}")
@@ -156,7 +156,7 @@ def main():
     columns = [(key, shown) for key, shown, _, _, _ in implementations]
     width = max(len(n) for n in names) + 2
     print()
-    print("".ljust(width) + "".join(shown.split(" (")[0][:12].rjust(13) if key != "foxlang_baseline" else "previous".rjust(13)
+    print("".ljust(width) + "".join(shown.split(" (")[0][:12].rjust(13) if key != "skrumi_baseline" else "previous".rjust(13)
                                    for key, shown in columns))
     for name in names:
         cells = []
@@ -171,7 +171,7 @@ def main():
 
     if args.baseline and not args.smoke:
         for name in names:
-            new, old = best[name].get("foxlang"), best[name].get("foxlang_baseline", 0)
+            new, old = best[name].get("skrumi"), best[name].get("skrumi_baseline", 0)
             if old is None or new is None:
                 if new is None:
                     failures.append(f"{name}: the new build ran out of time")
@@ -189,7 +189,7 @@ def main():
             "benchmarks": [
                 {
                     "name": name,
-                    "about": describe(HERE / "foxlang" / (name + ".fox")),
+                    "about": describe(HERE / "skrumi" / (name + ".skm")),
                     "seconds": best[name],
                 }
                 for name in names

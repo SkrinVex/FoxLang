@@ -1,9 +1,9 @@
 #pragma once
-#include "foxlang/Context.h"
+#include "skrumi/Context.h"
 
-namespace foxlang::runtime { class Call; }
+namespace skrumi::runtime { class Call; }
 
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 struct Signature {
     std::string builtin, name, result;
     std::vector<FuncParam> params;
@@ -11,4 +11,4 @@ struct Signature {
     Value (*handler)(runtime::Call&);
 };
 const std::vector<Signature>& signatures();
-} // namespace foxlang::graphics
+} // namespace skrumi::graphics

@@ -323,7 +323,7 @@ const runtime = process.argv.includes("--runtime");
         () => document.querySelector("#count").textContent === "5",
       );
       // Preview is isolated from the visitor's existing playground program.
-      const storageKey = "foxlang-playground-files";
+      const storageKey = "skrumi-playground-files";
       await page.evaluate(
         (k) => localStorage.setItem(k, "untouched"),
         storageKey,
@@ -379,7 +379,7 @@ const runtime = process.argv.includes("--runtime");
               source: parent,
               origin: "https://other.invalid",
               data: {
-                type: "foxlang-builder-run",
+                type: "skrumi-builder-run",
                 files: { "main.skm": "print(123);", "layout.skm": "" },
               },
             }),

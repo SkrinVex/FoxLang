@@ -1,11 +1,11 @@
 #pragma once
 // What the language's operators, indexes and fields do to values, apart from the VM's
 // fast paths: the slow cases, the conversions and every error message.
-#include "foxlang/Context.h"
-#include "foxlang/Runtime.h"
+#include "skrumi/Context.h"
+#include "skrumi/Runtime.h"
 #include <string>
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 
 // A binary operator other than && and ||. `text` is the operator as written, for messages.
 Value binary(Operator op, const std::string& text, const Value& left, const Value& right);
@@ -55,4 +55,4 @@ inline bool binaryInts(Operator op, long long l, long long r, const std::string&
     }
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

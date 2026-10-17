@@ -15,7 +15,7 @@ version = (repo/'VERSION').read_text().strip()
 language = sys.argv[3] if len(sys.argv) > 3 else 'en'
 assert language in ('en', 'ru')
 if os.name != 'nt' and not os.environ.get('DISPLAY'):
-    if os.environ.get('FOXLANG_REQUIRE_GRAPHICS_TESTS') == '1':
+    if os.environ.get('SKRUMI_REQUIRE_GRAPHICS_TESTS') == '1':
         raise RuntimeError('DISPLAY is required')
     sys.exit(77)
 with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
@@ -138,7 +138,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         wait_for_finish()
         screenshot('completed')
         suffix = '.exe' if os.name == 'nt' else ''
-        for command in ('skrumi','foxlang'):
+        for command in ('skrumi','skrumi'):
             output = subprocess.check_output([str(target/(command+suffix)), '--version'], text=True)
             assert output.strip() == 'Skrumi '+version
         window.mouse(700,550); time.sleep(.05); window.mouse(700,550,True)

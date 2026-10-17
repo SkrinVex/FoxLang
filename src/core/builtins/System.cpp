@@ -1,10 +1,10 @@
 #ifdef __ANDROID__
-#include "foxlang/Android.h"
+#include "skrumi/Android.h"
 #endif
 // Builtins that talk to the operating system: files, environment, logging, time,
 // process information and the terminal.
 #include "Builtin.h"
-#include "foxlang/FoxLang.h"
+#include "skrumi/Skrumi.h"
 #include <algorithm>
 #include <chrono>
 #include <ctime>
@@ -14,7 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 namespace fs = std::filesystem;
 
@@ -49,7 +49,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
     // Files
     add({"read_file", "string", {{"string", "path"}}, 1, false, "",
          "Содержимое файла целиком, байт в байт. Если файл не открывается — пустая строка; "
-         "проверить наличие можно через `exists` из `using fs;`.\n\n```foxlang\nstring config = read_file(\"config.json\");\n```"},
+         "проверить наличие можно через `exists` из `using fs;`.\n\n```skrumi\nstring config = read_file(\"config.json\");\n```"},
         [](Call& c) {
             std::ifstream file(pathOf(c.text(0)), std::ios::binary);
             if (!file.is_open()) return text("");
@@ -124,7 +124,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
             return text(value);
         });
 
-    // Logging to stderr, filtered by FOXLANG_LOG_LEVEL
+    // Logging to stderr, filtered by SKRUMI_LOG_LEVEL
     add({"log_debug", "void", {{"string", "message"}}, 1, false, "log", "Сообщение уровня `[DEBUG]` в stderr."},
         [](Call& c) { return logLine(c, 10, "DEBUG"); });
     add({"log_info", "void", {{"string", "message"}}, 1, false, "log", "Сообщение уровня `[INFO]` в stderr."},
@@ -151,7 +151,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
         });
     add({"time_format", "string", {{"string", "pattern"}}, 1, false, "time",
          "Текущее локальное время по шаблону `strftime`: `%Y` год, `%m` месяц, `%d` день, `%H:%M:%S` время.\n\n"
-         "```foxlang\nprint(time_format(\"%Y-%m-%d %H:%M\"));\n```"},
+         "```skrumi\nprint(time_format(\"%Y-%m-%d %H:%M\"));\n```"},
         [](Call& c) {
             std::time_t now = std::time(nullptr);
             std::tm local{};
@@ -182,7 +182,7 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
 
     // Process
     add({"os_args", "array", {}, 0, false, "os",
-         "Пользовательские аргументы после имени программы: `skrumi app.skm a b` и `./app a b` дают `[a, b]`. Системные `--skrumi-*` (и прежние `--foxlang-*`) исключаются; после `--` аргументы передаются буквально."},
+         "Пользовательские аргументы после имени программы: `skrumi app.skm a b` и `./app a b` дают `[a, b]`. Системные `--skrumi-*` (и прежние `--skrumi-*`) исключаются; после `--` аргументы передаются буквально."},
         [](Call& c) {
             ValueList items;
             if (c.ctx.interpreter)
@@ -242,4 +242,4 @@ void addSystemBuiltins(std::vector<Builtin>& out) {
         [](Call&) { return terminal("\033[0m"); });
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

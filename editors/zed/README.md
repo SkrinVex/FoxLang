@@ -17,7 +17,7 @@
 
 ## Запуск программ
 
-Расширение добавляет задачи ([`languages/foxlang/tasks.json`](languages/foxlang/tasks.json)):
+Расширение добавляет задачи ([`languages/skrumi/tasks.json`](languages/skrumi/tasks.json)):
 «Skrumi: запустить», «Skrumi: проверить» и «Skrumi: собрать» для открытого файла.
 Откройте палитру команд и выполните `task: spawn`.
 
@@ -47,7 +47,7 @@
 
 1. Убедитесь, что `skrumi` и `skrumi-lsp` установлены в вашей системе (например, в `/usr/local/bin`):
    ```bash
-   foxlang-lsp --version
+   skrumi-lsp --version
    ```
 2. Откройте **Zed IDE**.
 3. Откройте командную палитру: `Ctrl+Shift+P` (Linux/Windows) или `Cmd+Shift+P` (macOS).
@@ -71,20 +71,20 @@
 ```json
 {
   "lsp": {
-    "foxlang-lsp": {
+    "skrumi-lsp": {
       "binary": {
-        "path": "foxlang-lsp",
+        "path": "skrumi-lsp",
         "arguments": ["--stdio"]
       }
     }
   },
   "languages": {
     "C": {
-      "language_servers": ["foxlang-lsp", "..."]
+      "language_servers": ["skrumi-lsp", "..."]
     }
   },
   "file_types": {
-    "C": ["skm", "fox"]
+    "C": ["skm", "skrumi"]
   }
 }
 ```
@@ -98,12 +98,12 @@
 ### Пошаговая инструкция:
 
 1. **Создайте отдельный публичный Git-репозиторий для расширения** (или используйте репозиторий Skrumi):
-   * Рекомендуется создать репозиторий на GitHub: `https://github.com/SkrinVex/zed-foxlang`.
+   * Рекомендуется создать репозиторий на GitHub: `https://github.com/SkrinVex/zed-skrumi`.
    * Скопируйте туда содержимое папки `editors/zed`:
      ```bash
-     git clone git@github.com:SkrinVex/zed-foxlang.git
-     cp -R /home/skrinvex/projects/Skrumi/editors/zed/* zed-foxlang/
-     cd zed-foxlang
+     git clone git@github.com:SkrinVex/zed-skrumi.git
+     cp -R /home/skrinvex/projects/Skrumi/editors/zed/* zed-skrumi/
+     cd zed-skrumi
      git add .
      git commit -m "feat: initial Skrumi extension for Zed"
      git push origin main
@@ -115,24 +115,24 @@
      ```bash
      git clone git@github.com:<ваш-юзернейм>/extensions.git
      cd extensions
-     git checkout -b add-foxlang
+     git checkout -b add-skrumi
      ```
 
 3. **Добавьте репозиторий расширения как Git Submodule**:
    * В каталоге вашего форка выполните команду (обязательно через HTTPS, не SSH!):
      ```bash
-     git submodule add https://github.com/SkrinVex/zed-foxlang.git extensions/foxlang
+     git submodule add https://github.com/SkrinVex/zed-skrumi.git extensions/skrumi
      ```
 
 4. **Закоммитьте и отправьте изменения**:
    ```bash
-   git add .gitmodules extensions/foxlang
+   git add .gitmodules extensions/skrumi
    git commit -m "Add Skrumi extension"
-   git push origin add-foxlang
+   git push origin add-skrumi
    ```
 
 5. **Откройте Pull Request**:
    * Перейдите в [github.com/zed-industries/extensions](https://github.com/zed-industries/extensions).
-   * GitHub предложит создать Pull Request из вашей ветки `add-foxlang`.
+   * GitHub предложит создать Pull Request из вашей ветки `add-skrumi`.
    * CI-боты Zed автоматически проверят `extension.toml`, скомпилируют WebAssembly-модуль и запустят тесты валидации.
    * После аппрува мейнтейнерами расширение сразу появится во встроенном каталоге расширений Zed (`Extensions` меню) для всех пользователей в мире!

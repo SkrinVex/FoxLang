@@ -1,5 +1,5 @@
 #include "../graphics/Font.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <curl/curl.h>
 #include <filesystem>
 #include <memory>
@@ -7,7 +7,7 @@
 #include "NetworkLicenses.h"
 #include "EmbeddedCertificates.h"
 
-namespace foxlang::platform {
+namespace skrumi::platform {
 namespace {
 struct CurlRuntime {
     CurlRuntime() {
@@ -54,7 +54,7 @@ HttpResponse httpRequest(const std::string& method, const std::string& url,
     option(CURLOPT_SSL_OPTIONS, static_cast<long>(CURLSSLOPT_REVOKE_BEST_EFFORT));
 #endif
     option(CURLOPT_CUSTOMREQUEST, method.c_str());
-    auto ca = configEnv("FOXLANG_CA_BUNDLE");
+    auto ca = configEnv("SKRUMI_CA_BUNDLE");
 #ifndef _WIN32
     if (ca.empty()) ca = getEnvVar("SSL_CERT_FILE");
 #endif
@@ -95,4 +95,4 @@ HttpResponse httpRequest(const std::string& method, const std::string& url,
 }
 
 const char* thirdPartyLicenses() { static const std::string value = std::string(networkLicenses()) + "\n" + graphics::fontLicense(); return value.c_str(); }
-} // namespace foxlang::platform
+} // namespace skrumi::platform

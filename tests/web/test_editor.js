@@ -45,8 +45,8 @@ const { chromium } = require('playwright');
         };
       });
       await page.goto(`http://127.0.0.1:${server.address().port}/playground/`);
-      const compatibility = await context.newPage();
-      await compatibility.addInitScript(() => {
+      const savedProject = await context.newPage();
+      await savedProject.addInitScript(() => {
         window.inputs = [];
         window.runs = [];
         window.Worker = class {
@@ -61,28 +61,28 @@ const { chromium } = require('playwright');
           terminate() {}
         };
       });
-      await compatibility.addInitScript(() => {
-        localStorage.setItem('foxlang-playground-files', JSON.stringify([
-          {name: 'main.fox', text: 'include("helper.skm");'},
+      await savedProject.addInitScript(() => {
+        localStorage.setItem('skrumi-playground-files', JSON.stringify([
+          {name: 'main.skm', text: 'include("helper.skm");'},
           {name: 'helper.skm', text: 'print(42);'}
         ]));
       });
-      await compatibility.goto(`http://127.0.0.1:${server.address().port}/playground/`);
-      await compatibility.waitForFunction(() => document.querySelector('#source').value.includes('helper.skm'));
-      await compatibility.locator('#run').click();
-      await compatibility.waitForFunction(() => window.runs.length > 0);
-      const legacyRun = await compatibility.evaluate(() => window.runs[0]);
-      assert.equal(legacyRun.entry, 'main.fox');
-      assert(legacyRun.files.some(file => file.name === 'helper.skm'));
-      await compatibility.locator('#examples').selectOption('modules');
-      await compatibility.waitForFunction(() => document.querySelector('#source').value.includes('using shapes'));
-      await compatibility.locator('#run').click();
-      await compatibility.waitForFunction(() => window.runs.length > 1);
-      const modernRun = await compatibility.evaluate(() => window.runs[1]);
-      assert.equal(modernRun.entry, 'main.skm');
-      assert(modernRun.files.every(file => file.name.endsWith('.skm')));
-      assert(await compatibility.locator('.brand img').evaluate(img => img.complete && img.naturalWidth > 0));
-      await compatibility.close();
+      await savedProject.goto(`http://127.0.0.1:${server.address().port}/playground/`);
+      await savedProject.waitForFunction(() => document.querySelector('#source').value.includes('helper.skm'));
+      await savedProject.locator('#run').click();
+      await savedProject.waitForFunction(() => window.runs.length > 0);
+      const savedRun = await savedProject.evaluate(() => window.runs[0]);
+      assert.equal(savedRun.entry, 'main.skm');
+      assert(savedRun.files.some(file => file.name === 'helper.skm'));
+      await savedProject.locator('#examples').selectOption('modules');
+      await savedProject.waitForFunction(() => document.querySelector('#source').value.includes('using shapes'));
+      await savedProject.locator('#run').click();
+      await savedProject.waitForFunction(() => window.runs.length > 1);
+      const exampleRun = await savedProject.evaluate(() => window.runs[1]);
+      assert.equal(exampleRun.entry, 'main.skm');
+      assert(exampleRun.files.every(file => file.name.endsWith('.skm')));
+      assert(await savedProject.locator('.brand img').evaluate(img => img.complete && img.naturalWidth > 0));
+      await savedProject.close();
       const source = page.locator('#source');
       await source.fill('print("' + 'long code '.repeat(60) + 'TAIL");\nprint("short");');
       await page.waitForTimeout(450); // Also exercise a checker-triggered render.

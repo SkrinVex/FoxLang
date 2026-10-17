@@ -19,7 +19,7 @@ def build_vsix(source_dir, output_vsix, version):
     pkg_version = pkg.get('version')
     if pkg_version != version:
         raise ValueError(f"VS Code version {pkg_version!r} does not match requested version {version!r}")
-    pkg_id = pkg.get('name', 'foxlang-language')
+    pkg_id = pkg.get('name', 'skrumi-language')
     pkg_publisher = pkg.get('publisher', 'SkrinVex')
     display_name = pkg.get('displayName', 'Skrumi Programming Language')
     description = pkg.get('description', 'Skrumi Language Support')
@@ -38,7 +38,7 @@ def build_vsix(source_dir, output_vsix, version):
     <Identity Id="{pkg_id}" Version="{pkg_version}" Language="en-US" Publisher="{pkg_publisher}"/>
     <DisplayName>{display_name}</DisplayName>
     <Description xml:space="preserve">{description}</Description>
-    <Tags>foxlang,fox,lsp,language server</Tags>
+    <Tags>skrumi,lsp,language server</Tags>
     <Categories>Programming Languages</Categories>
   </Metadata>
   <Installation>
@@ -68,5 +68,5 @@ def build_vsix(source_dir, output_vsix, version):
 if __name__ == '__main__':
     src = sys.argv[1] if len(sys.argv) > 1 else 'editors/vscode'
     ver = sys.argv[2] if len(sys.argv) > 2 else (Path(__file__).resolve().parents[1] / 'VERSION').read_text().strip()
-    out = sys.argv[3] if len(sys.argv) > 3 else f'foxlang-{ver}.vsix'
+    out = sys.argv[3] if len(sys.argv) > 3 else f'skrumi-{ver}.vsix'
     build_vsix(src, out, ver)

@@ -1,8 +1,8 @@
-#include "foxlang/Runtime.h"
-#include "foxlang/Bytecode.h"
-#include "foxlang/AST.h"
-#include "foxlang/Debug.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Runtime.h"
+#include "skrumi/Bytecode.h"
+#include "skrumi/AST.h"
+#include "skrumi/Debug.h"
+#include "skrumi/Platform.h"
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
@@ -16,7 +16,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace foxlang {
+namespace skrumi {
 namespace runtime {
 
 // Shortest text that reads back as the same double. std::to_string keeps only six
@@ -44,7 +44,7 @@ const std::string* internFile(const std::string& name) {
 std::string displayPath(const std::string& identity) {
     if (identity.rfind("@", 0) == 0) return identity.substr(1);
     // Editors that turn "file:line:" into links ask for full paths.
-    if (!platform::configEnv("FOXLANG_ABSOLUTE_PATHS").empty()) return identity;
+    if (!platform::configEnv("SKRUMI_ABSOLUTE_PATHS").empty()) return identity;
     namespace fs = std::filesystem;
     std::error_code ec;
     fs::path path = platform::pathFromUtf8(identity);
@@ -374,7 +374,7 @@ void coerce(const std::string& type, Value& value, const std::string& what) {
 }
 
 int getLogLevelThreshold() {
-    std::string raw = platform::configEnv("FOXLANG_LOG_LEVEL");
+    std::string raw = platform::configEnv("SKRUMI_LOG_LEVEL");
     std::string level = !raw.empty() ? raw : "info";
     std::transform(level.begin(), level.end(), level.begin(), [](unsigned char ch){ return static_cast<char>(std::tolower(ch)); });
     if (level == "debug") return 10;
@@ -942,7 +942,7 @@ void loadDotEnv(const std::string& scriptPath) {
     }
 }
 
-std::string resolveFoxFile(const std::string& requested, const std::string& currentFile, const std::string& foxHome) {
+std::string resolveSourceFile(const std::string& requested, const std::string& currentFile, const std::string& skrumiHome) {
     namespace fs = std::filesystem;
     std::vector<fs::path> candidates;
     fs::path req = fs::u8path(requested);
@@ -955,7 +955,7 @@ std::string resolveFoxFile(const std::string& requested, const std::string& curr
     }
     candidates.push_back(platform::pathFromUtf8(requested));
 
-    std::string home = foxHome.empty() ? platform::configEnv("FOXLANG_HOME") : foxHome;
+    std::string home = skrumiHome.empty() ? platform::configEnv("SKRUMI_HOME") : skrumiHome;
     if (!home.empty()) {
         candidates.push_back(platform::pathFromUtf8(home) / req);
         candidates.push_back(platform::pathFromUtf8(home) / "std" / req);
@@ -967,8 +967,8 @@ std::string resolveFoxFile(const std::string& requested, const std::string& curr
             return platform::pathToUtf8(fs::weakly_canonical(candidate, ec));
         }
     }
-    throw std::runtime_error("Module Error: File '" + requested + "' not found. Checked current file, working directory and SKRUMI_HOME (FOXLANG_HOME fallback).");
+    throw std::runtime_error("Module Error: File '" + requested + "' not found. Checked current file, working directory and SKRUMI_HOME.");
 }
 
 } // namespace runtime
-} // namespace foxlang
+} // namespace skrumi

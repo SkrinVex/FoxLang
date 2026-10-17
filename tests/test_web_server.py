@@ -32,12 +32,12 @@ def request(method, path, body=None, headers=None):
     return response, data
 
 
-with tempfile.TemporaryDirectory(prefix="fox-web-") as directory:
+with tempfile.TemporaryDirectory(prefix="skrumi-web-") as directory:
     site = Path(directory) / "сайт"
     # Data a local run of the example left behind is not part of the example.
     shutil.copytree(example, site, ignore=shutil.ignore_patterns("entries.txt", "uploads"))
-    env = dict(os.environ, PORT=str(port), FOXLANG_LOG_LEVEL="info")
-    process = subprocess.Popen([str(binary), "site.fox"], cwd=site, env=env,
+    env = dict(os.environ, PORT=str(port), SKRUMI_LOG_LEVEL="info")
+    process = subprocess.Popen([str(binary), "site.skm"], cwd=site, env=env,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         for _ in range(200):
@@ -79,7 +79,7 @@ with tempfile.TemporaryDirectory(prefix="fox-web-") as directory:
         assert response.status == 200 and response.getheader("Content-Type") == "text/css; charset=utf-8" and b"body" in css
         response, head = request("HEAD", "/static/style.css")
         assert response.status == 200 and head == b"" and int(response.getheader("Content-Length")) == len(css)
-        for forbidden in ("/static/../site.fox", "/static/%2e%2e/site.fox", "/static/..%2fsite.fox"):
+        for forbidden in ("/static/../site.skm", "/static/%2e%2e/site.skm", "/static/..%2fsite.skm"):
             response, _ = request("GET", forbidden)
             assert response.status == 404, forbidden
 
@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory(prefix="fox-web-") as directory:
         assert data == payload
         assert response.getheader("Content-Disposition") == \
             "attachment; filename=\"notesv1.txt\"; filename*=UTF-8''notesv1.txt"
-        response, _ = request("GET", "/download/..%2Fsite.fox")
+        response, _ = request("GET", "/download/..%2Fsite.skm")
         assert response.status == 404
         response, _ = request("DELETE", "/")
         assert response.status == 405 and response.getheader("Allow") == "GET"

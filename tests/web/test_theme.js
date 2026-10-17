@@ -30,7 +30,7 @@ const {chromium} = require('playwright');
       }
       const tokens = page => page.evaluate(() => {
         const s = getComputedStyle(document.documentElement);
-        return ['--bg','--surface','--ink','--fox','--body','--display'].map(k => s.getPropertyValue(k).trim());
+        return ['--bg','--surface','--ink','--skrumi','--body','--display'].map(k => s.getPropertyValue(k).trim());
       });
       for (const p of pages) assert.deepEqual(await tokens(p), await tokens(pages[0]));
       // A click must visibly change theme even when starting in system mode.

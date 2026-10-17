@@ -1,5 +1,5 @@
 #include "Image.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -12,7 +12,7 @@
 #include <windows.h>
 #endif
 
-namespace foxlang::bundle {
+namespace skrumi::bundle {
 namespace fs = std::filesystem;
 namespace {
 class TemporaryDirectory {
@@ -21,7 +21,7 @@ public:
     explicit TemporaryDirectory(const fs::path& parent) {
         std::random_device random;
         for (int i = 0; i < 64; ++i) {
-            auto candidate = parent / (".foxbuild-" + std::to_string(random()) + "-" + std::to_string(random()));
+            auto candidate = parent / (".skmbuild-" + std::to_string(random()) + "-" + std::to_string(random()));
             std::error_code ec;
             if (fs::create_directory(candidate, ec)) {
                 path = std::move(candidate);
@@ -104,4 +104,4 @@ void build(const fs::path& input, fs::path output, bool noConsole, const fs::pat
     fs::create_hard_link(candidate, output);
 #endif
 }
-} // namespace foxlang::bundle
+} // namespace skrumi::bundle

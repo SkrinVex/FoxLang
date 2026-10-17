@@ -1,6 +1,4 @@
 #include "skrumi/Skrumi.h"
-#include <type_traits>
-static_assert(std::is_same<skrumi::Interpreter, foxlang::Interpreter>::value, "C++ compatibility facade");
 #include <iostream>
 #include <cassert>
 
@@ -16,14 +14,14 @@ int main() {
     // CTest hides this output unless the test fails, and then it says which case a
     // crash stopped at on a platform this project cannot run locally.
     auto step = [](const char* what) { std::cout << "-> " << what << std::endl; };
-    foxlang::Interpreter interpreter;
+    skrumi::Interpreter interpreter;
 
     // 1. Basic execution and variable retrieval
     {
-        auto res = interpreter.runSource("int x = 40 + 2; string s = \"FoxLang\";");
+        auto res = interpreter.runSource("int x = 40 + 2; string s = \"Skrumi\";");
         TEST_ASSERT(res.success);
         TEST_ASSERT(interpreter.getGlobal("x").text() == "42");
-        TEST_ASSERT(interpreter.getGlobal("s").text() == "FoxLang");
+        TEST_ASSERT(interpreter.getGlobal("s").text() == "Skrumi");
     }
 
     // 2. Set global and use in script
@@ -80,8 +78,8 @@ int main() {
 
     // 7. Isolation between multiple Interpreter instances in same process
     {
-        foxlang::Interpreter interpA;
-        foxlang::Interpreter interpB;
+        skrumi::Interpreter interpA;
+        skrumi::Interpreter interpB;
 
         auto resA = interpA.runSource("int varA = 111; int getVal() { return 1000; }");
         auto resB = interpB.runSource("int varB = 222; int getVal() { return 2000; }");
@@ -108,7 +106,7 @@ int main() {
 
     // 8. Repeated runSource() on the same Interpreter
     {
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res1 = interp.runSource("int counter = 10; int addStep(int x) { return x + 5; }");
         TEST_ASSERT(res1.success);
 
@@ -123,7 +121,7 @@ int main() {
 
     // 9. Function defined inside nested block
     {
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         const char* code = R"(
             if (true) {
                 int nestedFunc(int val) {
@@ -139,7 +137,7 @@ int main() {
 
     // 10. Exception handling via public API
     {
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         // Syntax error
         auto resSyntax = interp.runSource("int x = ;");
         TEST_ASSERT(!resSyntax.success);
@@ -159,7 +157,7 @@ int main() {
         TEST_ASSERT(resUndef.errorMessage.find("Variable 'not_exists' not found") != std::string::npos);
 
         // Non-existent file
-        auto resFile = interp.runFile("non_existent_file_12345.fox");
+        auto resFile = interp.runFile("non_existent_file_12345.skm");
         TEST_ASSERT(!resFile.success);
         TEST_ASSERT(resFile.exitCode != 0);
         TEST_ASSERT(resFile.errorMessage.find("could not open file") != std::string::npos);
@@ -168,7 +166,7 @@ int main() {
     // 11. Float arithmetic keeps full double precision between operations
     {
         step("float precision");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource("float third = 1.0 / 3.0; float back = third * 3.0; float sum = 0.1 + 0.2;");
         TEST_ASSERT(res.success);
         TEST_ASSERT(interp.getGlobal("third").text() == "0.3333333333333333");
@@ -179,7 +177,7 @@ int main() {
     // 12. int stays inside its range instead of wrapping or leaking std::stoi
     {
         step("int range");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto tooBig = interp.runSource("int big = 3000000000;");
         TEST_ASSERT(!tooBig.success);
         TEST_ASSERT(tooBig.errorMessage.find("does not fit in int") != std::string::npos);
@@ -192,14 +190,14 @@ int main() {
     // 12b. A value is a kind and one word; strings and containers are shared, not copied
     {
         step("compact values");
-        static_assert(sizeof(foxlang::Value) == 16, "a value is a kind and one machine word");
-        foxlang::Value text = foxlang::Value::string("Лис");
-        foxlang::Value copy = text;
+        static_assert(sizeof(skrumi::Value) == 16, "a value is a kind and one machine word");
+        skrumi::Value text = skrumi::Value::string("Лис");
+        skrumi::Value copy = text;
         TEST_ASSERT(&copy.str() == &text.str());
-        TEST_ASSERT(foxlang::Value::integer(7).text() == "7" && foxlang::Value::real(2.5).text() == "2.5");
-        TEST_ASSERT(foxlang::Value::boolean(true).typeName() == "bool" && foxlang::Value().isVoid());
+        TEST_ASSERT(skrumi::Value::integer(7).text() == "7" && skrumi::Value::real(2.5).text() == "2.5");
+        TEST_ASSERT(skrumi::Value::boolean(true).typeName() == "bool" && skrumi::Value().isVoid());
 
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         interp.setGlobal("ratio", "float", "2.5");
         interp.setGlobal("ready", "bool", "true");
         auto res = interp.runSource("float twice = ratio * 2; bool go = ready && true; int huge = 99999999999999999999;");
@@ -218,7 +216,7 @@ int main() {
     // 13. Runtime errors name the line they happened on
     {
         step("error lines");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource("int ok = 1;\nint bad = 10 / 0;");
         TEST_ASSERT(!res.success);
         TEST_ASSERT(res.errorMessage.rfind("<eval>:2: Runtime Error: Division by zero", 0) == 0);
@@ -227,8 +225,8 @@ int main() {
     // 14. Runaway recursion is an error, not a stack overflow
     {
         step("recursion guard");
-        std::cout << "   stack budget: " << foxlang::platform::stackBudget() << " bytes" << std::endl;
-        foxlang::Interpreter interp;
+        std::cout << "   stack budget: " << skrumi::platform::stackBudget() << " bytes" << std::endl;
+        skrumi::Interpreter interp;
         auto res = interp.runSource("int forever(int n) { return forever(n + 1); } int r = forever(0);");
         TEST_ASSERT(!res.success);
         TEST_ASSERT(res.errorMessage.find("call depth limit") != std::string::npos);
@@ -237,7 +235,7 @@ int main() {
     // 15. Functions see globals, never the caller's locals
     {
         step("lexical scope");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         const char* code = R"(
             global int shared = 7;
             int readShared() { return shared; }
@@ -257,7 +255,7 @@ int main() {
     // 16. Array buffers are released with their scope and on re-declaration
     {
         step("array lifetime");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource(R"(
             void churn() { array tmp 16; set(tmp, 0, 1); }
             void loop() { int i = 0; while (i < 500) { array local 16; churn(); i++; } }
@@ -274,12 +272,12 @@ int main() {
     // 17. A block is a scope of its own, and the program top level is not
     {
         step("block scope");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto leak = interp.runSource("int i = 0; while (i < 1) { int inner = 5; i++; } int seen = inner;");
         TEST_ASSERT(!leak.success);
         TEST_ASSERT(leak.errorMessage.find("Variable 'inner' not found") != std::string::npos);
 
-        foxlang::Interpreter globals;
+        skrumi::Interpreter globals;
         auto top = globals.runSource("int kept = 3; { int hidden = 4; kept = kept + hidden; }");
         TEST_ASSERT(top.success);
         TEST_ASSERT(globals.getGlobal("kept").text() == "7");
@@ -292,7 +290,7 @@ int main() {
     // 18. && and || stop before evaluating the right side
     {
         step("short circuit");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource(
             "int zero = 0; bool guarded = zero != 0 && 10 / zero > 1; bool other = zero == 0 || 10 / zero > 1;");
         TEST_ASSERT(res.success);
@@ -303,7 +301,7 @@ int main() {
     // 19. A number carries its binary form but still prints the text it always did
     {
         step("number text");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource(
             "int n = 21 * 2; string label = \"n = \" + n;"
             "float quarter = 1.0 / 4.0; string shown = \"\" + quarter;"
@@ -319,7 +317,7 @@ int main() {
     // 20. The recursion guard is only as good as the stack size it is told about
     {
         step("stack budget");
-        size_t budget = foxlang::platform::stackBudget();
+        size_t budget = skrumi::platform::stackBudget();
         if (budget < (256u << 10) || budget > (48u << 20)) {
             std::cerr << "FAIL: stack budget " << budget << " bytes is not believable" << std::endl;
             return 1;
@@ -329,7 +327,7 @@ int main() {
     // 21. exit(code) ends the program with that code and no error message
     {
         step("exit");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource("int before = 1; exit(4); int after = 2;");
         TEST_ASSERT(!res.success && res.exitCode == 4 && res.errorMessage.empty());
         TEST_ASSERT(interp.getGlobal("before").text() == "1");
@@ -340,9 +338,9 @@ int main() {
     // 22. Embedders pass command-line arguments through the options
     {
         step("arguments");
-        foxlang::InterpreterOptions options;
+        skrumi::InterpreterOptions options;
         options.arguments = {"alpha", "бета"};
-        foxlang::Interpreter interp(options);
+        skrumi::Interpreter interp(options);
         auto res = interp.runSource("array list = os_args(); int count = size(list); string second = list[1];");
         TEST_ASSERT(res.success);
         TEST_ASSERT(interp.getGlobal("count").text() == "2");
@@ -352,7 +350,7 @@ int main() {
     // 23. return outside a function is an error, not a crash
     {
         step("top-level return");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource("return 1;");
         TEST_ASSERT(!res.success && res.errorMessage.find("outside of a function") != std::string::npos);
     }
@@ -360,7 +358,7 @@ int main() {
     // 24. Temporary arrays die with the scope that made them
     {
         step("array ownership");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource(
             "array make(int n) { array r; for (int i = 0; i < n; i++) { push(r, i); } return r; }"
             "for (int i = 0; i < 500; i++) { array parts = str_split(\"a,b\", \",\"); array made = make(3); int n = size(make(2)); }");
@@ -372,7 +370,7 @@ int main() {
     // 25. Parameters and results convert to their declared types
     {
         step("typed calls");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource(
             "float half(int v) { return v / 2; } string tag(string s) { return \"<\" + s + \">\"; }"
             "float h = half(7); string t = tag(5); string kind = type_of(half(7));");
@@ -386,10 +384,10 @@ int main() {
         TEST_ASSERT(!missing.success && missing.errorMessage.find("ended without a value") != std::string::npos);
     }
 
-    // 26. A builtin and a FoxLang function may share a name; the arguments decide
+    // 26. A builtin and a Skrumi function may share a name; the arguments decide
     {
         step("builtin overloads");
-        foxlang::Interpreter interp;
+        skrumi::Interpreter interp;
         auto res = interp.runSource(
             "string routed = \"\"; void get(string path, string handler) { routed = path + \"->\" + handler; }"
             "array items = [10, 20]; int second = get(items, 1); get(\"/health\", \"health\");");
@@ -401,18 +399,18 @@ int main() {
     // 27. Every builtin in the catalog can be found and describes itself
     {
         step("builtin catalog");
-        const auto& catalog = foxlang::builtinCatalog();
+        const auto& catalog = skrumi::builtinCatalog();
         TEST_ASSERT(catalog.size() > 100);
         for (const auto& spec : catalog) {
-            TEST_ASSERT(foxlang::runtime::isBuiltin(spec.name));
+            TEST_ASSERT(skrumi::runtime::isBuiltin(spec.name));
             TEST_ASSERT(!spec.documentation.empty());
             TEST_ASSERT(spec.required <= spec.params.size());
             TEST_ASSERT(spec.signature().rfind(spec.name + "(", 0) == 0);
         }
-        TEST_ASSERT(foxlang::findBuiltinSpec("input")->signature() == "input([string prompt]) -> string");
-        TEST_ASSERT(foxlang::findBuiltinSpec("print")->signature() == "print(any values...) -> void");
+        TEST_ASSERT(skrumi::findBuiltinSpec("input")->signature() == "input([string prompt]) -> string");
+        TEST_ASSERT(skrumi::findBuiltinSpec("print")->signature() == "print(any values...) -> void");
         for (const char* removed : {"httpget", "httppost", "fox", "readfile", "str_to_int", "route_get", "send_response"})
-            TEST_ASSERT(!foxlang::runtime::isBuiltin(removed));
+            TEST_ASSERT(!skrumi::runtime::isBuiltin(removed));
     }
 
     std::cout << "TEST_INTERPRETER_OK" << std::endl;

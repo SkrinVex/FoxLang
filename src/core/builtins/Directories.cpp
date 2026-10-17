@@ -1,5 +1,5 @@
 #include "Builtin.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <filesystem>
 #include <stdexcept>
 #ifdef _WIN32
@@ -12,7 +12,7 @@
 #include <pwd.h>
 #include <unistd.h>
 #endif
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 namespace fs = std::filesystem;
 std::string directory(const std::string& kind) {

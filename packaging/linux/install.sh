@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PREFIX="${SKRUMI_PREFIX:-${FOXLANG_PREFIX:-$HOME/.local}}"
+PREFIX="${SKRUMI_PREFIX:-$HOME/.local}"
 LIBDIR="$PREFIX/share/skrumi"
 BINDIR="$PREFIX/bin"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,13 +19,11 @@ if [ -d "$LIBDIR" ]; then
     echo "Installation contains modified or additional files; preserve it and choose a new SKRUMI_PREFIX." >&2; exit 1
   fi
 fi
-for command in skrumi skrumi-lsp foxlang foxlang-lsp; do
+for command in skrumi skrumi-lsp; do
   target="$BINDIR/$command"
   if [ -e "$target" ] || [ -L "$target" ]; then
-    # Only replace launchers owned by this installer or the previous FoxLang installer.
-    if ! cmp -s "$target" "$LIBDIR/launchers/$command" &&
-       ! grep -Fq "$PREFIX/share/skrumi/" "$target" 2>/dev/null &&
-       ! grep -Fq "$PREFIX/share/foxlang/" "$target" 2>/dev/null; then
+    # Only replace launchers owned by this installer.
+    if ! cmp -s "$target" "$LIBDIR/launchers/$command"; then
       echo "Refusing to overwrite another command: $target" >&2; exit 1
     fi
   fi
@@ -57,10 +55,8 @@ write_launcher() {
   chmod +x "$BINDIR/$1"
 }
 write_launcher skrumi skrumi
-write_launcher foxlang skrumi
 if [ -f "$LIBDIR/skrumi-lsp" ]; then
   write_launcher skrumi-lsp skrumi-lsp
-  write_launcher foxlang-lsp skrumi-lsp
 fi
 
 # 1. Автоматическая настройка редактора Kate (KDE)
@@ -68,12 +64,12 @@ KATE_SYNTAX_DIR="$HOME/.local/share/org.kde.syntax-highlighting/syntax"
 KATE_LSP_DIR="$HOME/.config/kate/lspclient"
 mkdir -p "$KATE_SYNTAX_DIR" "$KATE_LSP_DIR"
 
-if [ -f "$HERE/editors/kate/foxlang.xml" ] && {
-  [ ! -e "$KATE_SYNTAX_DIR/foxlang.xml" ] ||
-  grep -q 'author="SkrinVex"' "$KATE_SYNTAX_DIR/foxlang.xml";
+if [ -f "$HERE/editors/kate/skrumi.xml" ] && {
+  [ ! -e "$KATE_SYNTAX_DIR/skrumi.xml" ] ||
+  grep -q 'author="SkrinVex"' "$KATE_SYNTAX_DIR/skrumi.xml";
 }; then
-  cp "$HERE/editors/kate/foxlang.xml" "$KATE_SYNTAX_DIR/foxlang.xml"
-  echo "✔ Подсветка синтаксиса для Kate установлена в $KATE_SYNTAX_DIR/foxlang.xml"
+  cp "$HERE/editors/kate/skrumi.xml" "$KATE_SYNTAX_DIR/skrumi.xml"
+  echo "✔ Подсветка синтаксиса для Kate установлена в $KATE_SYNTAX_DIR/skrumi.xml"
 fi
 
 # Внешние инструменты Kate: запуск, проверка и сборка текущего файла (меню Сервис).
@@ -89,16 +85,16 @@ if [ -d "$HERE/editors/kate/externaltools" ]; then
   echo "✔ Инструменты Kate (Сервис → Внешние инструменты → Skrumi) установлены в $KATE_TOOLS_DIR"
 fi
 
-# Отладчик Kate (плагин «Отладчик»): адаптер foxlang debug-adapter.
+# Отладчик Kate (плагин «Отладчик»): адаптер skrumi debug-adapter.
 KATE_DAP_DIR="$HOME/.config/kate/debugger"
 if [ -f "$HERE/editors/kate/dap.json" ]; then
   mkdir -p "$KATE_DAP_DIR"
   if [ ! -f "$KATE_DAP_DIR/dap.json" ]; then
     cp "$HERE/editors/kate/dap.json" "$KATE_DAP_DIR/dap.json"
     echo "✔ Отладчик Skrumi для Kate настроен в $KATE_DAP_DIR/dap.json"
-  elif ! grep -q '"foxlang"' "$KATE_DAP_DIR/dap.json" 2>/dev/null; then
+  elif ! grep -q '"skrumi"' "$KATE_DAP_DIR/dap.json" 2>/dev/null; then
     cp "$HERE/editors/kate/dap.json" "$LIBDIR/kate-dap.json"
-    echo "ℹ Настройки отладчика Kate сохранены в $LIBDIR/kate-dap.json (добавьте секцию 'foxlang' в $KATE_DAP_DIR/dap.json)"
+    echo "ℹ Настройки отладчика Kate сохранены в $LIBDIR/kate-dap.json (добавьте секцию 'skrumi' в $KATE_DAP_DIR/dap.json)"
   else
     echo "✔ Отладчик Skrumi для Kate уже настроен в $KATE_DAP_DIR/dap.json"
   fi
@@ -109,9 +105,9 @@ if [ -f "$HERE/editors/kate/settings.json" ]; then
     cp "$HERE/editors/kate/settings.json" "$KATE_LSP_DIR/settings.json"
     echo "✔ Конфигурация LSP для Kate создана в $KATE_LSP_DIR/settings.json"
   else
-    if ! grep -q '"foxlang"' "$KATE_LSP_DIR/settings.json" 2>/dev/null; then
+    if ! grep -q '"skrumi"' "$KATE_LSP_DIR/settings.json" 2>/dev/null; then
       cp "$HERE/editors/kate/settings.json" "$LIBDIR/kate-lsp-settings.json"
-      echo "ℹ Конфигурация Kate LSP сохранена в $LIBDIR/kate-lsp-settings.json (добавьте секцию 'foxlang' в $KATE_LSP_DIR/settings.json)"
+      echo "ℹ Конфигурация Kate LSP сохранена в $LIBDIR/kate-lsp-settings.json (добавьте секцию 'skrumi' в $KATE_LSP_DIR/settings.json)"
     else
       echo "✔ Конфигурация Kate LSP уже настроена в $KATE_LSP_DIR/settings.json"
     fi
@@ -154,7 +150,7 @@ for ext_base in "${EXTENSION_TARGET_BASES[@]}"; do
   parent_dir="$(dirname "$ext_base")"
   if [ -d "$parent_dir" ] || [ -d "$ext_base" ]; then
     mkdir -p "$ext_base"
-    TARGET_EXT_DIR="$ext_base/SkrinVex.foxlang-language-$VERSION"
+    TARGET_EXT_DIR="$ext_base/SkrinVex.skrumi-language-$VERSION"
 
     # Удаляем старые или некорректно названные версии
 
@@ -179,7 +175,7 @@ if [ -d "$HOME/.config/zed" ]; then
     cat > "$ZED_SETTINGS" <<'ZED_EOF'
 {
   "lsp": {
-    "foxlang-lsp": {
+    "skrumi-lsp": {
       "binary": {
         "path": "skrumi-lsp",
         "arguments": ["--stdio"]
@@ -188,11 +184,11 @@ if [ -d "$HOME/.config/zed" ]; then
   },
   "languages": {
     "C": {
-      "language_servers": ["foxlang-lsp", "..."]
+      "language_servers": ["skrumi-lsp", "..."]
     }
   },
   "file_types": {
-    "C": ["skm", "fox"]
+    "C": ["skm"]
   }
 }
 ZED_EOF
@@ -211,7 +207,7 @@ if [ ! -f "$LIBDIR/.skrumi-files.sha256" ] ||
    [ "$(find "$LIBDIR" -type f ! -name .skrumi-files.sha256 | wc -l)" -ne "$(wc -l < "$LIBDIR/.skrumi-files.sha256")" ]; then
   echo "Installation contains modified or additional files; nothing was removed." >&2; exit 1
 fi
-for command in skrumi skrumi-lsp foxlang foxlang-lsp; do
+for command in skrumi skrumi-lsp; do
   if grep -Fq "SKRUMI_HOME=" "$BINDIR/$command" 2>/dev/null &&
      cmp -s "$BINDIR/$command" "$LIBDIR/launchers/$command"; then
     rm -f "$BINDIR/$command"
@@ -222,7 +218,7 @@ echo "Skrumi removed. Editor settings and extensions were preserved."
 EOF
 } > "$LIBDIR/uninstall.sh"
 mkdir -p "$LIBDIR/launchers"
-for command in skrumi skrumi-lsp foxlang foxlang-lsp; do
+for command in skrumi skrumi-lsp; do
   if [ -f "$BINDIR/$command" ]; then cp "$BINDIR/$command" "$LIBDIR/launchers/$command"; fi
 done
 chmod +x "$LIBDIR/uninstall.sh"
@@ -241,7 +237,7 @@ echo "  • VS Code: расширение установлено (подсвет
 echo "  • Zed IDE: dev-расширение в $LIBDIR/editors/zed (zed: install dev extension)."
 case ":$PATH:" in
   *":$BINDIR:"*) ;;
-  *) echo "" && echo "Внимание: добавьте $BINDIR в переменную PATH, если команды foxlang и foxlang-lsp пока не находятся." ;;
+  *) echo "" && echo "Внимание: добавьте $BINDIR в переменную PATH, если команды skrumi и skrumi-lsp пока не находятся." ;;
 esac
 
 # Refuse future upgrades/uninstalls if a user adds or modifies installation files.

@@ -1,7 +1,7 @@
 """The documentation describes the language as it is, not as it was.
 
-1. Every ```cpp block of FoxLang code in README.md, DOCUMENTATION.md and docs/*.md
-   passes `foxlang check` (blocks with #include are C++ embedding code and skipped).
+1. Every ```cpp block of Skrumi code in README.md, DOCUMENTATION.md and docs/*.md
+   passes `skrumi check` (blocks with #include are C++ embedding code and skipped).
 2. DOCUMENTATION.md mentions every builtin function and every function a std module
    exports, and has a section for every std module.
 """
@@ -23,8 +23,8 @@ spec.loader.exec_module(catalog)
 documents = [root / "README.md", root / "DOCUMENTATION.md", *sorted((root / "docs").glob("*.md"))]
 failures = []
 checked = 0
-with tempfile.TemporaryDirectory(prefix="fox-docs-test-") as directory:
-    env = dict(os.environ, FOXLANG_HOME=str(Path(directory) / "absent"))
+with tempfile.TemporaryDirectory(prefix="skrumi-docs-test-") as directory:
+    env = dict(os.environ, SKRUMI_HOME=str(Path(directory) / "absent"))
     for document in documents:
         text = document.read_text(encoding="utf-8")
         for match in re.finditer(r"```cpp\n(.*?)```", text, re.S):

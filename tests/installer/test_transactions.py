@@ -257,7 +257,7 @@ try {{
     (legacy/'data').mkdir(parents=True)
     (legacy/('skrumi'+suffix)).write_bytes(binary.read_bytes())
     (legacy/('skrumi'+suffix)).chmod(0o755)
-    (legacy/'data/old.fox').write_text('legacy owned source', encoding='utf-8')
+    (legacy/'data/old.skm').write_text('legacy owned source', encoding='utf-8')
     (legacy/'.skrumi-install').write_text(version+'\n', encoding='utf-8')
     entries = [(p.relative_to(legacy).as_posix(), hashlib.sha256(p.read_bytes()).hexdigest())
                for p in sorted(legacy.rglob('*')) if p.is_file()]
@@ -266,16 +266,16 @@ try {{
             for name, digest in entries]), encoding='utf-8-sig')
     else:
         (legacy/'.skrumi-files.sha256').write_text(''.join(digest+'  ./'+name+'\n' for name,digest in entries), encoding='utf-8')
-    (legacy/'user-project.fox').write_text('preserve old project', encoding='utf-8')
+    (legacy/'user-project.skm').write_text('preserve old project', encoding='utf-8')
     before_legacy = {p.relative_to(legacy): p.read_bytes() for p in legacy.rglob('*') if p.is_file()}
     run(broken, 'install', legacy, ok=False)
     assert {p.relative_to(legacy): p.read_bytes() for p in legacy.rglob('*') if p.is_file()} == before_legacy
     run(first, 'install', legacy)
     assert (legacy/'data/tool.txt').read_text() == 'first'
-    assert not (legacy/'data/old.fox').exists() and not (legacy/'.skrumi-install').exists()
-    assert (legacy/'user-project.fox').read_text() == 'preserve old project'
+    assert not (legacy/'data/old.skm').exists() and not (legacy/'.skrumi-install').exists()
+    assert (legacy/'user-project.skm').read_text() == 'preserve old project'
     run(first, 'uninstall', legacy)
-    assert (legacy/'user-project.fox').exists()
+    assert (legacy/'user-project.skm').exists()
     # Changed managed files block update but survive uninstall as user data.
     (target/'data/tool.txt').write_text('user edit')
     run(first, 'install', target, ok=False)

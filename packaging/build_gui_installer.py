@@ -61,9 +61,11 @@ def build(binary, lsp, output):
         if lsp_version != 'skrumi-lsp ' + version:
             raise ValueError('Language server VERSION mismatch')
         payload = resources/'payload'; payload.mkdir()
-        for name, source in [('skrumi',binary), ('foxlang',binary), ('skrumi-lsp',lsp), ('foxlang-lsp',lsp)]:
+        for name, source in [('skrumi',binary), ('skrumi-lsp',lsp)]:
             shutil.copyfile(source, payload/(name+suffix))
-        shutil.copytree(ROOT/'std', payload/'std')
+        (payload/'std').mkdir()
+        for module in sorted((ROOT/'std').glob('*.skm')):
+            shutil.copyfile(module, payload/'std'/module.name)
         def describe(folder, records, mode):
             (folder/'manifest.json').write_text(json.dumps([version,platform,arch,records]), encoding='utf-8')
             (folder/'installer-mode').write_text(mode, encoding='utf-8')

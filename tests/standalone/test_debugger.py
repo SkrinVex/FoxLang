@@ -118,7 +118,7 @@ def stdio_session(workdir):
 
 
 def start(dap, program, breakpoints, stop_on_entry=False, errors=True, filters=None):
-    caps = dap.request('initialize', {'adapterID': 'foxlang', 'linesStartAt1': True, 'columnsStartAt1': True})
+    caps = dap.request('initialize', {'adapterID': 'skrumi', 'linesStartAt1': True, 'columnsStartAt1': True})
     assert caps['supportsConditionalBreakpoints'] and caps['supportsLogPoints'] and caps['supportsSetVariable']
     dap.event('initialized')
     dap.request('launch', {'program': str(program), 'cwd': str(program.parent), 'stopOnEntry': stop_on_entry})
@@ -186,11 +186,11 @@ void run() {
 run();
 '''
 
-with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
+with tempfile.TemporaryDirectory(prefix='skrumi-debug-') as directory:
     workdir = Path(directory)
 
     # Breakpoints, the stack, variables and stepping, over stdio.
-    program = workdir / 'main.fox'
+    program = workdir / 'main.skm'
     program.write_text(STEPPING, encoding='utf-8')
     process, dap = stdio_session(workdir)
     placed = start(dap, program, [{'line': 4, 'condition': 'n == 3'}, {'line': 7}, {'line': 13}])
@@ -201,7 +201,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     dap.request('continue', {'threadId': 1})
     _, frames = dap.stopped('breakpoint', 4)
     assert [f['name'] for f in frames] == ['square', 'программа'], frames
-    assert frames[1]['line'] == 11 and frames[0]['source']['path'].endswith('main.fox'), frames
+    assert frames[1]['line'] == 11 and frames[0]['source']['path'].endswith('main.skm'), frames
     scopes = dap.locals(frames[0]['id'])
     assert scopes['Локальные']['n']['value'] == '3' and 'result' not in scopes['Локальные'], scopes
     assert dap.evaluate('n * 10', frames[0]['id']) == '30'
@@ -234,7 +234,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     assert 'total 100\n' in dap.output() and 'лиса\n' in dap.output(), dap.output()
 
     # Stop on entry, a logpoint, a hit count and a runtime error.
-    program = workdir / 'errors.fox'
+    program = workdir / 'errors.skm'
     program.write_text(ERRORS, encoding='utf-8')
     process, dap = stdio_session(workdir)
     start(dap, program, [{'line': 6, 'logMessage': 'лог {i}'}, {'line': 7, 'hitCondition': '2'}], stop_on_entry=True)
@@ -256,7 +256,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
 
     # A call from a loop condition: the loop body's scope is gone, the caller's frame
     # shows the function's own variables.
-    program = workdir / 'scopes.fox'
+    program = workdir / 'scopes.skm'
     program.write_text(SCOPES, encoding='utf-8')
     process, dap = stdio_session(workdir)
     start(dap, program, [{'line': 2, 'hitCondition': '2'}])
@@ -268,8 +268,8 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     finish(process, dap, 0)
 
     # Stepping into a function of a standard module: its text comes from the adapter
-    # when the module is built into foxlang.
-    program = workdir / 'module.fox'
+    # when the module is built into skrumi.
+    program = workdir / 'module.skm'
     program.write_text('using fs;\nstring s = format_bytes(2048);\nprint(s);\n', encoding='utf-8')
     process, dap = stdio_session(workdir)
     start(dap, program, [], stop_on_entry=True)
@@ -292,7 +292,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
 
     # An error inside try stops only with the "caught" filter; a map and a struct
     # open up in the variables view.
-    program = workdir / 'caught.fox'
+    program = workdir / 'caught.skm'
     program.write_text('struct Point {\n    int x;\n    int y;\n}\nmap m = {"a": [1, 2]};\nPoint p = Point(3, 4);\n'
                        'try {\n    int z = 0;\n    int r = 1 / z;\n} catch (e) {\n    print("caught " + e);\n}\n', encoding='utf-8')
     for filters, stops in ((['uncaught'], False), (['uncaught', 'caught'], True)):
@@ -314,7 +314,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
 
     # A breakpoint inside a method shows `this` and the arguments; one inside a lambda
     # shows its parameters and the function it was called from.
-    program = workdir / 'methods.fox'
+    program = workdir / 'methods.skm'
     program.write_text('struct Point {\n    int x;\n    void move(int dx) {\n        this.x += dx;\n    }\n}\n'
                        'Point p = Point(1);\np.move(5);\nint base = 100;\nfunc add = (int v) => {\n'
                        '    return v + base;\n};\nprint(p.x, add(2));\n', encoding='utf-8')
@@ -335,7 +335,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     assert '6 102' in dap.output(), dap.output()
 
     # A local holding null is shown; one whose declaration has not run yet is not.
-    program = workdir / 'nulls.fox'
+    program = workdir / 'nulls.skm'
     program.write_text('void show() {\n    string? nick = null;\n    int count = 1;\n    print(nick ?? "-", count);\n}\nshow();\n',
                        encoding='utf-8')
     process, dap = stdio_session(workdir)
@@ -347,7 +347,7 @@ with tempfile.TemporaryDirectory(prefix='fox-debug-') as directory:
     finish(process, dap, 0)
 
     # Over TCP the program keeps its terminal: input() reads it, print() writes to it.
-    program = workdir / 'pause.fox'
+    program = workdir / 'pause.skm'
     program.write_text(PAUSE, encoding='utf-8')
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.bind(('127.0.0.1', 0))

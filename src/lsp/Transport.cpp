@@ -1,7 +1,7 @@
 #include "Transport.h"
 #include <sstream>
 
-namespace foxlang {
+namespace skrumi {
 namespace lsp {
 
 bool Transport::readMessage(std::istream& in, std::string& message) {
@@ -50,4 +50,4 @@ void Transport::log(const std::string& msg) {
 }
 
 } // namespace lsp
-} // namespace foxlang
+} // namespace skrumi

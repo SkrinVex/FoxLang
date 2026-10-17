@@ -19,7 +19,7 @@ EVENT = re.compile(
     r"^\s*.+-(\d+)\s+(?:\([^)]*\)\s+)?\[\d+\]\s+\S+\s+"
     r"(\d+\.\d+):\s+(?:tracing_mark_write|trace_marker):\s+([BE])(?:\|(.*))?$"
 )
-STAGES = ("FoxLang.present", "FoxLang.frame.copy", "FoxView.upload", "FoxView.draw")
+STAGES = ("Skrumi.present", "Skrumi.frame.copy", "SkrumiView.upload", "SkrumiView.draw")
 
 
 def summarize(trace):
@@ -39,13 +39,13 @@ def summarize(trace):
                 stacks[tid].append((payload.split("|", 1)[1], stamp))
         elif stacks[tid]:
             name, start = stacks[tid].pop()
-            stage = "FoxLang.present" if name.startswith("FoxLang.present ") else name
+            stage = "Skrumi.present" if name.startswith("Skrumi.present ") else name
             if stage in STAGES and stamp >= start:
                 durations[stage].append((stamp - start) * 1000)
-                if stage == "FoxLang.present":
-                    dimensions[name.removeprefix("FoxLang.present ")] += 1
+                if stage == "Skrumi.present":
+                    dimensions[name.removeprefix("Skrumi.present ")] += 1
     for stack in stacks.values():
-        unfinished += sum(name in STAGES or name.startswith("FoxLang.present ") for name, _ in stack)
+        unfinished += sum(name in STAGES or name.startswith("Skrumi.present ") for name, _ in stack)
     missing = [name for name in STAGES if not durations[name]]
     if missing:
         raise ValueError("Trace has no completed sections for " + ", ".join(missing) +
@@ -97,7 +97,7 @@ def capture(args):
     metadata["display"] = command("shell", "wm", "size").strip()
     metadata["density"] = command("shell", "wm", "density").strip()
     args.output.mkdir(parents=True, exist_ok=True)
-    command("shell", "am", "start", "-W", "-S", "-n", args.package + "/org.foxlang.runner.MainActivity")
+    command("shell", "am", "start", "-W", "-S", "-n", args.package + "/org.skrumi.runner.MainActivity")
     time.sleep(args.warmup)
     (args.output / "memory-before.txt").write_text(command("shell", "dumpsys", "meminfo", args.package), encoding="utf-8")
     command("shell", "atrace", "--async_start", "-b", "32768", "-a", args.package)
@@ -115,7 +115,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--serial", help="adb device serial, required if several devices are connected")
-    parser.add_argument("--package", default="org.foxlang.raycaster")
+    parser.add_argument("--package", default="org.skrumi.raycaster")
     parser.add_argument("--seconds", type=positive, default=10)
     parser.add_argument("--warmup", type=positive, default=5)
     parser.add_argument("--output", type=Path, default=Path("build/android-profile"))

@@ -16,7 +16,7 @@ from native_window import NativeWindow
 
 binary = Path(sys.argv[1]).resolve()
 if os.name != 'nt' and not os.environ.get('DISPLAY'):
-    if os.environ.get('FOXLANG_REQUIRE_GRAPHICS_TESTS') == '1':
+    if os.environ.get('SKRUMI_REQUIRE_GRAPHICS_TESTS') == '1':
         raise RuntimeError('Interface tests require an X server (run under xvfb-run)')
     print('SKIP: no DISPLAY; use xvfb-run or a desktop session')
     sys.exit(77)
@@ -148,11 +148,11 @@ def click(driver, workdir, x, y):
     settle(workdir, 2)
 
 
-with tempfile.TemporaryDirectory(prefix='fox-ui-') as directory:
+with tempfile.TemporaryDirectory(prefix='skrumi-ui-') as directory:
     workdir = Path(directory)
     title = 'Fox UI Test ' + workdir.name
-    (workdir / 'main.fox').write_text(PROGRAM.replace('TITLE', title), encoding='utf-8')
-    process = subprocess.Popen([str(binary), 'main.fox'], cwd=workdir, stdout=subprocess.PIPE,
+    (workdir / 'main.skm').write_text(PROGRAM.replace('TITLE', title), encoding='utf-8')
+    process = subprocess.Popen([str(binary), 'main.skm'], cwd=workdir, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, text=True, encoding='utf-8')
     driver = None
     def report(error):

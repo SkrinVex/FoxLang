@@ -1,6 +1,6 @@
 // General current-user string registry operations; application policy stays in Skrumi.
 #include "Builtin.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <stdexcept>
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -8,7 +8,7 @@
 #endif
 #include <windows.h>
 #endif
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 #ifdef _WIN32
 struct Key { HKEY value = nullptr; ~Key() { if (value) RegCloseKey(value); } };

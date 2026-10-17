@@ -1,12 +1,12 @@
 #pragma once
-#include "foxlang/SourceProvider.h"
+#include "skrumi/SourceProvider.h"
 #include <cstdint>
 #include <map>
 #include <string>
 #include <tuple>
 #include <vector>
 
-namespace foxlang::bundle {
+namespace skrumi::bundle {
 
 using Bytes = std::vector<unsigned char>;
 constexpr std::size_t maxPayload = 64 * 1024 * 1024;
@@ -32,4 +32,4 @@ Sources decode(const Bytes& bytes);
 std::uint32_t checksum(const Bytes& bytes);
 Sources collect(const std::string& entry, const SourceProvider& provider);
 
-} // namespace foxlang::bundle
+} // namespace skrumi::bundle

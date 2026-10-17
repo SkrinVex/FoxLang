@@ -10,7 +10,7 @@ from native_window import NativeWindow
 
 binary = str(Path(sys.argv[1]).resolve())
 if os.name != 'nt' and not os.environ.get('DISPLAY'):
-    if os.environ.get('FOXLANG_REQUIRE_GRAPHICS_TESTS') == '1':
+    if os.environ.get('SKRUMI_REQUIRE_GRAPHICS_TESTS') == '1':
         raise RuntimeError('Window tests require Xvfb or a desktop session')
     sys.exit(77)
 
@@ -26,7 +26,7 @@ def wait_for(predicate, process=None):
 manager = None
 probe = None
 manager_log = tempfile.TemporaryFile(mode="w+")
-manager_ready = tempfile.TemporaryDirectory(prefix="fox-wm-ready-")
+manager_ready = tempfile.TemporaryDirectory(prefix="skrumi-wm-ready-")
 try:
     if os.name != 'nt':
         probe = NativeWindow('probe')
@@ -39,10 +39,10 @@ try:
             manager = subprocess.Popen(['openbox', '--sm-disable', '--startup', 'touch ' + str(ready)],
                 stdout=manager_log, stderr=manager_log)
             wait_for(ready.exists, manager)
-    with tempfile.TemporaryDirectory(prefix='fox-window-modes-') as directory:
+    with tempfile.TemporaryDirectory(prefix='skrumi-window-modes-') as directory:
         root = Path(directory)
         title = 'Fox window modes ' + root.name
-        source = root / 'window.fox'
+        source = root / 'window.skm'
         source.write_text('''using graphics;
 using os;
 open_window(300, 200, "TITLE");
@@ -65,8 +65,8 @@ print(json_value(os_args()));
             except OSError: return ''
         # The standalone and source launch paths share the same options and API.
         for command in [[binary, str(source)], [str(app)]]:
-            process = subprocess.Popen([*command, '--foxlang-width', '420', '--foxlang-height', '260',
-                '--foxlang-fullscreen', '--foxlang-windowed', '--custom'], cwd=root,
+            process = subprocess.Popen([*command, '--skrumi-width', '420', '--skrumi-height', '260',
+                '--skrumi-fullscreen', '--skrumi-windowed', '--custom'], cwd=root,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8')
             driver = None
             try:
@@ -109,7 +109,7 @@ print(json_value(os_args()));
                 if process.poll() is None: process.kill(); process.communicate()
             (root / 'state.txt').unlink(missing_ok=True)
         # Startup fullscreen is observed from the actual OS, not only a stored flag.
-        process = subprocess.Popen([str(app), '--foxlang-fullscreen'], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen([str(app), '--skrumi-fullscreen'], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         driver = NativeWindow(title)
         try:
             wait_for(driver.find, process)
@@ -123,9 +123,9 @@ print(json_value(os_args()));
             if process.poll() is None: process.kill(); process.communicate()
         # The supplied programs must actually redraw a larger viewport too.
         repository = Path(__file__).resolve().parents[2]
-        for example, title in [('examples/raycaster.fox', 'FoxLang: лабиринт в псевдо-3D'),
+        for example, title in [('examples/raycaster.skm', 'Skrumi: лабиринт в псевдо-3D'),
                                ('examples/raycaster.skm', 'Skrumi: лабиринт в псевдо-3D'),
-                               ('site/playground/examples/paint.fox', 'Рисовалка')]:
+                               ('site/playground/examples/paint.skm', 'Рисовалка')]:
             process = subprocess.Popen([binary, str(repository / example)], cwd=root,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             driver = NativeWindow(title)

@@ -1,8 +1,8 @@
-#include "foxlang/Formatter.h"
+#include "skrumi/Formatter.h"
 #include <cctype>
 #include <vector>
 
-namespace foxlang {
+namespace skrumi {
 namespace {
 
 std::string trim(const std::string& text) {
@@ -134,4 +134,4 @@ std::string formatSource(const std::string& source) {
     return out;
 }
 
-} // namespace foxlang
+} // namespace skrumi

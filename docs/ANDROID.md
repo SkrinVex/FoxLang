@@ -27,16 +27,16 @@ sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
   "ndk;27.3.13750724" "cmake;3.22.1"
 export ANDROID_HOME=/путь/к/Android/Sdk
 cd android
-./gradlew :foxlang:assembleRelease :app:assembleDebug
+./gradlew :skrumi:assembleRelease :app:assembleDebug
 ```
 
 На Windows используйте `gradlew.bat` и задайте `ANDROID_HOME` в окружении.
 Gradle также принимает `sdk.dir` в локальном `android/local.properties`.
-`FOXLANG_NDK_DIR` позволяет указать отдельно установленный NDK.
+`SKRUMI_NDK_DIR` позволяет указать отдельно установленный NDK.
 
-- AAR: `android/foxlang/build/outputs/aar/foxlang-release.aar`.
+- AAR: `android/skrumi/build/outputs/aar/skrumi-release.aar`.
 - Пример APK со списком дел: `android/app/build/outputs/apk/debug/app-debug.apk`.
-- Для всех ABI добавьте `-PfoxlangAbis=arm64-v8a,armeabi-v7a,x86_64,x86`.
+- Для всех ABI добавьте `-PskrumiAbis=arm64-v8a,armeabi-v7a,x86_64,x86`.
 - Релиз GitHub содержит `skrumi-android.aar`, `skrumi-android-demo.apk` (список дел)
   и `skrumi-android-raycaster.apk` (игра).
 
@@ -45,20 +45,20 @@ Gradle также принимает `sdk.dir` в локальном `android/lo
 
 ## Демо: лабиринт в псевдо-3D
 
-[Скачать APK raycaster](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang-android-raycaster.apk)
+[Скачать APK raycaster](https://github.com/SkrinVex/Skrumi/releases/latest/download/skrumi-android-raycaster.apk)
 или собрать из корня репозитория:
 
 ```bash
-android/gradlew -p android :app:assembleDebug -PfoxlangDemo=raycaster
+android/gradlew -p android :app:assembleDebug -PskrumiDemo=raycaster
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n org.foxlang.raycaster/org.foxlang.runner.MainActivity
+adb shell am start -n org.skrumi.raycaster/org.skrumi.runner.MainActivity
 ```
 
 На Windows первая команда — `android\gradlew.bat -p android ...`.
 Gradle берёт **тот же файл** [`examples/raycaster.skm`](../examples/raycaster.skm),
 что запускается на ПК; отдельной Android-копии игры нет. Проверка APK сравнивает
-упакованный исходник с оригиналом. `foxlangDemo` нельзя сочетать с `foxlangAssets`.
-Пакет игры `org.foxlang.raycaster` устанавливается рядом со списком дел.
+упакованный исходник с оригиналом. `skrumiDemo` нельзя сочетать с `skrumiAssets`.
+Пакет игры `org.skrumi.raycaster` устанавливается рядом со списком дел.
 
 Собирайте звёзды в лабиринте. Стрелки вверх/вниз двигают игрока, влево/вправо
 поворачивают, пробел ускоряет. Можно удерживать несколько кнопок или поворачивать
@@ -140,7 +140,7 @@ engine.runSource("print(40 + 2);").thenAccept { result ->
 `engine.cancel()`, а в `onDestroy()` — `engine.close()`. Возврат после остановки
 не возобновляет прерванную VM: запустите программу снова, при необходимости
 сначала вызвав `reset()`. Пример этого жизненного цикла —
-[`MainActivity.java`](../android/app/src/main/java/org/foxlang/runner/MainActivity.java).
+[`MainActivity.java`](../android/app/src/main/java/org/skrumi/runner/MainActivity.java).
 
 Методы исполнения, переменных и сброса возвращают `CompletableFuture`:
 
@@ -215,7 +215,7 @@ WAV и `play_tone` воспроизводятся через Android MediaPlayer
   поэтому Android Network Security Config к нему не применяется.
 - Относительные файловые пути привязаны к каталогу интерпретатора без глобального
   `chdir()`. `fs_home()` возвращает этот каталог, `fs_temp_dir()` создаёт в нём
-  `.foxlang-tmp`; временные файлы удаляет сама программа. `path_join` и другие
+  `.skrumi-tmp`; временные файлы удаляет сама программа. `path_join` и другие
   операции над текстом пути сохраняют относительные пути. Доступ к файлам определяется разрешениями Android-приложения.
   SDK не является отдельной песочницей для недоверенного кода и не выдаёт
   разрешение на произвольное внешнее хранилище.
@@ -227,7 +227,7 @@ WAV и `play_tone` воспроизводятся через Android MediaPlayer
 - Системные процессы, окружение, права/владельцы файлов ограничены Android и UID
   приложения. `.env` не загружается автоматически. Настольные флаги консоли
   неприменимы; пользовательские аргументы передаются конструктору SDK либо
-  строковым массивом Intent extra `foxlang.arguments` готового runner.
+  строковым массивом Intent extra `skrumi.arguments` готового runner.
 
 ## C++ / NDK без Java
 
@@ -239,12 +239,12 @@ cmake -S . -B build-android \
 cmake --build build-android -j4
 ```
 
-Цели: `foxlang_core` (статическая библиотека) и `foxlang_android` (JNI `.so`).
-`-DFOXLANG_BUILD_ANDROID_JNI=OFF` отключает JNI. Для встраивания через CMake
-используйте `add_subdirectory` и `target_link_libraries(... foxlang_core)`, чтобы
+Цели: `skrumi_core` (статическая библиотека) и `skrumi_android` (JNI `.so`).
+`-DSKRUMI_BUILD_ANDROID_JNI=OFF` отключает JNI. Для встраивания через CMake
+используйте `add_subdirectory` и `target_link_libraries(... skrumi_core)`, чтобы
 получить также транзитивные зависимости curl/TLS.
 API интерпретатора находится в `Skrumi.h`, платформенный контракт — в
-[`Android.h`](../include/foxlang/Android.h). Для окна, звука и перенаправления
+[`Android.h`](../include/skrumi/Android.h). Для окна, звука и перенаправления
 ввода создайте `android::Scope` со своим Host; уничтожьте окно/интерпретатор до
 Scope. C++-клиент сам сериализует доступ к ядру и доставку событий.
 
@@ -253,12 +253,12 @@ Scope. C++-клиент сам сериализует доступ к ядру �
 ```bash
 python3 tests/test_android_packaging.py
 cd android
-./gradlew :foxlang:connectedDebugAndroidTest -PfoxlangAbis=x86_64
-./gradlew :app:connectedDebugAndroidTest -PfoxlangAbis=x86_64 -PfoxlangDemo=raycaster
+./gradlew :skrumi:connectedDebugAndroidTest -PskrumiAbis=x86_64
+./gradlew :app:connectedDebugAndroidTest -PskrumiAbis=x86_64 -PskrumiDemo=raycaster
 ```
 
 Команды Gradle требуют запущенный эмулятор или устройство с указанным ABI.
-Для ARM64-телефона укажите `-PfoxlangAbis=arm64-v8a`. CI собирает четыре
+Для ARM64-телефона укажите `-PskrumiAbis=arm64-v8a`. CI собирает четыре
 ABI, проверяет содержимое AAR/APK и выравнивание библиотек, выполняет instrumentation
 на Android 9 и Android 15. Проверяются импорты, Unicode, переменные, файловый ввод,
 аргументы, сеть, графика, UI-события, размер окна, буфер обмена, WAV и отмена VM.

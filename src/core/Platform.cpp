@@ -1,7 +1,7 @@
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <iostream>
 #ifdef __ANDROID__
-#include "foxlang/Android.h"
+#include "skrumi/Android.h"
 #endif
 #include <cstdlib>
 
@@ -25,7 +25,7 @@
 #ifdef __EMSCRIPTEN__
 // A worker that waits hands the time back to the browser when the build can
 // (Asyncify, the playground's graphics build), and otherwise just waits.
-EM_JS(void, fox_pause, (double milliseconds), {
+EM_JS(void, skrumi_pause, (double milliseconds), {
     if (typeof Asyncify !== "undefined" && Module.canvasOpen)
         return Asyncify.handleAsync(() => new Promise((resolve) => setTimeout(resolve, milliseconds)));
     const end = performance.now() + milliseconds;
@@ -34,7 +34,7 @@ EM_JS(void, fox_pause, (double milliseconds), {
 #endif
 
 
-namespace foxlang {
+namespace skrumi {
 namespace platform {
 
 void writeOutput(const std::string& text, bool error) {
@@ -75,7 +75,7 @@ std::string pathToUtf8(const std::filesystem::path& path) {
 
 
 // How much stack this thread actually has decides how deep a program may recurse:
-// Windows reserves 1 MB per thread by default where Linux gives 8, and one FoxLang
+// Windows reserves 1 MB per thread by default where Linux gives 8, and one Skrumi
 // call costs a different number of kilobytes per compiler. Three fifths leaves room
 // for the unwinding and for the error report itself.
 
@@ -84,7 +84,7 @@ void pause(long long milliseconds) {
     if (android::current()) { android::host().pause(milliseconds); return; }
 #endif
 #ifdef __EMSCRIPTEN__
-    fox_pause(static_cast<double>(milliseconds));
+    skrumi_pause(static_cast<double>(milliseconds));
 #else
     std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
 #endif
@@ -162,10 +162,8 @@ bool setEnvVar(const std::string& key, const std::string& value) {
 #endif
 }
 
-std::string configEnv(const std::string& legacyKey) {
-    const auto key = "SKRUMI_" + legacyKey.substr(8);
-    const char* value = std::getenv(key.c_str());
-    return value ? std::string(value) : getEnvVar(legacyKey);
+std::string configEnv(const std::string& key) {
+    return getEnvVar(key);
 }
 
 std::string getEnvVar(const std::string& key) {
@@ -174,4 +172,4 @@ std::string getEnvVar(const std::string& key) {
 }
 
 } // namespace platform
-} // namespace foxlang
+} // namespace skrumi

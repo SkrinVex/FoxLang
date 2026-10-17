@@ -1,15 +1,26 @@
 """Check the exact user-facing inventory; internal CI archives are not release assets."""
 from pathlib import Path
 import sys
+import hashlib
 import zipfile
 
 EXPECTED = {
     'Skrumi-linux-x86_64.run', 'Skrumi-windows-x86_64.exe',
-    'skrumi-android.aar', 'foxlang-android.aar',
-    'skrumi-android-demo.apk', 'foxlang-android-demo.apk',
-    'skrumi-android-raycaster.apk', 'foxlang-android-raycaster.apk',
-    'skrumi.vsix', 'foxlang.vsix', 'skrumi.xml', 'foxlang.xml', 'benchmarks.json',
+    'skrumi-android.aar',
+    'skrumi-android-demo.apk',
+    'skrumi-android-raycaster.apk',
+    'skrumi.vsix', 'skrumi.xml', 'benchmarks.json', 'SHA256SUMS',
 }
+
+
+def checksums(root):
+    root = Path(root)
+    return ''.join(f'{hashlib.sha256((root / name).read_bytes()).hexdigest()}  {name}\n'
+                   for name in sorted(EXPECTED - {'SHA256SUMS'}))
+
+
+def write_checksums(root):
+    (Path(root) / 'SHA256SUMS').write_text(checksums(root), encoding='ascii')
 
 
 def verify(root):
@@ -30,13 +41,12 @@ def verify(root):
         with (root / name).open('rb') as binary:
             if binary.read(len(magic)) != magic:
                 raise ValueError(f'Invalid executable: {name}')
-    for name in sorted(EXPECTED):
-        if name.startswith('skrumi'):
-            alias = 'foxlang' + name[len('skrumi'):]
-            if (root / name).read_bytes() != (root / alias).read_bytes():
-                raise ValueError(f'Compatibility alias differs: {name}')
+    if (root / 'SHA256SUMS').read_text(encoding='ascii') != checksums(root):
+        raise ValueError('Release checksum mismatch')
     print('RELEASE_ASSETS_OK')
 
 
 if __name__ == '__main__':
+    if len(sys.argv) == 3 and sys.argv[2] == '--write-checksums':
+        write_checksums(sys.argv[1])
     verify(sys.argv[1])

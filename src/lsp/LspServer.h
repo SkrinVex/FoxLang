@@ -5,7 +5,7 @@
 #include "Transport.h"
 #include "DocumentManager.h"
 
-namespace foxlang {
+namespace skrumi {
 namespace lsp {
 
 class LspServer {
@@ -38,4 +38,4 @@ private:
 };
 
 } // namespace lsp
-} // namespace foxlang
+} // namespace skrumi
