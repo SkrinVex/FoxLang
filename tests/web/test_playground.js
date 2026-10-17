@@ -36,9 +36,9 @@ function expect(condition, message, result) {
 }
 
 (async () => {
-  const modules = await run({"main.skm": 'include("helper.skm"); using extra; print(helper() + extra());',
+  const canonicalModules = await run({"main.skm": 'include("helper.skm"); using extra; print(helper() + extra());',
     "helper.skm": 'int helper() { return 20; }', "extra.skm": 'int extra() { return 22; }'});
-  expect(modules.code === 0 && modules.out === "42\n", "canonical source imports", modules);
+  expect(canonicalModules.code === 0 && canonicalModules.out === "42\n", "canonical source imports", canonicalModules);
   const unsupported = await run({"main.txt": 'print(42);'}, "", "main.txt");
   expect(unsupported.code === 1 && unsupported.err.includes(".skm"), "reject unsupported source format", unsupported);
   const unsupportedCheck = JSON.parse(unsupported.module.ccall("skrumi_check", "string", ["string"], ["main.txt"]));
