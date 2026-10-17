@@ -144,6 +144,65 @@ try {{
         import winreg
         def key_for(path):
             return 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Skrumi-'+hashlib.sha256(str(path).replace('/', '\\').lower().encode('utf-8')).hexdigest()
+        # Manual folder deletion leaves maintenance ownership outside the root.
+        # Emulate the user's 8.18.0 registration, then recover with the new setup.
+        orphan = root/'deleted installation'
+        orphan_key = key_for(orphan)
+        run(first, 'install', orphan)
+        shutil.rmtree(orphan)
+        maintenance_record = Path(str(orphan)+'.maintenance.json')
+        metadata = json.loads(maintenance_record.read_text(encoding='utf-8'))
+        metadata[1] = '8.18.0'
+        maintenance_record.write_text(json.dumps(metadata), encoding='utf-8')
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, orphan_key, 0, winreg.KEY_SET_VALUE) as handle:
+            winreg.SetValueEx(handle, 'DisplayVersion', 0, winreg.REG_SZ, '8.18.0')
+        def registry_values():
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, orphan_key) as handle:
+                return sorted(winreg.EnumValue(handle, i) for i in range(winreg.QueryInfoKey(handle)[1]))
+        original_registry = registry_values()
+        original_maintenance = maintenance_record.read_bytes()
+        # Each identity field must match, and absent/type-changed values are not adopted.
+        for name, value, kind in original_registry:
+            for replacement in (None, ('foreign value', winreg.REG_SZ), (value, winreg.REG_EXPAND_SZ)):
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, orphan_key, 0, winreg.KEY_SET_VALUE) as handle:
+                    if replacement is None:
+                        winreg.DeleteValue(handle, name)
+                    else:
+                        winreg.SetValueEx(handle, name, 0, replacement[1], replacement[0])
+                conflicting = registry_values()
+                run(first, 'install', orphan, ok=False)
+                assert registry_values() == conflicting
+                assert maintenance_record.read_bytes() == original_maintenance
+                assert not (orphan/'.skrumi-install.json').exists()
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, orphan_key, 0, winreg.KEY_SET_VALUE) as handle:
+                    winreg.SetValueEx(handle, name, 0, kind, value)
+        # A tampered maintenance executable is never replaced or used as evidence.
+        maintenance_exe = Path(str(orphan)+'.maintenance.exe')
+        original_exe = maintenance_exe.read_bytes()
+        maintenance_exe.write_bytes(b'foreign executable')
+        run(first, 'install', orphan, ok=False)
+        assert maintenance_exe.read_bytes() == b'foreign executable'
+        assert registry_values() == original_registry
+        maintenance_exe.write_bytes(original_exe)
+        # Without external ownership evidence, an unknown registration stays protected.
+        maintenance_record.unlink()
+        run(first, 'install', orphan, ok=False)
+        assert registry_values() == original_registry
+        maintenance_record.write_bytes(original_maintenance)
+        # Rollback restores the exact old registration, not an invented empty baseline.
+        run(first, 'integration-stop', orphan)
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, orphan_key) as handle:
+            assert winreg.QueryValueEx(handle, 'DisplayVersion')[0] == version
+        run(first, 'recover', orphan)
+        assert registry_values() == original_registry
+        assert maintenance_record.read_bytes() == original_maintenance
+        assert maintenance_exe.read_bytes() == original_exe
+        assert not (orphan/'.skrumi-install.json').exists()
+        run(first, 'install', orphan)
+        run(first, 'install', orphan)
+        run(first, 'uninstall', orphan)
+        assert registry_values() == []
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, orphan_key)
         registration_target = root/'registration rollback'
         registration_key = key_for(registration_target)
         run(first, 'integration-stop', registration_target)

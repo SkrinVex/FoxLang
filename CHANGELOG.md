@@ -1,3 +1,18 @@
+# Skrumi 9.0.1 — recover installation after manual directory deletion
+
+- Windows setup automatically recovers registration ownership when the main
+  installation directory was deleted but the external maintenance executable
+  and its ownership record remain intact.
+- Recovery verifies the maintenance executable checksum and all seven expected
+  registry values, including version, installation path and uninstall commands.
+  Missing or modified registration values and unverified files remain protected.
+- Recovery uses the existing transaction journal: cancellation or interruption
+  restores the previous registry snapshots; successful uninstall removes the
+  recovered registration instead of restoring a stale entry.
+- Added regression coverage for manual deletion, older-version registration,
+  rollback, repeated installation, uninstall and conflicting ownership evidence.
+- Installer layout and language syntax are unchanged.
+
 # Skrumi 9.0.0 — breaking removal of historical compatibility
 
 - Source files now use `.skm` exclusively. Runtime file execution, CLI source
