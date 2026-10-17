@@ -2,6 +2,7 @@
 import json
 import hashlib
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -94,6 +95,23 @@ with tempfile.TemporaryDirectory(prefix='skrumi distribution ') as temp:
         assert blocked.returncode != 0 and not other.exists(), blocked
     finally:
         holder.kill(); holder.wait()
+    if os.name == 'nt':
+        # Exercise the shipped installer after deleting its main directory.
+        # Preserve the fixture's user files outside it, as a real user backup.
+        backup = root/'saved user files'
+        for name in set(unrelated) | {'user-project.skm'}:
+            saved = backup/name
+            saved.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(target/name, saved)
+        shutil.rmtree(target)
+        run(installer, '--headless', 'install', target)
+        run(installer, '--headless', 'install', target)
+        for saved in backup.rglob('*'):
+            if saved.is_file():
+                destination = target/saved.relative_to(backup)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(saved, destination)
+        check_unrelated()
     run(installer, '--headless', 'install', target, '--no-lsp')
     assert not (target/('skrumi-lsp'+suffix)).exists() and not (target/('skrumi-lsp'+suffix)).exists()
     assert run(target/('skrumi'+suffix), '--version') == 'Skrumi '+version

@@ -35,6 +35,43 @@ void registration_validate(array records, string root) {
     }
 }
 
+// Shared exact signature for registration and verified orphan recovery.
+array registration_values(string root, string version) {
+    string command = registration_quote(root + ".maintenance.exe");
+    return [
+        ["DisplayName", "Skrumi"], ["DisplayVersion", version], ["InstallLocation", root],
+        ["Publisher", "SkrinVex"], ["URLInfoAbout", "https://github.com/SkrinVex/Skrumi"],
+        ["UninstallString", command + " --uninstall-gui " + registration_quote(root)],
+        ["QuietUninstallString", command + " --headless uninstall " + registration_quote(root)]
+    ];
+}
+
+// Only called after the external maintenance manifest AND its executable hash
+// have been verified. Never infer ownership from DisplayName alone.
+// Transaction rollback restores these snapshots; successful uninstall removes
+// the orphaned registration instead of resurrecting the deleted installation.
+array registration_recover(string root, string version) {
+    string key = registration_key(root);
+    array values = registration_values(root, version);
+    array recovered;
+    bool present = false;
+    for (int i = 0; i < size(values); i++) {
+        array item = values[i];
+        array current = registry_user_snapshot(key, item[0]);
+        if (current[0]) { present = true; }
+        push(recovered, [key, item[0], [false, false, ""], current]);
+    }
+    if (!present) { return []; }
+    for (int i = 0; i < size(values); i++) {
+        array item = values[i];
+        array record = recovered[i];
+        if (json_value(record[3]) != json_value([true, false, item[1]])) {
+            fail(setup_tr("Unmanaged registration value; preserved: ") + item[0]);
+        }
+    }
+    return recovered;
+}
+
 // [changes for this transaction, ownership baseline for the installed manifest].
 array registration_plan(string root, string version, array owned, bool uninstall, bool enabled) {
     registration_validate(owned, root);
@@ -53,13 +90,7 @@ array registration_plan(string root, string version, array owned, bool uninstall
         return [changes, []];
     }
     string key = registration_key(root);
-    string command = registration_quote(root + ".maintenance.exe");
-    array values = [
-        ["DisplayName", "Skrumi"], ["DisplayVersion", version], ["InstallLocation", root],
-        ["Publisher", "SkrinVex"], ["URLInfoAbout", "https://github.com/SkrinVex/Skrumi"],
-        ["UninstallString", command + " --uninstall-gui " + registration_quote(root)],
-        ["QuietUninstallString", command + " --headless uninstall " + registration_quote(root)]
-    ];
+    array values = registration_values(root, version);
     for (int i = 0; i < size(values); i++) {
         array item = values[i];
         array current = registry_user_snapshot(key, item[0]);

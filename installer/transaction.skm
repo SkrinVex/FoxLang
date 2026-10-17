@@ -184,6 +184,7 @@ void tx_begin(string target, bool uninstall, bool add_path) {
     tx_entries = []; tx_environment = []; tx_installed_environment = []; tx_registration = []; tx_installed_registration = []; tx_cursor = 0; tx_mode = "install"; tx_phase = "idle";
     if (uninstall) { tx_mode = "uninstall"; }
     array previous;
+    string recovery_version = "";
     string marker = tx_path(TX_MARKER);
     if (fs_exists_checked(marker)) {
         array owned = json_decode(read_checked(marker));
@@ -194,6 +195,7 @@ void tx_begin(string target, bool uninstall, bool add_path) {
     } else if (os_platform() == "windows" && fs_exists_checked(tx_path("@maintenance.json"))) {
         array maintenance = json_decode(read_checked(tx_path("@maintenance.json")));
         if (size(maintenance) != 3 || maintenance[0] != "Skrumi maintenance v1") { fail(setup_tr("Unrecognized maintenance ownership record")); }
+        recovery_version = maintenance[1];
         previous = [["@maintenance.exe", maintenance[2], "755"], ["@maintenance.json", file_sha256(tx_path("@maintenance.json")), "600"]];
     }
     bool legacy = false;
@@ -212,6 +214,11 @@ void tx_begin(string target, bool uninstall, bool add_path) {
             if (!uninstall) { fail(setup_tr("Installed file changed; update refused: ") + entry[0]); }
             tx_note(setup_tr("Preserving changed or missing file: ") + entry[0]);
         } else { tx_add(entry[0], entry[1], ""); }
+    }
+    // The normal ownership loop above verifies both external maintenance files
+    // before their metadata can authorize recovery of registration ownership.
+    if (!uninstall && recovery_version != "") {
+        tx_installed_registration = registration_recover(tx_root, recovery_version);
     }
     array incoming;
     if (!uninstall) {
