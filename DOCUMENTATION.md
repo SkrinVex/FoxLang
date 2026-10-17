@@ -2500,3 +2500,142 @@ UI Builder сохраняет ProgressBar в формате проекта 1 с 
 без ресурсов сохраняют v1. Старые runtime не обязаны читать v2; получатель standalone
 использует runtime, уже находящийся внутри executable. Windows EXE нужно собирать
 и проверять на Windows, Linux ELF — на Linux.
+
+### Процессы с захватом вывода и отменой
+
+`using os;` теперь предоставляет `array run_capture(string program, array args,
+int timeout_ms)`: синхронный запуск без shell. Результат — массив
+`[exit_code, stdout, stderr, timed_out, cancelled, truncated]`.
+`args` содержит только строки, включая пустые; NUL запрещён. stdin читает EOF.
+Тайм-аут — 1..3600000 мс. stdout и stderr независимо ограничены 16 МиБ;
+при превышении данные продолжают считываться, но отбрасываются, `truncated=true`.
+Ошибка запуска вызывает `Process Error`, ненулевой exit code возвращается как результат.
+
+Для окон используйте неблокирующие встроенные функции:
+
+- `int process_start(string program, array args, int timeout_ms)` — handle процесса.
+- `bool process_poll(int handle)` — собрать доступный вывод, проверить тайм-аут;
+  true при завершении. Вызывайте каждый кадр: проверка тайм-аута происходит при poll.
+- `array process_result(int handle)` — тот же массив результата после завершения;
+  ранний вызов вызывает ошибку. Повторное чтение разрешено до release.
+- `void process_cancel(int handle)` — принудительно остановить процесс и его группу;
+  затем продолжать poll до завершения. Повторная отмена допустима.
+- `void process_release(int handle)` — освободить завершённый handle; незавершённый
+  или неизвестный handle вызывает ошибку. Одновременно допускается 32 handle.
+
+Linux использует группу процессов, Windows — Job Object. Потомки, самостоятельно
+вышедшие из группы на POSIX, не контролируются. Оставшиеся дочерние процессы
+останавливаются при уничтожении runtime. Это управление процессами, не sandbox.
+Браузер и Android явно отклоняют эти API с `Process Error`.
+
+```cpp
+using os;
+try {
+    array result = run_capture("skrumi", ["--version"], 5000);
+    print(result[0], result[1], result[2]);
+} catch (string error) {
+    print(error);
+}
+```
+
+### Строгие операции с каталогами
+
+`bool fs_exists_checked(string path)` отличает отсутствующий путь (`false`) от
+ошибок доступа (`System Error`). `void fs_mkdir_checked(string path, bool exclusive)`
+создаёт один каталог: родитель должен существовать, `exclusive=true` запрещает
+повторное создание. `void make_dirs_checked(string path)` из `using fs;` создаёт
+родителей. Существующий обычный файл на месте каталога — ошибка.
+
+`void fs_rename_checked(string from, string to)` перемещает файл или каталог
+в пределах тома, отказывает при существующей цели. `void fs_remove_checked(string path)`
+удаляет файл или пустой каталог; отсутствие допустимо. `array fs_list_checked(string path)`
+возвращает отсортированные имена, ошибка не подменяется пустым массивом.
+Все эти операции запрещают ссылки в пути и вызывают `System Error` при сбое.
+На POSIX изменение имени синхронизирует родительские каталоги. После ошибки fsync
+изменение уже может быть видимым. Проверки не исключают конкурентной подмены путей;
+для rename проверка отсутствия цели на POSIX сама по себе не атомарна.
+
+`void copy_checked(string source, string destination, bool overwrite)` из `using fs;`
+копирует обычный файл до 64 МиБ через atomic write и сохраняет его права.
+При `overwrite=false` существующая цель вызывает ошибку. Ошибка установки прав
+возможна после записи файла. Прикладная программа должна исключать конкурентных писателей.
+
+### Каталоги пользователя и архитектура
+
+`string os_user_dir(string kind)` и `string user_directory(string kind)` из `using os;`
+принимают `home`, `data`, `config`, `cache`, `state`. Возвращают абсолютный путь без
+создания каталога. Linux использует XDG_DATA_HOME/CONFIG_HOME/CACHE_HOME/STATE_HOME,
+только если значение абсолютное; иначе — `.local/share`, `.config`, `.cache`,
+`.local/state` внутри home. Windows использует Known Folder Profile для home и
+LocalAppData для остальных. Browser/Android вызывают контролируемый `System Error`.
+`string os_arch()` и `string architecture()` возвращают архитектуру runtime:
+`x86_64`, `arm64`, `x86`, `arm`, `wasm32` или `unknown`.
+
+`int fs_lock(string path)` открывает/создаёт файл эксклюзивной блокировки без ожидания;
+если он занят, выбрасывает `System Error`. Использует flock на POSIX и эксклюзивный
+CreateFileW на Windows. `void fs_unlock(int handle)` снимает блокировку. Handle
+принадлежит runtime; при его уничтожении блокировки снимаются ОС. Файл остаётся:
+его нельзя удалять/заменять, пока возможны конкурирующие владельцы. Максимум 128
+handle; неизвестный handle вызывает ошибку. В браузере fs_lock недоступен.
+
+`string sha256_bytes(string data)` возвращает SHA-256 байтов строки (включая NUL)
+в виде 64 строчных hex-символов, без файловой операции. Ошибки криптобиблиотеки и
+вызов в браузере дают `System Error`. Это проверка целостности, не подпись издателя.
+
+`int gfx_image_decode(string bytes)` и `int decode_image(string bytes)` из
+`using graphics;` декодируют PNG/BMP из памяти, например
+`decode_image(resource_read("logo.png"))`. Возвращают обычный image handle для
+`draw_image_scaled`/`free_image`. Ошибки формата вызывают `Graphics Error`.
+Работает в нативном и браузерном runtime; запись временного файла не требуется.
+
+### Сохраняемый пользовательский PATH
+
+`using env;`:
+
+- `array user_path_plan(string directory, bool add)` возвращает план
+  `[backend, destination, before, after]`, ничего не записывая. `directory` абсолютируется.
+- `void user_path_apply(array plan, bool reverse)` применяет план (`false`) или
+  восстанавливает предыдущий снимок (`true`). Повторный вызов не дублирует запись.
+  Если фактическое состояние отличается от обоих снимков, возникает `Environment Error`;
+  посторонние изменения не перезаписываются.
+- `array user_path_removal(array installed_plan, string directory)` планирует удаление
+  только ранее добавленной записи, сохраняя текущие сторонние правки.
+
+Windows работает с HKCU Environment\\Path, сохраняет REG_SZ/REG_EXPAND_SZ и уведомляет
+WM_SETTINGCHANGE. Сравнение путей нечувствительно к регистру и разделителю. Записи с
+неразвёрнутыми `%VAR%` не приравниваются к развёрнутым путям. Linux добавляет помеченный
+блок в `.bash_profile`, если он есть, иначе `.profile`; для SHELL=zsh — `.zprofile`.
+Блок не дублирует путь в момент входа. Изменения действуют для **новых login-сессий**;
+текущее окружение не изменяется. Fish/csh/tcsh явно отклоняются. Файлы окружения
+systemd и конфигурация других shell не меняются. Недопустимые разделители пути
+вызывают ошибку, shell-подстановка пользовательского пути не выполняется.
+
+Планы содержат прежний текст профиля/PATH: храните их в пользовательском каталоге
+с ограниченным доступом. Кооперативную блокировку вызывающая программа обеспечивает
+через `fs_lock`. Проверка снимка и запись не атомарны относительно стороннего редактора
+профиля/реестра; ошибка после записи/синхронизации может означать видимое изменение.
+
+Низкоуровневые Windows API: `array env_user_snapshot(string name)` возвращает
+`[present, expandable, value]` без раскрытия переменных;
+`void env_user_compare_exchange(string name, array expected, array replacement)`
+проверяет снимок, записывает/удаляет значение, выполняет RegFlushKey и уведомление.
+`[false,false,""]` означает отсутствие. Ошибки — `Environment Error`, включая
+вызов на других платформах. Это проверка перед заменой, не атомарный CAS ОС.
+
+### Архивы USTAR
+
+`array archive_extract(string bytes, string destination)` и
+`array extract_archive(string bytes, string destination)` из `using fs;`
+проверяют USTAR (без сжатия) и распаковывают его в **новый** каталог. Результат —
+относительные имена извлечённых обычных файлов. Лимиты: 64 МиБ входных данных,
+4096 записей. Поддерживаются обычные файлы и каталоги, права 000..777; запрещены
+ссылки, устройства, setuid/setgid, GNU/PAX-расширения, traversal, повторяющиеся имена
+и существующая цель. Проверяются checksum заголовков, длины и завершающие блоки
+до создания каталога. Для проверки содержимого используйте `fs_sha256` и доверенный
+manifest: checksum TAR не является криптографической проверкой.
+
+При ошибке ввода-вывода (`System Error`) частичный каталог **сохраняется**;
+используйте отдельный staging и собственный журнал. Форматные ошибки дают
+`Archive Error`. Каталог назначения создаётся с правами 0700 на POSIX; ссылки в
+его родителях не допускаются. Как и файловые API, распаковка не является sandbox
+против конкурентной подмены каталогов. Browser сообщает о недоступности API.

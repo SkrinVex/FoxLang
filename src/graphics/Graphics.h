@@ -105,7 +105,7 @@ private:
     std::string hot_, focus_;
     bool clickTaken_ = false;
     bool focusFresh_ = false;
-    struct Field { size_t cursor = 0, scroll = 0; };
+    struct Field { size_t cursor = 0, scroll = 0; bool selectedAll = false; };
     std::vector<std::pair<std::string, Field>> fields_;
     int layer() const { return stack_.empty() ? 0 : stack_.back(); }
     // Registers the element, cut to the clip rectangle, and returns where it can be hit.

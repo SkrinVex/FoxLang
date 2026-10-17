@@ -341,7 +341,8 @@ const runtime = process.argv.includes("--runtime");
         .locator("canvas")
         .waitFor({ state: "visible", timeout: 60000 });
       if (runtime) {
-        const canvas = frame.locator("canvas");
+        const canvas = frame.locator('canvas[aria-busy="false"]');
+        await canvas.waitFor({ state: "visible", timeout: 60000 });
         const box = await canvas.boundingBox();
         const s = box.width / 800;
         await page.mouse.click(box.x + 60 * s, box.y + 245 * s);

@@ -61,12 +61,8 @@ Image& picture(const Call& c, size_t i) {
         fail(std::to_string(handle) + " is not a loaded image");
     return *loaded[size_t(handle) - 1];
 }
-Value loadImage(const std::string& path) {
-    std::ifstream file(platform::pathFromUtf8(path), std::ios::binary);
-    if (!file) fail("cannot open image '" + path + "'");
-    std::stringstream bytes;
-    bytes << file.rdbuf();
-    auto image = std::make_shared<Image>(decodeImage(bytes.str()));
+Value decodePicture(const std::string& bytes) {
+    auto image = std::make_shared<Image>(decodeImage(bytes));
     auto& loaded = images();
     for (size_t slot = 0; slot < loaded.size(); ++slot)
         if (!loaded[slot]) {
@@ -76,6 +72,14 @@ Value loadImage(const std::string& path) {
     loaded.push_back(image);
     return Value::integer(static_cast<long long>(loaded.size()));
 }
+Value loadImage(const std::string& path) {
+    std::ifstream file(platform::pathFromUtf8(path), std::ios::binary);
+    if (!file) fail("cannot open image '" + path + "'");
+    std::stringstream bytes; bytes << file.rdbuf();
+    if (file.bad()) fail("cannot read image '" + path + "'");
+    return decodePicture(bytes.str());
+}
+
 uint32_t pixel(const Call& c) {
     Image& image = picture(c, 0);
     int x = integer(c, 1), y = integer(c, 2);
@@ -235,6 +239,8 @@ const std::vector<Signature>& signatures() {
          [](Call& c) { Window& w = window(c); w.setSize(integer(c, 0), integer(c, 1)); return Value(); }},
         {"gfx_resized", "window_resized", "bool", {}, "Изменился ли размер окна с прошлого кадра — пора заново расставить элементы.",
          [](Call& c) { return Value::boolean(window(c).resized()); }},
+        {"gfx_image_decode", "decode_image", "int", {{"string","bytes"}}, "Декодирует PNG/BMP из байтов строки, включая resource_read; без временных файлов. Ошибка формата — Graphics Error.",
+         [](Call& c) { return decodePicture(c.args[0].str()); }},
         {"gfx_image_load", "load_image", "int", {{"string","path"}}, "Загружает картинку PNG или BMP и возвращает её номер для рисования. Окно не требуется. Поддерживаются все виды PNG, в том числе с прозрачностью.",
          [](Call& c) { return loadImage(c.args[0].str()); }},
         {"gfx_image_width", "image_width", "int", {{"int","image"}}, "Ширина загруженной картинки в пикселях.",

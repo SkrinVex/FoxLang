@@ -34,6 +34,9 @@ struct Registry {
         addSystemBuiltins(builtins);
         addFileBuiltins(builtins);
         addStrictFileBuiltins(builtins);
+        addProcessBuiltins(builtins);
+        addDirectoryBuiltins(builtins);
+        addUserEnvironmentBuiltins(builtins);
         addNetworkBuiltins(builtins);
         addGraphicsBuiltins(builtins);
         addSoundBuiltins(builtins);

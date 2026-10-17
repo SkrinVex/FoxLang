@@ -1,0 +1,37 @@
+//! Процесс и система: аргументы командной строки, ОС, рабочий каталог, запуск программ и
+//! открытие файлов приложением по умолчанию.
+//! Завершение с кодом возврата — встроенная `exit(code)`.
+
+array args() { return os_args(); }
+string platform() { return os_platform(); }
+string cwd() { return os_cwd(); }
+bool open_path(string target) { return os_open(target); }
+int run(string program, array args) { return os_run(program, args); }
+string run_output(string program, array args) { return os_run_output(program, args); }
+int last_exit() { return os_last_exit(); }
+
+/// Аргумент командной строки по номеру (с нуля) или `fallback`, если его нет.
+///
+/// ```skrumi
+/// string name = arg_or(0, "мир");
+/// ```
+string arg_or(int index, string fallback) {
+    array list = os_args();
+    if (index < 0 || index >= size(list)) {
+        return fallback;
+    }
+    return list[index];
+}
+
+/// Синхронный захват stdout/stderr с тайм-аутом; результат как у process_result.
+array run_capture(string program, array args, int timeout_ms) {
+    int handle = process_start(program, args, timeout_ms);
+    while (!process_poll(handle)) { wait(1); }
+    array result = process_result(handle);
+    process_release(handle);
+    return result;
+}
+
+/// Каталоги ОС без создания; kind: home, data, config, cache, state.
+string user_directory(string kind) { return os_user_dir(kind); }
+string architecture() { return os_arch(); }

@@ -81,3 +81,28 @@ string make_temp_dir(string parent) { return fs_mkdtemp(parent); }
 string safe_join(string base, string relative) { return path_safe_join(base, relative); }
 /// SHA-256 файла (64 строчных hex-символа); проверка целостности, не подпись издателя.
 string file_sha256(string path) { return fs_sha256(path); }
+
+/// Создаёт вложенные каталоги, отказываясь от ссылок и ошибок доступа.
+void make_dirs_checked(string path) {
+    if (fs_exists_checked(path)) {
+        if (!fs_is_dir(path)) { fail("System Error: expected directory: " + path); }
+        return;
+    }
+    string parent = path_parent(path_absolute(path));
+    if (parent == path_absolute(path)) { fail("System Error: cannot create root"); }
+    make_dirs_checked(parent);
+    fs_mkdir_checked(path, false);
+}
+
+/// Копирование одного обычного файла (до 64 МиБ) с сохранением прав.
+/// overwrite=false отказывает при существующей цели; вызывающий исключает конкурентные записи.
+void copy_checked(string source, string destination, bool overwrite) {
+    if (!overwrite && fs_exists_checked(destination)) { fail("System Error: destination exists: " + destination); }
+    string mode = fs_permissions(source);
+    if (mode == "") { fail("System Error: cannot read permissions: " + source); }
+    fs_write_atomic(destination, fs_read_checked(source));
+    if (!fs_set_permissions(destination, mode)) { fail("System Error: cannot set permissions: " + destination); }
+}
+
+/// Проверенная распаковка USTAR в новый каталог; см. archive_extract.
+array extract_archive(string bytes, string destination) { return archive_extract(bytes, destination); }

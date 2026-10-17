@@ -972,6 +972,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     if (message.type === "output") write(message.text, message.stream);
     else if (message.type === "alive") watch();
     else if (message.type === "window") showWindow(message);
+    else if (message.type === "window-ready" && canvasElement) canvasElement.setAttribute("aria-busy", "false");
     else if (message.type === "window-size") sizeWindow(message.width, message.height);
     else if (message.type === "window-closed") statusBox.textContent = "Окно закрыто";
     else if (message.type === "done") {
@@ -1094,6 +1095,7 @@ html[data-builder-embed] .screen canvas { max-height: none; }
     screenBox.textContent = "";
     var canvas = document.createElement("canvas");
     canvas.tabIndex = 0;
+    canvas.setAttribute("aria-busy", "true");
     canvas.setAttribute("aria-label", "Окно программы: щёлкните, чтобы управлять с клавиатуры");
     canvas.width = 1;
     canvas.height = 1;

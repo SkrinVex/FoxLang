@@ -1,0 +1,78 @@
+"""Build an offline standalone Skrumi application. No installation policy lives here."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+import zlib
+
+ROOT = Path(__file__).resolve().parents[1]
+
+def brand_png(svg):
+    # Rasterize the repository's polygon mark verbatim. Fail if its geometry changes
+    # to unsupported SVG commands; never silently substitute a different logo.
+    node = ET.fromstring(svg).find('{http://www.w3.org/2000/svg}path')
+    if node is None or node.get('transform') != 'translate(0 -5)':
+        raise ValueError('Unsupported brand SVG transform')
+    data = node.get('d')
+    if not re.fullmatch(r'M[\d\s]+(?:Z)', data):
+        raise ValueError('Unsupported brand SVG geometry')
+    values = list(map(int, re.findall(r'\d+', data)))
+    points = [(values[i], values[i+1]-5) for i in range(0, len(values), 2)]
+    color = bytes.fromhex(node.get('fill').removeprefix('#')) + b'\xff'
+    raw = bytearray()
+    for y in range(128):
+        raw.append(0)
+        for x in range(128):
+            inside = False
+            for i, (ax, ay) in enumerate(points):
+                bx, by = points[(i+1) % len(points)]
+                if (ay > y+.5) != (by > y+.5) and x+.5 < (bx-ax)*(y+.5-ay)/(by-ay)+ax:
+                    inside = not inside
+            raw.extend(color if inside else b'\0\0\0\0')
+    def chunk(kind, value):
+        return struct.pack('>I', len(value)) + kind + value + struct.pack('>I', zlib.crc32(kind+value))
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 128,128,8,6,0,0,0)) +
+            chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
+
+def build(binary, lsp, output):
+    platform = 'windows' if sys.platform == 'win32' else 'linux'
+    suffix = '.exe' if platform == 'windows' else ''
+    version = (ROOT/'VERSION').read_text().strip()
+    result = subprocess.run([str(binary), '--version'], capture_output=True, text=True, check=True)
+    if result.stdout.strip() != 'Skrumi ' + version:
+        raise ValueError('Build runtime VERSION mismatch')
+    with tempfile.TemporaryDirectory(prefix='skrumi-setup-build-') as temporary:
+        resources = Path(temporary)
+        probe = resources/'probe.skm'
+        probe.write_text('print(os_arch());', encoding='utf-8')
+        arch = subprocess.check_output([str(binary), str(probe)], text=True).strip()
+        probe.unlink()
+        if arch != 'x86_64':
+            raise ValueError('GUI installer packaging currently supports verified x86_64 builds only')
+        lsp_version = subprocess.check_output([str(lsp), '--version'], text=True).strip()
+        if lsp_version != 'skrumi-lsp ' + version:
+            raise ValueError('Language server VERSION mismatch')
+        payload = resources/'payload'; payload.mkdir()
+        for name, source in [('skrumi',binary), ('foxlang',binary), ('skrumi-lsp',lsp), ('foxlang-lsp',lsp)]:
+            shutil.copyfile(source, payload/(name+suffix))
+        records = [[file.name, hashlib.sha256(file.read_bytes()).hexdigest(), '755'] for file in sorted(payload.iterdir())]
+        (resources/'manifest.json').write_text(json.dumps([version,platform,arch,records]), encoding='utf-8')
+        (resources/'branding').mkdir()
+        (resources/'branding/logo.png').write_bytes(brand_png((ROOT/'resources/branding/skrumi-mark.svg').read_text()))
+        subprocess.run([str(binary), 'build', str(ROOT/'installer/main.skm'), '--resources', str(resources),
+                        '--no-console', '-o', str(output)], check=True)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--runtime', type=Path, required=True)
+    parser.add_argument('--lsp', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args()
+    build(args.runtime.resolve(), args.lsp.resolve(), args.output.resolve())

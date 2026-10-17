@@ -1,0 +1,263 @@
+// All installation policy, journaling, publication and rollback live in Skrumi.
+using fs;
+using os;
+using resources;
+using env;
+
+string TX_MARKER = ".skrumi-install.json";
+string tx_root = "";
+string tx_area = "";
+string tx_phase = "idle";
+string tx_message = "";
+array tx_entries;
+array tx_environment;
+array tx_installed_environment;
+array tx_incoming;
+string tx_manifest_content = "";
+array tx_log;
+int tx_cursor = 0;
+int tx_lock = 0;
+int tx_probe = 0;
+string tx_version = "";
+string tx_mode = "install";
+
+void tx_note(string message) { tx_message = message; push(tx_log, message); }
+string tx_path(string relative) { return safe_join(tx_root, relative); }
+string tx_slot(string kind, int index) { return safe_join(tx_area, kind + "/" + to_string(index)); }
+bool tx_hash_matches(string path, string hash) {
+    return fs_exists_checked(path) && file_sha256(path) == hash;
+}
+void tx_journal() {
+    fs_write_atomic(safe_join(tx_area, "journal.json"), json_value([2, tx_root, tx_phase, tx_entries, tx_version, tx_mode, tx_environment]));
+}
+void tx_acquire(string target) {
+    tx_root = path_absolute(target);
+    string home = path_absolute(os_user_dir("home"));
+    if (tx_root == home || path_parent(tx_root) == tx_root || str_starts_with(home, tx_root + "/")) {
+        fail("Choose a dedicated Skrumi installation directory.");
+    }
+    make_dirs_checked(path_parent(tx_root));
+    tx_lock = fs_lock(tx_root + ".skrumi-lock");
+    tx_area = tx_root + ".skrumi-transaction";
+}
+void tx_release() {
+    if (tx_lock != 0) { fs_unlock(tx_lock); tx_lock = 0; }
+}
+// Delete only known transaction files with verified bytes. Never recursively delete a directory.
+void tx_cleanup() {
+    for (int i = 0; i < size(tx_entries); i++) {
+        array entry = tx_entries[i];
+        string backup = tx_slot("backup", i);
+        string staged = tx_slot("new", i);
+        if (fs_exists_checked(backup)) {
+            if (!tx_hash_matches(backup, entry[1])) { fail("Backup changed; preserved: " + backup); }
+            fs_remove_checked(backup);
+        }
+        if (fs_exists_checked(staged)) {
+            if (!tx_hash_matches(staged, entry[2])) { fail("Staging file changed; preserved: " + staged); }
+            fs_remove_checked(staged);
+        }
+    }
+    fs_remove_checked(safe_join(tx_area, "backup"));
+    fs_remove_checked(safe_join(tx_area, "new"));
+    fs_remove_checked(safe_join(tx_area, "journal.json"));
+    fs_remove_checked(tx_area);
+}
+void tx_rollback() {
+    tx_note("Restoring previous files");
+    if (size(tx_environment) > 0) { user_path_apply(tx_environment, true); }
+    for (int i = size(tx_entries) - 1; i >= 0; i--) {
+        array entry = tx_entries[i];
+        string target = tx_path(entry[0]);
+        string backup = tx_slot("backup", i);
+        if (fs_exists_checked(backup)) {
+            if (!tx_hash_matches(backup, entry[1])) { fail("Backup changed; recovery stopped: " + backup); }
+            if (fs_exists_checked(target)) {
+                if (!tx_hash_matches(target, entry[2])) { fail("File changed; preserved for manual recovery: " + target); }
+                fs_remove_checked(target);
+            }
+            fs_rename_checked(backup, target);
+        } else if (entry[1] == "" && fs_exists_checked(target)) {
+            if (!tx_hash_matches(target, entry[2])) { fail("New file changed; preserved: " + target); }
+            fs_remove_checked(target);
+        } else if (entry[1] != "" && !tx_hash_matches(target, entry[1])) {
+            fail("Original file unavailable; recovery stopped: " + target);
+        }
+    }
+    tx_phase = "rolled_back";
+    tx_journal();
+    tx_cleanup();
+    tx_release();
+    tx_note("Previous installation restored. Empty directories may remain.");
+}
+// Recovery is explicitly requested by the UI/CLI after acquiring the same OS lock.
+void tx_recover(string target) {
+    tx_acquire(target);
+    array journal = json_decode(read_checked(safe_join(tx_area, "journal.json")));
+    if (size(journal) != 7 || journal[0] != 2 || journal[1] != tx_root) { fail("Invalid recovery journal; no files changed."); }
+    tx_phase = journal[2]; tx_entries = journal[3]; tx_version = journal[4]; tx_mode = journal[5]; tx_environment = journal[6];
+    for (int i = 0; i < size(tx_entries); i++) {
+        array entry = tx_entries[i];
+        if (size(entry) != 3) { fail("Invalid recovery entry"); }
+        tx_path(entry[0]);
+    }
+    if (tx_phase == "committed" || tx_phase == "rolled_back") { tx_cleanup(); tx_release(); }
+    else { tx_rollback(); }
+}
+string tx_previous_hash(array previous, string name) {
+    for (int i = 0; i < size(previous); i++) {
+        array entry = previous[i];
+        if (entry[0] == name) { return entry[1]; }
+    }
+    return "";
+}
+void tx_add(string name, string old_hash, string new_hash) {
+    for (int i = 0; i < size(tx_entries); i++) {
+        array entry = tx_entries[i];
+        if (entry[0] == name) { fail("Duplicate payload path: " + name); }
+    }
+    tx_path(name);
+    push(tx_entries, [name, old_hash, new_hash]);
+}
+void tx_begin(string target, bool uninstall, bool add_path) {
+    tx_acquire(target);
+    if (fs_exists_checked(tx_area)) { fail("Unfinished transaction found. Recover it before continuing."); }
+    tx_entries = []; tx_environment = []; tx_installed_environment = []; tx_cursor = 0; tx_mode = "install"; tx_phase = "idle";
+    if (uninstall) { tx_mode = "uninstall"; }
+    array previous;
+    string marker = tx_path(TX_MARKER);
+    if (fs_exists_checked(marker)) {
+        array owned = json_decode(read_checked(marker));
+        if ((size(owned) != 3 || owned[0] != "Skrumi installation v1") && (size(owned) != 4 || owned[0] != "Skrumi installation v2")) { fail("Unrecognized installation manifest"); }
+        previous = owned[2];
+        if (size(owned) == 4) { tx_installed_environment = owned[3]; }
+    }
+    if (uninstall && !fs_exists_checked(marker)) { fail("No managed installation found"); }
+    for (int i = 0; i < size(previous); i++) {
+        array entry = previous[i];
+        if (size(entry) != 3) { fail("Invalid installed file record"); }
+        if (!tx_hash_matches(tx_path(entry[0]), entry[1])) {
+            if (!uninstall) { fail("Installed file changed; update refused: " + entry[0]); }
+            tx_note("Preserving changed or missing file: " + entry[0]);
+        } else { tx_add(entry[0], entry[1], ""); }
+    }
+    array incoming;
+    if (!uninstall) {
+        array payload = json_decode(resource_read("manifest.json"));
+        if (size(payload) != 4 || payload[1] != os_platform() || payload[2] != os_arch()) { fail("Payload is incompatible with this runtime"); }
+        tx_version = payload[0]; incoming = payload[3];
+        // Replace deletion records with desired new hashes after validating all ownership.
+        for (int i = 0; i < size(incoming); i++) {
+            array item = incoming[i];
+            string old = tx_previous_hash(previous, item[0]);
+            string destination = tx_path(item[0]);
+            if (old == "" && fs_exists_checked(destination)) { fail("Refusing to replace an unmanaged file: " + destination); }
+            bool found = false;
+            for (int j = 0; j < size(tx_entries); j++) {
+                array record = tx_entries[j];
+                if (record[0] == item[0]) { record[2] = item[1]; tx_entries[j] = record; found = true; }
+            }
+            if (!found) { tx_add(item[0], old, item[1]); }
+        }
+    }
+    if (uninstall && size(tx_installed_environment) > 0) {
+        tx_environment = user_path_removal(tx_installed_environment, tx_root);
+    } else if (!uninstall && add_path && size(tx_installed_environment) == 0) {
+        array planned = user_path_plan(tx_root, true);
+        if (json_value(planned[2]) != json_value(planned[3])) {
+            tx_environment = planned; tx_installed_environment = planned;
+        }
+    }
+    float required_space = 1048576;
+    for (int i = 0; i < size(incoming); i++) {
+        array item = incoming[i];
+        required_space += size(resource_read("payload/" + item[0]));
+    }
+    float available = fs_free_space(path_parent(tx_root));
+    if (available < 0) { fail("Cannot determine available disk space"); }
+    if (available < required_space) { fail("Not enough free disk space for staging and journal"); }
+    tx_incoming = incoming;
+    string old_marker = "";
+    if (fs_exists_checked(marker)) { old_marker = file_sha256(marker); }
+    if (!uninstall) {
+        tx_manifest_content = json_value(["Skrumi installation v2", tx_version, incoming, tx_installed_environment]);
+        tx_add(TX_MARKER, old_marker, sha256_bytes(tx_manifest_content));
+    } else { tx_add(TX_MARKER, old_marker, ""); }
+    // Journal every intended change before staging or publication.
+    fs_mkdir_checked(tx_area, true);
+    if (!fs_set_permissions(tx_area, "700")) { fail("Cannot restrict journal directory permissions"); }
+    tx_phase = "staging"; tx_journal();
+    fs_mkdir_checked(safe_join(tx_area, "new"), true);
+    fs_mkdir_checked(safe_join(tx_area, "backup"), true);
+    make_dirs_checked(tx_root);
+    tx_note("Preparing verified staging files");
+}
+
+bool tx_step() {
+    if (tx_phase == "staging" && tx_cursor < size(tx_entries)) {
+        array entry = tx_entries[tx_cursor];
+        if (entry[2] != "") {
+            string content = tx_manifest_content;
+            string mode = "600";
+            if (entry[0] != TX_MARKER) {
+                content = resource_read("payload/" + entry[0]);
+                for (int i = 0; i < size(tx_incoming); i++) {
+                    array item = tx_incoming[i];
+                    if (item[0] == entry[0]) { mode = item[2]; }
+                }
+            }
+            if (sha256_bytes(content) != entry[2]) { fail("Payload checksum mismatch: " + entry[0]); }
+            string staged = tx_slot("new", tx_cursor);
+            fs_write_atomic(staged, content);
+            if (!tx_hash_matches(staged, entry[2])) { fail("Staging checksum mismatch: " + entry[0]); }
+            if (!fs_set_permissions(staged, mode)) { fail("Cannot set permissions: " + staged); }
+        }
+        tx_note("Verified " + entry[0]); tx_cursor++; return false;
+    }
+    if (tx_phase == "staging") {
+        tx_cursor = 0; tx_phase = "publishing"; tx_journal();
+    }
+    if (tx_phase == "publishing" && tx_cursor < size(tx_entries)) {
+        array entry = tx_entries[tx_cursor];
+        string destination = tx_path(entry[0]);
+        make_dirs_checked(path_parent(destination));
+        if (entry[1] != "") {
+            if (!tx_hash_matches(destination, entry[1])) { fail("File changed during installation: " + destination); }
+            fs_rename_checked(destination, tx_slot("backup", tx_cursor));
+        } else if (fs_exists_checked(destination)) { fail("New file appeared during installation: " + destination); }
+        if (entry[2] != "") { fs_rename_checked(tx_slot("new", tx_cursor), destination); }
+        tx_note(entry[0]); tx_cursor++;
+        return false;
+    }
+    if (tx_phase == "publishing") {
+        if (tx_mode == "uninstall") { tx_phase = "verified"; }
+        else {
+            string executable = tx_path("skrumi");
+            if (os_platform() == "windows") { executable = tx_path("skrumi.exe"); }
+            tx_probe = process_start(executable, ["--version"], 10000);
+            tx_phase = "verifying"; tx_note("Checking installed CLI");
+            return false;
+        }
+    }
+    if (tx_phase == "verifying") {
+        if (!process_poll(tx_probe)) { return false; }
+        array result = process_result(tx_probe); process_release(tx_probe); tx_probe = 0;
+        if (result[0] != 0 || str_trim(result[1]) != "Skrumi " + tx_version) { fail("Installed CLI verification failed: " + result[2]); }
+        tx_phase = "verified";
+    }
+    if (tx_phase == "verified") {
+        if (size(tx_environment) > 0) { user_path_apply(tx_environment, false); }
+        tx_phase = "committed"; tx_journal();
+        tx_cleanup(); tx_release(); tx_note("Completed successfully"); return true;
+    }
+    return tx_phase == "committed";
+}
+void tx_cancel() {
+    if (tx_probe != 0) {
+        process_cancel(tx_probe);
+        while (!process_poll(tx_probe)) { wait(1); }
+        process_release(tx_probe); tx_probe = 0;
+    }
+    if (tx_phase != "committed" && tx_phase != "idle" && tx_phase != "rolled_back") { tx_rollback(); }
+    else { tx_release(); }
+}

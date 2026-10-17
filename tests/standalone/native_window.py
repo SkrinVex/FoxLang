@@ -9,6 +9,7 @@ class NativeWindow:
     def __init__(self, title):
         self.title = title
         self.handle = None
+        self.control = False
         if os.name == 'nt':
             self.api = C.WinDLL('user32', use_last_error=True)
             self.gdi = C.WinDLL('gdi32', use_last_error=True)
@@ -75,6 +76,7 @@ class NativeWindow:
                'TAB': 0xff09, 'DELETE': 0xffff, 'HOME': 0xff50, 'END': 0xff57, 'SHIFT': 0xffe1, 'CTRL': 0xffe3, '/': 0x2f, '.': 0x2e}
 
     def send_key(self, name, down, shift=False, repeat=False):
+        if name == "CTRL": self.control = down
         if os.name == 'nt':
             key = self.VIRTUAL_KEYS.get(name, ord(name[0].upper()))
             # lParam as a real keyboard sends it: a repeat count of 1, bit 30 for a key that
@@ -93,7 +95,7 @@ class NativeWindow:
                     ('state',C.c_uint),('keycode',C.c_uint),('same_screen',C.c_int)]
             symbol = self.KEYSYMS.get(name, ord(name[0].lower()))
             event = KeyEvent(type=2 if down else 3, display=self.display, window=self.handle, root=self.root,
-                             keycode=self.api.XKeysymToKeycode(self.display,symbol), state=1 if shift else 0, same_screen=1)
+                             keycode=self.api.XKeysymToKeycode(self.display,symbol), state=(1 if shift else 0) | (4 if self.control else 0), same_screen=1)
             self._send(event, 1 if down else 2)
 
     def type_text(self, text):

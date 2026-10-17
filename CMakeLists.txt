@@ -80,6 +80,9 @@ set(foxlang_core_sources
     src/core/builtins/System.cpp
     src/core/builtins/Files.cpp
     src/core/builtins/StrictFiles.cpp
+    src/core/builtins/Processes.cpp
+    src/core/builtins/Directories.cpp
+    src/core/builtins/UserEnvironment.cpp
     src/core/builtins/NetworkBuiltins.cpp
     src/core/builtins/Sound.cpp
     src/graphics/Surface.cpp
@@ -176,7 +179,7 @@ endif()
 
 if(WIN32)
     # ShellExecuteW opens files with their default application (os_open).
-    target_link_libraries(foxlang_core PRIVATE shell32 winmm)
+    target_link_libraries(foxlang_core PRIVATE shell32 winmm ole32 advapi32 uuid)
 endif()
 
 # Skrumi CLI executable

@@ -56,6 +56,8 @@
       <item>allow_cors</item>
       <item>any_of</item>
       <item>append_file</item>
+      <item>architecture</item>
+      <item>archive_extract</item>
       <item>arg_or</item>
       <item>args</item>
       <item>array_all</item>
@@ -95,10 +97,12 @@
       <item>cookie</item>
       <item>copy</item>
       <item>copy_array</item>
+      <item>copy_checked</item>
       <item>copy_path</item>
       <item>cos</item>
       <item>cwd</item>
       <item>debug</item>
+      <item>decode_image</item>
       <item>degrees</item>
       <item>delete</item>
       <item>dns_lookup</item>
@@ -128,6 +132,7 @@
       <item>exists</item>
       <item>exit</item>
       <item>exp</item>
+      <item>extract_archive</item>
       <item>fail</item>
       <item>file_extension</item>
       <item>file_name</item>
@@ -146,6 +151,7 @@
       <item>free_space</item>
       <item>fs_copy</item>
       <item>fs_exists</item>
+      <item>fs_exists_checked</item>
       <item>fs_free_space</item>
       <item>fs_home</item>
       <item>fs_is_dir</item>
@@ -153,7 +159,10 @@
       <item>fs_is_file</item>
       <item>fs_is_link</item>
       <item>fs_list</item>
+      <item>fs_list_checked</item>
+      <item>fs_lock</item>
       <item>fs_make_dir</item>
+      <item>fs_mkdir_checked</item>
       <item>fs_mkdtemp</item>
       <item>fs_modified</item>
       <item>fs_move</item>
@@ -162,10 +171,13 @@
       <item>fs_read_checked</item>
       <item>fs_remove</item>
       <item>fs_remove_all</item>
+      <item>fs_remove_checked</item>
+      <item>fs_rename_checked</item>
       <item>fs_set_permissions</item>
       <item>fs_sha256</item>
       <item>fs_size</item>
       <item>fs_temp_dir</item>
+      <item>fs_unlock</item>
       <item>fs_write_atomic</item>
       <item>gc_collect</item>
       <item>get</item>
@@ -187,6 +199,7 @@
       <item>gfx_fullscreen</item>
       <item>gfx_height</item>
       <item>gfx_image_alpha</item>
+      <item>gfx_image_decode</item>
       <item>gfx_image_draw</item>
       <item>gfx_image_draw_part</item>
       <item>gfx_image_free</item>
@@ -302,6 +315,7 @@
       <item>log_warn</item>
       <item>lower</item>
       <item>make_dir</item>
+      <item>make_dirs_checked</item>
       <item>make_temp_dir</item>
       <item>max</item>
       <item>max_body_size</item>
@@ -395,6 +409,7 @@
       <item>round</item>
       <item>route</item>
       <item>run</item>
+      <item>run_capture</item>
       <item>run_output</item>
       <item>safe_join</item>
       <item>save_upload</item>
@@ -425,6 +440,7 @@
       <item>set_window_fullscreen</item>
       <item>set_window_resizable</item>
       <item>set_window_size</item>
+      <item>sha256_bytes</item>
       <item>show_cursor</item>
       <item>sign</item>
       <item>sin</item>
@@ -516,6 +532,10 @@
       <item>uptime_ms</item>
       <item>url_decode</item>
       <item>url_encode</item>
+      <item>user_directory</item>
+      <item>user_path_apply</item>
+      <item>user_path_plan</item>
+      <item>user_path_removal</item>
       <item>values</item>
       <item>wait</item>
       <item>warn</item>

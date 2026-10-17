@@ -16,9 +16,12 @@
   and add a Playground example and native/browser runtime tests.
 - Reject NUL in process arguments, enforce the documented stdout capture limit,
   and report waitpid failures instead of an apparent successful exit.
-- These are installer prerequisites, not a completed graphical installer. The
-  transactional installer and release-asset migration remain outstanding; see
-  `docs/INSTALLER_IMPLEMENTATION_STATUS.md`.
+- Add the offline `.skm` installer application and its journaled file transactions,
+  ownership-aware update/uninstall, rollback, recovery, real progress and CLI checks.
+- Add public process capture/cancellation, user-directory and persistent PATH plans,
+  file locks, USTAR extraction, image decoding from memory, and Ctrl+A/X field editing.
+- The installer remains under validation; release migration is not complete. See
+  `docs/INSTALLER_IMPLEMENTATION_STATUS.md` for outstanding work and guarantees.
 
 - Rename the public language, CLI and LSP to Skrumi, `skrumi` and `skrumi-lsp`.
 - Support `.skm` alongside `.fox` through the same runtime and tooling.
