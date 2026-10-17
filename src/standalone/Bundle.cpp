@@ -1,14 +1,14 @@
 #include "Bundle.h"
-#include "foxlang/Lexer.h"
-#include "foxlang/Parser.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Lexer.h"
+#include "skrumi/Parser.h"
+#include "skrumi/Platform.h"
 #include <algorithm>
 #include <filesystem>
 #include <stdexcept>
 
-namespace foxlang::bundle {
+namespace skrumi::bundle {
 namespace {
-constexpr unsigned char magic[] = {'F','O','X','B','N','D','L',0};
+constexpr unsigned char magic[] = {'S','K','M','B','N','D','L',0};
 constexpr std::size_t maxName = 4096;
 
 [[noreturn]] void invalid(const std::string& reason) {
@@ -158,6 +158,7 @@ std::uint32_t checksum(const Bytes& bytes) {
 }
 
 Sources collect(const std::string& entry, const SourceProvider& provider) {
+    if (!isSourceFile(entry)) throw std::runtime_error("source files must use .skm");
     Sources sources;
     sources.entry = "main" + std::filesystem::u8path(entry).extension().u8string();
     auto root = platform::pathToUtf8(std::filesystem::canonical(platform::pathFromUtf8(entry)));
@@ -198,4 +199,4 @@ Sources collect(const std::string& entry, const SourceProvider& provider) {
     }
     return sources;
 }
-} // namespace foxlang::bundle
+} // namespace skrumi::bundle

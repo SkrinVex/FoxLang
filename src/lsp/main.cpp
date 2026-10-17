@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdio>
 #include <string>
-#include "foxlang/FoxLang.h"
+#include "skrumi/Skrumi.h"
 #include "Transport.h"
 #include "LspServer.h"
 #ifdef _WIN32
@@ -10,7 +10,7 @@
 #endif
 
 int main(int argc, char* argv[]) {
-    const std::string version = foxlang::Interpreter::getVersion();
+    const std::string version = skrumi::Interpreter::getVersion();
 
     if (argc >= 2) {
         std::string arg = argv[1];
@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 #endif
-    foxlang::lsp::Transport transport;
-    foxlang::lsp::LspServer server(transport);
+    skrumi::lsp::Transport transport;
+    skrumi::lsp::LspServer server(transport);
     return server.run(std::cin, std::cout);
 }

@@ -1,4 +1,4 @@
-"""A multi-file project through the real foxlang-lsp, in a directory whose name has
+"""A multi-file project through the real skrumi-lsp, in a directory whose name has
 spaces and Cyrillic (percent-encoded in file:// URIs).
 
 Checks that files of one program see each other's functions and globals, that two
@@ -22,41 +22,37 @@ def frame(message):
     return f"Content-Length: {len(data)}\r\n\r\n".encode("ascii") + data
 
 
-main = "main.skm" if len(sys.argv) > 2 else "main.fox"
-render = "render.skm" if len(sys.argv) > 2 else "render.fox"
+main = "main.skm"
+render = "render.skm"
 
-with tempfile.TemporaryDirectory(prefix="fox-lsp-project-") as directory:
+with tempfile.TemporaryDirectory(prefix="skrumi-lsp-project-") as directory:
     root = Path(directory) / "Мой проект"
     (root / "lib").mkdir(parents=True)
     files = {
-        "main.fox": 'using string;\ninclude("lib/utils.fox");\ninclude("render.fox");\nint counter = 0;\nmain_entry();\n',
-        "lib/utils.fox": 'string shout(string text) {\n    counter++;\n    return upper(text) + "!";\n}\n',
-        "render.fox": 'void main_entry() {\n    print(shout("мир"), counter, later_helper());\n}\n',
-        "other.fox": 'include("lib/utils.fox");\nvoid other() { print(main_entry()); }\n',
+        "main.skm": 'using string;\ninclude("lib/utils.skm");\ninclude("render.skm");\nint counter = 0;\nmain_entry();\n',
+        "lib/utils.skm": 'string shout(string text) {\n    counter++;\n    return upper(text) + "!";\n}\n',
+        "render.skm": 'void main_entry() {\n    print(shout("мир"), counter, later_helper());\n}\n',
+        "other.skm": 'include("lib/utils.skm");\nvoid other() { print(main_entry()); }\n',
     }
-    mixed = len(sys.argv) > 2
-    if mixed:
-        files = {name.replace("main.fox", "main.skm").replace("render.fox", "render.skm"):
-                 text.replace("render.fox", "render.skm") for name, text in files.items()}
     for name, text in files.items():
         (root / name).write_text(text, encoding="utf-8")
     uri = {name: (root / name).as_uri() for name in files}
     assert "%D0%9C" in uri[main], uri[main]
 
     messages = [dict(jsonrpc="2.0", id=1, method="initialize", params=dict(capabilities={}, rootUri=root.as_uri()))]
-    for name in (main, "lib/utils.fox", render, "other.fox"):
+    for name in (main, "lib/utils.skm", render, "other.skm"):
         messages.append(dict(jsonrpc="2.0", method="textDocument/didOpen", params=dict(
-            textDocument=dict(uri=uri[name], languageId="fox", version=1, text=files[name]))))
-    # Adding the helper to utils.fox must clear the error in render.fox.
-    fixed = files["lib/utils.fox"] + "int later_helper() {\n    return 1;\n}\n"
+            textDocument=dict(uri=uri[name], languageId="skrumi", version=1, text=files[name]))))
+    # Adding the helper to utils.skm must clear the error in render.skm.
+    fixed = files["lib/utils.skm"] + "int later_helper() {\n    return 1;\n}\n"
     messages.append(dict(jsonrpc="2.0", method="textDocument/didChange", params=dict(
-        textDocument=dict(uri=uri["lib/utils.fox"], version=2), contentChanges=[dict(text=fixed)])))
+        textDocument=dict(uri=uri["lib/utils.skm"], version=2), contentChanges=[dict(text=fixed)])))
     messages.append(dict(jsonrpc="2.0", id=2, method="textDocument/definition", params=dict(
         textDocument=dict(uri=uri[render]), position=dict(line=1, character=11))))
     messages.append(dict(jsonrpc="2.0", id=3, method="shutdown"))
     messages.append(dict(jsonrpc="2.0", method="exit"))
 
-    env = dict(os.environ, FOXLANG_HOME=str(Path(directory) / "absent"))
+    env = dict(os.environ, SKRUMI_HOME=str(Path(directory) / "absent"))
     process = subprocess.run([str(binary)], input=b"".join(frame(m) for m in messages), capture_output=True,
                              cwd=directory, env=env, timeout=30)
     assert process.returncode == 0, process.stderr.decode("utf-8", "replace")
@@ -78,17 +74,17 @@ with tempfile.TemporaryDirectory(prefix="fox-lsp-project-") as directory:
         return [diagnostics for file, diagnostics in published if file == name][-1]
 
     def before_change(name):
-        index = next(i for i, (file, d) in enumerate(published) if file == "lib/utils.fox" and not d)
+        index = next(i for i, (file, d) in enumerate(published) if file == "lib/utils.skm" and not d)
         seen = [d for file, d in published[:index] if file == name]
         return seen[-1] if seen else None
 
-    # Before the fix render.fox knows shout and counter, but not the missing helper.
+    # Before the fix render.skm knows shout and counter, but not the missing helper.
     render_before = [d for file, d in published if file == render][0]
     assert render_before == ["Undefined function 'later_helper'"], published
     assert last(render) == [], published
-    assert last(main) == [] and last("lib/utils.fox") == [], published
-    # other.fox is a separate program: main_entry comes only from main.fox's program.
-    assert last("other.fox") == ["Undefined function 'main_entry'"], published
+    assert last(main) == [] and last("lib/utils.skm") == [], published
+    # other.skm is a separate program: main_entry comes only from main.skm's program.
+    assert last("other.skm") == ["Undefined function 'main_entry'"], published
 
     definition = responses[2]
     # Compare files, not spellings: Windows runners give the temporary directory as a
@@ -96,6 +92,6 @@ with tempfile.TemporaryDirectory(prefix="fox-lsp-project-") as directory:
     assert definition, definition
     target = urllib.parse.urlparse(definition["uri"])
     target_path = urllib.request.url2pathname(urllib.parse.unquote(target.path))
-    assert os.path.samefile(target_path, root / "lib" / "utils.fox"), definition
+    assert os.path.samefile(target_path, root / "lib" / "utils.skm"), definition
     assert definition["range"]["start"]["line"] == 0, definition
 print("LSP_PROJECT_OK")

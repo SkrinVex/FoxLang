@@ -6,7 +6,7 @@
 #include <sstream>
 #include <cassert>
 
-using namespace foxlang::lsp;
+using namespace skrumi::lsp;
 
 #define TEST_ASSERT(cond) \
     do { \
@@ -68,13 +68,13 @@ int main() {
     }
 
     // 3. textDocument/didOpen (Valid file)
-    std::string fileUri = "file:///workspace/main.fox";
+    std::string fileUri = "file:///workspace/main.skm";
     {
         std::string foxCode = "int myScore = 42;\nvoid updateScore() {\n    print(myScore);\n}\n";
         JsonValue params = JsonValue::object();
         JsonValue item = JsonValue::object();
         item.set("uri", JsonValue(fileUri));
-        item.set("languageId", JsonValue("fox"));
+        item.set("languageId", JsonValue("skrumi"));
         item.set("version", JsonValue(1));
         item.set("text", JsonValue(foxCode));
         params.set("textDocument", item);

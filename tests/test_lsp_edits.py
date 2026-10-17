@@ -1,7 +1,7 @@
-"""References, renaming and formatting through the real foxlang-lsp executable.
+"""References, renaming and formatting through the real skrumi-lsp executable.
 
-A program of two files: main.fox includes util.fox. Only main.fox is open, so the
-server reads util.fox from disk; then util.fox is opened and must still be found.
+A program of two files: main.skm includes util.skm. Only main.skm is open, so the
+server reads util.skm from disk; then util.skm is opened and must still be found.
 """
 import json
 from pathlib import Path
@@ -15,7 +15,7 @@ UTIL = '''int add(int left, int right) {
     return left + right;
 }
 '''
-MAIN = '''include("util.fox");
+MAIN = '''include("util.skm");
 
 int total = add(1, 2);
 int twice(int value) {
@@ -78,31 +78,31 @@ def spots(locations):
                   for l in locations)
 
 
-with tempfile.TemporaryDirectory(prefix='fox-lsp-') as directory:
+with tempfile.TemporaryDirectory(prefix='skrumi-lsp-') as directory:
     root = Path(directory)
-    (root / 'util.fox').write_text(UTIL, encoding='utf-8')
-    (root / 'main.fox').write_text(MAIN, encoding='utf-8')
-    main_uri = uri(root / 'main.fox')
+    (root / 'util.skm').write_text(UTIL, encoding='utf-8')
+    (root / 'main.skm').write_text(MAIN, encoding='utf-8')
+    main_uri = uri(root / 'main.skm')
     server = Server()
     init = server.request('initialize', {'rootUri': uri(root), 'capabilities': {}})
     caps = init['result']['capabilities']
     assert caps['referencesProvider'] and caps['renameProvider']['prepareProvider'] and caps['documentFormattingProvider'], caps
     server.notify('initialized', {})
-    server.notify('textDocument/didOpen', {'textDocument': {'uri': main_uri, 'languageId': 'fox', 'version': 1, 'text': MAIN}})
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': main_uri, 'languageId': 'skrumi', 'version': 1, 'text': MAIN}})
 
-    # add() is declared in util.fox, which is not open.
+    # add() is declared in util.skm, which is not open.
     refs = server.request('textDocument/references', {'textDocument': {'uri': main_uri}, 'position': at(MAIN, 'add'),
                                                        'context': {'includeDeclaration': True}})['result']
-    assert spots(refs) == [('main.fox', 2, 12), ('main.fox', 4, 11), ('util.fox', 0, 4)], spots(refs)
+    assert spots(refs) == [('main.skm', 2, 12), ('main.skm', 4, 11), ('util.skm', 0, 4)], spots(refs)
     no_decl = server.request('textDocument/references', {'textDocument': {'uri': main_uri}, 'position': at(MAIN, 'add'),
                                                           'context': {'includeDeclaration': False}})['result']
-    assert ('util.fox', 0, 4) not in spots(no_decl), spots(no_decl)
+    assert ('util.skm', 0, 4) not in spots(no_decl), spots(no_decl)
 
     prepared = server.request('textDocument/prepareRename', {'textDocument': {'uri': main_uri}, 'position': at(MAIN, 'add', 1)})
     assert prepared['result']['placeholder'] == 'add', prepared
     edit = server.request('textDocument/rename', {'textDocument': {'uri': main_uri}, 'position': at(MAIN, 'add'), 'newName': 'sum'})
     changes = edit['result']['changes']
-    assert sorted(Path(u).name for u in changes) == ['main.fox', 'util.fox'], changes
+    assert sorted(Path(u).name for u in changes) == ['main.skm', 'util.skm'], changes
     assert all(e['newText'] == 'sum' for edits in changes.values() for e in edits)
     assert sum(len(edits) for edits in changes.values()) == 3, changes
 
@@ -119,31 +119,31 @@ with tempfile.TemporaryDirectory(prefix='fox-lsp-') as directory:
 
     # The declaring file open in the editor: its buffer is used, not the disk.
     edited_util = UTIL.replace('int add', '\n\nint add')
-    util_uri = uri(root / 'util.fox')
-    server.notify('textDocument/didOpen', {'textDocument': {'uri': util_uri, 'languageId': 'fox', 'version': 1, 'text': edited_util}})
+    util_uri = uri(root / 'util.skm')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': util_uri, 'languageId': 'skrumi', 'version': 1, 'text': edited_util}})
     refs = server.request('textDocument/references', {'textDocument': {'uri': main_uri}, 'position': at(MAIN, 'add'),
                                                        'context': {'includeDeclaration': True}})['result']
-    assert ('util.fox', 2, 4) in spots(refs), spots(refs)
+    assert ('util.skm', 2, 4) in spots(refs), spots(refs)
 
     messy = 'int  x=1;\n\n\n\nif (x > 0) {\nprint(x);\n}'
-    doc_uri = uri(root / 'messy.fox')
-    server.notify('textDocument/didOpen', {'textDocument': {'uri': doc_uri, 'languageId': 'fox', 'version': 1, 'text': messy}})
+    doc_uri = uri(root / 'messy.skm')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': doc_uri, 'languageId': 'skrumi', 'version': 1, 'text': messy}})
     formatted = server.request('textDocument/formatting', {'textDocument': {'uri': doc_uri}, 'options': {'tabSize': 4, 'insertSpaces': True}})
     assert formatted['result'][0]['newText'] == 'int  x=1;\n\nif (x > 0) {\n    print(x);\n}\n', formatted
 
     # After `name.` the completion lists the fields and methods of name's struct, even
     # while the line is still unfinished.
     shapes = 'struct Point {\n    int x;\n    int y;\n    float length() { return 1.0; }\n}\nPoint p = Point(1, 2);\np.'
-    shapes_uri = uri(root / 'shapes.fox')
-    server.notify('textDocument/didOpen', {'textDocument': {'uri': shapes_uri, 'languageId': 'fox', 'version': 1, 'text': shapes}})
+    shapes_uri = uri(root / 'shapes.skm')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': shapes_uri, 'languageId': 'skrumi', 'version': 1, 'text': shapes}})
     listed = server.request('textDocument/completion', {'textDocument': {'uri': shapes_uri},
                                                         'position': {'line': 6, 'character': 2}})['result']
     assert sorted(item['label'] for item in listed) == ['length', 'x', 'y'], listed
 
     # After a module alias, the module's functions and variables.
     aliased = 'using math as m;\nfloat r = m.'
-    aliased_uri = uri(root / 'aliased.fox')
-    server.notify('textDocument/didOpen', {'textDocument': {'uri': aliased_uri, 'languageId': 'fox', 'version': 1, 'text': aliased}})
+    aliased_uri = uri(root / 'aliased.skm')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': aliased_uri, 'languageId': 'skrumi', 'version': 1, 'text': aliased}})
     listed = server.request('textDocument/completion', {'textDocument': {'uri': aliased_uri},
                                                         'position': {'line': 1, 'character': 12}})['result']
     labels = [item['label'] for item in listed]
@@ -151,8 +151,8 @@ with tempfile.TemporaryDirectory(prefix='fox-lsp-') as directory:
 
     # After an enum's name, its values.
     colors = 'enum Color { Red, Green }\nColor c = Color.'
-    colors_uri = uri(root / 'colors.fox')
-    server.notify('textDocument/didOpen', {'textDocument': {'uri': colors_uri, 'languageId': 'fox', 'version': 1, 'text': colors}})
+    colors_uri = uri(root / 'colors.skm')
+    server.notify('textDocument/didOpen', {'textDocument': {'uri': colors_uri, 'languageId': 'skrumi', 'version': 1, 'text': colors}})
     listed = server.request('textDocument/completion', {'textDocument': {'uri': colors_uri},
                                                         'position': {'line': 1, 'character': 16}})['result']
     assert [item['label'] for item in listed] == ['Red', 'Green'], listed

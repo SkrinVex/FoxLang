@@ -4,11 +4,11 @@
 #include <memory>
 #include <vector>
 #include <functional>
-#include "foxlang/SemanticAnalyzer.h"
-#include "foxlang/Project.h"
+#include "skrumi/SemanticAnalyzer.h"
+#include "skrumi/Project.h"
 #include "Protocol.h"
 
-namespace foxlang {
+namespace skrumi {
 namespace lsp {
 
 struct DocumentState {
@@ -25,9 +25,9 @@ struct DocumentState {
 // known in the others; the open buffers take the place of the files on disk.
 class DocumentManager {
 public:
-    explicit DocumentManager(std::string foxHome = "");
+    explicit DocumentManager(std::string skrumiHome = "");
 
-    void setFoxHome(std::string home) { foxHome = std::move(home); }
+    void setSkrumiHome(std::string home) { skrumiHome = std::move(home); }
     void setWorkspaceRoot(const std::string& uri);
 
     // Each returns the documents whose diagnostics may have changed.
@@ -49,7 +49,7 @@ public:
     static std::string filePathToUri(const std::string& path);
 
 private:
-    std::string foxHome;
+    std::string skrumiHome;
     std::unordered_map<std::string, DocumentState> documents;
     std::shared_ptr<OverlaySources> sources;
     std::unique_ptr<ProjectIndex> project;
@@ -59,4 +59,4 @@ private:
 };
 
 } // namespace lsp
-} // namespace foxlang
+} // namespace skrumi

@@ -1,5 +1,5 @@
 {
-  "name": "foxlang-playground-tests",
+  "name": "skrumi-playground-tests",
   "private": true,
   "scripts": {
     "test": "node test_builder_model.js && node test_editor.js && node test_builder.js && node test_theme.js && node test_downloads.js"

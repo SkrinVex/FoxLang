@@ -62,8 +62,8 @@ const { chromium } = require('playwright');
         };
       });
       await compatibility.addInitScript(() => {
-        localStorage.setItem('foxlang-playground-files', JSON.stringify([
-          {name: 'main.fox', text: 'include("helper.skm");'},
+        localStorage.setItem('skrumi-playground-files', JSON.stringify([
+          {name: 'main.skm', text: 'include("helper.skm");'},
           {name: 'helper.skm', text: 'print(42);'}
         ]));
       });
@@ -72,7 +72,7 @@ const { chromium } = require('playwright');
       await compatibility.locator('#run').click();
       await compatibility.waitForFunction(() => window.runs.length > 0);
       const legacyRun = await compatibility.evaluate(() => window.runs[0]);
-      assert.equal(legacyRun.entry, 'main.fox');
+      assert.equal(legacyRun.entry, 'main.skm');
       assert(legacyRun.files.some(file => file.name === 'helper.skm'));
       await compatibility.locator('#examples').selectOption('modules');
       await compatibility.waitForFunction(() => document.querySelector('#source').value.includes('using shapes'));

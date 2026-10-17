@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <ft2build.h>
 #include FT_FREETYPE_H
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 namespace {
 void checked(FT_Error error) { if (error) throw std::runtime_error("Graphics Error: font operation failed (" + std::to_string(error) + ")"); }
 void pixelSize(int pixels) { if (pixels < 8 || pixels > 96) throw std::runtime_error("Graphics Error: font size must be 8..96 pixels"); }

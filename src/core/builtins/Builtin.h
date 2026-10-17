@@ -1,11 +1,11 @@
 #pragma once
-#include "foxlang/Builtins.h"
-#include "foxlang/Runtime.h"
+#include "skrumi/Builtins.h"
+#include "skrumi/Runtime.h"
 #include <forward_list>
 #include <string>
 #include <vector>
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 
 // Arguments of one builtin call. The registry has already checked their count and
 // types against the catalog, so accessors only convert and range-check.
@@ -84,4 +84,4 @@ void addNetworkBuiltins(std::vector<Builtin>& out);
 void addGraphicsBuiltins(std::vector<Builtin>& out);
 void addSoundBuiltins(std::vector<Builtin>& out);
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

@@ -1,29 +1,27 @@
 // Run, check and build Skrumi programs from VS Code: the ▶ button in the editor
-// title, commands, and a "foxlang" task type for tasks.json.
+// title, commands, and a "skrumi" task type for tasks.json.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const vscode = require('vscode');
 
-const TASK_TYPE = 'foxlang';
+const TASK_TYPE = 'skrumi';
 
 function config() {
-    return vscode.workspace.getConfiguration('foxlang');
+    return vscode.workspace.getConfiguration('skrumi');
 }
 
 function installationHome() {
     if (process.env.SKRUMI_HOME) return process.env.SKRUMI_HOME;
-    if (process.env.FOXLANG_HOME) return process.env.FOXLANG_HOME;
     if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
-        const modern = path.join(process.env.LOCALAPPDATA, 'Skrumi');
-        return fs.existsSync(modern) ? modern : path.join(process.env.LOCALAPPDATA, 'FoxLang');
+        return path.join(process.env.LOCALAPPDATA, 'Skrumi');
     }
     return '';
 }
 
 function runtimeEnvironment(extra = {}) {
     const home = installationHome();
-    return Object.assign({}, home ? { FOXLANG_HOME: home } : {}, extra);
+    return Object.assign({}, home ? { SKRUMI_HOME: home } : {}, extra);
 }
 
 function resolveExecutable() {
@@ -41,14 +39,10 @@ function resolveExecutable() {
     for (const candidate of candidates) {
         if (fs.existsSync(candidate)) return candidate;
     }
-    for (const candidate of candidates) {
-        const legacy = candidate.replace(/skrumi(?=\.exe$|$)/, 'foxlang');
-        if (fs.existsSync(legacy)) return legacy;
-    }
     return 'skrumi';
 }
 
-// The program to run: foxlang.run.entryFile when it is set (a project whose main file
+// The program to run: skrumi.run.entryFile when it is set (a project whose main file
 // includes the others), otherwise the file open in the editor.
 function entryFile() {
     const entry = config().get('run.entryFile');
@@ -60,7 +54,7 @@ function entryFile() {
         if (folder) return path.join(folder.uri.fsPath, entry);
     }
     const editor = vscode.window.activeTextEditor;
-    if (editor && editor.document.languageId === 'fox' && editor.document.uri.scheme === 'file') {
+    if (editor && editor.document.languageId === 'skrumi' && editor.document.uri.scheme === 'file') {
         return editor.document.uri.fsPath;
     }
     return null;
@@ -75,7 +69,7 @@ function commandLine(command, file, extraArgs) {
 const labels = { run: 'Запуск', check: 'Проверка', build: 'Сборка' };
 // Full paths in error messages let the problem matcher find files from any directory,
 // so it needs no workspace folder.
-const environment = runtimeEnvironment({ FOXLANG_ABSOLUTE_PATHS: '1' });
+const environment = runtimeEnvironment({ SKRUMI_ABSOLUTE_PATHS: '1' });
 
 // A task for a file inside an open folder; null for a file opened on its own, which
 // VS Code cannot run as a task.
@@ -89,7 +83,7 @@ function makeTask(command, file, extraArgs) {
     });
     const task = new vscode.Task(definition, folder,
         `${labels[command] || command}: ${path.basename(file)}`, 'Skrumi', execution,
-        command === 'check' ? ['$foxlang'] : ['$foxlang-runtime']);
+        command === 'check' ? ['$skrumi'] : ['$skrumi-runtime']);
     task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, clear: true, focus: command === 'run' };
     if (command === 'build') task.group = vscode.TaskGroup.Build;
     return task;
@@ -109,7 +103,7 @@ function runInTerminal(command, file) {
 async function start(command) {
     const file = entryFile();
     if (!file) {
-        vscode.window.showWarningMessage('Откройте файл .skm или .fox или укажите главный файл командой «Skrumi: выбрать главный файл».');
+        vscode.window.showWarningMessage('Откройте файл .skm или укажите главный файл командой «Skrumi: выбрать главный файл».');
         return;
     }
     // Every file of a project may be part of the program, so all of them are saved.
@@ -121,8 +115,8 @@ async function start(command) {
 
 async function chooseEntry() {
     const editor = vscode.window.activeTextEditor;
-    if (!editor || editor.document.languageId !== 'fox') {
-        vscode.window.showWarningMessage('Откройте главный файл программы .skm или .fox.');
+    if (!editor || editor.document.languageId !== 'skrumi') {
+        vscode.window.showWarningMessage('Откройте главный файл программы .skm.');
         return;
     }
     const folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
@@ -132,10 +126,10 @@ async function chooseEntry() {
 }
 
 function activate(context) {
-    context.subscriptions.push(vscode.commands.registerCommand('foxlang.run', () => start('run')));
-    context.subscriptions.push(vscode.commands.registerCommand('foxlang.check', () => start('check')));
-    context.subscriptions.push(vscode.commands.registerCommand('foxlang.build', () => start('build')));
-    context.subscriptions.push(vscode.commands.registerCommand('foxlang.chooseEntry', chooseEntry));
+    context.subscriptions.push(vscode.commands.registerCommand('skrumi.run', () => start('run')));
+    context.subscriptions.push(vscode.commands.registerCommand('skrumi.check', () => start('check')));
+    context.subscriptions.push(vscode.commands.registerCommand('skrumi.build', () => start('build')));
+    context.subscriptions.push(vscode.commands.registerCommand('skrumi.chooseEntry', chooseEntry));
     context.subscriptions.push(vscode.tasks.registerTaskProvider(TASK_TYPE, {
         provideTasks() {
             const file = entryFile();

@@ -25,17 +25,7 @@ def module_exports(module):
 
 def standard_modules(root):
     """Canonical modules; reject duplicate implementations rather than hide them."""
-    modules = {}
-    for module in sorted((root / "std").iterdir()):
-        if module.suffix not in (".fox", ".skm"):
-            continue
-        if module.suffix == ".fox" and module.with_suffix(".skm").exists():
-            expected = f'// Skrumi compatibility alias; implementation: {module.stem}.skm.\ninclude("{module.stem}.skm");\n'
-            if module.read_text(encoding="utf-8") != expected:
-                raise ValueError(f"Ambiguous standard module: {module.stem}")
-            continue
-        modules[module.stem] = module
-    return [modules[name] for name in sorted(modules)]
+    return sorted((root / "std").glob("*.skm"))
 
 
 def function_names(root):
@@ -48,8 +38,8 @@ def function_names(root):
 def synchronize(root, check=False):
     names = function_names(root)
     alternatives = "|".join(names)
-    paths = ["editors/vscode/syntaxes/foxlang.tmLanguage.json", "editors/kate/foxlang.xml",
-             "editors/zed/languages/foxlang/highlights.scm"]
+    paths = ["editors/vscode/syntaxes/skrumi.tmLanguage.json", "editors/kate/skrumi.xml",
+             "editors/zed/languages/skrumi/highlights.scm"]
     for path in paths:
         target = root / path
         old = target.read_text(encoding="utf-8")

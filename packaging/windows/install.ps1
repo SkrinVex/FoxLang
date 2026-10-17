@@ -35,7 +35,7 @@ $Version = (Get-Content -LiteralPath $VersionFile -Raw).Trim()
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Некорректный номер версии: $Version" }
 
 # Refuse replacing an arbitrary directory. Legacy installs stay intact; PATH
-# prefers this installation and the compatibility launchers use the same engine.
+# prefers this installation without modifying unrelated installations.
 if ((Test-Path -LiteralPath $InstallDir) -and
     -not (Test-Path -LiteralPath (Join-Path $InstallDir '.skrumi-install'))) {
     throw 'InstallDir already exists without a Skrumi ownership marker. Choose an empty directory.'
@@ -66,8 +66,6 @@ try {
     Copy-Item -LiteralPath $Vsix -Destination $StageDir -Force
     Get-ChildItem -LiteralPath $SourceDir -Filter '*.dll' -File | Copy-Item -Destination $StageDir -Force
 
-    Copy-Item (Join-Path $StageDir 'skrumi.exe') (Join-Path $StageDir 'foxlang.exe')
-    Copy-Item (Join-Path $StageDir 'skrumi-lsp.exe') (Join-Path $StageDir 'foxlang-lsp.exe')
     Set-Content -LiteralPath (Join-Path $StageDir '.skrumi-install') -Value $Version
     $BinaryVersion = (& (Join-Path $StageDir 'skrumi.exe') --version 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or $BinaryVersion -ne "Skrumi $Version") {
@@ -140,14 +138,14 @@ if (-not $SkipVSCode) {
         $ExtensionsDir = Join-Path $env:USERPROFILE '.vscode\extensions'
         if ((Test-Path -LiteralPath $ExtensionsDir) -or $CodePath) {
             New-Item -ItemType Directory -Force -Path $ExtensionsDir | Out-Null
-            $TempDir = Join-Path $env:TEMP ("foxlang-vsix-" + [Guid]::NewGuid().ToString('N'))
+            $TempDir = Join-Path $env:TEMP ("skrumi-vsix-" + [Guid]::NewGuid().ToString('N'))
             try {
                 # A VSIX is a ZIP, but Expand-Archive in Windows PowerShell rejects .vsix.
                 Add-Type -AssemblyName System.IO.Compression.FileSystem
                 [System.IO.Compression.ZipFile]::ExtractToDirectory($Vsix, $TempDir)
                 $ExtensionSource = Join-Path $TempDir 'extension'
                 if (-not (Test-Path -LiteralPath (Join-Path $ExtensionSource 'package.json'))) { throw 'В VSIX не найден package.json расширения.' }
-                $ExtensionTarget = Join-Path $ExtensionsDir "SkrinVex.foxlang-language-$Version"
+                $ExtensionTarget = Join-Path $ExtensionsDir "SkrinVex.skrumi-language-$Version"
                 New-Item -ItemType Directory -Force -Path $ExtensionTarget | Out-Null
                 Copy-Item -Path (Join-Path $ExtensionSource '*') -Destination $ExtensionTarget -Recurse -Force
                 $ExtensionInstalled = $true
@@ -162,7 +160,7 @@ if (-not $SkipVSCode) {
 }
 
 Write-Info "установлена версия $Version в $InstallDir"
-Write-Info 'команды skrumi, skrumi-lsp и совместимые foxlang, foxlang-lsp добавлены в пользовательский PATH'
+Write-Info 'команды skrumi, skrumi-lsp добавлены в пользовательский PATH'
 if ($ExtensionInstalled) { Write-Info 'расширение VS Code установлено или обновлено' }
 Write-Info 'распакованную папку можно удалить; для следующего обновления запустите install.cmd из нового архива.'
 Write-Info "удаление: $InstallDir\uninstall.ps1"

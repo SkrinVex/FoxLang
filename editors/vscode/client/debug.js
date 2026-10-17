@@ -1,4 +1,4 @@
-// Debugging Skrumi programs: F5, the Run and Debug view, breakpoints in .fox files.
+// Debugging Skrumi programs: F5, the Run and Debug view, breakpoints in .skm files.
 // The program runs in a terminal of its own, so input(), colours and graphics work as
 // in a normal run, and talks the Debug Adapter Protocol to VS Code over a local
 // connection that this adapter relays.
@@ -7,7 +7,7 @@ const path = require('path');
 const vscode = require('vscode');
 const run = require('./run');
 
-const DEBUG_TYPE = 'foxlang';
+const DEBUG_TYPE = 'skrumi';
 const CONNECT_TIMEOUT_MS = 15000;
 let terminal = null;
 
@@ -35,12 +35,12 @@ class ProgramAdapter {
                 shellPath: run.resolveExecutable(),
                 shellArgs: ['debug-adapter', '--connect', `127.0.0.1:${this.server.address().port}`],
                 cwd: config.cwd,
-                env: run.runtimeEnvironment(Object.assign({ FOXLANG_ABSOLUTE_PATHS: '1' }, config.env || {}))
+                env: run.runtimeEnvironment(Object.assign({ SKRUMI_ABSOLUTE_PATHS: '1' }, config.env || {}))
             });
             terminal.show(true);
             this.timer = setTimeout(() => {
                 if (!this.socket) {
-                    this.fail('Skrumi не подключился к отладчику. Проверьте настройку foxlang.run.executablePath: нужен Skrumi 6.4 или новее.');
+                    this.fail('Skrumi не подключился к отладчику. Проверьте настройку skrumi.run.executablePath: нужен Skrumi 6.4 или новее.');
                 }
             }, CONNECT_TIMEOUT_MS);
         });
@@ -122,7 +122,7 @@ class ProgramAdapter {
     }
 }
 
-// F5 without launch.json debugs the main file (foxlang.run.entryFile) or the open one.
+// F5 without launch.json debugs the main file (skrumi.run.entryFile) or the open one.
 const configurationProvider = {
     provideDebugConfigurations() {
         return [{ type: DEBUG_TYPE, request: 'launch', name: 'Skrumi: текущий файл', program: '${file}' }];
@@ -133,7 +133,7 @@ const configurationProvider = {
         }
         if (!config.program) config.program = run.entryFile();
         if (!config.program) {
-            vscode.window.showWarningMessage('Откройте файл .skm или .fox или укажите главный файл командой «Skrumi: сделать этот файл главным».');
+            vscode.window.showWarningMessage('Откройте файл .skm или укажите главный файл командой «Skrumi: сделать этот файл главным».');
             return undefined;
         }
         if (!path.isAbsolute(config.program) && folder) config.program = path.join(folder.uri.fsPath, config.program);
@@ -146,7 +146,7 @@ const configurationProvider = {
 async function startDebugging() {
     const program = run.entryFile();
     if (!program) {
-        vscode.window.showWarningMessage('Откройте файл .skm или .fox или укажите главный файл командой «Skrumi: сделать этот файл главным».');
+        vscode.window.showWarningMessage('Откройте файл .skm или укажите главный файл командой «Skrumi: сделать этот файл главным».');
         return;
     }
     const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(program));
@@ -160,7 +160,7 @@ function activate(context) {
             return new vscode.DebugAdapterInlineImplementation(new ProgramAdapter(session.configuration));
         }
     }));
-    context.subscriptions.push(vscode.commands.registerCommand('foxlang.debug', startDebugging));
+    context.subscriptions.push(vscode.commands.registerCommand('skrumi.debug', startDebugging));
 }
 
 module.exports = { activate };

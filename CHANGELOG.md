@@ -1,3 +1,43 @@
+# Skrumi 9.0.0 — breaking removal of historical compatibility
+
+- Source files now use `.skm` exclusively. Runtime file execution, CLI source
+  tools, imports, standalone collection and Android staging reject retired formats.
+- Removed caller-extension-dependent import selection, extension fallback and
+  standard-library alias canonicalization. Standard precedence, relative paths,
+  canonical module identity and cycle handling remain shared by runtime and tools.
+- Audited all 90 `.fox` files before migration: 55 unique implementations moved
+  to `.skm`; 30 equivalent examples removed after normalized comparison; five
+  standard-library forwarding adapters removed. No unique implementation discarded.
+- Promoted real native headers and Android implementations into Skrumi namespaces;
+  removed forwarding headers, Java facades, duplicate native archives, executable
+  copies, CMake compatibility options and environment fallbacks.
+- Canonical native targets, exports, standalone descriptors, Android JNI/Gradle
+  identities, browser factory/protocols and editor language IDs use Skrumi.
+  Existing standalone executables remain independent; rebuild source projects
+  and native/Android integrations for the new SDK.
+- CLI is `skrumi`, language server is `skrumi-lsp`; only `SKRUMI_*` configuration
+  and `--skrumi-*` launch options are recognized. Language syntax is unchanged.
+- GUI layout and interaction remain unchanged. Payload now contains only the
+  runtime, optional LSP, `.skm` stdlib and necessary maintenance/branding resources.
+  Ownership verification, transaction journals, recovery and user-file protection
+  remain in place; unknown installations are not searched for or removed.
+- Release inventory contains two GUI installers, Android AAR, two demonstration
+  APKs, VSIX, Kate syntax, benchmark JSON and SHA256SUMS. Internal archives,
+  screenshots and profiling results stay CI artifacts, not release downloads.
+- Updated VS Code, Zed and Kate identities and associations. Zed remains a source
+  extension using its existing pinned C grammar; no unbuilt binary is published.
+  The new VS Code identity requires an explicit installation, not a presumed
+  Marketplace rename or automatic migration.
+- Migrated examples, regressions, benchmarks, documentation, website, Playground
+  and UI Builder. Added manual migration guidance and preserved historical records.
+- Added negative compatibility tests, import/cycle/isolated-bundle regressions,
+  package ownership inventory checks, checksum verification and a repository brand
+  audit. Updated component versions together from 8.18.0 to 9.0.0.
+
+Validation and platform limitations are recorded in `docs/REBRANDING_AUDIT.md`.
+
+---
+
 ## Skrumi 8.18.0 — GUI installer and public system/UI APIs
 
 - Highlight the selected directory preset, enable recovery only for a detected

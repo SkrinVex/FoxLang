@@ -221,7 +221,7 @@ void tx_begin(string target, bool uninstall, bool add_path) {
         array candidates = payload[3];
         for (int i = 0; i < size(candidates); i++) {
             array candidate = candidates[i];
-            bool lsp = candidate[0] == "skrumi-lsp" || candidate[0] == "foxlang-lsp" || candidate[0] == "skrumi-lsp.exe" || candidate[0] == "foxlang-lsp.exe";
+            bool lsp = candidate[0] == "skrumi-lsp" || candidate[0] == "skrumi-lsp.exe";
             if (!lsp || tx_include_lsp) { push(incoming, candidate); }
         }
         // Replace deletion records with desired new hashes after validating all ownership.

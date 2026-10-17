@@ -116,9 +116,9 @@ assert.equal(
 );
 
 const oldProject = M.template();
-oldProject.main = 'include("layout.fox"); print("legacy");';
-assert.equal(M.files(oldProject)["main.fox"], oldProject.main);
-assert(M.files(oldProject)["layout.fox"]);
+oldProject.main = 'include("layout.skm"); print("legacy");';
+assert.equal(M.files(oldProject)["main.skm"], oldProject.main);
+assert(M.files(oldProject)["layout.skm"]);
 
 assert(Object.keys(M.files(M.template())).every(name => name.endsWith('.skm')));
 

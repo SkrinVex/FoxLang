@@ -1,9 +1,9 @@
 #include "DebugAdapter.h"
-#include "foxlang/Bytecode.h"
+#include "skrumi/Bytecode.h"
 #include "Channel.h"
 #include "Json.h"
-#include "foxlang/FoxLang.h"
-#include "foxlang/Project.h"
+#include "skrumi/Skrumi.h"
+#include "skrumi/Project.h"
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -21,7 +21,7 @@
 #include <thread>
 #include <unordered_map>
 
-namespace foxlang::debug {
+namespace skrumi::debug {
 namespace {
 
 using lsp::JsonValue;
@@ -962,4 +962,4 @@ int runAdapter(const std::vector<std::string>& options) {
     return session.serve();
 }
 
-} // namespace foxlang::debug
+} // namespace skrumi::debug

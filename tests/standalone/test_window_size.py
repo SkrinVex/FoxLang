@@ -7,7 +7,7 @@ import tempfile
 
 binary = str(Path(sys.argv[1]).resolve())
 if os.name != 'nt' and not os.environ.get('DISPLAY'):
-    if os.environ.get('FOXLANG_REQUIRE_GRAPHICS_TESTS') == '1':
+    if os.environ.get('SKRUMI_REQUIRE_GRAPHICS_TESTS') == '1':
         raise RuntimeError('Window tests require an X server (run under xvfb-run)')
     print('SKIP: no DISPLAY; use xvfb-run or a desktop session')
     sys.exit(77)
@@ -43,10 +43,10 @@ write_file("size.txt", log + final + " refused " + refused);
 close_window();
 '''
 
-with tempfile.TemporaryDirectory(prefix='fox-window-size-') as directory:
+with tempfile.TemporaryDirectory(prefix='skrumi-window-size-') as directory:
     root = Path(directory)
-    (root / 'main.fox').write_text(PROGRAM, encoding='utf-8')
-    result = subprocess.run([binary, 'main.fox'], cwd=root, capture_output=True, text=True, encoding='utf-8', timeout=60)
+    (root / 'main.skm').write_text(PROGRAM, encoding='utf-8')
+    result = subprocess.run([binary, 'main.skm'], cwd=root, capture_output=True, text=True, encoding='utf-8', timeout=60)
     assert result.returncode == 0, result.stderr
     text = (root / 'size.txt').read_text(encoding='utf-8')
     assert text == 'set 420x260 true;final 420x260 refused true', text

@@ -1,6 +1,6 @@
-#include "foxlang/Android.h"
+#include "skrumi/Android.h"
 #include <stdexcept>
-namespace foxlang::android {
+namespace skrumi::android {
 namespace { thread_local Host* active = nullptr; }
 Host* current() noexcept { return active; }
 Host& host() {

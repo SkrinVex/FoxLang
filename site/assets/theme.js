@@ -6,7 +6,7 @@
   let preference = "auto";
   try {
     const saved = localStorage.getItem(key);
-    const legacy = localStorage.getItem(location.pathname.includes("/builder") ? "skrumi-builder-theme" : "foxlang-playground-theme");
+    const legacy = localStorage.getItem(location.pathname.includes("/builder") ? "skrumi-builder-theme" : "skrumi-playground-theme");
     preference = valid(saved) ? saved : valid(legacy) ? legacy : "auto";
     if (!valid(saved)) localStorage.setItem(key, preference);
   } catch (_) { /* Themes also work without storage. */ }

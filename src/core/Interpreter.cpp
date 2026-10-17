@@ -1,11 +1,11 @@
-#include "foxlang/FoxLang.h"
-#include "foxlang/Bytecode.h"
+#include "skrumi/Skrumi.h"
+#include "skrumi/Bytecode.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <filesystem>
 
-namespace foxlang {
+namespace skrumi {
 
 namespace {
 
@@ -45,7 +45,7 @@ Interpreter::Interpreter() : Interpreter(InterpreterOptions{}) {}
 
 Interpreter::Interpreter(InterpreterOptions opts) : options(std::move(opts)) {
     globalContext.interpreter = this;
-    sources = options.sources ? options.sources : filesystemSources(options.foxHome);
+    sources = options.sources ? options.sources : filesystemSources(options.skrumiHome);
 }
 
 Interpreter::~Interpreter() {
@@ -58,7 +58,7 @@ Interpreter::~Interpreter() {
 }
 
 std::string Interpreter::getVersion() {
-    return FOXLANG_VERSION;
+    return SKRUMI_VERSION;
 }
 
 Context& Interpreter::getContext() {
@@ -146,6 +146,7 @@ void Interpreter::executeUsing(const std::string& libName, const std::string& cu
 }
 
 RunResult Interpreter::runFile(const std::string& filepath) {
+    if (!isSourceFile(filepath)) return {false, 1, "source files must use .skm"};
     if (options.loadDotEnv) {
         runtime::loadDotEnv(filepath);
     }
@@ -182,4 +183,4 @@ RunResult Interpreter::runSource(const std::string& source, const std::string& s
     }
 }
 
-} // namespace foxlang
+} // namespace skrumi

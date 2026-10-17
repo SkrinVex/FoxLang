@@ -12,7 +12,7 @@ from test_standalone import Scenario
 from certificates import create_certificates
 
 
-with tempfile.TemporaryDirectory(prefix="fox-https-test-") as temporary:
+with tempfile.TemporaryDirectory(prefix="skrumi-https-test-") as temporary:
     s = Scenario(Path(sys.argv[1]).resolve(), temporary)
     certificates = create_certificates(Path(temporary) / "certificates")
 
@@ -34,22 +34,22 @@ with tempfile.TemporaryDirectory(prefix="fox-https-test-") as temporary:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            s.source("main.fox", 'using http; using env; print(http_get(env("FOX_TEST_URL")));')
+            s.source("main.skm", 'using http; using env; print(http_get(env("SKRUMI_TEST_URL")));')
             s.build()
             s.isolate()
-            env = dict(s.env, FOX_TEST_URL=f"https://localhost:{server.server_port}/", NO_PROXY="localhost,127.0.0.1")
-            env.pop("FOXLANG_CA_BUNDLE", None)
+            env = dict(s.env, SKRUMI_TEST_URL=f"https://localhost:{server.server_port}/", NO_PROXY="localhost,127.0.0.1")
+            env.pop("SKRUMI_CA_BUNDLE", None)
             env.pop("SSL_CERT_FILE", None)
             untrusted = s.run("\n", env=env)
             assert "HTTP ERROR" in untrusted.stderr, "untrusted certificate was accepted"
             # Bundled Mozilla roots deliberately do not trust private/local test CAs.
-            env["FOXLANG_CA_BUNDLE"] = "embedded"
+            env["SKRUMI_CA_BUNDLE"] = "embedded"
             env["SSL_CERT_FILE"] = str(certificates / "absent-ca.pem")
             embedded = s.run("\n", env=env)
             assert "HTTP ERROR" in embedded.stderr and "CA cert" not in embedded.stderr
-            env["FOXLANG_CA_BUNDLE"] = str(certificates / "ca.pem")
+            env["SKRUMI_CA_BUNDLE"] = str(certificates / "ca.pem")
             s.run("HTTPS Привет 🦊\n", env=env)
-            env["FOX_TEST_URL"] = f"https://127.0.0.1:{server.server_port}/"
+            env["SKRUMI_TEST_URL"] = f"https://127.0.0.1:{server.server_port}/"
             wrong_host = s.run("\n", env=env)
             assert "HTTP ERROR" in wrong_host.stderr, "incorrect certificate hostname was accepted"
         finally:

@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 class Font;
 
 // Shared software renderer: identical pixels on Win32 and X11, no GPU/asset files.
@@ -192,4 +192,4 @@ private:
     static int keyCode(const std::string& key);
 };
 
-} // namespace foxlang::graphics
+} // namespace skrumi::graphics

@@ -1,6 +1,6 @@
-"""Sound without a sound card: a stand-in player records what FoxLang asks it to play.
+"""Sound without a sound card: a stand-in player records what Skrumi asks it to play.
 
-On Linux FOXLANG_SOUND_PLAYER replaces pw-play/paplay/aplay, so the generated WAV of a
+On Linux SKRUMI_SOUND_PLAYER replaces pw-play/paplay/aplay, so the generated WAV of a
 tone and the path of a file can be checked. On Windows the calls must only return a
 bool: a CI machine may have no audio device.
 """
@@ -13,7 +13,7 @@ import tempfile
 
 binary = str(Path(sys.argv[1]).resolve())
 
-with tempfile.TemporaryDirectory(prefix='fox-sound-') as directory:
+with tempfile.TemporaryDirectory(prefix='skrumi-sound-') as directory:
     root = Path(directory)
     (root / 'click.wav').write_bytes(b'RIFF' + b'\0' * 40)
     program = '''using sound;
@@ -26,21 +26,21 @@ print("range " + range);
 wait(300);
 stop_sounds();
 '''
-    (root / 'main.fox').write_text(program, encoding='utf-8')
+    (root / 'main.skm').write_text(program, encoding='utf-8')
     env = dict(os.environ)
     if os.name != 'nt':
         player = root / 'player.sh'
         player.write_text('#!/bin/sh\ncp "$1" "$(dirname "$0")/played-$(basename "$1")"\necho "$1" >> "$(dirname "$0")/log.txt"\n')
         player.chmod(0o755)
-        env['FOXLANG_SOUND_PLAYER'] = str(player)
-    result = subprocess.run([binary, 'main.fox'], cwd=root, env=env, capture_output=True, text=True, encoding='utf-8')
+        env['SKRUMI_SOUND_PLAYER'] = str(player)
+    result = subprocess.run([binary, 'main.skm'], cwd=root, env=env, capture_output=True, text=True, encoding='utf-8')
     assert result.returncode == 0, result.stderr
     lines = result.stdout.split()
     assert 'missing' in result.stdout and 'missing false' in result.stdout and 'range true' in result.stdout, result.stdout
     if os.name != 'nt':
         assert 'tone true' in result.stdout and 'file true' in result.stdout, result.stdout
         played = sorted(root.glob('played-*'))
-        tone = [p for p in played if p.name.startswith('played-foxlang-tone-')]
+        tone = [p for p in played if p.name.startswith('played-skrumi-tone-')]
         assert len(tone) == 1 and any(p.name == 'played-click.wav' for p in played), played
         data = tone[0].read_bytes()
         riff, size, wave, fmt, fmt_size, pcm, channels, rate, byte_rate, align, bits, data_id, data_size = \

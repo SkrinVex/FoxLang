@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Package a Skrumi project as an Android APK using the checked-in runner.
 
-The project keeps its relative .skm and .fox paths. Resources are opt-in (--asset); hidden
+The project keeps its relative .skm paths. Resources are opt-in (--asset); hidden
 files, symlinks, .env and build output are never copied. Release APKs are unsigned.
 """
 import argparse
@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_EXTENSIONS = (".skm", ".fox")
+SOURCE_EXTENSIONS = (".skm",)
 IGNORED = {"build", "dist", "node_modules", "__pycache__"}
 
 
@@ -34,7 +34,7 @@ def stage_project(entry, project, assets, target):
     entry = entry.resolve()
     relative = entry.relative_to(project)
     if entry.suffix not in SOURCE_EXTENSIONS or not entry.is_file() or not allowed(relative):
-        raise ValueError("Entry must be a .skm or .fox file inside the project directory")
+        raise ValueError("Entry must be a .skm file inside the project directory")
     target = Path(target)
     copied = set()
 
@@ -70,7 +70,7 @@ def stage_project(entry, project, assets, target):
                 copy(path)
     if relative not in copied:
         raise ValueError("Entry was not packaged")
-    (target / "foxlang-entry.txt").write_text(relative.as_posix(), encoding="utf-8")
+    (target / "skrumi-entry.txt").write_text(relative.as_posix(), encoding="utf-8")
     return copied
 
 
@@ -79,7 +79,7 @@ def main():
     parser.add_argument("entry", type=Path)
     parser.add_argument("--project", type=Path, help="project root (default: entry parent)")
     parser.add_argument("--asset", action="append", default=[], help="resource file/directory relative to project; repeatable")
-    parser.add_argument("--application-id", default="org.foxlang.generated")
+    parser.add_argument("--application-id", default="org.skrumi.generated")
     parser.add_argument("--name", default="Skrumi App")
     parser.add_argument("--abis", default="arm64-v8a,x86_64")
     parser.add_argument("--release", action="store_true", help="build an unsigned release APK for signing with your key")
@@ -97,8 +97,8 @@ def main():
         gradle = ROOT / "android" / ("gradlew.bat" if __import__("os").name == "nt" else "gradlew")
         variant = "release" if args.release else "debug"
         subprocess.run([str(gradle), "--no-daemon", f":app:assemble{variant.title()}",
-                        f"-PfoxlangAssets={folder}", f"-PfoxlangApplicationId={args.application_id}",
-                        f"-PfoxlangAppName={args.name}", f"-PfoxlangAbis={args.abis}"], cwd=ROOT / "android", check=True)
+                        f"-PskrumiAssets={folder}", f"-PskrumiApplicationId={args.application_id}",
+                        f"-PskrumiAppName={args.name}", f"-PskrumiAbis={args.abis}"], cwd=ROOT / "android", check=True)
         apk = ROOT / "android/app/build/outputs/apk" / variant / f"app-{variant}{'-unsigned' if args.release else ''}.apk"
         args.output.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(apk, args.output)

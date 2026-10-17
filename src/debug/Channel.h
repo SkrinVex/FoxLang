@@ -4,7 +4,7 @@
 #include <mutex>
 #include <string>
 
-namespace foxlang::debug {
+namespace skrumi::debug {
 
 // Debug Adapter Protocol messages framed by Content-Length, over the adapter's own
 // standard streams or over a TCP connection to the editor.
@@ -31,4 +31,4 @@ private:
     std::mutex writing_;
 };
 
-} // namespace foxlang::debug
+} // namespace skrumi::debug

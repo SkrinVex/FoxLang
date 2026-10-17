@@ -1,17 +1,17 @@
 #ifdef __ANDROID__
-#include "foxlang/Android.h"
-#define FOXLANG_CHECK_CANCEL() do { if (!(++androidTicks & 1023u)) foxlang::android::checkpoint(); } while (0)
+#include "skrumi/Android.h"
+#define SKRUMI_CHECK_CANCEL() do { if (!(++androidTicks & 1023u)) skrumi::android::checkpoint(); } while (0)
 #else
-#define FOXLANG_CHECK_CANCEL() ((void)0)
+#define SKRUMI_CHECK_CANCEL() ((void)0)
 #endif
 // Runs bytecode (Compiler.cpp). A Skrumi call is a native call of execute(), so the
 // native stack is what the call depth limit measures, as it always has. Registers live
 // on a stack of fixed chunks: a frame's registers never move while it runs, so the
 // debugger may point at them.
-#include "foxlang/Bytecode.h"
-#include "foxlang/AST.h"
-#include "foxlang/Debug.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Bytecode.h"
+#include "skrumi/AST.h"
+#include "skrumi/Debug.h"
+#include "skrumi/Platform.h"
 #include "Operations.h"
 #include "builtins/Builtin.h"
 #include <algorithm>
@@ -20,14 +20,14 @@
 #include <vector>
 
 #if defined(_MSC_VER)
-#define FOXLANG_COLD __declspec(noinline)
-#define FOXLANG_APART __declspec(noinline)
+#define SKRUMI_COLD __declspec(noinline)
+#define SKRUMI_APART __declspec(noinline)
 #else
-#define FOXLANG_COLD __attribute__((noinline, cold))
-#define FOXLANG_APART __attribute__((noinline))
+#define SKRUMI_COLD __attribute__((noinline, cold))
+#define SKRUMI_APART __attribute__((noinline))
 #endif
 
-namespace foxlang::vm {
+namespace skrumi::vm {
 
 using namespace bytecode;
 
@@ -154,18 +154,18 @@ struct DebugFrame {
 // ---------------------------------------------------------------- helpers
 
 // A variable of the program's top level, now declared: found by name from now on.
-FOXLANG_COLD void declareProgramGlobal(const GlobalSite& site, Value& slot, Context& root) {
+SKRUMI_COLD void declareProgramGlobal(const GlobalSite& site, Value& slot, Context& root) {
     root.programGlobals[site.name] = slot.is(Value::Kind::Box) ? &slot.ref()->items[0] : &slot;
     if (site.declaresConstant) root.constants.insert(site.name);
     if (!site.nullable.empty()) root.nullableGlobals[site.name] = site.nullable;
 }
 
-FOXLANG_COLD void markDeclared(DebugFrame& frame, int from, int to, bool declared) {
+SKRUMI_COLD void markDeclared(DebugFrame& frame, int from, int to, bool declared) {
     auto& marks = frame.function->declared;
     for (int i = from; i < to && i >= 0 && static_cast<size_t>(i) < marks.size(); ++i) marks[static_cast<size_t>(i)] = declared;
 }
 
-[[noreturn]] FOXLANG_COLD void notFound(const std::string& name) {
+[[noreturn]] SKRUMI_COLD void notFound(const std::string& name) {
     throw std::runtime_error("Runtime Error: Variable '" + name + "' not found!");
 }
 
@@ -178,7 +178,7 @@ Value* globalVariable(Context& root, const std::string& name) {
     return program == root.programGlobals.end() ? nullptr : program->second;
 }
 
-FOXLANG_APART Value* lookUp(GlobalSite& site, Context& root, Context& scope) {
+SKRUMI_APART Value* lookUp(GlobalSite& site, Context& root, Context& scope) {
     if (site.byName) {
         Value* found = scope.findVar(site.name);
         if (!found) notFound(site.name);
@@ -212,7 +212,7 @@ Value functionValue(const std::string& name, Context& root) {
 }
 
 // A name read as a value: a variable, or else a function of that name.
-FOXLANG_APART Value* lookUpValue(GlobalSite& site, Context& root, Context& scope) {
+SKRUMI_APART Value* lookUpValue(GlobalSite& site, Context& root, Context& scope) {
     Value* variable = site.byName ? scope.findVar(site.name) : nullptr;
     if (!site.byName) {
         if (Value* found = globalVariable(root, site.name)) {
@@ -267,7 +267,7 @@ bool truth(const Value& value, int kind) {
     return conditionTruth(value, statementName(kind)); // raises the error
 }
 
-FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& assigned, Context& root, Context& scope,
+SKRUMI_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& assigned, Context& root, Context& scope,
                            Object* closure) {
     Value* at;
     if (path.slot >= 0) at = path.boxed ? &R[path.slot].ref()->items[0] : &R[path.slot];
@@ -294,7 +294,7 @@ FOXLANG_APART void setPath(Proto& proto, const SetPath& path, Value* R, Value& a
 
 Value execute(Proto& proto, Value* R, Context& root, Context& scope, DebugFrame* debug, Object* closure = nullptr);
 
-FOXLANG_COLD const Proto& compile(const FuncDefNode& function, bool debug) {
+SKRUMI_COLD const Proto& compile(const FuncDefNode& function, bool debug) {
     auto& slot = debug ? function.block()->debugProto : function.block()->proto;
     slot = compileFunction(function, debug);
     return *slot;
@@ -307,7 +307,7 @@ inline const Proto& protoOf(const FuncDefNode& function, bool debug) {
 
 // A call under a debugger, kept apart so that an ordinary call's native frame stays
 // small: the depth of recursion a program gets depends on it.
-FOXLANG_COLD Value executeDebugged(Proto& proto, Value* R, Context& root, DebugHook* hook, Object* closure = nullptr) {
+SKRUMI_COLD Value executeDebugged(Proto& proto, Value* R, Context& root, DebugHook* hook, Object* closure = nullptr) {
     // The debugger shows registers as they are: none may hold what an earlier frame left.
     for (int i = static_cast<int>(proto.params.size()); i < proto.registers; ++i) R[i].reset();
     // Lexical scope: a function sees globals, never the caller's locals.
@@ -332,23 +332,23 @@ FOXLANG_COLD Value executeDebugged(Proto& proto, Value* R, Context& root, DebugH
     return execute(proto, R, root, root, &frame, closure);
 }
 
-FOXLANG_COLD void convert(const Conversion& conversion, Value& value) {
+SKRUMI_COLD void convert(const Conversion& conversion, Value& value) {
     runtime::coerce(conversion.type, value, conversion.what);
 }
 
-[[noreturn]] FOXLANG_COLD void wrongCount(const Proto& proto, size_t count) {
+[[noreturn]] SKRUMI_COLD void wrongCount(const Proto& proto, size_t count) {
     size_t hidden = proto.method ? 1 : 0; // a method's `this`
     throw std::runtime_error("Runtime Error: " + std::string(proto.method ? "method '" : "function '") + proto.name +
                              "' expects " + std::to_string(proto.params.size() - hidden) + " arguments, got " +
                              std::to_string(count - hidden));
 }
 
-[[noreturn]] FOXLANG_COLD void noResult(const Proto& proto) {
+[[noreturn]] SKRUMI_COLD void noResult(const Proto& proto) {
     throw std::runtime_error("Runtime Error: function '" + proto.name + "' must return " + proto.result.type +
                              " but ended without a value");
 }
 
-FOXLANG_APART void refresh(CallSite& site, Context& root);
+SKRUMI_APART void refresh(CallSite& site, Context& root);
 
 // Calls the VM runs in one loop use heap memory, not the native stack: this bounds
 // the recursion of a program that never stops.
@@ -388,7 +388,7 @@ const runtime::Builtin* const builtinPush = runtime::findBuiltin("push");
 const runtime::Builtin* const builtinSize = runtime::findBuiltin("size");
 
 // The builtin fast path of a CallDirect: its arguments stay in their registers.
-FOXLANG_APART bool fastDirect(const runtime::Builtin& builtin, Value* R, const std::int32_t* registersOfArgs, size_t count,
+SKRUMI_APART bool fastDirect(const runtime::Builtin& builtin, Value* R, const std::int32_t* registersOfArgs, size_t count,
                               Value& result) {
     Value* argv[4];
     for (size_t i = 0; i < count; ++i) argv[i] = &R[registersOfArgs[i]];
@@ -397,7 +397,7 @@ FOXLANG_APART bool fastDirect(const runtime::Builtin& builtin, Value* R, const s
 
 // A CallDirect to a function that only passes its parameters on to a builtin (see
 // Proto::forward) straight to the builtin's fast path: false when that does not apply.
-FOXLANG_APART bool forwardDirect(Proto& callee, Value* R, const std::int32_t* registersOfArgs, size_t count, Value& result,
+SKRUMI_APART bool forwardDirect(Proto& callee, Value* R, const std::int32_t* registersOfArgs, size_t count, Value& result,
                                  Context& root) {
     if (count != callee.params.size() || count > 4) return false;
     CallSite& site = callee.calls[static_cast<size_t>(callee.forward)];
@@ -423,7 +423,7 @@ FOXLANG_APART bool forwardDirect(Proto& callee, Value* R, const std::int32_t* re
 // Arguments of a call execute() runs itself that need converting, converted in the
 // caller's row at R[in.a] before the callee's frame opens: an error then leaves nothing
 // half done. A CallDirect's arguments are all copied into that row first.
-FOXLANG_COLD void convertArguments(const Proto& callee, Value* args, const Value* R, const std::int32_t* direct,
+SKRUMI_COLD void convertArguments(const Proto& callee, Value* args, const Value* R, const std::int32_t* direct,
                                    size_t count) {
     for (size_t i = 0; i < count; ++i) {
         if (direct) args[i] = R[direct[i]];
@@ -438,7 +438,7 @@ FOXLANG_COLD void convertArguments(const Proto& callee, Value* args, const Value
 // may be variables); a Call's sit in a row from R[in.a] (moved: they are temporaries).
 // Registers above the top of the register stack hold no string or container (frames
 // let those go when they end), so the new frame's registers are written over as they are.
-FOXLANG_APART Value* enterCall(std::vector<Caller>& calls, Proto& callee, const Instr& in, Proto* proto, const Instr* ip,
+SKRUMI_APART Value* enterCall(std::vector<Caller>& calls, Proto& callee, const Instr& in, Proto* proto, const Instr* ip,
                                Value* R, Object* closure, Context* scope, std::unique_ptr<std::exception_ptr[]>& pending,
                                runtime::StackGuard& guard, const std::int32_t* direct = nullptr) {
     size_t count = static_cast<size_t>(in.c);
@@ -482,7 +482,7 @@ inline bool fastCall(const runtime::Builtin& builtin, Value* args, size_t count,
 
 // Arguments that need no conversion go straight on to the builtin a forwarding body
 // calls: no frame, and an error names the line of the call made to the forwarder.
-FOXLANG_APART const runtime::Builtin* forwardsTo(Proto& proto, const Value* args, size_t count, Context& root) {
+SKRUMI_APART const runtime::Builtin* forwardsTo(Proto& proto, const Value* args, size_t count, Context& root) {
     if (proto.forward < 0) return nullptr;
     CallSite& site = proto.calls[static_cast<size_t>(proto.forward)];
     if (!site.resolved || site.root != &root || site.generation != root.functionGeneration) refresh(site, root);
@@ -495,7 +495,7 @@ FOXLANG_APART const runtime::Builtin* forwardsTo(Proto& proto, const Value* args
 }
 
 // Apart, so that the value the builtin returns takes no room in every call's frame.
-FOXLANG_APART bool forwardTo(Proto& proto, Value* args, size_t count, Context& root, Value& result) {
+SKRUMI_APART bool forwardTo(Proto& proto, Value* args, size_t count, Context& root, Value& result) {
     const runtime::Builtin* builtin = forwardsTo(proto, args, count, root);
     if (!builtin) return false;
     if (fastCall(*builtin, args, count, result)) return true;
@@ -503,7 +503,7 @@ FOXLANG_APART bool forwardTo(Proto& proto, Value* args, size_t count, Context& r
     return true;
 }
 
-FOXLANG_APART Value callFunction(const FuncDefNode& function, Value* args, size_t count, Context& root) {
+SKRUMI_APART Value callFunction(const FuncDefNode& function, Value* args, size_t count, Context& root) {
     DebugHook* hook = runtime::debugHook();
     Proto& proto = const_cast<Proto&>(protoOf(function, hook != nullptr));
     if (count != proto.params.size()) wrongCount(proto, count);
@@ -544,7 +544,7 @@ Value callLambda(Object& function, Value* args, size_t count, Context& root) {
     return hook ? executeDebugged(proto, R, root, hook, &function) : execute(proto, R, root, root, nullptr, &function);
 }
 
-[[noreturn]] FOXLANG_COLD void notFunction(const std::string& name, const Value& value) {
+[[noreturn]] SKRUMI_COLD void notFunction(const std::string& name, const Value& value) {
     throw std::runtime_error("Type Error: '" + name + "' is not a function, it holds a value of type '" + value.typeName() + "'");
 }
 
@@ -558,14 +558,14 @@ Value callFunctionValue(const Value& function, Value* args, size_t count, Contex
     return runtime::invoke(*callee.builtin, Arguments(args, count), root);
 }
 
-FOXLANG_APART void callValueInPlace(Value* R, int base, int count, Context& root, const std::string& name) {
+SKRUMI_APART void callValueInPlace(Value* R, int base, int count, Context& root, const std::string& name) {
     Value function = std::move(R[base]); // kept alive while it runs
     Value result = callFunctionValue(function, R + base + 1, static_cast<size_t>(count), root, name);
     R[base] = std::move(result);
 }
 
 // value.name(args): R[base] is the value, the arguments follow it.
-FOXLANG_APART void callMethod(Value* R, int base, int count, Context& root, const std::string& name) {
+SKRUMI_APART void callMethod(Value* R, int base, int count, Context& root, const std::string& name) {
     Value self = R[base]; // kept alive while the method runs
     if (self.is(Value::Kind::Struct)) {
         const StructType& type = *self.ref()->structType;
@@ -605,7 +605,7 @@ FOXLANG_APART void callMethod(Value* R, int base, int count, Context& root, cons
     throw std::runtime_error("Type Error: '." + name + "()' needs a struct or a map, got '" + self.typeName() + "'");
 }
 
-FOXLANG_APART void makeClosure(Proto& proto, int index, Value& out, Value* R, Object* current) {
+SKRUMI_APART void makeClosure(Proto& proto, int index, Value& out, Value* R, Object* current) {
     const Proto& lambda = *proto.lambdas[static_cast<size_t>(index)];
     Value function = Value::container(Value::Kind::Function);
     Object& object = *function.ref();
@@ -616,13 +616,13 @@ FOXLANG_APART void makeClosure(Proto& proto, int index, Value& out, Value* R, Ob
     out = std::move(function);
 }
 
-FOXLANG_APART void box(Value& slot) {
+SKRUMI_APART void box(Value& slot) {
     Value cell = Value::container(Value::Kind::Box);
     cell.ref()->items.push_back(std::move(slot));
     slot = std::move(cell);
 }
 
-FOXLANG_APART void refresh(CallSite& site, Context& root) {
+SKRUMI_APART void refresh(CallSite& site, Context& root) {
     if (!site.resolved) {
         site.builtin = runtime::findBuiltin(site.name);
         site.resolved = true;
@@ -634,7 +634,7 @@ FOXLANG_APART void refresh(CallSite& site, Context& root) {
 
 // A call of a builtin or of a struct's constructor, or of a Skrumi function that shares
 // its name with a builtin.
-FOXLANG_APART void callOther(const CallSite& site, Value* args, size_t count, Context& root) {
+SKRUMI_APART void callOther(const CallSite& site, Value* args, size_t count, Context& root) {
     // A builtin and a Skrumi function may share a name, like get(items, i) and the
     // server's get(path, handler). The builtin wins whenever the arguments fit it.
     if (site.builtin && (!site.function || runtime::acceptsArguments(*site.builtin, Arguments(args, count)))) {
@@ -680,7 +680,7 @@ inline void call(Proto& proto, const Instr& in, Value* R, Context& root) {
 // handler of this function takes it and the caller must raise it again. It does not
 // raise it itself: under MSVC a catch block runs on top of the frames the error left,
 // so raising from inside it at every level would stack up until the stack overflows.
-FOXLANG_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug, std::exception_ptr* pending) {
+SKRUMI_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug, std::exception_ptr* pending) {
     runtime::StackGuard& guard = runtime::stackGuard();
     std::exception_ptr error = std::current_exception();
     std::string message;
@@ -720,13 +720,13 @@ FOXLANG_COLD int recover(const Proto& proto, int pc, Value* R, DebugFrame* debug
     return handler->target;
 }
 
-[[noreturn]] FOXLANG_COLD void raise(const std::string& message) { throw std::runtime_error(message); }
+[[noreturn]] SKRUMI_COLD void raise(const std::string& message) { throw std::runtime_error(message); }
 
-[[noreturn]] FOXLANG_COLD void alreadyDeclared(const std::string& name) {
+[[noreturn]] SKRUMI_COLD void alreadyDeclared(const std::string& name) {
     throw std::runtime_error("Runtime Error: Variable '" + name + "' is already declared in this scope");
 }
 
-FOXLANG_COLD Value sizedArray(const Value& size, const std::string& name) {
+SKRUMI_COLD Value sizedArray(const Value& size, const std::string& name) {
     long long count = intArg(size, "size of array", name);
     if (count < 0) throw std::runtime_error("Runtime Error: Array size cannot be negative");
     return runtime::makeArray(ValueList(static_cast<size_t>(count), Value::integer(0)));
@@ -734,22 +734,22 @@ FOXLANG_COLD Value sizedArray(const Value& size, const std::string& name) {
 
 // The slow paths of instructions, apart from the loop: each would otherwise keep its
 // own temporaries in the loop's native frame, which every Skrumi call pays for.
-FOXLANG_APART void binarySlow(runtime::Operator op, const std::string& text, Value& out, const Value& l, const Value& r) {
+SKRUMI_APART void binarySlow(runtime::Operator op, const std::string& text, Value& out, const Value& l, const Value& r) {
     out = runtime::binary(op, text, l, r);
 }
 
-FOXLANG_APART bool compareSlow(runtime::Operator op, const std::string& text, const Value& l, const Value& r) {
+SKRUMI_APART bool compareSlow(runtime::Operator op, const std::string& text, const Value& l, const Value& r) {
     return runtime::binary(op, text, l, r).asBool();
 }
 
-FOXLANG_APART void newArray(Value& out, Value* items, int count) {
+SKRUMI_APART void newArray(Value& out, Value* items, int count) {
     ValueList values;
     values.reserve(static_cast<size_t>(count));
     for (int i = 0; i < count; ++i) values.push_back(std::move(items[i]));
     out = runtime::makeArray(std::move(values));
 }
 
-FOXLANG_APART void newMap(Value& out, Value* pairs, int count) {
+SKRUMI_APART void newMap(Value& out, Value* pairs, int count) {
     Value map = runtime::makeMap();
     map.ref()->keys.reserve(static_cast<size_t>(count));
     map.ref()->items.reserve(static_cast<size_t>(count));
@@ -757,12 +757,12 @@ FOXLANG_APART void newMap(Value& out, Value* pairs, int count) {
     out = std::move(map);
 }
 
-FOXLANG_APART void index(Value& out, Value& base, const Value& key) {
+SKRUMI_APART void index(Value& out, Value& base, const Value& key) {
     Value element = runtime::element(base, key, false);
     out = std::move(element);
 }
 
-FOXLANG_APART void field(Value& out, Value& base, FieldSite& site) {
+SKRUMI_APART void field(Value& out, Value& base, FieldSite& site) {
     Value member = runtime::member(base, site.name, false);
     if (base.is(Value::Kind::Struct)) {
         const Object& object = *base.ref();
@@ -774,18 +774,18 @@ FOXLANG_APART void field(Value& out, Value& base, FieldSite& site) {
     out = std::move(member);
 }
 
-FOXLANG_APART void incrementSlow(Value* out, Value& target, int delta, const std::string& name) {
+SKRUMI_APART void incrementSlow(Value* out, Value& target, int delta, const std::string& name) {
     Value old = runtime::postIncrement(target, delta, name);
     if (out) *out = std::move(old);
 }
 
-FOXLANG_APART void unary(Op op, Value& out, const Value& operand) {
+SKRUMI_APART void unary(Op op, Value& out, const Value& operand) {
     out = op == Op::Negate ? runtime::negate(operand) : runtime::logicalNot(operand);
 }
 
 // A declaration outside any function: a global, or in code compiled for a scope, a
 // variable of that scope.
-FOXLANG_APART void defineGlobal(const GlobalSite& site, Context& root, Context& scope, Value* value) {
+SKRUMI_APART void defineGlobal(const GlobalSite& site, Context& root, Context& scope, Value* value) {
     Context& owner = site.byName ? scope : root;
     if (!value) {
         if (owner.variables.count(site.name) || owner.programGlobals.count(site.name)) alreadyDeclared(site.name);
@@ -804,11 +804,11 @@ FOXLANG_APART void defineGlobal(const GlobalSite& site, Context& root, Context& 
     }
 }
 
-[[noreturn]] FOXLANG_COLD void constantChanged(const std::string& name) {
+[[noreturn]] SKRUMI_COLD void constantChanged(const std::string& name) {
     throw std::runtime_error("Runtime Error: '" + name + "' is a constant and cannot be changed");
 }
 
-FOXLANG_APART void setGlobal(GlobalSite& site, Context& root, Context& scope, Value& value) {
+SKRUMI_APART void setGlobal(GlobalSite& site, Context& root, Context& scope, Value& value) {
     Value& target = *global(site, root, scope);
     Context& owner = site.byName ? scope : root;
     auto nullable = owner.nullableGlobals.find(site.name);
@@ -820,18 +820,18 @@ FOXLANG_APART void setGlobal(GlobalSite& site, Context& root, Context& scope, Va
     runtime::assign(target, std::move(value), site.name);
 }
 
-FOXLANG_APART void assignSlow(Value& target, Value& value, const std::string& name) {
+SKRUMI_APART void assignSlow(Value& target, Value& value, const std::string& name) {
     runtime::assign(target, std::move(value), name);
 }
 
-FOXLANG_APART void concat(Value& out, const Value* parts, int count) {
+SKRUMI_APART void concat(Value& out, const Value* parts, int count) {
     std::string text;
     for (int i = 0; i < count; ++i) runtime::appendDisplay(text, parts[i]);
     out = Value::string(std::move(text));
 }
 
 // One round of a for-in loop: false when there is nothing left.
-FOXLANG_APART bool forIn(Value* R, const Instr& in) {
+SKRUMI_APART bool forIn(Value* R, const Instr& in) {
     const Value& container = R[in.a];
     Value& position = R[in.a + 1];
     Value& count = R[in.a + 2];
@@ -883,9 +883,9 @@ FOXLANG_APART bool forIn(Value* R, const Instr& in) {
     return true;
 }
 
-FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key)); }
+SKRUMI_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key)); }
 
-[[noreturn]] FOXLANG_APART void rethrow(std::exception_ptr& pending) {
+[[noreturn]] SKRUMI_APART void rethrow(std::exception_ptr& pending) {
     std::exception_ptr error = pending;
     pending = nullptr;
     std::rethrow_exception(error);
@@ -895,16 +895,16 @@ FOXLANG_APART void mapKey(Value& key) { key = Value::string(runtime::keyOf(key))
 // instruction from where the last one ended. Elsewhere it is an ordinary switch.
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic ignored "-Wpedantic" // labels as values are the extension used here
-#define FOXLANG_THREADED 1
+#define SKRUMI_THREADED 1
 #define OP(name) case Op::name: L_##name
 #define NEXT                                                     \
     do {                                                         \
-        FOXLANG_CHECK_CANCEL();                                  \
+        SKRUMI_CHECK_CANCEL();                                  \
         in = ip++;                                               \
         goto *jump[static_cast<int>(in->op)];                    \
     } while (0)
 #else
-#define FOXLANG_THREADED 0
+#define SKRUMI_THREADED 0
 #define OP(name) case Op::name
 #define NEXT break
 #endif
@@ -931,7 +931,7 @@ Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugF
     runtime::StackGuard& guard = runtime::stackGuard();
     std::exception_ptr escaping;
     const Instr* in = nullptr;
-#if FOXLANG_THREADED
+#if SKRUMI_THREADED
     // Each instruction jumps straight to the code of the next one's operation, instead of
     // going back to one switch: fewer branches, and each one easier to predict.
     static void* const jump[] = {
@@ -1015,7 +1015,7 @@ Value execute(Proto& entry, Value* R, Context& root, Context& entryScope, DebugF
     for (;;) {
         try {
             for (;;) {
-                FOXLANG_CHECK_CANCEL();
+                SKRUMI_CHECK_CANCEL();
                 in = ip++;
                 switch (in->op) {
                     OP(Move):
@@ -1610,9 +1610,9 @@ void execute(BlockNode& statements, Context& scope, const std::string& outside) 
     run(*compileStatements(statements, outside), scope);
 }
 
-} // namespace foxlang::vm
+} // namespace skrumi::vm
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 
 Value callValue(const Value& function, Arguments args, Context& ctx) {
     ValueList values(args.begin(), args.end());
@@ -1625,4 +1625,4 @@ Value callValue(const Value& function, Value* args, size_t count, Context& ctx) 
     return vm::callFunctionValue(function, args, count, *ctx.getRoot(), "function");
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

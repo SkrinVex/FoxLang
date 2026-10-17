@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 class Surface;
 class Font {
 public:

@@ -1,8 +1,8 @@
-#include "foxlang/Parser.h"
+#include "skrumi/Parser.h"
 #include <stdexcept>
 #include <utility>
 
-namespace foxlang {
+namespace skrumi {
 
 namespace {
 
@@ -936,4 +936,4 @@ std::unique_ptr<Node> Parser::atom() {
     }
 }
 
-} // namespace foxlang
+} // namespace skrumi

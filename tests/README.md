@@ -1,4 +1,4 @@
-# Тестирование FoxLang
+# Тестирование Skrumi
 
 Нативные тесты запускаются одним CTest и завершаются ненулевым статусом при регрессии.
 Их актуальное число показывает `ctest --test-dir build -N`; на сайте указано число
@@ -28,15 +28,15 @@ ctest --test-dir build -C Release --output-on-failure
 | Группа | Где | Что проверяет |
 |---|---|---|
 | `unit_*` | `tests/unit/*.cpp` | лексер (токены, escape `\u`), парсер (грамматика, восстановление после ошибок), интерпретатор (типы, массивы и их время жизни, `exit`, аргументы, каталог встроенных функций), анализатор, позиции UTF-16, протокол LSP, графика, формат bundle, CA |
-| `regression_*` | `tests/regression/*.fox` | язык целиком: синтаксис и типы, выражения, области видимости, управление потоком, функции, массивы, строки, математика, модули, JSON, файлы, окружение, аргументы и время |
-| `smoke_*` | `tests/*.fox` | короткие сквозные сценарии |
+| `regression_*` | `tests/regression/*.skm` | язык целиком: синтаксис и типы, выражения, области видимости, управление потоком, функции, массивы, строки, математика, модули, JSON, файлы, окружение, аргументы и время |
+| `smoke_*` | `tests/*.skm` | короткие сквозные сценарии |
 | `integration_*` | `tests/regression/*.sh` | сообщения об ошибках и коды возврата, уровни логов, локальный HTTP-сервер и клиент (Linux) |
-| `check_examples_*`, `check_std_*` | `examples/`, `std/` | каждый пример и модуль проходит `foxlang check` |
-| `docs_examples` | `tests/test_docs.py` | каждый блок кода Skrumi в README и docs проходит `foxlang check`; DOCUMENTATION.md описывает каждую встроенную функцию и каждую функцию `std` |
+| `check_examples_*`, `check_std_*` | `examples/`, `std/` | каждый пример и модуль проходит `skrumi check` |
+| `docs_examples` | `tests/test_docs.py` | каждый блок кода Skrumi в README и docs проходит `skrumi check`; DOCUMENTATION.md описывает каждую встроенную функцию и каждую функцию `std` |
 | `unit_web` | `tests/unit/test_web.cpp` | шаблоны, `json_set`, URL/HTML-кодирование, формы, multipart, cookies, маршруты с параметрами, статика и защита от `..`, 404/405, CORS — без сети |
 | `web_server_example` | `tests/test_web_server.py` | сайт `examples/website` по настоящему HTTP: шаблоны, форма, cookie, редирект, загрузка и скачивание, статика, HEAD, журнал запросов |
 | `lsp_project` | `tests/test_lsp_project.py` | проект из нескольких файлов в папке с кириллицей: соседние файлы видят друг друга, независимые программы — нет, переход к определению в другой файл, обновление диагностики после правки |
-| `lsp_catalog` | `tests/test_lsp_catalog.py` | настоящий `foxlang-lsp`: completion, hover и signatureHelp всех встроенных функций и всех функций 17 модулей |
+| `lsp_catalog` | `tests/test_lsp_catalog.py` | настоящий `skrumi-lsp`: completion, hover и signatureHelp всех встроенных функций и всех функций 17 модулей |
 | `packaging_versions` | `tests/test_versions.py` | манифесты редакторов совпадают с `VERSION`, номер версии не продублирован в документации, VSIX собирается правильно, подсветка синхронизирована с каталогом функций |
 | `standalone_*` | `tests/standalone/` | упаковка и запуск приложений в чистом каталоге (см. ниже) |
 
@@ -98,18 +98,18 @@ Emscripten и запускает этот тест.
 `standalone_graphics` открывает настоящее окно из упакованного executable,
 проверяет пиксели и ввод ОС. На Linux нужны DISPLAY и libX11 для тестового
 драйвера; для CI используется `xvfb-run -a ctest --test-dir build`.
-Без DISPLAY тест пропускается, если не задано `FOXLANG_REQUIRE_GRAPHICS_TESTS=1`.
+Без DISPLAY тест пропускается, если не задано `SKRUMI_REQUIRE_GRAPHICS_TESTS=1`.
 Windows использует встроенные Win32/GDI без внешнего драйвера тестов.
 
 ## LSP и каталоги редакторов
 
-`lsp_catalog` запускает настоящий `foxlang-lsp` по stdio в чистом каталоге без
+`lsp_catalog` запускает настоящий `skrumi-lsp` по stdio в чистом каталоге без
 DISPLAY и stdlib на диске. Проверяет completion/hover/signatureHelp всех 17
 std-модулей, каталог встроенных функций, справку ключевых слов и операторов,
 неполные вызовы, вложенные выражения, кавычки, комментарии, кириллицу и emoji.
 Функции graphics/HTTP/filesystem при этом не выполняются.
 `packaging_versions` также проверяет синхронизацию списков функций для подсветки
-VS Code, Kate и Zed с runtime и модулями `std/*.skm`/`std/*.fox`.
+VS Code, Kate и Zed с runtime и модулями `std/*.skm`/`std/*.skm`.
 
 ```bash
 ctest --test-dir build -R 'lsp|semantic|packaging_versions' --output-on-failure
@@ -120,7 +120,7 @@ ctest --test-dir build -R 'lsp|semantic|packaging_versions' --output-on-failure
 `npm --prefix tests/web test` проверяет модель проекта, генерацию кода, редактор на ПК/телефоне и протокол встроенного предпросмотра.
 `node tests/web/test_builder_runtime.js site/playground` проверяет сгенерированные формы настоящим WebAssembly-runtime.
 `node tests/web/test_builder.js --runtime` проверяет запуск конструктора в браузере через настоящий worker.
-Проверяется сохранность редактируемого `main.fox` после перетаскивания, отмены/повтора, сохранения и импорта; оба файла передаются в предпросмотр и песочницу. Модель также проверяет миграцию старых проектов и неповторяющиеся ID.
+Проверяется сохранность редактируемого `main.skm` после перетаскивания, отмены/повтора, сохранения и импорта; оба файла передаются в предпросмотр и песочницу. Модель также проверяет миграцию старых проектов и неповторяющиеся ID.
 Последние две команды требуют собранные артефакты песочницы. Подробнее — [руководство конструктора](../docs/BUILDER.md).
 
 ## Установщик Windows

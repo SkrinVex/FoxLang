@@ -1,5 +1,5 @@
 #include "HttpServer.h"
-#include "foxlang/AST.h"
+#include "skrumi/AST.h"
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -7,7 +7,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace foxlang::http {
+namespace skrumi::http {
 namespace fs = std::filesystem;
 
 namespace {
@@ -267,7 +267,7 @@ std::string mimeType(const std::string& path) {
         {".pdf", "application/pdf"}, {".zip", "application/zip"}, {".wasm", "application/wasm"},
         {".woff", "font/woff"}, {".woff2", "font/woff2"}, {".ttf", "font/ttf"}, {".otf", "font/otf"},
         {".mp3", "audio/mpeg"}, {".ogg", "audio/ogg"}, {".wav", "audio/wav"},
-        {".mp4", "video/mp4"}, {".webm", "video/webm"}, {".skm", "text/plain; charset=utf-8"}, {".fox", "text/plain; charset=utf-8"},
+        {".mp4", "video/mp4"}, {".webm", "video/webm"}, {".skm", "text/plain; charset=utf-8"}, {".skm", "text/plain; charset=utf-8"},
     };
     auto found = types.find(lower(fs::u8path(path).extension().u8string()));
     return found == types.end() ? "application/octet-stream" : found->second;
@@ -290,12 +290,12 @@ bool validHeaderText(const std::string& text) {
     return text.find_first_of(std::string("\r\n\0", 3)) == std::string::npos;
 }
 
-} // namespace foxlang::http
+} // namespace skrumi::http
 
-namespace foxlang::platform {
+namespace skrumi::platform {
 
 HttpReply handleHttpRequest(ServerState& state, Context& rootCtx) {
-    using namespace foxlang::http;
+    using namespace skrumi::http;
     HttpRequest& request = state.request;
     state.reply = {200, "application/json; charset=utf-8", "", {}};
     HttpReply& reply = state.reply;
@@ -356,4 +356,4 @@ HttpReply handleHttpRequest(ServerState& state, Context& rootCtx) {
     return withCors({404, "application/json; charset=utf-8", "{\"error\":\"Not Found\"}", {}});
 }
 
-} // namespace foxlang::platform
+} // namespace skrumi::platform

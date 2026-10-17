@@ -24,7 +24,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi distribution ') as temp:
         for name, data in unrelated.items():
             assert (target/name).read_bytes() == data, name
     env = dict(os.environ)
-    for key in ('SKRUMI_HOME', 'FOXLANG_HOME', 'SKRUMI_PATH', 'FOXLANG_PATH'):
+    for key in ('SKRUMI_HOME', 'SKRUMI_HOME', 'SKRUMI_PATH', 'SKRUMI_PATH'):
         env.pop(key, None)
     env['PATH'] = os.path.join(os.environ['SystemRoot'], 'System32') if os.name == 'nt' else '/usr/bin:/bin'
     def run(*args):
@@ -46,15 +46,22 @@ with tempfile.TemporaryDirectory(prefix='skrumi distribution ') as temp:
     collision.unlink()
     for attempt in range(2):
         run(installer, '--headless', 'install', target)
-        for name in ('skrumi', 'foxlang'):
+        for name in ('skrumi'):
             assert run(target/(name+suffix), '--version') == 'Skrumi '+version
-        for name in ('skrumi-lsp', 'foxlang-lsp'):
+        for name in ('skrumi-lsp'):
             assert run(target/(name+suffix), '--version') == 'skrumi-lsp '+version
         marker = json.loads((target/'.skrumi-install.json').read_text(encoding='utf-8'))
         assert marker[1] == version and len(marker[2]) >= 4
         assert not set(unrelated).intersection(entry[0] for entry in marker[2])
         check_unrelated()
-        assert (target/'std/ui.skm').is_file() and (target/'std/ui.fox').is_file()
+        assert (target/'std/ui.skm').is_file()
+        # Exact ownership inventory excludes source examples, tests and build leftovers.
+        repo = Path(__file__).resolve().parents[2]
+        expected = {'skrumi'+suffix, 'skrumi-lsp'+suffix}
+        expected.update('std/'+p.name for p in (repo/'std').glob('*.skm'))
+        if os.name == 'nt': expected.update({'@maintenance.exe', '@maintenance.json'})
+        assert {entry[0] for entry in marker[2]} == expected
+
         if os.name == 'nt':
             import winreg
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, registry_key) as key:
@@ -88,7 +95,7 @@ with tempfile.TemporaryDirectory(prefix='skrumi distribution ') as temp:
     finally:
         holder.kill(); holder.wait()
     run(installer, '--headless', 'install', target, '--no-lsp')
-    assert not (target/('skrumi-lsp'+suffix)).exists() and not (target/('foxlang-lsp'+suffix)).exists()
+    assert not (target/('skrumi-lsp'+suffix)).exists() and not (target/('skrumi-lsp'+suffix)).exists()
     assert run(target/('skrumi'+suffix), '--version') == 'Skrumi '+version
     run(installer, '--headless', 'install', target)
     assert run(target/('skrumi-lsp'+suffix), '--version') == 'skrumi-lsp '+version

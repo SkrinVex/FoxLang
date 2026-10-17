@@ -2,11 +2,11 @@
 // and writing it is an index into the function's frame instead of a search by name
 // through nested scopes. Names that are not local are globals; code that was never
 // resolved (the debugger's console) still looks names up by name.
-#include "foxlang/Resolver.h"
-#include "foxlang/AST.h"
+#include "skrumi/Resolver.h"
+#include "skrumi/AST.h"
 #include <unordered_map>
 
-namespace foxlang {
+namespace skrumi {
 namespace {
 
 class Resolver {
@@ -259,4 +259,4 @@ void resolveExpression(Node& expression) {
     resolver.visit(&expression);
 }
 
-} // namespace foxlang
+} // namespace skrumi

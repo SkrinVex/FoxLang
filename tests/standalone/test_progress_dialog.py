@@ -9,7 +9,7 @@ from native_window import NativeWindow
 
 binary = str(Path(sys.argv[1]).resolve())
 if os.name != 'nt' and not os.environ.get('DISPLAY'):
-    if os.environ.get('FOXLANG_REQUIRE_GRAPHICS_TESTS') == '1':
+    if os.environ.get('SKRUMI_REQUIRE_GRAPHICS_TESTS') == '1':
         raise RuntimeError('DISPLAY required')
     sys.exit(77)
 

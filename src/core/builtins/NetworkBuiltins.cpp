@@ -1,7 +1,7 @@
 // HTTP client, TCP/DNS and HTTP server builtins.
 #include "Builtin.h"
 #include "../HttpServer.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -10,7 +10,7 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 
 int& lastStatus() {
@@ -317,4 +317,4 @@ void addNetworkBuiltins(std::vector<Builtin>& out) {
         });
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

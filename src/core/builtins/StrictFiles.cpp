@@ -1,6 +1,6 @@
 // Checked filesystem primitives for ordinary Skrumi applications. No installer policy.
 #include "Builtin.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -27,7 +27,7 @@
 #endif
 #endif
 
-namespace foxlang::platform {
+namespace skrumi::platform {
 struct FileLocks {
     struct Lock {
 #ifdef _WIN32
@@ -42,7 +42,7 @@ struct FileLocks {
     std::map<int, std::unique_ptr<Lock>> entries;
 };
 }
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 namespace fs = std::filesystem;
 [[noreturn]] void error(const char* operation, const fs::path& path, std::error_code code) {
@@ -445,4 +445,4 @@ void addStrictFileBuiltins(std::vector<Builtin>& out) {
             return text(platform::pathToUtf8(safePath(checkedPath(c.text(0)), c.text(1))));
         });
 }
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

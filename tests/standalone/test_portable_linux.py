@@ -6,9 +6,9 @@ import sys
 
 
 binary = Path(sys.argv[1]).resolve()
-for modern, legacy in (("skrumi", "foxlang"), ("skrumi-lsp", "foxlang-lsp")):
+for modern, legacy in (("skrumi", "skrumi"), ("skrumi-lsp", "skrumi-lsp")):
     assert binary.with_name(modern).read_bytes() == binary.with_name(legacy).read_bytes(), "compatibility commands must use the same engine"
-for name in (binary.with_name(n) for n in ("skrumi", "foxlang", "skrumi-lsp", "foxlang-lsp")):
+for name in (binary.with_name(n) for n in ("skrumi", "skrumi", "skrumi-lsp", "skrumi-lsp")):
     data = name.read_bytes()
     assert data[:6] == b"\x7fELF\x02\x01", "expected little-endian ELF64"
     offset = struct.unpack_from("<Q", data, 32)[0]

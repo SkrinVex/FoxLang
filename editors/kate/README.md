@@ -3,7 +3,7 @@
 Интеграция языка Skrumi с редактором Kate: подсветка синтаксиса и полная поддержка Language Server Protocol (LSP).
 
 Файлы конфигурации в этом каталоге:
-* [`foxlang.xml`](foxlang.xml) — XML-схема подсветки синтаксиса (KSyntaxHighlighting).
+* [`skrumi.xml`](skrumi.xml) — XML-схема подсветки синтаксиса (KSyntaxHighlighting).
 * [`settings.json`](settings.json) — готовый фрагмент конфигурации для плагина LSP Client.
 * [`externaltools/`](externaltools/) — внешние инструменты «Skrumi: запустить», «проверить» и «собрать приложение».
 * [`dap.json`](dap.json) — настройки плагина «Отладчик» для `skrumi debug-adapter`.
@@ -30,14 +30,14 @@ cp editors/kate/externaltools/*.ini ~/.config/kate/externaltools/
 
 Включите плагин **Отладчик** (Настройка → Настроить Kate → Модули) и положите
 [`dap.json`](dap.json) в `~/.config/kate/debugger/dap.json`, если файла ещё нет;
-иначе добавьте секцию `foxlang` в свой файл, сохранив остальные профили:
+иначе добавьте секцию `skrumi` в свой файл, сохранив остальные профили:
 
 ```bash
 mkdir -p ~/.config/kate/debugger
 cp editors/kate/dap.json ~/.config/kate/debugger/dap.json
 ```
 
-На панели отладчика выберите **foxlang → launch (debug)** или **launch (stop on entry)**.
+На панели отладчика выберите **skrumi → launch (debug)** или **launch (stop on entry)**.
 Точки останова, шаги, стек, переменные и консоль работают как в других отладчиках Kate.
 Вывод программы появляется на панели отладчика, `input()` получает пустую строку.
 Подробнее — [docs/DEBUGGING.md](../../docs/DEBUGGING.md).
@@ -47,14 +47,14 @@ cp editors/kate/dap.json ~/.config/kate/debugger/dap.json
 Kate использует формат KSyntaxHighlighting XML для распознавания языков и правил раскраски кода.
 
 ### Ручная установка подсветки:
-Скопируйте [`foxlang.xml`](foxlang.xml) в каталог пользовательских синтаксисов KDE:
+Скопируйте [`skrumi.xml`](skrumi.xml) в каталог пользовательских синтаксисов KDE:
 
 ```bash
 mkdir -p ~/.local/share/org.kde.syntax-highlighting/syntax/
-cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
+cp editors/kate/skrumi.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
 ```
 
-Файл также доступен для прямой загрузки со страницы релизов: [`foxlang.xml`](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang.xml).
+Файл также доступен для прямой загрузки со страницы релизов: [`skrumi.xml`](https://github.com/SkrinVex/Skrumi/releases/latest/download/skrumi.xml).
 
 После этого файлы с расширением `.skm` будут автоматически распознаваться с подсветкой синтаксиса Skrumi (ключевые слова, типы, строки, числа, встроенные функции stdlib).
 
@@ -79,8 +79,8 @@ cp editors/kate/foxlang.xml ~/.local/share/org.kde.syntax-highlighting/syntax/
    ```json
    {
        "servers": {
-           "foxlang": {
-               "command": ["foxlang-lsp"],
+           "skrumi": {
+               "command": ["skrumi-lsp"],
                "root": "",
                "url": "https://github.com/SkrinVex/Skrumi",
                "highlightingModeRegex": "^Skrumi$"

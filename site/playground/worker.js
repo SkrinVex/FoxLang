@@ -116,7 +116,7 @@ const windowHooks = graphics ? {
   },
 } : {};
 
-const loading = createFoxLang(Object.assign({
+const loading = createSkrumi(Object.assign({
   preRun: [(module) => module.FS.init(() => null, out.put, err.put)],
   // A line the program read from the input box, shown where it was read.
   echoInput(text) {
@@ -128,18 +128,18 @@ const loading = createFoxLang(Object.assign({
 // Keys, the mouse and focus from the page's canvas, in the native backends' codes.
 function input(module, event) {
   switch (event.kind) {
-    case "key": module._foxlang_key(event.code, event.down ? 1 : 0); break;
-    case "mouse": module._foxlang_mouse(event.x, event.y); break;
-    case "wheel": module._foxlang_wheel(event.steps); break;
-    case "focus": module._foxlang_focus(event.focused ? 1 : 0); break;
-    case "size": module._foxlang_size(event.width, event.height); break;
-    case "close": module._foxlang_close(); break;
-    case "text": for (const ch of event.text) module._foxlang_char(ch.codePointAt(0)); break;
+    case "key": module._skrumi_key(event.code, event.down ? 1 : 0); break;
+    case "mouse": module._skrumi_mouse(event.x, event.y); break;
+    case "wheel": module._skrumi_wheel(event.steps); break;
+    case "focus": module._skrumi_focus(event.focused ? 1 : 0); break;
+    case "size": module._skrumi_size(event.width, event.height); break;
+    case "close": module._skrumi_close(); break;
+    case "text": for (const ch of event.text) module._skrumi_char(ch.codePointAt(0)); break;
   }
 }
 
 loading.then((module) => {
-  postMessage({ type: "ready", version: module.ccall("foxlang_version", "string", [], []) });
+  postMessage({ type: "ready", version: module.ccall("skrumi_version", "string", [], []) });
 }, (error) => {
   postMessage({ type: "failed", message: String(error && error.message || error) });
 });
@@ -184,7 +184,7 @@ onmessage = async (event) => {
       writeFiles(module, event.data.files);
       for (const file of event.data.files) {
         try {
-          problems[file.name] = JSON.parse(module.ccall("foxlang_check", "string", ["string"], [file.name]));
+          problems[file.name] = JSON.parse(module.ccall("skrumi_check", "string", ["string"], [file.name]));
         } catch (error) {
           // A file the checker cannot read still gets run; its errors show then.
         }
@@ -201,7 +201,7 @@ onmessage = async (event) => {
   try {
     writeFiles(module, event.data.files);
     canvas = event.data.canvas || null;
-    code = await module.ccall("foxlang_run", "number", ["string", "string"], [event.data.entry, event.data.input || ""],
+    code = await module.ccall("skrumi_run", "number", ["string", "string"], [event.data.entry, event.data.input || ""],
                               graphics ? { async: true } : undefined);
   } catch (error) {
     // The browser's own limits: its call stack, or the memory a page may take.

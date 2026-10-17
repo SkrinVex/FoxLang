@@ -1,15 +1,15 @@
 #include "DocumentManager.h"
-#include "foxlang/Lexer.h"
-#include "foxlang/Parser.h"
-#include "foxlang/Runtime.h"
+#include "skrumi/Lexer.h"
+#include "skrumi/Parser.h"
+#include "skrumi/Runtime.h"
 #include <algorithm>
 #include <cctype>
 
-namespace foxlang {
+namespace skrumi {
 namespace lsp {
 
-DocumentManager::DocumentManager(std::string home) : foxHome(std::move(home)) {
-    sources = std::make_shared<OverlaySources>(filesystemSources(foxHome));
+DocumentManager::DocumentManager(std::string home) : skrumiHome(std::move(home)) {
+    sources = std::make_shared<OverlaySources>(filesystemSources(skrumiHome));
     project = std::make_unique<ProjectIndex>(sources);
 }
 
@@ -58,6 +58,7 @@ void DocumentManager::setWorkspaceRoot(const std::string& uri) {
 }
 
 std::vector<std::string> DocumentManager::openDocument(const std::string& uri, const std::string& text, int version) {
+    if (!isSourceFile(uriToFilePath(uri))) return {};
     DocumentState& doc = documents[uri];
     doc.uri = uri;
     doc.text = text;
@@ -159,7 +160,7 @@ void DocumentManager::analyze(DocumentState& doc) {
     allDiags.insert(allDiags.end(), parserDiags.begin(), parserDiags.end());
 
     // Semantic analysis never executes code.
-    doc.analyzer = std::make_unique<SemanticAnalyzer>(canonicalPath(filePath), foxHome, sources);
+    doc.analyzer = std::make_unique<SemanticAnalyzer>(canonicalPath(filePath), skrumiHome, sources);
     doc.peers.clear();
     if (filePath.compare(0, 1, "/") == 0 || (filePath.size() > 2 && filePath[1] == ':')) {
         doc.peers = project->peers(filePath);
@@ -174,4 +175,4 @@ void DocumentManager::analyze(DocumentState& doc) {
 }
 
 } // namespace lsp
-} // namespace foxlang
+} // namespace skrumi

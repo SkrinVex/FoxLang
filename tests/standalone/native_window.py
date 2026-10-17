@@ -50,7 +50,7 @@ class NativeWindow:
 
     def find(self):
         if os.name == 'nt':
-            self.handle = self.api.FindWindowW('FoxLangGraphicsWindow', self.title)
+            self.handle = self.api.FindWindowW('SkrumiGraphicsWindow', self.title)
         else:
             pending = [self.root]
             while pending:

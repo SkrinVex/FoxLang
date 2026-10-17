@@ -1,0 +1,69 @@
+// Skrumi regression: syntax, types and conversions
+void assert_true(bool cond, string msg) {
+    if (!cond) {
+        print("FAIL: " + msg);
+        exit(1);
+    }
+}
+
+// 1. Primitive types
+int i = 42;
+float f = 3.14;
+string s = "Skrumi";
+bool b1 = true;
+bool b2 = false;
+
+assert_true(i == 42, "int value");
+assert_true(f > 3.0 && f < 3.2, "float value");
+assert_true(s == "Skrumi", "string value");
+assert_true(b1 == true, "bool true");
+assert_true(b2 == false, "bool false");
+
+// 2. Type conversions
+float promoted = 10;
+assert_true(promoted == 10, "int to float promotion");
+
+int truncated = 9.99;
+assert_true(truncated == 9, "float to int truncation");
+
+// 3. String concatenation with numbers
+string concat = "Val: " + 123;
+assert_true(concat == "Val: 123", "string int concat");
+
+string fconcat = "Float: " + 2.5;
+assert_true(fconcat == "Float: 2.5", "string float concat");
+
+// 4. Void function
+void do_nothing() {}
+do_nothing();
+
+// 5. Any scalar can be stored in a string; float and int convert both ways
+string text = 5;
+text = true;
+assert_true(text == "true", "bool stored in a string");
+int from_float = 7.9;
+from_float = -7.9;
+assert_true(from_float == -7, "float to int truncates toward zero");
+
+// 6. Parameters and return values are converted to their declared types
+float half(int value) {
+    return value / 2;
+}
+assert_true(half(7) == 3 && type_of(half(7)) == "float", "int result stored as float");
+string describe(string value) {
+    return "<" + value + ">";
+}
+assert_true(describe(42) == "<42>", "int argument for a string parameter");
+int truncate(float value) {
+    return value;
+}
+assert_true(truncate(2.9) == 2, "float return value narrowed to int");
+
+// 7. Literals
+assert_true(-2147483648 == -2147483647 - 1, "smallest int literal");
+assert_true("a" "b" "c" == "abc", "adjacent string literals join");
+assert_true("\u041b\u0438\u0441" == "Лис" && "\u{1F98A}" == "🦊" && "\uD83E\uDD8A" == "🦊", "unicode escapes");
+assert_true(size("\0") == 1, "NUL escape");
+assert_true(type_of(1.0) == "float" && type_of(1) == "int" && type_of("1") == "string" && type_of([1]) == "array", "type_of");
+
+print("SYNTAX_TYPES_OK");

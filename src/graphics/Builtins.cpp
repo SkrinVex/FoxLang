@@ -1,9 +1,9 @@
 #include "Font.h"
 #include "Builtins.h"
 #include "Graphics.h"
-#include "foxlang/FoxLang.h"
-#include "foxlang/Runtime.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Skrumi.h"
+#include "skrumi/Runtime.h"
+#include "skrumi/Platform.h"
 #include "../core/builtins/Builtin.h"
 #include <algorithm>
 #include <cmath>
@@ -12,7 +12,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace foxlang::graphics {
+namespace skrumi::graphics {
 namespace {
 using runtime::Call;
 
@@ -314,9 +314,9 @@ const std::vector<Signature>& signatures() {
     };
     return result;
 }
-} // namespace foxlang::graphics
+} // namespace skrumi::graphics
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 void addGraphicsBuiltins(std::vector<Builtin>& out) {
     for (const auto& signature : graphics::signatures()) {
         BuiltinSpec spec{signature.builtin, signature.result, signature.params, signature.params.size(),
@@ -324,4 +324,4 @@ void addGraphicsBuiltins(std::vector<Builtin>& out) {
         out.push_back({std::move(spec), signature.handler});
     }
 }
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

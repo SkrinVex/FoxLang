@@ -1,10 +1,10 @@
 #include "LspServer.h"
-#include "foxlang/FoxLang.h"
-#include "foxlang/Formatter.h"
+#include "skrumi/Skrumi.h"
+#include "skrumi/Formatter.h"
 #include <cctype>
 #include <iostream>
 
-namespace foxlang {
+namespace skrumi {
 namespace lsp {
 
 LspServer::LspServer(Transport& t) : transport(t) {}
@@ -83,7 +83,7 @@ void LspServer::handleRequest(const JsonValue& msg, std::ostream& out) {
 
         std::map<std::string, JsonValue> serverInfo;
         serverInfo["name"] = "skrumi-lsp";
-        serverInfo["version"] = foxlang::Interpreter::getVersion();
+        serverInfo["version"] = skrumi::Interpreter::getVersion();
 
         std::map<std::string, JsonValue> res;
         res["capabilities"] = JsonValue(capabilities);
@@ -454,4 +454,4 @@ void LspServer::publishDiagnostics(const std::string& uri, std::ostream& out) {
 }
 
 } // namespace lsp
-} // namespace foxlang
+} // namespace skrumi

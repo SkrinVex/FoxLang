@@ -26,7 +26,7 @@ bool failed = false;
 try { read_resource("missing"); } catch (e) { failed = true; }
 if (!failed) { fail("missing resource must fail"); }
 ''', encoding='utf-8')
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('SKRUMI_', 'FOXLANG_'))}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('SKRUMI_', 'SKRUMI_'))}
     def run(*args, cwd=project, ok=True):
         result = subprocess.run([str(a) for a in args], cwd=cwd, env=env, capture_output=True, text=True, encoding='utf-8', timeout=30)
         assert (result.returncode == 0) == ok, (args, result.stdout, result.stderr)

@@ -1,7 +1,7 @@
 # Бенчмарки
 
 Небольшие программы, каждая делает одну типичную работу много раз. Каждая задача
-написана на Skrumi (`foxlang/`), Python (`python/`), Lua (`lua/`), Ruby (`ruby/`) и
+написана на Skrumi (`skrumi/`), Python (`python/`), Lua (`lua/`), Ruby (`ruby/`) и
 JavaScript (`javascript/`).
 
 | Бенчмарк         | Что делает                                                   |
@@ -22,10 +22,10 @@ Skrumi, иначе запуск падает: быстрее за счёт ме�
 ## Запуск
 
 ```bash
-python3 benchmarks/run.py                               # build/foxlang и другие языки
-python3 benchmarks/run.py --foxlang путь/к/foxlang      # другая сборка
+python3 benchmarks/run.py                               # build/skrumi и другие языки
+python3 benchmarks/run.py --skrumi путь/к/skrumi      # другая сборка
 python3 benchmarks/run.py --baseline путь/к/старому     # сравнить две версии
-python3 benchmarks/run.py --only-foxlang --runs 3       # только Skrumi, 3 запуска
+python3 benchmarks/run.py --only-skrumi --runs 3       # только Skrumi, 3 запуска
 python3 benchmarks/run.py --smoke                       # один раз на маленьких входах
 python3 benchmarks/run.py --json результат.json         # сохранить результаты
 ```
@@ -48,7 +48,7 @@ python3 benchmarks/run.py --json результат.json         # сохран�
 
 ## Новый бенчмарк
 
-1. `foxlang/<имя>.fox`: первая строка — комментарий о том, что измеряется; в конце
+1. `skrumi/<имя>.skm`: первая строка — комментарий о том, что измеряется; в конце
    `print` контрольного числа.
 2. Та же программа в других папках с тем же именем. Если в языке нет нужного в
    стандартной библиотеке (у Lua нет JSON), файл просто не пишется.

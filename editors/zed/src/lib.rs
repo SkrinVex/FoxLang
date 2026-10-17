@@ -17,8 +17,8 @@ impl zed::Extension for SkrumiExtension {
         worktree: &Worktree,
     ) -> Result<Command> {
         let path = worktree
-            .which("skrumi-lsp").or_else(|| worktree.which("foxlang-lsp"))
-            .ok_or_else(|| "foxlang-lsp executable not found in PATH. Please install Skrumi or ensure foxlang-lsp is in your PATH.".to_string())?;
+            .which("skrumi-lsp")
+            .ok_or_else(|| "skrumi-lsp executable not found in PATH. Please install Skrumi or ensure skrumi-lsp is in your PATH.".to_string())?;
 
         Ok(Command {
             command: path,
@@ -27,7 +27,7 @@ impl zed::Extension for SkrumiExtension {
         })
     }
 
-    // The debugger is `foxlang debug-adapter`, speaking DAP over stdin/stdout; the
+    // The debugger is `skrumi debug-adapter`, speaking DAP over stdin/stdout; the
     // program's output arrives in the debug console.
     fn get_dap_binary(
         &mut self,
@@ -39,8 +39,8 @@ impl zed::Extension for SkrumiExtension {
         let command = match user_provided_debug_adapter_path {
             Some(path) => path,
             None => worktree
-                .which("skrumi").or_else(|| worktree.which("foxlang"))
-                .ok_or_else(|| "foxlang executable not found in PATH. Please install Skrumi 6.4 or newer.".to_string())?,
+                .which("skrumi")
+                .ok_or_else(|| "skrumi executable not found in PATH. Please install Skrumi 6.4 or newer.".to_string())?,
         };
         let parsed: serde_json::Value = serde_json::from_str(&config.config)
             .map_err(|error| format!("Invalid Skrumi debug configuration: {error}"))?;

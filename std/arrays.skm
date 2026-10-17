@@ -1,0 +1,77 @@
+//! Алгоритмы для массивов: сортировка, поиск, срезы, сумма. Элементы читаются как
+//! `items[i]`, размер меняют встроенные `push`, `pop`, `insert`, `remove_at` и `resize`.
+
+void sort(array items) { array_sort(items); }
+void reverse(array items) { array_reverse(items); }
+int find(array items, string value) { return array_index_of(items, value); }
+array copy_array(array items) { return array_copy(items); }
+array slice(array items, int start, int end) { return array_slice(items, start, end); }
+
+/// Есть ли в массиве элемент, равный `value`: числа сравниваются по величине, остальное по тексту.
+bool includes(array items, string value) {
+    return array_index_of(items, value) >= 0;
+}
+
+/// Сумма числовых элементов массива.
+///
+/// ```skrumi
+/// float total = sum([1, 2.5, 3]); // 6.5
+/// ```
+float sum(array items) {
+    float total = 0.0;
+    for (int i = 0; i < size(items); i++) {
+        total += items[i];
+    }
+    return total;
+}
+
+/// Новый массив из чисел от `start` до `end` (не включая) с шагом 1.
+///
+/// ```skrumi
+/// array digits = range(0, 10);
+/// ```
+array range(int start, int end) {
+    array result;
+    for (int i = start; i < end; i++) {
+        push(result, i);
+    }
+    return result;
+}
+
+/// Новый массив из результатов `f(item)` для каждого элемента.
+///
+/// ```skrumi
+/// array squares = transform([1, 2, 3], x => x * x); // [1, 4, 9]
+/// ```
+array transform(array items, func f) { return array_map(items, f); }
+
+/// Новый массив из элементов, для которых `keep(item)` вернула `true`.
+///
+/// ```skrumi
+/// array even = filter([1, 2, 3, 4], x => x % 2 == 0); // [2, 4]
+/// ```
+array filter(array items, func keep) { return array_filter(items, keep); }
+
+/// Сворачивает массив в одно значение: `combine(result, item)` для каждого элемента, начиная с `initial`.
+///
+/// ```skrumi
+/// int total = reduce([1, 2, 3], (a, b) => a + b, 0); // 6
+/// ```
+func reduce = (array items, func combine, initial) => array_reduce(items, combine, initial);
+
+/// Сортирует массив на месте: `before(a, b)` возвращает `true`, когда `a` должен стоять раньше `b`.
+///
+/// ```skrumi
+/// array words = ["fox", "a", "long"];
+/// sort_by(words, (a, b) => size(a) < size(b)); // ["a", "fox", "long"]
+/// ```
+void sort_by(array items, func before) { array_sort(items, before); }
+
+/// Индекс первого элемента, для которого `matches(item)` вернула `true`, или `-1`.
+int find_first(array items, func matches) { return array_find(items, matches); }
+
+/// Есть ли элемент, для которого `matches(item)` вернула `true`.
+bool any_of(array items, func matches) { return array_any(items, matches); }
+
+/// Верно ли `matches(item)` для каждого элемента.
+bool all_of(array items, func matches) { return array_all(items, matches); }

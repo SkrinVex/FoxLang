@@ -2,7 +2,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  else root.FoxBuilder = api;
+  else root.SkrumiBuilder = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
   const types = {
@@ -69,7 +69,7 @@
     ].join("\n");
   }
   function validate(input) {
-    if (!input || input.format !== "foxlang-ui" || input.version !== 1)
+    if (!input || input.format !== "skrumi-ui" || input.version !== 1)
       fail("Нужен проект Skrumi UI формата 1");
     if (
       !input.sizes ||
@@ -197,7 +197,7 @@
           ? defaultMain()
           : text(input.main, 100000, "main.skm"),
       nextId,
-      format: "foxlang-ui",
+      format: "skrumi-ui",
       version: 1,
       title: text(input.title, 120, "Название окна") || "Мой интерфейс",
       sizes,
@@ -214,7 +214,7 @@
     return {
       main: defaultMain(),
       nextId: 1,
-      format: "foxlang-ui",
+      format: "skrumi-ui",
       version: 1,
       title: "Мой интерфейс",
       sizes: {
@@ -447,9 +447,7 @@
   }
   function files(input, initialMode = "desktop") {
     const p = validate(input);
-    const legacy = /include\s*\(\s*["']layout\.fox["']/.test(p.main);
-    return legacy ? { "main.fox": p.main, "layout.fox": generate(p, initialMode) } :
-      { "main.skm": p.main, "layout.skm": generate(p, initialMode) };
+    return { "main.skm": p.main, "layout.skm": generate(p, initialMode) };
   }
   return {
     types,

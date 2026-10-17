@@ -42,7 +42,7 @@ skrumi build game.skm -o game
 обычные консольные Skrumi-программы: графическая система подключается только
 при `open_window`.
 
-На Android 9+ тот же код рисуется в `FoxView`: касания, экранная клавиатура,
+На Android 9+ тот же код рисуется в `SkrumiView`: касания, экранная клавиатура,
 автоматическое изменение доступного размера и системный fullscreen.
 Сборка AAR/APK и правила координат описаны в [ANDROID.md](ANDROID.md).
 
@@ -67,7 +67,7 @@ skrumi build game.skm -o game
 в fullscreen. В браузерной песочнице запрос fullscreen через это API выдаёт ошибку:
 полноэкранный доступ страницы требует отдельного пользовательского жеста.
 
-```foxlang
+```skrumi
 using graphics;
 open_window(800, 600, "Размеры и fullscreen");
 while (window_poll()) {
@@ -212,7 +212,7 @@ PNG поддерживается целиком: серые, цветные и �
 для движения независимо от частоты кадров. Для быстрых объектов разбивайте
 длительный кадр на несколько шагов физики.
 
-На Android `window_poll()` дополнительно уступает поток на 16 мс, а `FoxView`
+На Android `window_poll()` дополнительно уступает поток на 16 мс, а `SkrumiView`
 масштабирует программный кадр в Activity. Отдельные затраты JNI, Bitmap и вызова
 рисования можно [измерить системной трассировкой](ANDROID_PERFORMANCE.md), не
 смешивая их со временем VM и расчётом сцены.
@@ -276,10 +276,10 @@ Linux без рабочего стола может запускать тест 
 
 ```bash
 sudo apt-get install xvfb libx11-6 openbox
-FOXLANG_REQUIRE_GRAPHICS_TESTS=1 xvfb-run -a ctest --test-dir build -R graphics --output-on-failure
+SKRUMI_REQUIRE_GRAPHICS_TESTS=1 xvfb-run -a ctest --test-dir build -R graphics --output-on-failure
 ```
 
-Без DISPLAY оконный тест локально пропускается; `FOXLANG_REQUIRE_GRAPHICS_TESTS=1`
+Без DISPLAY оконный тест локально пропускается; `SKRUMI_REQUIRE_GRAPHICS_TESTS=1`
 делает отсутствие экрана ошибкой. CI использует Xvfb на Linux и Win32 на Windows.
 Xlib применяется только тестовым драйвером Linux; само приложение использует XCB.
 

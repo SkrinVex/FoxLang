@@ -2,7 +2,7 @@
 #include <string>
 #include <iostream>
 
-namespace foxlang {
+namespace skrumi {
 namespace lsp {
 
 class Transport {
@@ -20,4 +20,4 @@ public:
 };
 
 } // namespace lsp
-} // namespace foxlang
+} // namespace skrumi

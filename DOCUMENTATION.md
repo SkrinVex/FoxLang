@@ -836,22 +836,15 @@ print(upper("fox"), json_quote("лис"));
 `include("путь/к/файлу.skm");` подключает свой файл по пути.
 
 Поиск `using имя;`: сначала стандартные модули на диске, затем встроенная
-стандартная библиотека, затем обычные файлы проекта. В импортирующем `.skm`-файле
-первым проверяется `.skm`, затем `.fox`; в `.fox` порядок обратный для совместимости.
-Для каждого расширения сохраняется полный поиск относительно импортирующего файла,
-рабочего каталога, `SKRUMI_HOME` и `SKRUMI_HOME/std`. Вложенный импорт следует расширению
-своего файла, а не точки входа или имени команды CLI. Ошибка в найденном модуле не
-приводит к загрузке другого варианта. `using имя.fox;` явно закрепляет расширение.
+стандартная библиотека, затем обычные файлы проекта. Поддерживается только `.skm`.
+Поиск учитывает каталог импортирующего файла, рабочий каталог, `SKRUMI_HOME`
+и `SKRUMI_HOME/std`. Ошибка найденного модуля передаётся вызывающей программе.
 
 Файл `arrays.skm` рядом с программой не подменяет стандартный `using arrays;`.
 Явный `include("arrays.skm");` ищет указанный файл без подстановки расширения.
-Исключение для хранения: явные пути `std/...` официальной библиотеки доступны также
-из встроенных ресурсов, если файла на диске нет. Совместимые адаптеры `std/ui.fox`,
-`std/fs.fox`, `std/graphics.fox` разрешаются в соответствующие `.skm`-реализации с одной
-канонической идентичностью. Это не вторая реализация модуля; глобальные переменные
-инициализируются однократно даже при смешанных импортах. Пользовательский `.fox`-файл
-с другим содержимым остаётся отдельным точным импортом. Подробнее —
-[миграция модулей](docs/MIGRATION_FROM_FOXLANG.md).
+Явные пути `std/...` доступны из встроенных ресурсов, если файла на диске нет.
+Повторный импорт одной канонической идентичности не инициализирует модуль заново.
+[Перенос старых программ](docs/MIGRATION.md).
 
 * Подключение выполняет только объявления модуля: функции, переменные, массивы и
   вложенные `using`/`include`. Остальные инструкции верхнего уровня модуля
@@ -1241,7 +1234,7 @@ print(page);
 ## 13. Стандартная библиотека
 
 Модули встроены в `skrumi` и в каждое standalone-приложение. Подсказки редактора
-берут описания функций прямо из исходников `std/*.skm` и совместимых `std/*.fox`.
+берут описания функций прямо из исходников `std/*.skm`.
 
 ### using string;
 
@@ -1508,7 +1501,7 @@ reset_color();
 В Windows звук идёт через системный `PlaySound` (одновременно звучит один звук, новый
 прерывает прежний). В Linux файл получает проигрыватель рабочего стола — `pw-play`,
 `paplay` или `aplay`, какой найдётся, — поэтому звуки могут накладываться; свой
-проигрыватель задаёт переменная окружения `FOXLANG_SOUND_PLAYER`.
+проигрыватель задаёт переменная окружения `SKRUMI_SOUND_PLAYER`.
 
 ### using ui;
 
@@ -1548,7 +1541,7 @@ Skrumi: lib/prices.skm:12: Type Error: argument 'text' of str_upper() must be st
 ```
 
 Путь пишется относительно рабочего каталога; с переменной окружения
-`FOXLANG_ABSOLUTE_PATHS=1` — полностью (так делает кнопка запуска в VS Code).
+`SKRUMI_ABSOLUTE_PATHS=1` — полностью (так делает кнопка запуска в VS Code).
 
 | Вид | Когда возникает |
 |---|---|
@@ -1716,7 +1709,7 @@ math_test.skm
 | `SKRUMI_HOME` | каталог установки; модули ищутся в нём и в `SKRUMI_HOME/std` |
 | `SKRUMI_LOG_LEVEL` | порог логов: `debug`, `info` (по умолчанию), `warn`, `error`, `off` |
 | `SKRUMI_CA_BUNDLE` | доверенные CA для HTTPS: путь к PEM, `embedded` или `system` |
-| `FOXLANG_ABSOLUTE_PATHS` | непустое значение — полные пути файлов в сообщениях об ошибках |
+| `SKRUMI_ABSOLUTE_PATHS` | непустое значение — полные пути файлов в сообщениях об ошибках |
 
 ---
 
@@ -2181,7 +2174,7 @@ close_window();
 файлам программы, форматирование документа и символы документа. Он никогда не выполняет код
 программы. Описания встроенных функций берутся из того же каталога, по которому
 рантайм проверяет вызовы, а описания модулей — из комментариев `//!` и `///` в
-`std/*.skm` и совместимых `std/*.fox`.
+`std/*.skm`.
 
 **Проекты из нескольких файлов.** В программе Skrumi одно общее пространство имён:
 если `main.skm` подключает `utils.skm` и `render.skm`, функция из `utils.skm` может
@@ -2232,12 +2225,12 @@ close_window();
 #include <iostream>
 
 int main() {
-    foxlang::InterpreterOptions options;
+    skrumi::InterpreterOptions options;
     options.arguments = {"--verbose"};       // то, что вернёт os_args()
-    foxlang::Interpreter interpreter(options);
+    skrumi::Interpreter interpreter(options);
 
     interpreter.setGlobal("limit", "int", "10");
-    foxlang::RunResult result = interpreter.runSource("int doubled = limit * 2;");
+    skrumi::RunResult result = interpreter.runSource("int doubled = limit * 2;");
     if (result.success) {
         std::cout << interpreter.getGlobal("doubled").text() << std::endl;   // 20
     } else {
@@ -2247,18 +2240,18 @@ int main() {
 }
 ```
 
-* `foxlang::Interpreter` — экземпляр рантайма со своими глобальными переменными,
+* `skrumi::Interpreter` — экземпляр рантайма со своими глобальными переменными,
   функциями и загруженными модулями; экземпляры независимы друг от друга.
-* `foxlang::InterpreterOptions`: `foxHome` (каталог модулей), `loadDotEnv` (читать ли
+* `skrumi::InterpreterOptions`: `skrumiHome` (каталог модулей), `loadDotEnv` (читать ли
   `.env` в `runFile`), `sources` (свой `SourceProvider` вместо файловой системы),
   `arguments` (аргументы для `os_args`), `windowWidth`/`windowHeight` (0 сохраняет
   размер из программы), `windowFullscreen` (начальный полноэкранный режим).
-* `foxlang::RunResult`: `success`, `exitCode` (1 при ошибке или код из `exit`),
+* `skrumi::RunResult`: `success`, `exitCode` (1 при ошибке или код из `exit`),
   `errorMessage`.
 * `interpreter.setGlobal(имя, тип, текст)` объявляет глобальную переменную типа `int`,
   `float`, `bool` или `string` из текста (`"10"`, `"2.5"`, `"true"`); текст, который не
   подходит к типу, — ошибка `Type Error`.
-* `foxlang::Value` — значение Skrumi, 16 байт. Вид — `kind()`
+* `skrumi::Value` — значение Skrumi, 16 байт. Вид — `kind()`
   (`Value::Kind::Int`, `Float`, `Bool`, `String`, `Array`, `Map`, `Struct` или `Void`);
   содержимое — `asInt()`, `asFloat()`, `asBool()`, `str()` для строки, `ref()` для
   массива, словаря или структуры (их элементы в `ref()->items`). `text()` даёт число,
@@ -2266,14 +2259,14 @@ int main() {
   `Value::integer(42)`, `Value::real(2.5)`, `Value::boolean(true)`,
   `Value::string("Лис")`. Копия значения не копирует ни текст, ни элементы: строки и
   контейнеры общие, со счётчиком ссылок. Значения принадлежат потоку интерпретатора.
-* `foxlang::builtinCatalog()` — описание всех встроенных функций: имя, параметры,
+* `skrumi::builtinCatalog()` — описание всех встроенных функций: имя, параметры,
   тип результата, документация.
-* `foxlang::Lexer`, `foxlang::Parser`, `foxlang::SemanticAnalyzer` — разбор и
+* `skrumi::Lexer`, `skrumi::Parser`, `skrumi::SemanticAnalyzer` — разбор и
   статический анализ без выполнения.
 
-Android 9+ поддерживается через NDK/JNI: AAR для Java/Kotlin, `FoxView` для
+Android 9+ поддерживается через NDK/JNI: AAR для Java/Kotlin, `SkrumiView` для
 `graphics`/`ui`, экранный ввод, WAV/тоны, HTTP/TLS и упаковщик APK из `.skm`.
-Нативная библиотека называется `libfoxlang_android.so`; стандартные модули и CA
+Нативная библиотека называется `libskrumi_android.so`; стандартные модули и CA
 встроены. Экземпляры SDK выполняются последовательно на рабочем потоке, отменяются
 через `cancel()` и закрываются через `close()`. Подробные примеры, сборка,
 жизненный цикл и ограничения Android — в [docs/ANDROID.md](docs/ANDROID.md).
@@ -2292,10 +2285,10 @@ API 28/35. Все экземпляры SDK выполняются последо
 GitHub Container Registry при каждом push в `master` и при выпуске версии:
 
 ```bash
-docker run --rm ghcr.io/skrinvex/foxlang:latest --version
-docker run --rm -v "$(pwd)":/app ghcr.io/skrinvex/foxlang:latest script.skm
+docker run --rm ghcr.io/skrinvex/skrumi:latest --version
+docker run --rm -v "$(pwd)":/app ghcr.io/skrinvex/skrumi:latest script.skm
 docker run -d --name foxbot -p 8080:8080 -e TELEGRAM_BOT_TOKEN="..." \
-  -v "$(pwd)":/app ghcr.io/skrinvex/foxlang:latest bot.skm
+  -v "$(pwd)":/app ghcr.io/skrinvex/skrumi:latest bot.skm
 ```
 
 ---
@@ -2348,7 +2341,7 @@ Asyncify (`skrumi-graphics`), она примерно вдвое медленн�
 ```bash
 emcmake cmake -S . -B web -DCMAKE_BUILD_TYPE=Release
 cmake --build web
-cp web/skrumi*.js web/skrumi*.wasm web/foxlang*.js web/foxlang*.wasm site/playground/
+cp web/skrumi*.js web/skrumi*.wasm web/skrumi*.js web/skrumi*.wasm site/playground/
 node tests/web/test_playground.js site/playground   # примеры и ограничения
 python3 -m http.server -d site                     # http://localhost:8000/playground/
 ```
@@ -2356,7 +2349,7 @@ python3 -m http.server -d site                     # http://localhost:8000/playg
 Выкладка сайта собирает её сама; тот же тест запускает CI.
 
 **Оптимизация при компоновке** (LTO) включена для сборки Release, если компилятор
-её поддерживает; выключить — `-DFOXLANG_LTO=OFF`. Файл виртуальной машины
+её поддерживает; выключить — `-DSKRUMI_LTO=OFF`. Файл виртуальной машины
 `src/core/Vm.cpp` в неё не входит: встроенные в цикл VM чужие функции увеличили бы
 кадр каждого вызова и уменьшили допустимую глубину рекурсии.
 

@@ -4,7 +4,7 @@
 
 ## Файлы расширения в этом каталоге
 * [`package.json`](package.json) — манифест расширения и регистрация языка `.skm`.
-* [`syntaxes/foxlang.tmLanguage.json`](syntaxes/foxlang.tmLanguage.json) — правила TextMate для подсветки синтаксиса.
+* [`syntaxes/skrumi.tmLanguage.json`](syntaxes/skrumi.tmLanguage.json) — правила TextMate для подсветки синтаксиса.
 * [`language-configuration.json`](language-configuration.json) — настройка автозакрытия скобок, кавычек и правил комментариев.
 * [`client/extension.js`](client/extension.js) — клиент LSP для запуска и управления сервером `skrumi-lsp`.
 * [`client/run.js`](client/run.js) — запуск, проверка и сборка программ.
@@ -17,7 +17,7 @@
   * Ключевые слова: `if`, `else`, `while`, `for`, `switch`, `case`, `default`, `break`, `continue`, `return`, `using`, `include`, `global`.
   * Типы: `int`, `float`, `string`, `bool`, `void`, `array`.
   * Константы: `true`, `false`, числа, строки с экранированием.
-  * Встроенные функции и функции стандартной библиотеки (`print`, `input`, `push`, `str_split`, `http_request`, `listen` и др.). Список генерируется из каталога встроенных функций и `std/*.fox` командой `python3 packaging/sync_editor_builtins.py`.
+  * Встроенные функции и функции стандартной библиотеки (`print`, `input`, `push`, `str_split`, `http_request`, `listen` и др.). Список генерируется из каталога встроенных функций и `std/*.skm` командой `python3 packaging/sync_editor_builtins.py`.
   * Escape-последовательности в строках, включая `\u041b` и `\u{1F98A}`.
 * **Интеграция с Language Server (`skrumi-lsp`)**:
   * **Диагностика ошибок в реальном времени**: лексические, синтаксические и семантические ошибки с точным указанием строки и столбца (UTF-16 code units для корректной поддержки кириллицы и эмодзи). Файлы проекта, связанные через `include`/`using`, анализируются вместе: функции и переменные соседних файлов не подсвечиваются как необъявленные.
@@ -38,7 +38,7 @@
 * Для проекта из нескольких файлов выполните «Skrumi: сделать этот файл главным» в
   главном файле — ▶ будет запускать его из любого файла проекта.
 * Ошибки проверки и выполнения видны в панели «Проблемы» со ссылкой на файл и строку.
-* Настройки: `foxlang.run.executablePath`, `foxlang.run.entryFile`, `foxlang.run.arguments`;
+* Настройки: `skrumi.run.executablePath`, `skrumi.run.entryFile`, `skrumi.run.arguments`;
   тип задач `skrumi` для `tasks.json` (см. [docs/EDITORS.md](../../docs/EDITORS.md)).
 
 ## Отладка
@@ -57,15 +57,15 @@
 Отдельно нужен исполняемый файл `skrumi-lsp` — из пакета выпуска или из сборки проекта.
 
 ### Способ 1. Пакет VSIX из выпуска
-Скачайте [`foxlang.vsix`](https://github.com/SkrinVex/Skrumi/releases/latest/download/foxlang.vsix) и установите:
+Скачайте [`skrumi.vsix`](https://github.com/SkrinVex/Skrumi/releases/latest/download/skrumi.vsix) и установите:
 ```bash
-code --install-extension foxlang.vsix
+code --install-extension skrumi.vsix
 ```
 
 ### Способ 2. Каталог из репозитория
 ```bash
 mkdir -p ~/.vscode/extensions
-cp -r editors/vscode ~/.vscode/extensions/SkrinVex.foxlang-language
+cp -r editors/vscode ~/.vscode/extensions/SkrinVex.skrumi-language
 ```
 Затем перезапустите VS Code или выполните `Developer: Reload Window` (`Ctrl+Shift+P`).
 
@@ -73,7 +73,7 @@ cp -r editors/vscode ~/.vscode/extensions/SkrinVex.foxlang-language
 В настройках VS Code (`settings.json`) при необходимости можно явно указать путь к серверу:
 ```json
 {
-  "foxlang.lsp.serverPath": "skrumi-lsp"
+  "skrumi.lsp.serverPath": "skrumi-lsp"
 }
 ```
 По умолчанию расширение проверяет команду `skrumi-lsp` в системном `PATH`, а также путь `./build/skrumi-lsp` в корне открытого проекта.

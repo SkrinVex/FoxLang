@@ -1,14 +1,14 @@
-#include "foxlang/SemanticAnalyzer.h"
-#include "foxlang/Builtins.h"
-#include "foxlang/Lexer.h"
-#include "foxlang/Parser.h"
-#include "foxlang/Project.h"
+#include "skrumi/SemanticAnalyzer.h"
+#include "skrumi/Builtins.h"
+#include "skrumi/Lexer.h"
+#include "skrumi/Parser.h"
+#include "skrumi/Project.h"
 #include "EmbeddedStdlib.h"
 #include <algorithm>
 #include <sstream>
 #include <unordered_set>
 
-namespace foxlang {
+namespace skrumi {
 
 namespace {
 
@@ -92,7 +92,6 @@ const std::vector<ModuleInfo>& standardModules() {
     static const std::vector<ModuleInfo> modules = [] {
         std::vector<ModuleInfo> out;
         for (const auto& [path, text] : embeddedStdlib()) {
-            if (stdlibAliases().count(path)) continue;
             std::string name = path.substr(4, path.size() - 8); // std/ + name + source suffix
             out.push_back({name, moduleDescription(text)});
         }
@@ -102,8 +101,8 @@ const std::vector<ModuleInfo>& standardModules() {
 }
 
 SemanticAnalyzer::SemanticAnalyzer(std::string curFile, std::string home, std::shared_ptr<const SourceProvider> provider)
-    : currentFile(std::move(curFile)), foxHome(std::move(home)), sources(std::move(provider)) {
-    if (!sources) sources = filesystemSources(foxHome);
+    : currentFile(std::move(curFile)), skrumiHome(std::move(home)), sources(std::move(provider)) {
+    if (!sources) sources = filesystemSources(skrumiHome);
     rootScope = std::make_unique<Scope>();
     currentScope = rootScope.get();
     addBuiltins();
@@ -1048,7 +1047,7 @@ HoverInfo SemanticAnalyzer::getHover(int line, int col, const std::string& code)
                 if (item.label == token.value && (item.kind == "Keyword" ||
                     (item.kind == "Function" && i + 1 < tokens.size() && tokens[i + 1].type == TokenType::LPAREN) ||
                     (item.kind == "Module" && i > 0 && tokens[i - 1].type == TokenType::USING)))
-                    return {"```foxlang\n" + item.detail + "\n```\n\n---\n" + item.documentation, token.range, true};
+                    return {"```skrumi\n" + item.detail + "\n```\n\n---\n" + item.documentation, token.range, true};
             }
             return {};
         }
@@ -1059,7 +1058,7 @@ HoverInfo SemanticAnalyzer::getHover(int line, int col, const std::string& code)
     info.found = true;
     info.range = best->range;
     std::ostringstream ss;
-    ss << "```foxlang\n";
+    ss << "```skrumi\n";
     if (best->symbol.kind == SymbolKind::Function || best->symbol.kind == SymbolKind::Builtin) {
         ss << "(function) " << signatureOf(best->symbol);
     } else {
@@ -1182,31 +1181,31 @@ std::vector<CompletionItem> SemanticAnalyzer::getCompletions(int line, int col) 
         const char* doc;
     };
     static const std::vector<KeywordDoc> kwDocs = {
-        {"if", "(keyword) if (cond) { ... }", "Условный оператор ветвления `if / else`.\n\n```foxlang\nif (условие) {\n    // истина\n} else {\n    // иначе\n}\n```"},
-        {"else", "(keyword) else", "Ветка `else` для оператора ветвления `if`.\n\n```foxlang\nif (cond) {\n    ...\n} else {\n    ...\n}\n```"},
-        {"while", "(keyword) while (cond) { ... }", "Цикл с предусловием `while`.\n\n```foxlang\nwhile (условие) {\n    // тело цикла\n}\n```"},
-        {"for", "(keyword) for (init; cond; step) { ... }", "Цикл со счётчиком `for`.\n\n```foxlang\nfor (int i = 0; i < 10; i++) {\n    print(i);\n}\n```"},
-        {"switch", "(keyword) switch (val) { case ... }", "Оператор множественного выбора `switch / case / default`. Без `break` выполнение переходит в следующую ветку.\n\n```foxlang\nswitch (day) {\n    case 1:\n        print(\"пн\");\n        break;\n    default:\n        print(\"другой\");\n}\n```"},
+        {"if", "(keyword) if (cond) { ... }", "Условный оператор ветвления `if / else`.\n\n```skrumi\nif (условие) {\n    // истина\n} else {\n    // иначе\n}\n```"},
+        {"else", "(keyword) else", "Ветка `else` для оператора ветвления `if`.\n\n```skrumi\nif (cond) {\n    ...\n} else {\n    ...\n}\n```"},
+        {"while", "(keyword) while (cond) { ... }", "Цикл с предусловием `while`.\n\n```skrumi\nwhile (условие) {\n    // тело цикла\n}\n```"},
+        {"for", "(keyword) for (init; cond; step) { ... }", "Цикл со счётчиком `for`.\n\n```skrumi\nfor (int i = 0; i < 10; i++) {\n    print(i);\n}\n```"},
+        {"switch", "(keyword) switch (val) { case ... }", "Оператор множественного выбора `switch / case / default`. Без `break` выполнение переходит в следующую ветку.\n\n```skrumi\nswitch (day) {\n    case 1:\n        print(\"пн\");\n        break;\n    default:\n        print(\"другой\");\n}\n```"},
         {"case", "(keyword) case value:", "Ветка выбора `case` внутри оператора `switch`."},
         {"default", "(keyword) default:", "Ветка по умолчанию `default` внутри `switch`."},
         {"break", "(keyword) break;", "Прерывание выполнения текущего цикла или оператора `switch`."},
         {"continue", "(keyword) continue;", "Переход к следующей итерации цикла."},
         {"return", "(keyword) return [value];", "Возврат значения из функции или выход из `void` функции."},
-        {"using", "(keyword) using <module>;", "Директива подключения стандартной библиотеки Skrumi.\n\n```foxlang\nusing server;\nusing http;\nusing env;\nusing log;\nusing json;\nusing string;\n```"},
-        {"include", "(keyword) include(\"path.skm\");", "Директива подключения пользовательского файла с кодом.\n\n```foxlang\ninclude(\"helper.skm\");\n```"},
-        {"global", "(keyword) global type name = val;", "Объявление глобальной переменной в Skrumi.\n\n```foxlang\nglobal string token = secret(\"API_KEY\");\n```"},
+        {"using", "(keyword) using <module>;", "Директива подключения стандартной библиотеки Skrumi.\n\n```skrumi\nusing server;\nusing http;\nusing env;\nusing log;\nusing json;\nusing string;\n```"},
+        {"include", "(keyword) include(\"path.skm\");", "Директива подключения пользовательского файла с кодом.\n\n```skrumi\ninclude(\"helper.skm\");\n```"},
+        {"global", "(keyword) global type name = val;", "Объявление глобальной переменной в Skrumi.\n\n```skrumi\nglobal string token = secret(\"API_KEY\");\n```"},
         {"int", "(type) int", "32-битное целое число со знаком."},
         {"float", "(type) float", "Дробное число с плавающей точкой."},
         {"string", "(type) string", "Текстовая строка с поддержкой UTF-8 и Unicode эмодзи."},
         {"bool", "(type) bool", "Логический тип данных: `true` или `false`."},
         {"void", "(type) void", "Тип отсутствия возвращаемого значения функции."},
         {"func", "(type) func", "Функция как значение: лямбда `(int x) => x * 2`, имя функции или встроенной функции. "
-            "Переменную типа `func` вызывают как функцию.\n\n```foxlang\nfunc twice = (int x) => x * 2;\nprint(twice(21));\n```"},
+            "Переменную типа `func` вызывают как функцию.\n\n```skrumi\nfunc twice = (int x) => x * 2;\nprint(twice(21));\n```"},
         {"true", "(keyword) true", "Логическая истина."},
         {"enum", "(keyword) enum Name { A, B, C }", "Перечисление: тип с фиксированным набором значений `Name.A`, у каждого есть "
-            "`.name` и `.value`.\n\n```foxlang\nenum Color { Red, Green, Blue }\nColor c = Color.Green;\n```"},
+            "`.name` и `.value`.\n\n```skrumi\nenum Color { Red, Green, Blue }\nColor c = Color.Green;\n```"},
         {"const", "(keyword) const type name = value;", "Константа: имя, которое нельзя присвоить заново. "
-            "Содержимое массива, словаря или структуры менять можно.\n\n```foxlang\nconst int MAX_USERS = 100;\n```"},
+            "Содержимое массива, словаря или структуры менять можно.\n\n```skrumi\nconst int MAX_USERS = 100;\n```"},
         {"null", "(keyword) null", "«Нет значения». Хранится только в переменных, параметрах, полях и результатах типа `T?`: "
             "`string? nick = null;`. `a ?? b` — `a`, если оно не `null`, иначе `b`; `user?.name` — `null` вместо ошибки, когда `user` — `null`."},
         {"this", "(keyword) this", "Внутри метода структуры — значение, у которого метод вызван: `this.x`."},
@@ -1248,4 +1247,4 @@ std::vector<DocumentSymbolInfo> SemanticAnalyzer::getDocumentSymbols() const {
     return documentSymbols;
 }
 
-} // namespace foxlang
+} // namespace skrumi

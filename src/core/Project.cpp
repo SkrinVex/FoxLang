@@ -1,12 +1,12 @@
-#include "foxlang/Project.h"
-#include "foxlang/Lexer.h"
-#include "foxlang/Parser.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Project.h"
+#include "skrumi/Lexer.h"
+#include "skrumi/Parser.h"
+#include "skrumi/Platform.h"
 #include <algorithm>
 #include <deque>
 #include <set>
 
-namespace foxlang {
+namespace skrumi {
 namespace fs = std::filesystem;
 
 std::string canonicalPath(const std::string& path) {
@@ -34,7 +34,7 @@ const std::string* OverlaySources::find(const std::string& identity) const {
 
 ProjectIndex::ProjectIndex(std::shared_ptr<const OverlaySources> provider) : sources(std::move(provider)) {}
 
-// Skrumi sources (.skm and legacy .fox), skipping build and dependency directories.
+// Skrumi sources (.skm), skipping build and dependency directories.
 std::vector<std::string> ProjectIndex::scan(const std::string& file) const {
     std::vector<std::string> files;
     fs::path root = rootDir.empty() ? platform::pathFromUtf8(file).parent_path() : platform::pathFromUtf8(rootDir);
@@ -142,4 +142,4 @@ std::vector<std::string> ProjectIndex::peers(const std::string& file) {
     return {group.begin(), group.end()};
 }
 
-} // namespace foxlang
+} // namespace skrumi

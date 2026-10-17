@@ -2,7 +2,7 @@
 // Windows plays through PlaySound (winmm); Linux hands the file to the desktop's
 // player (pw-play, paplay or aplay), so a static binary needs no audio library.
 #include "Builtin.h"
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -13,7 +13,7 @@
 #include <vector>
 
 #ifdef __ANDROID__
-#include "foxlang/Android.h"
+#include "skrumi/Android.h"
 #elif defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -30,7 +30,7 @@
 extern char** environ;
 #endif
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 
 // 16-bit mono PCM at 44100 Hz: a sine with 10 ms fades so it starts and ends without a click.
@@ -115,7 +115,7 @@ void reap() {
 }
 
 std::string findPlayer() {
-    std::string chosen = platform::configEnv("FOXLANG_SOUND_PLAYER");
+    std::string chosen = platform::configEnv("SKRUMI_SOUND_PLAYER");
     if (!chosen.empty()) return chosen;
     std::string path = platform::getEnvVar("PATH");
     for (const char* candidate : {"pw-play", "paplay", "aplay"}) {
@@ -168,7 +168,7 @@ bool playTone(std::vector<uint8_t> wav) {
     static std::atomic<unsigned> counter{0};
     std::error_code ignored;
     auto file = std::filesystem::temp_directory_path(ignored) /
-                ("foxlang-tone-" + std::to_string(getpid()) + "-" + std::to_string(counter++) + ".wav");
+                ("skrumi-tone-" + std::to_string(getpid()) + "-" + std::to_string(counter++) + ".wav");
     std::string name = file.string();
     {
         std::ofstream out(file, std::ios::binary);
@@ -220,4 +220,4 @@ void addSoundBuiltins(std::vector<Builtin>& out) {
         });
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

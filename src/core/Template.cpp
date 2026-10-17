@@ -9,11 +9,11 @@
 //   {{! comment }}
 //
 // Inside a section a path is looked up in the element first, then outwards.
-#include "foxlang/Runtime.h"
+#include "skrumi/Runtime.h"
 #include <memory>
 #include <stdexcept>
 
-namespace foxlang::runtime {
+namespace skrumi::runtime {
 namespace {
 
 struct TemplateNode {
@@ -186,4 +186,4 @@ std::string renderTemplate(const std::string& source, const std::string& json) {
     return TemplateRenderer(json).render(nodes);
 }
 
-} // namespace foxlang::runtime
+} // namespace skrumi::runtime

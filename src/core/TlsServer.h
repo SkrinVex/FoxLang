@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-namespace foxlang::platform {
+namespace skrumi::platform {
 // The HTTP parser/routes use the same byte stream for plain and TLS connections.
 // Callbacks return bytes, zero for EOF, or a negative result for an I/O failure.
 struct TlsIo {

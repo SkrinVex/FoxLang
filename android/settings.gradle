@@ -4,4 +4,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = 'SkrumiAndroid'
-include ':foxlang', ':app'
+include ':skrumi', ':app'

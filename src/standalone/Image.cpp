@@ -11,7 +11,7 @@
 #include <unistd.h>
 #endif
 
-namespace foxlang::bundle {
+namespace skrumi::bundle {
 namespace {
 [[noreturn]] void invalid(const std::string& why) {
     throw std::runtime_error("Bundle Error: " + why);
@@ -39,7 +39,7 @@ bool matches(const Bytes& bytes, std::uint64_t offset, const std::string& text) 
 }
 
 void checkDescriptor(const Bytes& bytes, std::size_t at) {
-    if (!matches(bytes, at, std::string("FOXSTUB\0", 8)) || get(bytes, at + 8, 4) != 1 || get(bytes, at + 36, 4) != 0) invalid("invalid stub descriptor");
+    if (!matches(bytes, at, std::string("SKMSTUB\0", 8)) || get(bytes, at + 8, 4) != 1 || get(bytes, at + 36, 4) != 0) invalid("invalid stub descriptor");
 }
 }
 
@@ -47,7 +47,7 @@ std::size_t descriptorOffset(const Bytes& image) {
     if (image.size() < 64 || image.size() > maxImage + maxPayload) invalid("invalid executable size");
     std::uint64_t result = 0;
     auto record = [&](std::uint64_t at, std::uint64_t size) {
-        if (result || !at || size < descriptorSize) invalid("invalid or duplicate .foxbndl section");
+        if (result || !at || size < descriptorSize) invalid("invalid or duplicate .skmbndl section");
         bounds(image, at, size);
         result = at;
     };
@@ -74,7 +74,7 @@ std::size_t descriptorOffset(const Bytes& image) {
             if (type != 8) bounds(image, at, size); // SHT_NOBITS has no file data.
             auto nameAt = get(image, header, 4);
             if (nameAt >= namesSize) invalid("invalid ELF section name");
-            if (namesSize - nameAt >= 9 && matches(image, names + nameAt, std::string(".foxbndl\0", 9))) {
+            if (namesSize - nameAt >= 9 && matches(image, names + nameAt, std::string(".skmbndl\0", 9))) {
                 if (type != 1) invalid("stub must be an ELF PROGBITS section");
                 record(at, size);
             }
@@ -106,12 +106,12 @@ std::size_t descriptorOffset(const Bytes& image) {
             auto at = get(image, header + 20, 4);
             auto size = get(image, header + 16, 4);
             bounds(image, at, size);
-            if (matches(image, header, ".foxbndl")) record(at, size);
+            if (matches(image, header, ".skmbndl")) record(at, size);
         }
     } else {
         invalid("unsupported executable format (expected ELF64 or PE32+)");
     }
-    if (!result) invalid("missing .foxbndl section");
+    if (!result) invalid("missing .skmbndl section");
     checkDescriptor(image, static_cast<std::size_t>(result));
     return static_cast<std::size_t>(result);
 }
@@ -181,4 +181,4 @@ std::filesystem::path executablePath() {
     invalid("standalone packaging is supported on Linux and Windows x86_64");
 #endif
 }
-} // namespace foxlang::bundle
+} // namespace skrumi::bundle

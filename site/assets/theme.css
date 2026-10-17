@@ -6,15 +6,15 @@
   --ink: #1d222a;
   --muted: #5f6975;
   --line: #d3d9e1;
-  --fox: #d9620f;
-  --fox-soft: #fbe6d4;
+  --skrumi: #d9620f;
+  --skrumi-soft: #fbe6d4;
   --blue: #2d69af;
   --blue-soft: #dde9f7;
   --green: #2f8a46;
   --display: "Unbounded", "Segoe UI", system-ui, sans-serif;
   --body: "Onest", "Segoe UI", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --fox-ink: #fff;
+  --skrumi-ink: #fff;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -24,12 +24,12 @@
   --ink: #e6eaf0;
   --muted: #98a2ae;
   --line: #2f3845;
-  --fox: #ff8a33;
-  --fox-soft: #3a2616;
+  --skrumi: #ff8a33;
+  --skrumi-soft: #3a2616;
   --blue: #74a8e6;
   --blue-soft: #1d2d42;
   --green: #6cc382;
-  --fox-ink: #1a1206;
+  --skrumi-ink: #1a1206;
 }
 body { font-family: var(--body); }
 .theme-toggle {
@@ -38,7 +38,7 @@ body { font-family: var(--body); }
   border: 1px solid var(--line); border-radius: 10px;
   background: var(--surface-2); color: var(--ink); cursor: pointer;
 }
-.theme-toggle:hover { border-color: var(--fox); }
-.theme-toggle:focus-visible { outline: 2px solid var(--fox); outline-offset: 3px; }
+.theme-toggle:hover { border-color: var(--skrumi); }
+.theme-toggle:focus-visible { outline: 2px solid var(--skrumi); outline-offset: 3px; }
 .theme-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .guide-brand { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

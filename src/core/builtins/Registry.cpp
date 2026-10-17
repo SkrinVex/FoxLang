@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <unordered_map>
 
-namespace foxlang {
+namespace skrumi {
 
 std::string BuiltinSpec::signature() const {
     std::string out = name + "(";
@@ -162,4 +162,4 @@ const BuiltinSpec* findBuiltinSpec(const std::string& name) {
     return builtin ? &builtin->spec : nullptr;
 }
 
-} // namespace foxlang
+} // namespace skrumi

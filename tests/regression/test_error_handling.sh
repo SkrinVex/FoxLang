@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FOXLANG_BIN="${1:-./foxlang}"
+SKRUMI_BIN="${1:-./skrumi}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
-TEMP_ERR_FOX="$WORK_DIR/malformed.fox"
+TEMP_ERR_FOX="$WORK_DIR/malformed.skm"
 
 run_expect_fail() {
     local code="$1"
@@ -15,7 +15,7 @@ run_expect_fail() {
     echo "$code" > "$TEMP_ERR_FOX"
     local out
     set +e
-    out=$("$FOXLANG_BIN" "$TEMP_ERR_FOX" 2>&1)
+    out=$("$SKRUMI_BIN" "$TEMP_ERR_FOX" 2>&1)
     local status=$?
     set -e
 
@@ -58,8 +58,8 @@ run_expect_fail "int a = 2000000000; int b = a + a;" "int overflow" "int additio
 run_expect_fail "int forever(int n) { return forever(n + 1); } int r = forever(0);" "call depth limit" "runaway recursion"
 run_expect_fail "if (1) { print(\"yes\"); }" "condition must be bool" "non-bool condition"
 run_expect_fail "int reader() { return hidden; } int owner() { int hidden = 1; return reader(); } int x = owner();" "Variable 'hidden' not found" "callee cannot see caller locals"
-run_expect_fail "int z = 10 / 0;" "malformed.fox:1: Runtime Error" "runtime error carries its file and line"
-run_expect_fail "int a = 5" "malformed.fox:1: Syntax Error" "syntax error carries its file and line"
+run_expect_fail "int z = 10 / 0;" "malformed.skm:1: Runtime Error" "runtime error carries its file and line"
+run_expect_fail "int a = 5" "malformed.skm:1: Syntax Error" "syntax error carries its file and line"
 
 # 9. Block scope is a real scope
 run_expect_fail "int i = 0; while (i < 1) { int inner = 5; i++; } print(inner);" "Variable 'inner' not found" "block variable outside its block"
@@ -93,7 +93,7 @@ run_expect_fail "void f(void x) {}" "expected a parameter type" "void parameter"
 # 14. exit() ends the program with its code and prints nothing else
 echo 'print("before"); exit(3); print("after");' > "$TEMP_ERR_FOX"
 set +e
-out=$("$FOXLANG_BIN" "$TEMP_ERR_FOX" 2>&1)
+out=$("$SKRUMI_BIN" "$TEMP_ERR_FOX" 2>&1)
 status=$?
 set -e
 if [[ "$status" -ne 3 || "$out" != "before" ]]; then
@@ -103,7 +103,7 @@ fi
 
 # 15. Non-existent file
 set +e
-out=$("$FOXLANG_BIN" "/path/to/definitely_not_existing_file_999.fox" 2>&1)
+out=$("$SKRUMI_BIN" "/path/to/definitely_not_existing_file_999.skm" 2>&1)
 status=$?
 set -e
 if [[ "$status" -eq 0 ]]; then

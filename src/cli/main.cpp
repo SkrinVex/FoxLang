@@ -5,9 +5,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include "foxlang/FoxLang.h"
-#include "foxlang/SemanticAnalyzer.h"
-#include "foxlang/Project.h"
+#include "skrumi/Skrumi.h"
+#include "skrumi/SemanticAnalyzer.h"
+#include "skrumi/Project.h"
 #include <filesystem>
 #include "Image.h"
 #include "DebugAdapter.h"
@@ -22,34 +22,35 @@
 #include <shellapi.h>
 #endif
 
-bool foxlangHasBundleDescriptor();
-bool foxlangHasBundlePayload();
+bool skrumiHasBundleDescriptor();
+bool skrumiHasBundlePayload();
 
 // Reports the diagnostics the editor already sees, for a terminal or CI, without executing code.
 static int check(const std::string& path) {
-    std::ifstream file(foxlang::platform::pathFromUtf8(path), std::ios::binary);
+    if (!skrumi::isSourceFile(path)) throw std::runtime_error("source files must use .skm");
+    std::ifstream file(skrumi::platform::pathFromUtf8(path), std::ios::binary);
     if (!file.is_open()) throw std::runtime_error("could not open file '" + path + "'");
     std::stringstream buffer;
     buffer << file.rdbuf();
 
-    foxlang::Lexer lexer(buffer.str(), true);
+    skrumi::Lexer lexer(buffer.str(), true);
     auto tokens = lexer.tokenize();
-    std::vector<foxlang::Diagnostic> diagnostics = lexer.getDiagnostics();
+    std::vector<skrumi::Diagnostic> diagnostics = lexer.getDiagnostics();
 
-    foxlang::Parser parser(std::move(tokens), path);
-    std::vector<foxlang::Diagnostic> parserDiagnostics;
+    skrumi::Parser parser(std::move(tokens), path);
+    std::vector<skrumi::Diagnostic> parserDiagnostics;
     auto program = parser.parseProgramWithDiagnostics(parserDiagnostics);
     diagnostics.insert(diagnostics.end(), parserDiagnostics.begin(), parserDiagnostics.end());
 
     // Other files of the same program declare what this one may use: the project is
     // searched below the working directory when the file is inside it.
-    std::string home = foxlang::platform::configEnv("FOXLANG_HOME");
-    auto sources = std::make_shared<foxlang::OverlaySources>(foxlang::filesystemSources(home));
-    foxlang::ProjectIndex project(sources);
-    std::string canonical = foxlang::canonicalPath(path);
-    std::string cwd = foxlang::platform::pathToUtf8(std::filesystem::current_path());
+    std::string home = skrumi::platform::configEnv("SKRUMI_HOME");
+    auto sources = std::make_shared<skrumi::OverlaySources>(skrumi::filesystemSources(home));
+    skrumi::ProjectIndex project(sources);
+    std::string canonical = skrumi::canonicalPath(path);
+    std::string cwd = skrumi::platform::pathToUtf8(std::filesystem::current_path());
     if (canonical.rfind(cwd, 0) == 0) project.setRoot(cwd);
-    foxlang::SemanticAnalyzer analyzer(canonical, home, sources);
+    skrumi::SemanticAnalyzer analyzer(canonical, home, sources);
     analyzer.addProjectFiles(project.peers(canonical));
     analyzer.analyze(program.get());
     const auto& semantic = analyzer.getDiagnostics();
@@ -57,7 +58,7 @@ static int check(const std::string& path) {
 
     int errors = 0;
     for (const auto& diagnostic : diagnostics) {
-        if (diagnostic.severity == foxlang::DiagnosticSeverity::Error) ++errors;
+        if (diagnostic.severity == skrumi::DiagnosticSeverity::Error) ++errors;
         std::cout << path << ":" << diagnostic.range.start.line << ":" << diagnostic.range.start.column
                   << ": " << diagnostic.severityString() << ": " << diagnostic.message << std::endl;
     }
@@ -65,8 +66,8 @@ static int check(const std::string& path) {
     return errors ? 1 : 0;
 }
 
-static int report(const foxlang::RunResult& result) {
-    if (!result.errorMessage.empty()) foxlang::cli::reportError(result.errorMessage);
+static int report(const skrumi::RunResult& result) {
+    if (!result.errorMessage.empty()) skrumi::cli::reportError(result.errorMessage);
     return result.exitCode;
 }
 
@@ -76,8 +77,8 @@ static int report(const foxlang::RunResult& result) {
 // builtins that open them, a window's shared memory is already released), so only
 // the output is flushed.
 template <class Run>
-[[noreturn]] static void runAndExit(const foxlang::InterpreterOptions& options, Run run) {
-    auto* interpreter = new foxlang::Interpreter(options);
+[[noreturn]] static void runAndExit(const skrumi::InterpreterOptions& options, Run run) {
+    auto* interpreter = new skrumi::Interpreter(options);
     int code = report(run(*interpreter));
     std::cout.flush();
     std::cerr.flush();
@@ -111,35 +112,35 @@ static std::vector<std::string> argumentsFrom(int argc, char* argv[], int first)
 int main(int argc, char* argv[]) {
     try {
     const std::vector<std::string> args = argumentsFrom(argc, argv, 0);
-    if (argc == 2 && (args[1] == "--foxlang-help" || args[1] == "--skrumi-help")) {
-        foxlang::cli::configureConsole(foxlang::cli::ConsoleMode::Console);
-        foxlang::cli::printCommandHelp(std::cout, "run");
+    if (argc == 2 && args[1] == "--skrumi-help") {
+        skrumi::cli::configureConsole(skrumi::cli::ConsoleMode::Console);
+        skrumi::cli::printCommandHelp(std::cout, "run");
         return 0;
     }
-    if (argc == 2 && (args[1] == "--foxlang-licenses" || args[1] == "--skrumi-licenses")) {
-        foxlang::cli::configureConsole(foxlang::cli::ConsoleMode::Console);
-        std::cout << foxlang::platform::thirdPartyLicenses();
+    if (argc == 2 && args[1] == "--skrumi-licenses") {
+        skrumi::cli::configureConsole(skrumi::cli::ConsoleMode::Console);
+        std::cout << skrumi::platform::thirdPartyLicenses();
         return 0;
     }
 #if (defined(__linux__) || defined(_WIN32)) && (defined(__x86_64__) || defined(_M_X64))
-    if (!foxlangHasBundleDescriptor()) throw std::runtime_error("Bundle Error: damaged stub descriptor");
+    if (!skrumiHasBundleDescriptor()) throw std::runtime_error("Bundle Error: damaged stub descriptor");
     // Reading the executable (megabytes) is only for a built app, which carries its program.
-    auto embedded = foxlangHasBundlePayload()
-                        ? foxlang::bundle::unpack(foxlang::bundle::readImage(foxlang::bundle::executablePath()))
+    auto embedded = skrumiHasBundlePayload()
+                        ? skrumi::bundle::unpack(skrumi::bundle::readImage(skrumi::bundle::executablePath()))
                         : std::nullopt;
     if (embedded) {
-        auto sources = std::make_shared<foxlang::bundle::Sources>(std::move(*embedded));
-        auto launch = foxlang::cli::parseLaunch(std::vector<std::string>(args.begin() + 1, args.end()));
-        foxlang::cli::configureConsole(launch.console);
+        auto sources = std::make_shared<skrumi::bundle::Sources>(std::move(*embedded));
+        auto launch = skrumi::cli::parseLaunch(std::vector<std::string>(args.begin() + 1, args.end()));
+        skrumi::cli::configureConsole(launch.console);
         auto options = std::move(launch.interpreter);
         options.sources = sources;
         options.loadDotEnv = false;
-        runAndExit(options, [&](foxlang::Interpreter& interpreter) {
+        runAndExit(options, [&](skrumi::Interpreter& interpreter) {
             return interpreter.runSource(sources->read(sources->entry), sources->entry);
         });
     }
 #endif
-    const std::string version = foxlang::Interpreter::getVersion();
+    const std::string version = skrumi::Interpreter::getVersion();
 
     if (argc == 2 && (std::string(argv[1]) == "--version" || std::string(argv[1]) == "-v")) {
         std::cout << "Skrumi " << version << std::endl;
@@ -148,16 +149,16 @@ int main(int argc, char* argv[]) {
 
     auto isHelp = [](const std::string& word) { return word == "--help" || word == "-h" || word == "help"; };
     if (argc < 2 || (argc == 2 && isHelp(argv[1]))) {
-        foxlang::cli::printHelp(std::cout, version);
+        skrumi::cli::printHelp(std::cout, version);
         return argc < 2 ? 1 : 0;
     }
-    // foxlang help build; foxlang build --help (a script's own --help is the script's)
+    // skrumi help build; skrumi build --help (a script's own --help is the script's)
     if (argc == 3 && isHelp(argv[1])) {
-        if (foxlang::cli::printCommandHelp(std::cout, argv[2])) return 0;
-        throw std::runtime_error("no help on '" + std::string(argv[2]) + "'; there is help on " + foxlang::cli::commandNames());
+        if (skrumi::cli::printCommandHelp(std::cout, argv[2])) return 0;
+        throw std::runtime_error("no help on '" + std::string(argv[2]) + "'; there is help on " + skrumi::cli::commandNames());
     }
     if (argc == 3 && std::string(argv[1]) != "run" && (std::string(argv[2]) == "--help" || std::string(argv[2]) == "-h") &&
-        foxlang::cli::printCommandHelp(std::cout, argv[1]))
+        skrumi::cli::printCommandHelp(std::cout, argv[1]))
         return 0;
 
     if (std::string(argv[1]) == "check") {
@@ -165,12 +166,12 @@ int main(int argc, char* argv[]) {
         return check(args[2]);
     }
 
-    if (std::string(argv[1]) == "fmt") return foxlang::cli::format(std::vector<std::string>(args.begin() + 2, args.end()));
-    if (std::string(argv[1]) == "test") return foxlang::cli::test(std::vector<std::string>(args.begin() + 2, args.end()));
-    if (std::string(argv[1]) == "disasm") return foxlang::cli::disassemble(std::vector<std::string>(args.begin() + 2, args.end()));
+    if (std::string(argv[1]) == "fmt") return skrumi::cli::format(std::vector<std::string>(args.begin() + 2, args.end()));
+    if (std::string(argv[1]) == "test") return skrumi::cli::test(std::vector<std::string>(args.begin() + 2, args.end()));
+    if (std::string(argv[1]) == "disasm") return skrumi::cli::disassemble(std::vector<std::string>(args.begin() + 2, args.end()));
 
     if (std::string(argv[1]) == "debug-adapter") {
-        return foxlang::debug::runAdapter(std::vector<std::string>(args.begin() + 2, args.end()));
+        return skrumi::debug::runAdapter(std::vector<std::string>(args.begin() + 2, args.end()));
     }
 
     if (std::string(argv[1]) == "build") {
@@ -192,19 +193,19 @@ int main(int argc, char* argv[]) {
                 output = args[i];
             } else throw std::runtime_error("Build Error: unknown option '" + args[i] + "'");
         }
-        foxlang::bundle::build(foxlang::platform::pathFromUtf8(args[2]), foxlang::platform::pathFromUtf8(output), noConsole,
-                              foxlang::platform::pathFromUtf8(resources));
+        skrumi::bundle::build(skrumi::platform::pathFromUtf8(args[2]), skrumi::platform::pathFromUtf8(output), noConsole,
+                              skrumi::platform::pathFromUtf8(resources));
         return 0;
     }
 
-    auto launch = foxlang::cli::parseLaunch(std::vector<std::string>(args.begin() + 1, args.end()));
+    auto launch = skrumi::cli::parseLaunch(std::vector<std::string>(args.begin() + 1, args.end()));
     if (launch.interpreter.arguments.empty()) throw std::runtime_error("expected a script filename");
     std::string script = launch.interpreter.arguments.front();
     launch.interpreter.arguments.erase(launch.interpreter.arguments.begin());
-    foxlang::cli::configureConsole(launch.console);
-    runAndExit(launch.interpreter, [&](foxlang::Interpreter& interpreter) { return interpreter.runFile(script); });
+    skrumi::cli::configureConsole(launch.console);
+    runAndExit(launch.interpreter, [&](skrumi::Interpreter& interpreter) { return interpreter.runFile(script); });
     } catch (const std::exception& error) {
-        foxlang::cli::reportError(error.what());
+        skrumi::cli::reportError(error.what());
         return 1;
     }
 }

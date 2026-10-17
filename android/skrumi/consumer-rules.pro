@@ -1,0 +1,3 @@
+-keep class org.skrumi.android.Skrumi { *; }
+-keep interface org.skrumi.android.Skrumi$Host { *; }
+-keepclassmembers class * implements org.skrumi.android.Skrumi$Host { *; }

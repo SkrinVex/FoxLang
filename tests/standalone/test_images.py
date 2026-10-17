@@ -124,7 +124,7 @@ for y in reversed(range(HEIGHT)):
 bmp = b'BM' + struct.pack('<IHHI', 54 + len(rows), 0, 0, 54) + struct.pack('<IiiHHIIiiII', 40, WIDTH, HEIGHT, 1, 24, 0, len(rows), 0, 0, 0, 0) + rows
 cases.append(('bmp24', bmp, lambda x, y: ((rgb(x, y)[0] << 16) | (rgb(x, y)[1] << 8) | rgb(x, y)[2], 255)))
 
-with tempfile.TemporaryDirectory(prefix='fox-images-') as directory:
+with tempfile.TemporaryDirectory(prefix='skrumi-images-') as directory:
     root = Path(directory)
     lines = ['using graphics;']
     for name, data, _ in cases:
@@ -140,8 +140,8 @@ with tempfile.TemporaryDirectory(prefix='fox-images-') as directory:
     lines.append('write_file("bad.png", "\\x89PNG broken");')
     lines.append('try { int bad = load_image("bad.png"); } catch (e) { damaged = str_contains(e, "Graphics Error"); }')
     lines.append('print("damaged " + damaged);')
-    (root / 'main.fox').write_text('\n'.join(lines) + '\n', encoding='utf-8')
-    result = subprocess.run([binary, 'main.fox'], cwd=root, capture_output=True, text=True, encoding='utf-8')
+    (root / 'main.skm').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    result = subprocess.run([binary, 'main.skm'], cwd=root, capture_output=True, text=True, encoding='utf-8')
     assert result.returncode == 0, result.stderr
     printed = {line.split(' ', 1)[0]: line for line in result.stdout.splitlines()}
     for name, _, expect in cases:

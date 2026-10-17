@@ -1,8 +1,8 @@
 {
-  "name": "foxlang-language",
+  "name": "skrumi-language",
   "displayName": "Skrumi Programming Language",
   "description": "Официальная поддержка языка Skrumi для VS Code: подсветка, LSP (диагностика по всему проекту, автодополнение, наведение, переход к определению, подсказки параметров), отладчик (точки останова, шаги, переменные, консоль), запуск, проверка и сборка программ",
-  "version": "8.18.0",
+  "version": "9.0.0",
   "publisher": "SkrinVex",
   "license": "MIT",
   "homepage": "https://github.com/SkrinVex/Skrumi",
@@ -21,57 +21,53 @@
     "Debuggers"
   ],
   "keywords": [
-    "foxlang",
-    "fox",
+    "skrumi",
     "language server",
     "lsp",
     "debugger"
   ],
   "activationEvents": [
-    "onLanguage:fox",
-    "onCommand:foxlang.run",
-    "onCommand:foxlang.check",
-    "onCommand:foxlang.build",
-    "onCommand:foxlang.chooseEntry",
-    "onCommand:foxlang.debug",
-    "onDebugResolve:foxlang",
-    "onDebugDynamicConfigurations:foxlang"
+    "onLanguage:skrumi",
+    "onCommand:skrumi.run",
+    "onCommand:skrumi.check",
+    "onCommand:skrumi.build",
+    "onCommand:skrumi.chooseEntry",
+    "onCommand:skrumi.debug",
+    "onDebugResolve:skrumi",
+    "onDebugDynamicConfigurations:skrumi"
   ],
   "main": "./client/extension.js",
   "contributes": {
     "languages": [
       {
-        "id": "fox",
+        "id": "skrumi",
         "aliases": [
           "Skrumi",
-          "skrumi",
-          "FoxLang",
-          "fox"
+          "skrumi"
         ],
         "extensions": [
-          ".skm",
-          ".fox"
+          ".skm"
         ],
         "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
-        "language": "fox",
-        "scopeName": "source.fox",
-        "path": "./syntaxes/foxlang.tmLanguage.json"
+        "language": "skrumi",
+        "scopeName": "source.skm",
+        "path": "./syntaxes/skrumi.tmLanguage.json"
       }
     ],
     "configuration": {
       "type": "object",
       "title": "Skrumi",
       "properties": {
-        "foxlang.lsp.serverPath": {
+        "skrumi.lsp.serverPath": {
           "type": "string",
           "default": "skrumi-lsp",
           "description": "Путь к исполняемому файлу skrumi-lsp (по умолчанию ищется в PATH)."
         },
-        "foxlang.lsp.trace.server": {
+        "skrumi.lsp.trace.server": {
           "type": "string",
           "enum": [
             "off",
@@ -81,17 +77,17 @@
           "default": "off",
           "description": "Уровень трассировки сообщений между VS Code и skrumi-lsp."
         },
-        "foxlang.run.executablePath": {
+        "skrumi.run.executablePath": {
           "type": "string",
           "default": "skrumi",
           "description": "Путь к исполняемому файлу skrumi для запуска, проверки и сборки (по умолчанию ищется в build/ проекта, ~/.local/bin и PATH)."
         },
-        "foxlang.run.entryFile": {
+        "skrumi.run.entryFile": {
           "type": "string",
           "default": "",
           "description": "Главный файл программы относительно папки проекта. Пусто — запускается открытый файл. Удобно, когда main.skm подключает остальные файлы."
         },
-        "foxlang.run.arguments": {
+        "skrumi.run.arguments": {
           "type": "array",
           "items": {
             "type": "string"
@@ -103,36 +99,36 @@
     },
     "commands": [
       {
-        "command": "foxlang.run",
+        "command": "skrumi.run",
         "title": "Skrumi: запустить программу",
         "category": "Skrumi",
         "icon": "$(play)"
       },
       {
-        "command": "foxlang.debug",
+        "command": "skrumi.debug",
         "title": "Skrumi: отладить программу",
         "category": "Skrumi",
         "icon": "$(debug-alt)"
       },
       {
-        "command": "foxlang.check",
+        "command": "skrumi.check",
         "title": "Skrumi: проверить без запуска",
         "category": "Skrumi",
         "icon": "$(check)"
       },
       {
-        "command": "foxlang.build",
+        "command": "skrumi.build",
         "title": "Skrumi: собрать приложение",
         "category": "Skrumi",
         "icon": "$(package)"
       },
       {
-        "command": "foxlang.chooseEntry",
+        "command": "skrumi.chooseEntry",
         "title": "Skrumi: сделать этот файл главным",
         "category": "Skrumi"
       },
       {
-        "command": "foxlang.restartServer",
+        "command": "skrumi.restartServer",
         "title": "Skrumi: Перезапустить языковой сервер (LSP)",
         "category": "Skrumi"
       }
@@ -140,62 +136,62 @@
     "menus": {
       "editor/title/run": [
         {
-          "command": "foxlang.run",
-          "when": "editorLangId == fox",
+          "command": "skrumi.run",
+          "when": "editorLangId == skrumi",
           "group": "navigation@0"
         },
         {
-          "command": "foxlang.debug",
-          "when": "editorLangId == fox",
+          "command": "skrumi.debug",
+          "when": "editorLangId == skrumi",
           "group": "navigation@1"
         },
         {
-          "command": "foxlang.check",
-          "when": "editorLangId == fox",
+          "command": "skrumi.check",
+          "when": "editorLangId == skrumi",
           "group": "navigation@2"
         }
       ],
       "editor/context": [
         {
-          "command": "foxlang.run",
-          "when": "editorLangId == fox",
-          "group": "foxlang@1"
+          "command": "skrumi.run",
+          "when": "editorLangId == skrumi",
+          "group": "skrumi@1"
         },
         {
-          "command": "foxlang.debug",
-          "when": "editorLangId == fox",
-          "group": "foxlang@1"
+          "command": "skrumi.debug",
+          "when": "editorLangId == skrumi",
+          "group": "skrumi@1"
         },
         {
-          "command": "foxlang.check",
-          "when": "editorLangId == fox",
-          "group": "foxlang@2"
+          "command": "skrumi.check",
+          "when": "editorLangId == skrumi",
+          "group": "skrumi@2"
         },
         {
-          "command": "foxlang.chooseEntry",
-          "when": "editorLangId == fox",
-          "group": "foxlang@3"
+          "command": "skrumi.chooseEntry",
+          "when": "editorLangId == skrumi",
+          "group": "skrumi@3"
         }
       ],
       "explorer/context": [
         {
-          "command": "foxlang.chooseEntry",
-          "when": "resourceExtname == .skm || resourceExtname == .fox",
-          "group": "foxlang@1"
+          "command": "skrumi.chooseEntry",
+          "when": "resourceExtname == .skm",
+          "group": "skrumi@1"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "foxlang.run",
+        "command": "skrumi.run",
         "key": "ctrl+alt+r",
         "mac": "cmd+alt+r",
-        "when": "editorLangId == fox"
+        "when": "editorLangId == skrumi"
       }
     ],
     "taskDefinitions": [
       {
-        "type": "foxlang",
+        "type": "skrumi",
         "required": [
           "file"
         ],
@@ -226,8 +222,8 @@
     ],
     "problemMatchers": [
       {
-        "name": "foxlang",
-        "owner": "foxlang",
+        "name": "skrumi",
+        "owner": "skrumi",
         "source": "skrumi check",
         "fileLocation": "absolute",
         "pattern": {
@@ -240,13 +236,13 @@
         }
       },
       {
-        "name": "foxlang-runtime",
-        "owner": "foxlang",
+        "name": "skrumi-runtime",
+        "owner": "skrumi",
         "source": "Skrumi",
         "fileLocation": "absolute",
         "severity": "error",
         "pattern": {
-          "regexp": "^(?:Skrumi|FoxLang): (.+?):(\\d+): (.*)$",
+          "regexp": "^Skrumi: (.+?):(\\d+): (.*)$",
           "file": 1,
           "line": 2,
           "message": 3
@@ -255,15 +251,15 @@
     ],
     "breakpoints": [
       {
-        "language": "fox"
+        "language": "skrumi"
       }
     ],
     "debuggers": [
       {
-        "type": "foxlang",
+        "type": "skrumi",
         "label": "Skrumi",
         "languages": [
-          "fox"
+          "skrumi"
         ],
         "configurationAttributes": {
           "launch": {
@@ -273,7 +269,7 @@
             "properties": {
               "program": {
                 "type": "string",
-                "description": "Главный файл программы .skm или .fox.",
+                "description": "Главный файл программы .skm.",
                 "default": "${file}"
               },
               "args": {
@@ -306,7 +302,7 @@
         },
         "initialConfigurations": [
           {
-            "type": "foxlang",
+            "type": "skrumi",
             "request": "launch",
             "name": "Skrumi: текущий файл",
             "program": "${file}"
@@ -317,7 +313,7 @@
             "label": "Skrumi: отладка программы",
             "description": "Запуск программы Skrumi под отладчиком",
             "body": {
-              "type": "foxlang",
+              "type": "skrumi",
               "request": "launch",
               "name": "Skrumi: ${1:main.skm}",
               "program": "^\"\\${workspaceFolder}/${1:main.skm}\"",

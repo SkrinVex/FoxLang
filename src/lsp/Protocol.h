@@ -2,9 +2,9 @@
 #include <string>
 #include <vector>
 #include "Json.h"
-#include "foxlang/SourceLocation.h"
+#include "skrumi/SourceLocation.h"
 
-namespace foxlang {
+namespace skrumi {
 namespace lsp {
 
 struct LspPosition {
@@ -63,7 +63,7 @@ struct LspDiagnostic {
     LspRange range;
     int severity = 1; // 1 = Error, 2 = Warning, 3 = Info, 4 = Hint
     std::string message;
-    std::string source = "foxlang";
+    std::string source = "skrumi";
 
     JsonValue toJson() const {
         std::map<std::string, JsonValue> obj;
@@ -134,4 +134,4 @@ struct LspDocumentSymbol {
 };
 
 } // namespace lsp
-} // namespace foxlang
+} // namespace skrumi

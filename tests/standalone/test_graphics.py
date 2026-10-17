@@ -10,7 +10,7 @@ from native_window import NativeWindow
 
 binary=Path(sys.argv[1]).resolve()
 if os.name!='nt' and not os.environ.get('DISPLAY'):
-    if os.environ.get('FOXLANG_REQUIRE_GRAPHICS_TESTS')=='1':
+    if os.environ.get('SKRUMI_REQUIRE_GRAPHICS_TESTS')=='1':
         raise RuntimeError('Native graphics tests require an X server (run under xvfb-run)')
     print('SKIP: no DISPLAY; use xvfb-run or a desktop session')
     sys.exit(77)
@@ -25,14 +25,14 @@ def wait_for(predicate, process, label):
     raise AssertionError('Timed out: '+label)
 
 
-with tempfile.TemporaryDirectory(prefix='fox-native-window-') as directory:
+with tempfile.TemporaryDirectory(prefix='skrumi-native-window-') as directory:
     root=Path(directory)
     dev=root/'developer'; clean=root/'recipient'
     dev.mkdir();clean.mkdir()
-    cli=dev/('foxlang.exe' if os.name=='nt' else 'foxlang')
+    cli=dev/('skrumi.exe' if os.name=='nt' else 'skrumi')
     shutil.copy2(binary,cli)
     title='Fox Graphics Test '+root.name
-    source=dev/'main.fox'
+    source=dev/'main.skm'
     source.write_text('''using graphics;
 open_window(320, 240, "'''+title+'''");
 array metrics = desktop_metrics();
@@ -73,7 +73,7 @@ print("GRAPHICS_STANDALONE_OK");
     header=b'BM'+(54+len(pixels)).to_bytes(4,'little')+bytes(4)+(54).to_bytes(4,'little')
     info=(40).to_bytes(4,'little')+(32).to_bytes(4,'little')+(16).to_bytes(4,'little')+(1).to_bytes(2,'little')+(24).to_bytes(2,'little')+bytes(24)
     (clean/'tiles.bmp').write_bytes(header+info+pixels)
-    env={**os.environ,'PATH':'','FOXLANG_HOME':str(root/'absent')}
+    env={**os.environ,'PATH':'','SKRUMI_HOME':str(root/'absent')}
     process=subprocess.Popen([str(app)],cwd=clean,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8')
     driver=None
     try:

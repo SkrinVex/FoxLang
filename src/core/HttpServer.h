@@ -1,12 +1,12 @@
 #pragma once
-#include "foxlang/Platform.h"
+#include "skrumi/Platform.h"
 #include <map>
 #include <string>
 #include <vector>
 
 // Pieces of HTTP that handlers and the server loop share: URL coding, forms,
 // multipart uploads, cookies, MIME types and file replies.
-namespace foxlang::http {
+namespace skrumi::http {
 
 std::string percentDecode(const std::string& text, bool plusIsSpace);
 std::string percentEncode(const std::string& text);
@@ -31,4 +31,4 @@ bool sendFile(platform::HttpReply& reply, const std::string& path, const std::st
 
 bool validHeaderText(const std::string& text);
 
-} // namespace foxlang::http
+} // namespace skrumi::http

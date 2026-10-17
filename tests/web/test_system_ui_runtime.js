@@ -33,22 +33,22 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
     canvasPoll: async () => {
       await new Promise(resolve => setTimeout(resolve, 0));
       ++polls;
-      if (polls === 2) for (let i = 0; i < 3; i++) app._foxlang_close();
-      if (polls === 4) app._foxlang_close();
-      if (polls === 5) app._foxlang_key(27, 1);
-      if (polls === 6) app._foxlang_key(27, 0);
+      if (polls === 2) for (let i = 0; i < 3; i++) app._skrumi_close();
+      if (polls === 4) app._skrumi_close();
+      if (polls === 5) app._skrumi_key(27, 1);
+      if (polls === 6) app._skrumi_key(27, 0);
     },
   });
   app.FS.writeFile('/font.ttf', fs.readFileSync(path.join(__dirname, '../../installer/assets/DejaVuSans.ttf')));
-  app.FS.writeFile('/choice.fox', 'string selected() { return "legacy"; }');
+  app.FS.writeFile('/choice.skm', 'string selected() { return "legacy"; }');
   app.FS.writeFile('/choice.skm', 'string selected() { return "modern"; }');
-  for (const [suffix, expected] of [['.fox', 'legacy'], ['.skm', 'modern']]) {
+  for (const [suffix, expected] of [['.skm', 'legacy'], ['.skm', 'modern']]) {
     const filename = '/imports' + suffix;
     app.FS.writeFile(filename, `using choice; if (selected() != "${expected}") { fail("import precedence"); }
-      using ui; UI_ACCENT = 123; include("std/ui.fox"); include("std/ui.skm");
-      using ui.fox as legacy_ui;
+      using ui; UI_ACCENT = 123; include("std/ui.skm"); include("std/ui.skm");
+      using ui.skm as legacy_ui;
       if (UI_ACCENT != 123 || legacy_ui.ui_progress_fraction(50, 0, 100) != 0.5) { fail("stdlib alias"); }`);
-    assert.equal(await app.ccall('foxlang_run', 'number', ['string', 'string'], [filename, ''], {async: true}), 0, log);
+    assert.equal(await app.ccall('skrumi_run', 'number', ['string', 'string'], [filename, ''], {async: true}), 0, log);
   }
   for (const operation of ['process_start("program", [], 1000)', 'os_user_dir("home")',
     'registry_user_snapshot("Software\\\\App", "name")',
@@ -56,7 +56,7 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
     app.FS.writeFile('/unavailable.skm', `bool refused = false;
       try { ${operation}; } catch (string e) { refused = str_contains(e, "unavailable"); }
       if (!refused) { fail("browser operation must explicitly fail"); }`);
-    assert.equal(await app.ccall('foxlang_run', 'number', ['string', 'string'],
+    assert.equal(await app.ccall('skrumi_run', 'number', ['string', 'string'],
       ['/unavailable.skm', ''], {async: true}), 0, operation + log);
   }
   app.FS.writeFile('/main.skm', `using ui;
@@ -104,7 +104,7 @@ const create = require(path.resolve(process.argv[2] || 'site/playground', 'skrum
     close_window(); free_font(font);
     if (requests != 2 || cancelled != 1) { fail("close state mismatch"); }
     print("SYSTEM_UI_WEB_OK");`);
-  assert.equal(await app.ccall('foxlang_run', 'number', ['string', 'string'], ['/main.skm', ''], {async: true}), 0, log);
+  assert.equal(await app.ccall('skrumi_run', 'number', ['string', 'string'], ['/main.skm', ''], {async: true}), 0, log);
   assert.equal(frames, 7);
   assert(log.includes('SYSTEM_UI_WEB_OK'), log);
   assert(!app.FS.analyzePath('/state').exists);

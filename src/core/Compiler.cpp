@@ -2,15 +2,15 @@
 // program top level at a time. The resolver has already numbered the local variables;
 // they become the first registers of the frame. Everything a statement computes on
 // the way lives in temporaries above them, freed when the statement ends.
-#include "foxlang/Bytecode.h"
-#include "foxlang/AST.h"
-#include "foxlang/Resolver.h"
+#include "skrumi/Bytecode.h"
+#include "skrumi/AST.h"
+#include "skrumi/Resolver.h"
 #include <algorithm>
 #include <cstring>
 #include <map>
 #include <stdexcept>
 
-namespace foxlang::bytecode {
+namespace skrumi::bytecode {
 namespace {
 
 // Constant registers are numbered from here while compiling, and placed after the
@@ -1468,4 +1468,4 @@ void disassemble(const Proto& proto, std::ostream& out) {
             << handler.target << "\n";
 }
 
-} // namespace foxlang::bytecode
+} // namespace skrumi::bytecode
