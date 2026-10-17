@@ -112,7 +112,24 @@ with tempfile.TemporaryDirectory(prefix='skrumi-gui-') as temporary:
         assert {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()} == baseline
         subprocess.run([str(app), '--headless', 'uninstall', str(target)], check=True, timeout=30)
         assert not (target/('skrumi'+suffix)).exists()
+        print('INSTALLER_GUI_SCENARIOS_OK', flush=True)
     finally:
         if process.poll() is None: process.kill(); process.communicate()
         window.dispose()
+        # communicate() waits for exit but Popen still owns a Windows process
+        # handle. Release that last reference before deleting its executable.
+        process = None
+        if os.name == 'nt':
+            # Windows can retain an exited image briefly (including scanner
+            # handles). Retry only deletion of our fixture, only for sharing
+            # violations, and still fail if the lock persists. Never ignore it.
+            deadline = time.monotonic() + 5
+            while True:
+                try:
+                    app.unlink()
+                    break
+                except PermissionError as error:
+                    if error.winerror != 32 or time.monotonic() >= deadline:
+                        raise
+                    time.sleep(.05)
 print('INSTALLER_GUI_OK')
